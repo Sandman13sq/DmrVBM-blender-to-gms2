@@ -1,9 +1,11 @@
 {
   "resources": [
+    {"id":{"name":"shd_default","path":"shaders/shd_default/shd_default.yy",},"order":1,},
     {"id":{"name":"scr_layout","path":"scripts/scr_layout/scr_layout.yy",},"order":0,},
     {"id":{"name":"obj_main","path":"objects/obj_main/obj_main.yy",},"order":0,},
     {"id":{"name":"scr_debug","path":"scripts/scr_debug/scr_debug.yy",},"order":1,},
     {"id":{"name":"shd_model","path":"shaders/shd_model/shd_model.yy",},"order":0,},
+    {"id":{"name":"scr_rendering","path":"scripts/scr_rendering/scr_rendering.yy",},"order":4,},
     {"id":{"name":"fnt_default","path":"fonts/fnt_default/fnt_default.yy",},"order":0,},
     {"id":{"name":"obj_modeltest","path":"objects/obj_modeltest/obj_modeltest.yy",},"order":1,},
     {"id":{"name":"spr_layoutbox","path":"sprites/spr_layoutbox/spr_layoutbox.yy",},"order":0,},
@@ -42,7 +44,6 @@
     {"folderPath":"folders/Animation Curves.yy","order":12,"resourceVersion":"1.0","name":"Animation Curves","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Notes.yy","order":13,"resourceVersion":"1.0","name":"Notes","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Extensions.yy","order":14,"resourceVersion":"1.0","name":"Extensions","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Scripts/Rendering.yy","order":2,"resourceVersion":"1.0","name":"Rendering","tags":[],"resourceType":"GMFolder",},
   ],
   "AudioGroups": [
     {"targets":-1,"resourceVersion":"1.3","name":"audiogroup_default","resourceType":"GMAudioGroup",},
