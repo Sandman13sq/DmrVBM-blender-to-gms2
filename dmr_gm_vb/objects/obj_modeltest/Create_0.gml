@@ -30,7 +30,9 @@ camera = [
 
 vb = OpenVB(vbf_model, "curly.vb");
 vb_grid = CreateGridVB(40, 16);
-vbx = 0;
+vbx = LoadVertexBufferExt("curly.vbx", vbf_model);
+
+vbmode = 1;
 
 zfar = 1000;
 znear = 1;

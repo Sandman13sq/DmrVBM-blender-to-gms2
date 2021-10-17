@@ -1,6 +1,7 @@
 {
   "resources": [
     {"id":{"name":"shd_default","path":"shaders/shd_default/shd_default.yy",},"order":1,},
+    {"id":{"name":"scr_dmr_vbx","path":"scripts/scr_dmr_vbx/scr_dmr_vbx.yy",},"order":0,},
     {"id":{"name":"scr_layout","path":"scripts/scr_layout/scr_layout.yy",},"order":0,},
     {"id":{"name":"obj_main","path":"objects/obj_main/obj_main.yy",},"order":0,},
     {"id":{"name":"scr_debug","path":"scripts/scr_debug/scr_debug.yy",},"order":1,},
@@ -9,7 +10,7 @@
     {"id":{"name":"fnt_default","path":"fonts/fnt_default/fnt_default.yy",},"order":0,},
     {"id":{"name":"obj_modeltest","path":"objects/obj_modeltest/obj_modeltest.yy",},"order":1,},
     {"id":{"name":"spr_layoutbox","path":"sprites/spr_layoutbox/spr_layoutbox.yy",},"order":0,},
-    {"id":{"name":"scr_vb","path":"scripts/scr_vb/scr_vb.yy",},"order":3,},
+    {"id":{"name":"scr_dmr_vb","path":"scripts/scr_dmr_vb/scr_dmr_vb.yy",},"order":0,},
     {"id":{"name":"Room1","path":"rooms/Room1/Room1.yy",},"order":0,},
   ],
   "Options": [
@@ -31,19 +32,15 @@
   ],
   "Folders": [
     {"folderPath":"folders/Sprites.yy","order":1,"resourceVersion":"1.0","name":"Sprites","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Tile Sets.yy","order":2,"resourceVersion":"1.0","name":"Tile Sets","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Sounds.yy","order":3,"resourceVersion":"1.0","name":"Sounds","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Paths.yy","order":4,"resourceVersion":"1.0","name":"Paths","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Scripts.yy","order":5,"resourceVersion":"1.0","name":"Scripts","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Shaders.yy","order":6,"resourceVersion":"1.0","name":"Shaders","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Fonts.yy","order":7,"resourceVersion":"1.0","name":"Fonts","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Timelines.yy","order":8,"resourceVersion":"1.0","name":"Timelines","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Objects.yy","order":9,"resourceVersion":"1.0","name":"Objects","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Rooms.yy","order":10,"resourceVersion":"1.0","name":"Rooms","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Sequences.yy","order":11,"resourceVersion":"1.0","name":"Sequences","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Animation Curves.yy","order":12,"resourceVersion":"1.0","name":"Animation Curves","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Notes.yy","order":13,"resourceVersion":"1.0","name":"Notes","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Extensions.yy","order":14,"resourceVersion":"1.0","name":"Extensions","tags":[],"resourceType":"GMFolder",},
+    {"folderPath":"folders/Scripts/dmr.yy","order":5,"resourceVersion":"1.0","name":"dmr","tags":[],"resourceType":"GMFolder",},
+    {"folderPath":"folders/DmrVB.yy","order":14,"resourceVersion":"1.0","name":"DmrVB","tags":[],"resourceType":"GMFolder",},
   ],
   "AudioGroups": [
     {"targets":-1,"resourceVersion":"1.3","name":"audiogroup_default","resourceType":"GMAudioGroup",},
@@ -53,6 +50,7 @@
   ],
   "IncludedFiles": [
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly.vb","resourceType":"GMIncludedFile",},
+    {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly.vbx","resourceType":"GMIncludedFile",},
   ],
   "MetaData": {
     "IDEVersion": "2.3.5.589",

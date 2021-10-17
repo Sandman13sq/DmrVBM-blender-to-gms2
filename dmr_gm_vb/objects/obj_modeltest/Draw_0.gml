@@ -30,7 +30,18 @@ gpu_set_zwriteenable(1);
 matrix_set(matrix_world, mattran);
 shader_set_uniform_f_array(u_drawmatrix, drawmatrix);
 shader_set_uniform_f_array(u_camera, camera);
-vertex_submit(vb, pr_trianglelist, -1);
+
+if vbmode == 0
+{
+	vertex_submit(vb, pr_trianglelist, -1);
+}
+else
+{
+	for (var i = 0; i < vbx.vbcount; i++)
+	{
+		vertex_submit(vbx.vb[i], pr_trianglelist, -1);	
+	}
+}
 
 shader_reset();
 

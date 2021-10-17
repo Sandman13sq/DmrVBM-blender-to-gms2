@@ -2,11 +2,11 @@
   "isDnD": false,
   "isCompatibility": false,
   "parent": {
-    "name": "Scripts",
-    "path": "folders/Scripts.yy",
+    "name": "DmrVB",
+    "path": "folders/DmrVB.yy",
   },
   "resourceVersion": "1.0",
-  "name": "scr_vb",
+  "name": "scr_dmr_vb",
   "tags": [],
   "resourceType": "GMScript",
 }
