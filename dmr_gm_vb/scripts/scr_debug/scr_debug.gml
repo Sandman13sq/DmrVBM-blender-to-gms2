@@ -54,6 +54,22 @@ function cout()
 }
 
 /// @arg string_with_%s,value,value,...
+function stringf()
+{
+	var _str = string(argument[0]), i = 1;
+		
+	// While %'s exist in string...
+	while ( string_count("%", _str) && i < argument_count )
+	{
+		_str = updatef(_str, argument[i]);
+		i++;
+	}
+	
+	return _str;
+}
+
+
+/// @arg string_with_%s,value,value,...
 function printf()
 {
 	var _str = string(argument[0]), i = 1;

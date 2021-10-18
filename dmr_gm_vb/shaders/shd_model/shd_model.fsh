@@ -2,6 +2,7 @@
 // Simple passthrough fragment shader
 //
 
+// Passed from Vertex Shader
 varying vec3 v_pos;
 varying vec2 v_uv;
 varying vec4 v_color;
@@ -10,19 +11,17 @@ varying vec3 v_nor;
 uniform vec3 u_camera[2]; // [pos, dir, light]
 uniform vec4 u_drawmatrix[4]; // [alpha emission shine ??? colorfill[4] colorblend[4]]
 
-const vec3 FY = vec3(1.0, -1.0, 1.0);
-
 void main()
 {
 	vec3 l = normalize(vec3(0.5, -3.0, 2.0));
 	vec3 n = v_nor;
-	vec3 c = normalize(u_camera[0]*FY-v_pos);
+	vec3 c = normalize(u_camera[0]-v_pos);
 	
 	float dp = clamp(dot(n, l), 0.0, 1.0);
 	dp = pow(dp, 0.5);
 	
 	float fresnel = dot(n, c);
-	fresnel = float(fresnel <= 0.3);
+	//fresnel = float(fresnel >= 0.3);
 	
 	float shine = pow(dp + 0.01, 512.0);
 	
@@ -46,7 +45,7 @@ void main()
 	//gl_FragColor = vec4(vec3(dp), 1.0);
 	//gl_FragColor.r += fresnel;
 	//gl_FragColor.b += shine;
-	//gl_FragColor = vec4(vec3(fresnel), 1.0);
+	gl_FragColor = vec4(vec3(fresnel), 1.0);
 	//gl_FragColor = vec4(vec3(shine), 1.0);
 	//gl_FragColor = vec4(vec2(v_vTexcoord), 0.0, 1.0);
 }

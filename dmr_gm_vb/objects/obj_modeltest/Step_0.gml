@@ -1,7 +1,18 @@
 /// @desc
 
-camera[0] += keyboard_check(ord("D")) - keyboard_check(ord("A"));
-camera[1] += keyboard_check(ord("W")) - keyboard_check(ord("S"));
+vbmode ^= keyboard_check_pressed(vk_space);
+
+var lev = keyboard_check_pressed(ord("X")) - keyboard_check_pressed(ord("Z"));
+if lev != 0
+{
+	trackpos = (trackpos+lev) mod trackdata.markercount;
+	if trackpos < 0 {trackpos = trackdata.markercount-1;}
+	
+	EvaluateAnimationTracks(trackdata.markerpositions[trackpos], 0, vbx.bonenames, trackdata, inpose);
+	CalculateAnimationPose(
+		vbx.bone_parentindices, vbx.bone_localmatricies, vbx.bone_inversematricies, 
+		inpose, matpose);
+}
 
 x += keyboard_check(vk_right) - keyboard_check(vk_left);
 y += keyboard_check(vk_up) - keyboard_check(vk_down);
@@ -18,7 +29,29 @@ camera[3] /= d;
 camera[4] /= d;
 camera[5] /= d;
 
+mouselook.Update(mouse_check_button(mb_middle));
+var fwrd = mouselook.viewforward;
+var rght = mouselook.viewright;
+
+var lev = keyboard_check(ord("W")) - keyboard_check(ord("S"));
+if lev != 0
+{
+	camera[0] += fwrd[0] * lev;
+	camera[1] += fwrd[1] * lev;
+	camera[2] += fwrd[2] * lev;
+}
+
+var lev = keyboard_check(ord("D")) - keyboard_check(ord("A"));
+if lev != 0
+{
+	camera[0] -= rght[0] * lev;
+	camera[1] -= rght[1] * lev;
+	//camera[2] += rght[2] * lev;
+}
+
 matview = matrix_build_lookat(
 	camera[0], camera[1], camera[2], 
-	camera[0]+camera[3], camera[1]+camera[4], camera[2]+camera[5], 
+	camera[0]+fwrd[0], camera[1]+fwrd[1], camera[2]+fwrd[2], 
 	0, 0, 1);
+// Correct Yflip
+matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
