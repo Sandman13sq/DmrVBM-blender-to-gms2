@@ -1,14 +1,12 @@
 /// @desc
 
-vbmode ^= keyboard_check_pressed(vk_space);
+vbmode ^= keyboard_check_pressed(ord("M"));
+isplaying ^= keyboard_check_pressed(vk_space);
 
-var lev = keyboard_check_pressed(ord("X")) - keyboard_check_pressed(ord("Z"));
-if lev != 0
+if isplaying
 {
-	trackpos = (trackpos+lev) mod trackdata.markercount;
-	if trackpos < 0 {trackpos = trackdata.markercount-1;}
-	
-	EvaluateAnimationTracks(trackdata.markerpositions[trackpos], 0, vbx.bonenames, trackdata, inpose);
+	trackpos = Modulo(trackpos+trackposspeed, 1);
+	EvaluateAnimationTracks(trackpos, 1, vbx.bonenames, trackdata, inpose);
 	CalculateAnimationPose(
 		vbx.bone_parentindices, vbx.bone_localmatricies, vbx.bone_inversematricies, 
 		inpose, matpose);

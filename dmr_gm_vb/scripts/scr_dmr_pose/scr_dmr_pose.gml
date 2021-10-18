@@ -315,13 +315,13 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				posnext = trackframes[findexnext];	// Position of next keyframe
 			
 				// Find Blend amount (Map "pos" distance to [0-1] value)
-				if poscurr == posnext {blendamt = 1;} // Same frame
+				if poscurr >= posnext {blendamt = 1;} // Same frame
 				else {blendamt = (pos - poscurr) / (posnext - poscurr);} // More than one unit difference
 				
 				// Apply Interpolation
 				switch(interpolationtype)
 				{
-					case(AniTrack_Intrpl.constant): blendamt = 0; break;
+					case(AniTrack_Intrpl.constant): blendamt = blendamt >= 0.99; break;
 					case(AniTrack_Intrpl.linear): blendamt = blendamt; break;
 					case(AniTrack_Intrpl.smooth): blendamt = 0.5*(1-cos(pi*blendamt)); break;
 				}
@@ -455,9 +455,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 						break;
 				}
 				
-				continue;
-				
-				if bonekeys[b] == "arm_l" && ttype == 2
+				if bonekeys[b] == "h_cheek_l" && ttype == 2
 				{
 					execinfo = "";
 					execinfo += stringf("Current Pos: %F", pos) + "\n";

@@ -12,6 +12,7 @@
     {"id":{"name":"scr_rendering","path":"scripts/scr_rendering/scr_rendering.yy",},"order":4,},
     {"id":{"name":"fnt_default","path":"fonts/fnt_default/fnt_default.yy",},"order":0,},
     {"id":{"name":"scr_dmr_quat","path":"scripts/scr_dmr_quat/scr_dmr_quat.yy",},"order":3,},
+    {"id":{"name":"scr_maths","path":"scripts/scr_maths/scr_maths.yy",},"order":7,},
     {"id":{"name":"obj_modeltest","path":"objects/obj_modeltest/obj_modeltest.yy",},"order":1,},
     {"id":{"name":"spr_layoutbox","path":"sprites/spr_layoutbox/spr_layoutbox.yy",},"order":0,},
     {"id":{"name":"scr_dmr_pose","path":"scripts/scr_dmr_pose/scr_dmr_pose.yy",},"order":1,},

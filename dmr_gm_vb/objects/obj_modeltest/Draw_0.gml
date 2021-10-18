@@ -56,6 +56,5 @@ gpu_pop_state();
 
 draw_text(300, 200, camera);
 draw_text(300, 220, [x, y, z]);
-draw_text(300, 240, trackpos);
-draw_text(300, 256, mouselook.viewright);
+draw_text(300, 240, stringf("Trackpos: %s", trackpos));
 draw_text(300, 16, execinfo);

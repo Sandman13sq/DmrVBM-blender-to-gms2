@@ -14,6 +14,36 @@ QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001];
 
 ANIVERSION = 1;
 
+"""
+    header = 'ANI<version>'
+    
+    flag
+        1<<0 = Frames are normalized
+    maxframe
+    trackcount
+    tracknames[trackcount]
+    trackdata[trackcount]
+        location_framecount
+        location_framepositions[location_framecount]
+        location_vectors[location_framecount]
+            vector[3]
+        
+        quaternion_framecount
+        quaternion_framepositions[quaternion_framecount]
+        quaternion_vectors[quaternion_framecount]
+            vector[4]
+        
+        scale_framecount
+        scale_framepositions[scale_framecount]
+        scale_vectors[scale_framecount]
+            vector[3]
+    
+    markercount
+    markernames[markercount]
+    markerframepositions[markercount]
+    
+"""
+
 # =============================================================================
 
 #def ExportAction(settings = {}):
@@ -199,6 +229,18 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         default=True,
     );
     
+    makestartframe: BoolProperty(
+        name="Starting Keyframe",
+        description="Insert a keyframe at the start of the animation",
+        default=True,
+    );
+    
+    makeendframe: BoolProperty(
+        name="Ending Keyframe",
+        description="Insert a keyframe at the end of the animation",
+        default=False,
+    );
+    
     def execute(self, context):
         # Find Armature
         object = bpy.context.object;
@@ -211,7 +253,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         
         # Find Last Action
         poselibonly = 0;
-        if not object.animation_data and object.animation_data.action:
+        if not (object.animation_data and object.animation_data.action):
             lastaction = None;
             poselibonly = 1;
         else:
@@ -281,47 +323,45 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         posebones = object.pose.bones;
         posesnap = {};
         
-        for f in range(int(framerange[0]), int(framerange[1])):
-            context.scene.frame_set(f);
-            bpy.context.view_layer.update();
-            posesnap[f] = {
-                #pb.name: (pb.location[:], pb.rotation_quaternion[:], pb.scale[:])
-                pb.name: object.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL').decompose()
+        SnapPose = lambda : {
+            #pb.name: (pb.location[:], pb.rotation_quaternion[:], pb.scale[:])
+            pb.name: object.convert_space(
+                pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL').decompose()
                 for pb in posebones
             };
         
+        if not poselibonly:
+            for f in range(int(framerange[0]), int(framerange[1])):
+                context.scene.frame_set(f);
+                bpy.context.view_layer.update();
+                posesnap[f] = SnapPose();
+        else:
+            lastobjectmode = bpy.context.active_object.mode;
+            bpy.ops.object.mode_set(mode = 'POSE'); # Update selected
+            
+            selected = [b for b in bones if b.select];
+            hidden = [b for b in bones if b.hide];
+            for b in hidden:
+                b.hide = False;
+            
+            markers = action.pose_markers;
+            bpy.ops.pose.select_all(action='SELECT');
+            for m in markers:
+                print(m.name);
+                bpy.ops.poselib.apply_pose(pose_index=m.frame);
+                posesnap[m.frame] = SnapPose();
+            bpy.ops.pose.select_all(action='DESELECT');
+            
+            for b in hidden:
+                b.hide = True;
+            for b in selected:
+                b.select = True;
+            
+            bpy.ops.object.mode_set(mode = lastobjectmode);
+            
+        
         # Compose data ------------------------------------------------------
         print('> Composing data...');
-        
-        """
-            header = 'ANI<version>'
-            
-            flag
-                1<<0 = Frames are normalized
-            maxframe
-            trackcount
-            tracknames[trackcount]
-            trackdata[trackcount]
-                location_framecount
-                location_framepositions[location_framecount]
-                location_vectors[location_framecount]
-                    vector[3]
-                
-                quaternion_framecount
-                quaternion_framepositions[quaternion_framecount]
-                quaternion_vectors[quaternion_framecount]
-                    vector[4]
-                
-                scale_framecount
-                scale_framepositions[scale_framecount]
-                scale_vectors[scale_framecount]
-                    vector[3]
-            
-            markercount
-            markernames[markercount]
-            markerframepositions[markercount]
-            
-        """
         
         out = b'';
         
@@ -342,6 +382,9 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         out += b''.join( [PackString(b.name) for b in bones] );
         
         # Track Data
+        if poselibonly:
+            print("> Pose library only");
+        print('Action = "%s", Range: %s' % (action.name, framerange));
         print('> Writing Tracks...');
         
         for b in bones: # For each bone (track)
@@ -359,11 +402,18 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
                 
                 # Merge keyframe positions for each track in transform
                 # [location[0].frames + location[1].frames + location[2].frames]
-                trackframes = list(set([
+                trackframes = set([
                     int(k.co[0])
                     for curve in curveset
                     for k in (curve.keyframe_points if curve else [])
-                ]));
+                ]);
+                
+                if self.makestartframe:
+                    trackframes.add(framerange[0]);
+                if self.makeendframe:
+                    trackframes.add(framerange[1]);
+                    
+                trackframes = list(trackframes);
                 trackframes.sort();
                 
                 # Manual Sampling
@@ -414,12 +464,20 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             print('> Writing Marker Data...');
             
             markers = lastaction.pose_markers;
-            print([(m.name, m.frame) for m in markers]);
             out += Pack('H', len(markers));
             # Write Marker Names
             out += b''.join( [PackString(m.name) for m in markers] );
             # Write Marker Frame Positions
-            out += b''.join( [Pack('f', (m.frame+frameoffset)/framemax) for m in markers] );
+            if self.normalizeframes:
+                out += b''.join( [Pack('f', (m.frame+frameoffset)/framemax) for m in markers] );
+                print("Markers: %s" % 
+                    ''.join(["(%s %.4f), " % (m.name, (m.frame+frameoffset)/framemax) for m in markers])
+                );
+            else:
+                out += b''.join( [Pack('f', m.frame+frameoffset) for m in markers] );
+                print("Markers: %s" % 
+                    ''.join(["(%s: %.4f), " % (m.name, (m.frame+frameoffset)) for m in markers])
+                );
         else:
             out += Pack('H', 0);
         

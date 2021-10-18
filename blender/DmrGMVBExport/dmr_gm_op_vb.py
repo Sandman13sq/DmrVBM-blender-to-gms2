@@ -278,12 +278,12 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         description='Data to write for each vertex', items=VBFItems, default=key);
     vbf0 : VbfProp(0, VBF_POS);
     vbf1 : VbfProp(1, VBF_NOR);
-    vbf2 : VbfProp(2, VBF_TAN);
-    vbf3 : VbfProp(3, VBF_BTN);
-    vbf4 : VbfProp(4, VBF_CO2);
-    vbf5 : VbfProp(5, VBF_TEX);
-    vbf6 : VbfProp(6, VBF_BON);
-    vbf7 : VbfProp(7, VBF_WEI);
+    vbf2 : VbfProp(2, VBF_CO2);
+    vbf3 : VbfProp(3, VBF_TEX);
+    vbf4 : VbfProp(4, VBF_BON);
+    vbf5 : VbfProp(5, VBF_WEI);
+    vbf6 : VbfProp(6, VBF_000);
+    vbf7 : VbfProp(7, VBF_000);
     
     uvlayerpick: bpy.props.EnumProperty(
         name="Target UV Layer", 

@@ -68,7 +68,12 @@ for (var i = 200-1; i >= 0; i--)
 	{inpose[i] = matrix_build_identity();}
 matpose = array_create(200*16);
 trackdata = LoadAniTrack("curly.trk");
+trackposindex = 0;
 trackpos = 0;
+trackposspeed = (trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
+isplaying = 1;
+
+printf(trackdata.markerpositions);
 
 execinfo = "";
 
