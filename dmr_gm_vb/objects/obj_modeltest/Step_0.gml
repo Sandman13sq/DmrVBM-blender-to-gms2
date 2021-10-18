@@ -2,11 +2,20 @@
 
 vbmode ^= keyboard_check_pressed(ord("M"));
 isplaying ^= keyboard_check_pressed(vk_space);
+keymode ^= keyboard_check_pressed(ord("K"));
 
-if isplaying
+var lev = 0;
+if isplaying {lev = trackposspeed;}
+else {lev = trackposspeed*LevKeyPressed(VKey.greaterThan, VKey.lessThan);}
+
+if lev != 0
 {
-	trackpos = Modulo(trackpos+trackposspeed, 1);
-	EvaluateAnimationTracks(trackpos, 1, vbx.bonenames, trackdata, inpose);
+	trackpos += lev;
+	if trackpos < trackdata.positionrange[0] {trackpos = trackdata.positionrange[1];}
+	if trackpos > trackdata.positionrange[1] {trackpos = trackdata.positionrange[0];}
+	
+	EvaluateAnimationTracks(lerp(trackdata.positionrange[0], trackdata.positionrange[1], trackpos), 
+		1, keymode? vbx.bonenames: 0, trackdata, inpose);
 	CalculateAnimationPose(
 		vbx.bone_parentindices, vbx.bone_localmatricies, vbx.bone_inversematricies, 
 		inpose, matpose);

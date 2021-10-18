@@ -19,7 +19,7 @@ function VBXData() constructor
 	vbmap = {};	// {vbname: vertex_buffer} for each vb
 	vbnames = [];	// Names corresponding to buffers
 	vbcount = 0;
-		
+	
 	bone_parentindices = [];	// Parent transform corresponding to each bone
 	bone_localmatricies = [];	// Local transform corresponding to each bone
 	bone_inversematricies = [];	// Inverse transform corresponding to each bone

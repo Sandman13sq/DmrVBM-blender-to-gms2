@@ -55,6 +55,7 @@ matrix_set(matrix_projection, oldmats[0]);
 gpu_pop_state();
 
 draw_text(300, 200, camera);
-draw_text(300, 220, [x, y, z]);
-draw_text(300, 240, stringf("Trackpos: %s", trackpos));
+draw_text(300, 216, [x, y, z]);
+draw_text(300, 232, stringf("Trackpos: %s", trackpos));
+draw_text(300, 248, stringf("Parsemode: %s", keymode? "name": "index"));
 draw_text(300, 16, execinfo);

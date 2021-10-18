@@ -55,6 +55,7 @@ vb_grid = CreateGridVB(40, 16);
 vbx = LoadVBX("curly.vbx", vbf_rigged);
 
 vbmode = 1;
+keymode = 0;
 
 zfar = 1000;
 znear = 5;
@@ -74,6 +75,7 @@ trackposspeed = (trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackd
 isplaying = 1;
 
 printf(trackdata.markerpositions);
+printf(trackposspeed);
 
 execinfo = "";
 

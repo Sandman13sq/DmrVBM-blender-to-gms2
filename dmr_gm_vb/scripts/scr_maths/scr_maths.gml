@@ -8,6 +8,19 @@ function Approach(value, target, step)
 	else return target;
 }
 
+// Returns value stepped towards target
+function ApproachSmooth(value, target, modstep)
+{
+	return value + (target-value) / modstep;
+}
+
+// Returns value stepped towards target
+function ApproachSmoothInv(value, target, modstep)
+{
+	var d = target - lerp(value, target, 1/modstep);
+	return value + d/modstep;
+}
+
 // Returns 1 if value evaluates to true, -1 if false
 function Polarize(value)
 {
@@ -17,19 +30,29 @@ function Polarize(value)
 // Returns 0 or 1 based on value's position in interval
 function BoolStep(value, step)
 {
-	return (value div step) mod 2;
+	return value mod (2*step);
 }
 
 // Returns -1, 0, or 1 based on given values
 // -1 if negative only, 1 if positive only, 0 if none or both
 function Lev(positive_bool, negative_bool)
-{
-	return bool(positive_bool) - bool(negative_bool);
-}
+	{return bool(positive_bool) - bool(negative_bool);}
 
+function LevKeyHeld(positive_key, negative_key)
+	{return keyboard_check(positive_key) - keyboard_check(negative_key);}
+function LevKeyPressed(positive_key, negative_key)
+	{return keyboard_check_pressed(positive_key) - keyboard_check_pressed(negative_key);}
+function LevKeyReleased(positive_key, negative_key)
+	{return keyboard_check_released(positive_key) - keyboard_check_released(negative_key);}
+
+// Returns modulo of number
 function Modulo(x, y)
 {
-	if x < 0 {x = y+x;} 
-	if x == y {x -= y;}
-	return max(0, x) mod y;
+	while x < 0 {x += y;}
+	return x mod y;
+}
+
+function Intrpl_Circ(x1, x2, amt)
+{
+	return lerp(x1, x2, 1-sqrt(1-amt*amt))	
 }

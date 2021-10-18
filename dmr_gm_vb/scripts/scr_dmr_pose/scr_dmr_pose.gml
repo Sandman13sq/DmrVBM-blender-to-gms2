@@ -20,8 +20,11 @@ function AniTrackData() constructor
 	markernames = [];
 	markercount = 0;
 	
+	positionrange = [0, 1];
+	
 	framespersecond = 1;
 	length = 0;
+	flag = 0;
 }
 
 function AniTrackData_Track() constructor
@@ -81,6 +84,8 @@ function LoadAniTrack(_path)
 	var vector;
 	var vectorsize;
 	
+	var v, f;
+	
 	var numtracks = buffer_read(b, buffer_u16);
 	out.trackcount = numtracks;
 	
@@ -118,17 +123,23 @@ function LoadAniTrack(_path)
 			trackvectors = array_create(numframes);
 			
 			// Frame Positions
-			for (var f = 0; f < numframes; f++)
+			for (f = 0; f < numframes; f++)
 			{
 				trackframes[f] = buffer_read(b, buffer_f32);
 			}
 			
+			if numframes > 0
+			{
+				out.positionrange[0] = min(out.positionrange[0], trackframes[0]);
+				out.positionrange[1] = max(out.positionrange[1], trackframes[numframes-1]);
+			}
+			
 			// Frame Vectors
-			for (var f = 0; f < numframes; f++)
+			for (f = 0; f < numframes; f++)
 			{
 				vector = array_create(vectorsize);
 						
-				for (var v = 0; v < vectorsize; v++)
+				for (v = 0; v < vectorsize; v++)
 				{
 					vector[v] = buffer_read(b, buffer_f32);
 				}
@@ -177,15 +188,20 @@ function LoadAniTrack(_path)
 	return out;
 }
 
+function ___EvaluateAnimationTrack(pos, interpolationtype, bonekeys, trackdata, outpose)
+{
+	
+}
+
 // Evaluates animation at given position and fills "outpose" with evaluated matrices
+// Set "bonekeys" to 0 to use indices instead of bone names
 function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, outpose)
 {
 	// ~16% of original time / ~625% speed increase with the YYC compiler
 	
-	var n = array_length(bonekeys);
-	var trackmap = trackdata.trackmap;
-	var bonename, outposematrix;
-	var track, trackframes, trackvectors;
+	var tracklist, tracklistmax;
+	var b, bonename, outposematrix;
+	var t, track, trackframes, trackvectors;
 	var transformtracks;
 	var posnext, poscurr;
 	var findexcurr, findexnext, findexmax, blendamt;
@@ -209,16 +225,38 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 	
 	var mat4identity = matrix_build_identity();
 	
-	// For each bone
-	for (var b = 0; b < n; b++)
+	// Map tracks
+	if bonekeys == 0 // Bone Indices
 	{
-		bonename = bonekeys[b];
+		tracklist = trackdata.tracks;
+		tracklistmax = array_length(tracklist);
+	}
+	else // Bone Names
+	{
+		var trackmap = trackdata.trackmap;
+		tracklistmax = 0;
 		
-		// Skip if no track has bone's name
-		if !variable_struct_exists(trackmap, bonename) {continue;}
-		transformtracks = variable_struct_get(trackmap, bonename); // [frames[], vectors[]]
+		b = 0; repeat(array_length(bonekeys))
+		{
+			bonename = bonekeys[b]; 
+			b++;
+			
+			// Matching bone name
+			if variable_struct_exists(trackmap, bonename)
+			{
+				tracklist[tracklistmax] = trackmap[$ bonename];
+				tracklistmax++;
+			}
+		}
+	}
+	
+	// For each track
+	t = 0; repeat(tracklistmax)
+	{
+		transformtracks = tracklist[t]; // [frames[], vectors[]]
+		outposematrix = outpose[@ t]; // Target Bone Matrix
+		t++;
 		
-		outposematrix = outpose[@ b]; // Target Bone Matrix
 		array_copy(outposematrix, 0, mat4identity, 0, 16);
 		
 		// For each transform (location, scale, rotation)
@@ -238,9 +276,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				switch(ttype)
 				{
 					case(0): // Transform
-						outposematrix[@ 12] = veccurr[0];
-						outposematrix[@ 13] = veccurr[1];
-						outposematrix[@ 14] = veccurr[2];
+						array_copy(outposematrix, 12, veccurr, 12, 3);
 						break;
 					
 					case(2): // Scale
@@ -454,6 +490,8 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 						
 						break;
 				}
+				
+				continue;
 				
 				if bonekeys[b] == "h_cheek_l" && ttype == 2
 				{
