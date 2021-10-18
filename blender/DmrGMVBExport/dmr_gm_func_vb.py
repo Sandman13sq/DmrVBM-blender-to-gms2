@@ -142,7 +142,7 @@ def GetVBData(sourceobj, format = [], settings = {}):
         for i in range(0, len(modifiers)):
             m = modifiers[0];
             
-            if m.show_viewport == False and m.show_render == False:
+            if m.show_viewport == False:
                 bpy.ops.object.modifier_remove(modifier = m.name);
                 continue;
             

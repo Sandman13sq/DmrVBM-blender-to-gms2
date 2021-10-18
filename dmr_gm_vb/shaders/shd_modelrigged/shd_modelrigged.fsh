@@ -20,7 +20,7 @@ void main()
 	
 	// Dot Product
 	float dp = clamp(dot(n, l), 0.0, 1.0);
-	//dp = pow(dp, 0.5);
+	dp = pow(dp, 0.5);
 	
 	// Fake Fresnel
 	float fresnel = dot(n, c);
@@ -29,14 +29,16 @@ void main()
 	
 	// Specular
 	//float shine = pow(dp + 0.01, 512.0);
-	float shine = pow(dp + 0.01, 64.0);
+	float shine = pow(dp + 0.03, 512.0);
 	
 	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
-	vec3 shadowcolor = mix(diffusecolor.rgb * vec3(0.1, 0.0, 0.5), diffusecolor.rgb, 0.7);
+	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), v_color.a);
+	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb, 0.7);
+	vec3 shinecolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
 	
 	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
 	//outcolor += (diffusecolor.rgb * 0.4) * clamp(shine+fresnel, 0.0, 1.0);
-	outcolor += (diffusecolor.rgb * 0.4) * clamp(shine, 0.0, 1.0);
+	outcolor += shinecolor * clamp(shine, 0.0, 1.0);
 	
 	// Emission
 	outcolor = mix(outcolor, diffusecolor.rgb, u_drawmatrix[0][1]);
