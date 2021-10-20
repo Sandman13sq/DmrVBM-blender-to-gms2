@@ -17,8 +17,9 @@ function __LayoutSuper() constructor
 	h = 0;
 	b = 2;
 	label = "";
+	idname = "";
 	
-	// Elements =======================================================
+	#region // Elements =======================================================
 	
 	function Row()
 	{
@@ -31,6 +32,14 @@ function __LayoutSuper() constructor
 	function Column()
 	{
 		var el = new LayoutElement_Column(root, self);
+		array_push(children, el);
+		childrencount++;
+		return el;	
+	}
+	
+	function Box()
+	{
+		var el = new LayoutElement_Box(root, self);
 		array_push(children, el);
 		childrencount++;
 		return el;	
@@ -52,6 +61,14 @@ function __LayoutSuper() constructor
 		return el;		
 	}
 	
+	function Bool()
+	{
+		var el = new LayoutElement_Bool(root, self);
+		array_push(children, el);
+		childrencount++;
+		return el;		
+	}
+	
 	function Real()
 	{
 		var el = new LayoutElement_Real(root, self);
@@ -60,7 +77,9 @@ function __LayoutSuper() constructor
 		return el;		
 	}
 	
-	// Utility ======================================================
+	#endregion -----------------------------------------------------
+	
+	#region // Utility ======================================================
 	
 	function Label(_label)
 	{
@@ -72,6 +91,21 @@ function __LayoutSuper() constructor
 	{
 		op = _op;
 		return self;
+	}
+	
+	function Value(_value, runop=true)
+	{
+		value = _value;
+		if runop
+		{
+			if op {op(self);}
+		}
+		return self;
+	}
+	
+	function Toggle(runop=true)
+	{
+		Value(!value, runop);
 	}
 	
 	function IsMouseOver()
@@ -89,6 +123,29 @@ function __LayoutSuper() constructor
 		return point_in_rectangle(common.mx, common.my, x, y, x+w, y+h);
 	}
 	
+	#endregion
+	
+	#region Drawing ----------------------------------------------
+	
+	function SetTextScale(_scale)
+	{
+		common.textscale = _scale;
+		return self;
+	}
+	
+	function SetUIScale(_scale)
+	{
+		common.uiscale = _scale;
+		return self;
+	}
+	
+	function SetIDName(_idname)
+	{
+		idname = _idname;
+		root.elementmap[$ _idname] = self;
+		return self;
+	}
+	
 	function DrawRectWH(x, y, w, h, color, alpha=1)
 	{
 		draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_white, alpha);
@@ -98,9 +155,21 @@ function __LayoutSuper() constructor
 	function DrawText(x, y, text, color = c_white)
 	{
 		draw_text_ext_transformed_color(
-			x, y, text, 16, 3000, common.textsize, common.textsize, 0,
-			color, color, color, color, 1);	
+			x, y, text, 16, 3000, 
+			common.textscale, common.textscale, 
+			0, color, color, color, color, 1);	
 	}
+	
+	function DrawTextYCenter(x, text, color = c_white)
+	{
+		var yy = yc - common.textheightdiv2;
+		draw_text_ext_transformed_color(
+			x, yy, text, 16, 3000, 
+			common.textscale, common.textscale, 
+			0, color, color, color, color, 1);	
+	}
+	
+	#endregion
 	
 	function toString()
 	{
@@ -125,9 +194,16 @@ function Layout() : __LayoutSuper() constructor
 		c_highlight : 0x743f3f,
 		c_active : 0x846c66,
 		
-		textsize : 1,
+		textscale : 1,
+		uiscale : 1,
 		
-		hsep : 16,
+		celltext : 1,
+		cellui : 1,
+		cellmax : 1, // Max of textscale and uiscale
+		
+		buttonheight : 16,
+		textheight : 16,
+		textheightdiv2 : 8,
 		active : 0,
 		
 		lastpress : 255,
@@ -143,7 +219,14 @@ function Layout() : __LayoutSuper() constructor
 		my : 0,
 	};
 	
+	elementmap = {};
+	
 	// Setup ======================================
+	
+	var _fnt = draw_get_font();
+	draw_set_font(0);
+	common.textheight = string_height("M");
+	draw_set_font(_fnt);
 	
 	function SetPosXY(_x1, _y1, _x2, _y2)
 	{
@@ -158,7 +241,7 @@ function Layout() : __LayoutSuper() constructor
 	
 	function SetButtonHeight(_height)
 	{
-		common.hsep = _height;
+		common.buttonheight = _height;
 		return self;
 	}
 	
@@ -189,10 +272,16 @@ function Layout() : __LayoutSuper() constructor
 			common.lastpress = 0;
 		}
 		
+		common.celltext = common.textscale*common.textheight;
+		common.cellui = common.uiscale*common.buttonheight;
+		common.cellmax = max(common.celltext, common.cellui);
+		common.textheightdiv2 = common.textheight*0.5*common.textscale;
+		
 		// Elements
 		var yy = y1;
-		y2 = y1+common.hsep;
-		if label != "" {yy += common.hsep;}
+		if label != "" {yy += common.celltext;}
+		
+		y2 = yy;
 		
 		var offset;
 		for (var i = 0; i < childrencount; i++)
@@ -235,10 +324,15 @@ function Layout() : __LayoutSuper() constructor
 		{
 			draw_set_halign(0);
 			draw_set_valign(0);
-			DrawText(x1+2, y1+2, label);	
+			DrawText(x1+2, y1, label);	
 		}
 		
-		DrawText(200, 200, common.lastpress);
+		//DrawText(200, 200, common.lastpress);
+	}
+	
+	function FindElement(_idname)
+	{
+		return variable_struct_get(root.elementmap, _idname);
 	}
 }
 
@@ -263,6 +357,7 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	h = 0;
 	b = 4; // Border
 	label = "";
+	value = 0;
 	
 	// Called right before update
 	function UpdatePos()
@@ -271,7 +366,6 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 		for (var i = 0; i < childrencount; i++)
 		{
 			offset = children[i].UpdatePos(x1, y1, x2, 2000);
-			
 		}
 		
 		x1 = _x1;
@@ -302,12 +396,12 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	
 }
 
-function LayoutElement_Row(_root, _parent) : LayoutElement(_root, _parent) constructor
+function LayoutElement_Column(_root, _parent) : LayoutElement(_root, _parent) constructor
 {
 	b = 4;
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
-		var hsep = 16;
+		var hsep = common.buttonheight;
 		
 		x1 = _x1;
 		y1 = _y1;
@@ -318,6 +412,13 @@ function LayoutElement_Row(_root, _parent) : LayoutElement(_root, _parent) const
 		
 		var offset;
 		var yy = y1;
+		
+		if label != ""
+		{
+			yy += common.celltext;
+			h += common.celltext;
+		}
+		
 		for (var i = 0; i < childrencount; i++)
 		{
 			offset = children[i].UpdatePos(x1, yy, x2, yy+hsep);
@@ -331,14 +432,84 @@ function LayoutElement_Row(_root, _parent) : LayoutElement(_root, _parent) const
 		
 		return [w, h];
 	}
+	
+	function Draw()
+	{
+		if label != ""
+		{
+			draw_set_halign(1);
+			draw_set_valign(0);
+			DrawText(xc, y1 + 4, label);
+		}
+		
+		for (var i = 0; i < childrencount; i++)
+		{
+			children[i].Draw();	
+		}
+	}
 }
 
-function LayoutElement_Column(_root, _parent) : LayoutElement(_root, _parent) constructor
+function LayoutElement_Box(_root, _parent) : LayoutElement(_root, _parent) constructor
 {
 	b = 4;
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
-		var hsep = 16;
+		var hsep = common.cellmax;
+		
+		x1 = _x1;
+		y1 = _y1;
+		x2 = _x2;
+		y2 = y1;
+		w = x2-x1;
+		h = b*2;
+		
+		var offset;
+		var yy = y1+b;
+		
+		if label != ""
+		{
+			yy += common.celltext;
+			h += common.celltext;
+		}
+		
+		for (var i = 0; i < childrencount; i++)
+		{
+			offset = children[i].UpdatePos(x1+b, yy, x2-b, yy+hsep);
+			yy += offset[1]+1;
+			y2 += offset[1]+1;
+			h += offset[1]+1;
+		}
+		
+		xc = lerp(x1, x2, 0.5);
+		yc = lerp(y1, y2, 0.5);
+		
+		return [w, h];
+	}
+	
+	function Draw()
+	{
+		DrawRectWH(x1, y1, w, h, c_black, 1);
+		
+		if label != ""
+		{
+			draw_set_halign(1);
+			draw_set_valign(0);
+			DrawText(xc, y1, label);
+		}
+		
+		for (var i = 0; i < childrencount; i++)
+		{
+			children[i].Draw();	
+		}
+	}
+}
+
+function LayoutElement_Row(_root, _parent) : LayoutElement(_root, _parent) constructor
+{
+	b = 4;
+	function UpdatePos(_x1, _y1, _x2, _y2)
+	{
+		var hsep = common.cellmax;
 		
 		x1 = _x1;
 		y1 = _y1;
@@ -375,20 +546,21 @@ function LayoutElement_Column(_root, _parent) : LayoutElement(_root, _parent) co
 function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) constructor
 {
 	b = 4;
+	
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
-		var hsep = 16;
+		var hsep = common.cellmax;
 		x1 = _x1;
 		y1 = _y1;
 		x2 = _x2;
 		y2 = y1;
 		w = x2-x1;
-		h = common.hsep;
+		h = common.cellmax;
 		
 		if active
 		{
 			var offset;
-			var yy = common.hsep+y1+b;
+			var yy = common.cellmax+y1+b;
 			for (var i = 0; i < childrencount; i++)
 			{
 				offset = children[i].UpdatePos(x1+b, yy, x2-b, yy+hsep);
@@ -409,7 +581,8 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 	function Update()
 	{
 		color = common.c_base;
-		if IsMouseOverExt(x1, y1, w, common.hsep)
+		
+		if IsMouseOverExt(x1, y1, w, active? common.cellmax: h)
 		{
 			color = common.c_highlight;
 			if common.clickheld
@@ -461,12 +634,86 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) constructor
 {
 	color = common.c_base;
+	toggle_on_click = false;
+	
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
 		x1 = _x1;
 		y1 = _y1;
 		x2 = _x2;
-		y2 = y1 + common.hsep;
+		y2 = y1 + common.cellmax;
+		w = x2-x1;
+		h = y2-y1;
+		
+		xc = lerp(x1, x2, 0.5);
+		yc = lerp(y1, y2, 0.5);
+		
+		return [w, h];
+	}
+	
+	function Update()
+	{
+		if IsMouseOver()
+		{
+			common.active = self;
+			
+			color = common.c_highlight;	
+			
+			if common.clickheld
+				{color = common.c_active;}
+			
+			if common.clickreleased
+			{
+				if toggle_on_click
+				{
+					value ^= 1;
+				}
+				if op {op(self);}
+			}
+			
+			
+		}
+		else
+		{
+			color = common.c_base;	
+		}
+	}
+	
+	function Draw()
+	{
+		DrawRectWH(x1, y1, w, h, color);
+		
+		if label != ""
+		{
+			draw_set_halign(1);
+			draw_set_valign(0);
+			DrawTextYCenter(xc, label);
+		}
+	}
+}
+
+function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) constructor
+{
+	color = common.c_base;
+	
+	function Value(_value, runop=true)
+	{
+		value = bool(_value);
+		if runop && op {op(self);}
+		return self;
+	}
+	
+	function Toggle(runop=true)
+	{
+		Value(!value, runop);
+	}
+	
+	function UpdatePos(_x1, _y1, _x2, _y2)
+	{
+		x1 = _x1;
+		y1 = _y1;
+		x2 = _x2;
+		y2 = y1 + common.cellmax;
 		w = x2-x1;
 		h = y2-y1;
 		
@@ -489,12 +736,10 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 				color = common.c_active;
 			}
 			
-			if op
+			if common.clickreleased
 			{
-				if common.clickreleased
-				{
-					op(self);	
-				}
+				value ^= 1;
+				if op {op(self);}
 			}
 		}
 		else
@@ -505,13 +750,20 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 	
 	function Draw()
 	{
-		DrawRectWH(x1, y1, w, h, color);
+		var _cm = common.cellmax;
+		DrawRectWH(x1, y1, _cm, _cm, color);
+		
+		if value
+		{
+			var _s = 4, _ss = _s*2;
+			DrawRectWH(x1+_s, y1+_s, _cm-_ss, _cm-_ss, c_white);
+		}
 		
 		if label != ""
 		{
-			draw_set_halign(1);
-			draw_set_valign(1);
-			DrawText(xc, yc, label);
+			draw_set_halign(0);
+			draw_set_valign(0);
+			DrawTextYCenter(x1+_cm+3, label);
 		}
 	}
 }
@@ -521,12 +773,28 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 	color = [0, 0, 0];
 	value = 0;
 	valuestep = 1;
-	valuemin = 0;
-	valuemax = 100;
+	valuemin = -infinity;
+	valuemax = infinity;
 	valueanchor = 0;
 	valuedec = 2;
 	mouseanchor = [0, 0];
 	typing = 0;
+	
+	operator_on_change = 0;
+	
+	function SetBounds(_min, _max, _step = valuestep)
+	{
+		valuemin = _min;
+		valuemax = _max;
+		valuestep = _step;
+		return self;
+	}
+	
+	function SetStep(_step)
+	{
+		valuestep = _step;
+		return self;
+	}
 	
 	function Update()
 	{
@@ -534,21 +802,20 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		color[1] = common.c_base;
 		color[2] = common.c_base;
 		
-		scroll = 0;
+		var mbheld = common.clickheld;
+		var mbpressed = common.clickpressed;
+		var mbreleased = common.clickreleased;
 		
-		if IsMouseOver()
+		if IsMouseOver() && !active
 		{
 			var xx = [x1, x1+16, x2-16, x2];
-			var mbheld = common.clickheld;
-			var mbpressed = common.clickpressed;
-			var mbreleased = common.clickreleased;
 			
 			// Decrement
 			if IsMouseOver2(xx[0], y1, xx[1], y2)
 			{
 				color[0] = common.c_highlight;
 				if mbheld {color[0] = common.c_active;}
-				if mbreleased 
+				if mbreleased
 				{
 					value = max(valuemin, value-1);
 					if op {op(self);}
@@ -575,7 +842,6 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				{
 					typing = 1;
 					valueanchor = string(value);
-					window_set_cursor(cr_arrow);
 				}
 				
 				if !typing
@@ -588,34 +854,27 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					
 						mouseanchor[0] = window_mouse_get_x();
 						mouseanchor[1] = window_mouse_get_y();
-						window_mouse_set(mouseanchor[0], mouseanchor[1]);
+						window_mouse_set(window_get_width()/2, window_get_height()/2);
 					}
-				
-					if mbheld
-					{
-						window_set_cursor(cr_none);
-						color[1] = common.c_active;
-						common.active = self;
 					
-						var d = window_mouse_get_x()-mouseanchor[0];
-						if abs(d) >= ((valuestep >= 1)? 2: 1)
-						{
-							var sh = keyboard_check(vk_shift)? 0.1: 1;
-							scroll += sign(d)*valuestep*sh;
-							valueanchor += sign(d)*valuestep*sh;
-						}
-						value = valueanchor;
-						window_mouse_set(mouseanchor[0], mouseanchor[1]);
-					}
-				
 					if mbreleased
 					{
 						if op {op(self);}
 						window_set_cursor(cr_arrow);
 					}
+					
+					var lev = mouse_wheel_up()-mouse_wheel_down();
+					if lev != 0
+					{
+						value = clamp(value+lev*valuestep, valuemin, valuemax);
+							
+						if operator_on_change
+						{
+							if op {op(self);}
+						}
+					}
 				}
 			}
-			
 		}
 		else
 		{
@@ -656,6 +915,44 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				}	
 			}
 		}
+		
+		if active
+		{
+			if mouse_check_button(mb_left)
+			{
+				window_set_cursor(cr_none);
+				color[1] = common.c_active;
+				common.active = self;
+				
+				var d = window_mouse_get_x()-window_get_width()/2;
+				window_mouse_set(window_get_width()/2, window_get_height()/2);
+				
+				if abs(d) >= ((valuestep >= 1)? 2: 1)
+				{
+					var sh = keyboard_check(vk_shift)? 0.1: 1;
+					scroll += sign(d)*valuestep*sh;
+					valueanchor += sign(d)*valuestep*sh;
+					value = clamp(valueanchor, valuemin, valuemax);
+							
+					if operator_on_change
+					{
+						if op {op(self);}
+					}
+				}
+			}
+			else
+			{
+				active = 0;
+				window_mouse_set(mouseanchor[0], mouseanchor[1]);
+				window_set_cursor(cr_arrow);
+				
+				if operator_on_change
+				{
+					if op {op(self);}
+				}
+			}
+			
+		}
 	}
 	
 	function Draw()
@@ -673,38 +970,38 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			{v += "|";} else {v += " ";}
 			
 			draw_set_halign(0);
-			draw_set_valign(1);
-			DrawText(x1+18, yc, v);
+			draw_set_valign(0);
+			DrawTextYCenter(x1+18, v);
 		}
 		// Display
 		else
 		{
 			v = string_format(value, 0, valuedec);
 			
-			draw_set_valign(1);
+			draw_set_valign(0);
 			if label != ""
 			{
 				draw_set_halign(0);
-				DrawText(x1+18, yc, label + ": ");
+				DrawTextYCenter(x1+18, label + ": ");
 				draw_set_halign(2);
-				DrawText(x2-18, yc, v);
+				DrawTextYCenter(x2-18, v);
 			}
 			else
 			{
 				draw_set_halign(1);
-				DrawText(xc, yc, v);
+				DrawText(xc, y1, v);
 			}
 		}
 		
 		// Inc / Dec
 		draw_set_halign(1);
-		draw_set_valign(1);
+		draw_set_valign(0);
 		
 		DrawRectWH(x1, y1, 16, h, color[0]);
-		DrawText(x1+8, yc, "-");
+		DrawTextYCenter(x1+8, "-");
 		
 		DrawRectWH(x2-16, y1, 16, h, color[2]);
-		DrawText(x2-8, yc, "+");
+		DrawTextYCenter(x2-8, "+");
 	}
 }
 

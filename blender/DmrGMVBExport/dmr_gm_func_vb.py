@@ -28,6 +28,7 @@ MODLIST = [
     'DATA_TRANSFER',
     'SHRINKWRAP',
     'MASK',
+    'ARRAY'
 ];
 
 # This is more for loading files outside of GMS

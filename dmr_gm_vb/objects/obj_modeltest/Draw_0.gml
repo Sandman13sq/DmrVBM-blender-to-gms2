@@ -51,17 +51,26 @@ else // Rigged Model (With Bones)
 	// Solid
 	if (!wireframe)
 	{
-		var _drawmatrix = [
-			BuildDrawMatrix(1, 0, 1, 0),
-			BuildDrawMatrix(1, 0, 1, 1),
-			];
+		shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, drawmatrix);
 		
 		for (var i = 0; i < vbx.vbcount; i++)
 		{
-			shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, 
-				_drawmatrix[string_pos("skin", vbx.vbnames[i]) != 0]);
-			
-			vertex_submit(vbx.vb[i], pr_trianglelist, -1);	
+			if vbxvisible & (1<<i)
+			{
+				vertex_submit(vbx.vb[i], pr_trianglelist, -1);	
+			}
+		}
+		
+		// Shadow
+		shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, 
+			BuildDrawMatrix(1, 1, 0, 0, c_dkgray, 1));
+		matrix_set(matrix_world, matrix_multiply(mattran, matrix_build(0,0,0, 0,0,0, 1, 1, 0.001)));
+		for (var i = 0; i < vbx.vbcount; i++)
+		{
+			if vbxvisible & (1<<i)
+			{
+				vertex_submit(vbx.vb[i], pr_trianglelist, -1);	
+			}
 		}
 	}
 	// Wireframe
@@ -69,9 +78,12 @@ else // Rigged Model (With Bones)
 	{
 		for (var i = 0; i < vbx_wireframe.vbcount; i++)
 		{
-			shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, 
-				BuildDrawMatrix(1, 1, 1, 0, wireframecolors[i], 1));
-			vertex_submit(vbx_wireframe.vb[i], pr_linelist, -1);	
+			if vbxvisible & (1<<i)
+			{
+				shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, 
+					BuildDrawMatrix(1, 1, 1, 0, wireframecolors[i], 1));
+				vertex_submit(vbx_wireframe.vb[i], pr_linelist, -1);
+			}
 		}	
 	}
 }
@@ -84,18 +96,3 @@ matrix_set(matrix_view, oldmats[1]);
 matrix_set(matrix_projection, oldmats[0]);
 
 gpu_pop_state();
-
-var s = [];
-array_push(s,
-	camera,
-	[x, y, z],
-	stringf("Trackpos: %s", trackpos),
-	stringf("Posemat: %s", poseindex),
-	stringf("Parsemode: %s", keymode? "name": "index"),
-	);
-
-var xx = 300, yy = 100;
-for (var i = 0; i < array_length(s); i++) 
-	{draw_text(xx, yy, s[i]); yy += 16;}
-
-draw_text(300, 16, execinfo);

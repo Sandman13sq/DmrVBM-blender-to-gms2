@@ -2,7 +2,8 @@
 
 function updatef(_str, _value)
 {
-	_chr = string_char_at( _str, string_pos("%", _str) + 1);
+	var pos = string_pos("%", _str)+1;
+	var _chr = string_char_at( _str, pos);
 	
 	switch(_chr)
 	{
@@ -22,13 +23,20 @@ function updatef(_str, _value)
 		case("b"):
 			return string_replace(_str, "%b", _value? "True": "False");
 				
-		// Float w/ 4 places
+		// Float w/ 4 digits
 		case("f"):
 			return string_replace(_str, "%f", string_format(_value, 1, 4));
 			
-		// Float w/ 8 places
+		// Float w/ 8 digits
 		case("F"):
 			return string_replace(_str, "%F", string_format(_value, 1, 8));
+		
+		// Float with any digits
+		case("."):
+			pos++;
+			var l = string_char_at( _str, pos);
+			return string_replace(_str, "%."+l+"f", string_format(_value, 1, real(l)));
+			break;
 		
 		// Percent
 		case("%"):

@@ -468,7 +468,7 @@ class DMR_GM_ExportPoseMatrix(bpy.types.Operator, ExportHelper):
         self.report({'INFO'}, report);
         
         return {'FINISHED'}
-            
+classlist.append(DMR_GM_ExportPoseMatrix);      
 
 def register():
     for c in classlist:

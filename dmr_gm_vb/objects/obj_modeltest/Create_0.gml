@@ -46,10 +46,15 @@ y = 0;
 z = 0;
 
 vbmode = 1;
-keymode = 0;
+keymode = 1;
 wireframe = 0;
 zrot = 0;
 poseindex = 0;
+
+vbxvisible = ~0; // Bit field
+dm_emission = 0;
+dm_shine = 1;
+dm_sss = 0;
 
 // Camera ==============================================================
 
@@ -58,9 +63,12 @@ camera = [
 	0, 0, 0,	// fwrd
 ];
 
+camerawidth = 0;
+cameraheight = 0;
+
 zfar = 1000;
 znear = 1;
-matproj = matrix_build_projection_perspective_fov(50, 480/270, znear, zfar);
+matproj = matrix_build_projection_perspective_fov(50, camerawidth/cameraheight, znear, zfar);
 matview = matrix_build_lookat(camera[0], camera[1], camera[2], 0, 0, 10, 0, 0, 1);
 matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
 mattran = matrix_build(0,0,0, 0,0,0, 1,1,1);
@@ -89,7 +97,7 @@ LoadPoses("curly.pse", posemats);
 // Animation Vars =====================================================
 
 trackpos = 0; // Position in animation
-trackposspeed = (trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
+trackposspeed = 0.1*(trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
 isplaying = 0;
 
 // Generate relative bone matrices for position in animation
@@ -121,6 +129,9 @@ uniformset[1] = {
 
 drawmatrix = BuildDrawMatrix(1, 0, 1, 0); // Shader uniforms sent as one array
 
+// Layout
+event_user(1);
+
 // etc. =============================================================
 
 wireframecolors = array_create(32);
@@ -138,3 +149,5 @@ printf(trackdata.markerpositions);
 printf(trackposspeed);
 
 execinfo = "";
+exectime = [0, 0];
+frametime = 0;

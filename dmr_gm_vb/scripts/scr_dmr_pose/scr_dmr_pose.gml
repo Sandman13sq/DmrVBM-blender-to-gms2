@@ -188,11 +188,6 @@ function LoadAniTrack(_path)
 	return out;
 }
 
-function ___EvaluateAnimationTrack(pos, interpolationtype, bonekeys, trackdata, outpose)
-{
-	
-}
-
 // Evaluates animation at given position and fills "outpose" with evaluated matrices
 // Set "bonekeys" to 0 to use indices instead of bone names
 function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, outpose)
@@ -224,6 +219,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 	else {possearchstart = trackdata.length;}
 	
 	var mat4identity = matrix_build_identity();
+	var mm = matrix_build_identity();
 	
 	// Map tracks
 	if bonekeys == 0 // Bone Indices
@@ -234,19 +230,20 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 	else // Bone Names
 	{
 		var trackmap = trackdata.trackmap;
-		tracklistmax = 0;
+		tracklistmax = array_length(bonekeys);
+		tracklist = array_create(tracklistmax, 0);
 		
-		b = 0; repeat(array_length(bonekeys))
+		b = 0; repeat(tracklistmax)
 		{
 			bonename = bonekeys[b]; 
-			b++;
 			
 			// Matching bone name
 			if variable_struct_exists(trackmap, bonename)
 			{
-				tracklist[tracklistmax] = trackmap[$ bonename];
-				tracklistmax++;
+				tracklist[b] = trackmap[$ bonename];
 			}
+			
+			b++;
 		}
 	}
 	
@@ -254,6 +251,9 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 	t = 0; repeat(tracklistmax)
 	{
 		transformtracks = tracklist[t]; // [frames[], vectors[]]
+		
+		if transformtracks == 0 {continue;}
+		
 		outposematrix = outpose[@ t]; // Target Bone Matrix
 		t++;
 		
@@ -298,7 +298,8 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 						//QuatToMat4_r( veccurr, outposematrix );
 						// Quaternion to Mat4 ===================================================
 						q1_0 = veccurr[0]; q1_1 = veccurr[1]; q1_2 = veccurr[2]; q1_3 = veccurr[3];
-						q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
+						//q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
+						q_length = point_distance_3d(0,0,0, q1_1, q1_2, q1_3);
 						if q_length == 0
 						{
 							outposematrix[@ 0] = 1; outposematrix[@ 1] = 0; outposematrix[@ 2] = 0; //out[@ 3] = 0;
@@ -375,7 +376,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 						break;
 					
 					case(2): // Scale
-						var mm = matrix_multiply(
+						mm = matrix_multiply(
 							matrix_build(0,0,0, 0,0,0,
 								lerp(veccurr[0], vecnext[0], blendamt),
 								lerp(veccurr[1], vecnext[1], blendamt),
@@ -460,7 +461,8 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 						//QuatToMat4_r( quat, outposematrix );
 						// Quaternion to Mat4 ===================================================
 						q1_0 = quat[0]; q1_1 = quat[1]; q1_2 = quat[2]; q1_3 = quat[3];
-						q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
+						//q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
+						q_length = point_distance_3d(0,0,0, q1_1, q1_2, q1_3)
 						if q_length == 0
 						{
 							outposematrix[@ 0] = 1; outposematrix[@ 1] = 0; outposematrix[@ 2] = 0; //out[@ 3] = 0;

@@ -19,16 +19,6 @@ varying vec3 v_nor;
 // Uniforms passed in before draw call
 uniform mat4 u_matpose[200];
 
-// Used to correct math for y flip
-const vec3 NY = vec3(1.0, 1.0, 1.0);
-const vec4 vec4NY = vec4(1.0, 1.0, 1.0, 0.0);
-const mat4 mat4NY = mat4(
-	1.0, 0.0, 0.0, 0.0,
-	0.0, -1.0, 0.0, 0.0,
-	0.0, 0.0, 1.0, 0.0,
-	0.0, 0.0, 0.0, 1.0
-	);
-
 void main()
 {
 	// Attributes

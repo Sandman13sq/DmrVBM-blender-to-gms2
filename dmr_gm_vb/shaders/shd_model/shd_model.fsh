@@ -34,7 +34,7 @@ void main()
 	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
 	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), v_color.a);
 	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb, 0.7);
-	vec3 shinecolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
+	vec3 shinecolor = diffusecolor.rgb * vec3( clamp(1.0-(length(diffusecolor.rgb)*0.65), 0.0, 1.0) );
 	
 	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
 	//outcolor += (diffusecolor.rgb * 0.4) * clamp(shine+fresnel, 0.0, 1.0);
@@ -57,4 +57,5 @@ void main()
 	//gl_FragColor = vec4(vec3(fresnel), 1.0);
 	//gl_FragColor = vec4(vec3(shine), 1.0);
 	//gl_FragColor = vec4(vec2(v_vTexcoord), 0.0, 1.0);
+	//gl_FragColor.rgb = vec3(length(diffusecolor.rgb));
 }
