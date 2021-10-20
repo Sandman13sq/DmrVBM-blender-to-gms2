@@ -11,13 +11,13 @@ enum AniTrack_Intrpl
 function AniTrackData() constructor
 {
 	tracks = []; // array of AniTrackData_Track
-	tracknames = [];
+	tracknames = [];	// (bone) names for each track
 	trackmap = {}; // {trackname: track} for each track
 	trackcount = 0;
 	
 	markerpositions = []; // Frame positions in animation
 	markermap = {};	// {markername: framepos} for each marker
-	markernames = [];
+	markernames = []; // names for markers
 	markercount = 0;
 	
 	positionrange = [0, 1];
@@ -519,15 +519,16 @@ function CalculateAnimationPose(
 	outposetransform, outbonetransform = [])
 {
 	var n = min( array_length(bone_parentindices), array_length(posedata));
-	
+	var i;
+	var m;
 	var localtransform = array_create(n);	// Parent -> Bone
 	//var outbonetransform = array_create(n);	// Origin -> Bone
 	array_resize(outbonetransform, n);
 	
 	// Calculate animation for specific bone
-	for (var i = 0; i < n; i++)
+	i = 0; repeat(n)
 	{
-		localtransform[i] = matrix_multiply(
+		localtransform[i++] = matrix_multiply(
 			posedata[i], bone_localmatricies[i]);
 	}
 	
@@ -536,17 +537,16 @@ function CalculateAnimationPose(
 	
 	outbonetransform[@ 0] = localtransform[0]; // Edge case for root bone
 	
-	for (var i = 1; i < n; i++)
+	i = 1; repeat(n-1)
 	{
-		outbonetransform[@ i] = matrix_multiply(
+		outbonetransform[@ i++] = matrix_multiply(
 			localtransform[i], outbonetransform[ bone_parentindices[i] ]);
 	}
 	
 	// Compute final matrix for bone
-	var m;
-	for (var i = 0; i < n; i++)
+	i = 0; repeat(n)
 	{
 		m = matrix_multiply(bone_inversemodelmatrix[i], outbonetransform[i]);
-		array_copy(outposetransform, i*16, m, 0, 16);
+		array_copy(outposetransform, (i++)*16, m, 0, 16);
 	}
 }

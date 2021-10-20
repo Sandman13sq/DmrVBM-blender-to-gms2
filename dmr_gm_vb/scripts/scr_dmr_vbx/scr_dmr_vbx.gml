@@ -1,6 +1,8 @@
 /*
 */
 
+#macro DMRVBX_MATPOSEMAX 200
+
 /*
 	GM mat ref:
 	[

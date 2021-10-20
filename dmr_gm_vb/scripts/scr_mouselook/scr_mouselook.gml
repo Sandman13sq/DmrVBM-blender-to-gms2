@@ -4,7 +4,7 @@
 // Creates and updates a direction vector controlled by mouse movement
 function MouseLook() constructor
 {
-	lookdirection = 270; // Left-Right [0-360]
+	lookdirection = 0; // Left-Right [0-360]
 	lookpitch = 0; // Up-Down [-1 - 1] [Down, Up], 0 = Straight Forward
 	
 	sensitivity = 0.2;
@@ -49,11 +49,11 @@ function MouseLook() constructor
 		lookpitch = clamp(lookpitch, pitchrange[0], pitchrange[1]);
 	}
 	
-	function SetDirection(value) {lookdirection = value;}
-	function AddDirection(value) {lookdirection = value;}
+	function SetDirection(value) {lookdirection = value; UpdateView();}
+	function AddDirection(value) {lookdirection += value; UpdateView();}
 	
-	function SetPitch(value) {lookpitch = clamp(value, pitchrange[0], pitchrange[1]);}
-	function AddPitch(value) {lookpitch = clamp(lookpitch + value, pitchrange[0], pitchrange[1]);}
+	function SetPitch(value) {lookpitch = clamp(value, pitchrange[0], pitchrange[1]); UpdateView();}
+	function AddPitch(value) {lookpitch = clamp(lookpitch + value, pitchrange[0], pitchrange[1]); UpdateView();}
 	
 	// Read mouse movement and apply changes
 	function Update(_active)
@@ -86,28 +86,24 @@ function MouseLook() constructor
 				lookpitch = clamp(lookpitch + sensitivity * (window_mouse_get_y() - _hHalf) / 90, 
 					pitchrange[0], pitchrange[1]);
 				
-				viewforward = [
-					dcos(lookdirection) * dcos(lookpitch * 90),
-					-dsin(lookdirection) * dcos(lookpitch * 90),
-					-dsin(lookpitch * 90)
-					];
-			
-				viewright = [
-					dcos(lookdirection + 90) * dcos(lookpitch * 90),
-					-dsin(lookdirection + 90) * dcos(lookpitch * 90),
-					-dsin(lookpitch * 90)
-					];
-			
-				viewup = [
-					viewright[1] * viewforward[2] - viewright[2] * viewforward[1],
-					viewright[2] * viewforward[0] - viewright[0] * viewforward[2],
-					viewright[0] * viewforward[1] - viewright[1] * viewforward[0]
-					];
+				UpdateView();
 			}
 		}
 		else
 		{
-			viewforward = [
+			UpdateView();
+			activedelay = 1;
+		}
+	}
+	
+	// Returns forward vector of mouse look
+	function GetViewForward() {return viewforward;}
+	function GetViewRight() {return viewright;}
+	function GetViewUp() {return viewup;}
+	
+	function UpdateView()
+	{
+		viewforward = [
 				dcos(lookdirection) * dcos(lookpitch * 90),
 				-dsin(lookdirection) * dcos(lookpitch * 90),
 				-dsin(lookpitch * 90)
@@ -124,15 +120,7 @@ function MouseLook() constructor
 				viewright[2] * viewforward[0] - viewright[0] * viewforward[2],
 				viewright[0] * viewforward[1] - viewright[1] * viewforward[0]
 				];
-				
-			activedelay = 1;
-		}
 	}
-	
-	// Returns forward vector of mouse look
-	function GetViewForward() {return viewforward;}
-	function GetViewRight() {return viewright;}
-	function GetViewUp() {return viewup;}
 	
 	Update(0);
 }

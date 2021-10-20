@@ -3,6 +3,7 @@
 vbmode ^= keyboard_check_pressed(ord("M"));
 isplaying ^= keyboard_check_pressed(vk_space);
 keymode ^= keyboard_check_pressed(ord("K"));
+wireframe ^= keyboard_check_pressed(ord("L"));
 
 var lev = 0;
 if isplaying {lev = trackposspeed;}
@@ -36,7 +37,7 @@ camera[3] /= d;
 camera[4] /= d;
 camera[5] /= d;
 
-mouselook.Update(mouse_check_button(mb_middle));
+mouselook.Update(mouse_check_button(mb_middle) || (mouse_check_button(mb_left) && keyboard_check(vk_alt)));
 var fwrd = mouselook.viewforward;
 var rght = mouselook.viewright;
 

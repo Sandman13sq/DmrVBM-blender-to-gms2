@@ -39,50 +39,66 @@ vbf_full = vertex_format_end();
 
 #endregion
 
+// Controls ==========================================================
+
 x = 0;
 y = 0;
 z = 0;
+
+vbmode = 1;
+keymode = 0;
+wireframe = 0;
+zrot = 0;
+
+// Camera ==============================================================
 
 camera = [
 	4, 28, 10,	// x, y, z
 	0, 0, 0,	// fwrd
 ];
 
-mouselook = new MouseLook();
-
-vb = LoadVertexBuffer("curly.vb", vbf_model);
-vb_grid = CreateGridVB(40, 16);
-vbx = LoadVBX("curly.vbx", vbf_rigged);
-
-vbmode = 1;
-keymode = 0;
-
 zfar = 1000;
-znear = 5;
+znear = 1;
 matproj = matrix_build_projection_perspective_fov(50, 480/270, znear, zfar);
 matview = matrix_build_lookat(camera[0], camera[1], camera[2], 0, 0, 10, 0, 0, 1);
 matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
 mattran = matrix_build(0,0,0, 0,0,0, 1,1,1);
-drawmatrix = BuildDrawMatrix(1);
 
-for (var i = 200-1; i >= 0; i--) 
+mouselook = new MouseLook();
+mouselook.SetDirection(90);
+
+// VBX Vars ===========================================================
+
+// vbx struct. Model + Bone data
+vbx = LoadVBX("curly.vbx", vbf_rigged);
+vbx_wireframe = LoadVBX("curly_l.vbx", vbf_rigged);
+// 2D array of matrices. Holds relative transforms for bones
+inpose = array_create(DMRVBX_MATPOSEMAX);
+for (var i = DMRVBX_MATPOSEMAX-1; i >= 0; i--) 
 	{inpose[i] = matrix_build_identity();}
-matpose = array_create(200*16);
+// 1D flat array of matrices. Holds final transforms for bones
+matpose = array_create(DMRVBX_MATPOSEMAX*16);
+// track data struct. Holds decomposed transforms in tracks for each bone 
 trackdata = LoadAniTrack("curly.trk");
-trackposindex = 0;
-trackpos = 0;
+
+// Animation Vars =====================================================
+
+trackpos = 0; // Position in animation
 trackposspeed = (trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
-isplaying = 1;
+isplaying = 0;
 
-printf(trackdata.markerpositions);
-printf(trackposspeed);
+// Generate relative bone matrices for position in animation
+EvaluateAnimationTracks(trackpos, 0, 0, trackdata, inpose);
+// Convert relative bone matrices to model-space matrices
+CalculateAnimationPose(
+	vbx.bone_parentindices,		// index of bone's parent
+	vbx.bone_localmatricies,	// matrix of bone relative to parent
+	vbx.bone_inversematricies,	// matrix of bone relative to model origin
+	inpose,	// relative transforms
+	matpose	// flat array of matrices to write data to
+	);
 
-execinfo = "";
-
-for (var i = 0; i < 200*16; i += 16)
-{
-	array_copy(matpose, i, inpose[0], 0, 16);
-}
+// Shaders ============================================================
 
 var shd;
 shd = shd_model;
@@ -98,4 +114,20 @@ uniformset[1] = {
 	u_matpose : shader_get_uniform(shd, "u_matpose"),
 }
 
-zrot = 0;
+drawmatrix = BuildDrawMatrix(1); // Shader uniforms sent as one array
+
+// etc. =============================================================
+
+wireframecolors = array_create(32);
+for (var i = 0; i < array_length(wireframecolors); i++)
+{
+	wireframecolors[i] = make_color_hsv(irandom(255), irandom(255), 255);
+}
+
+vb = LoadVertexBuffer("curly.vb", vbf_model);
+vb_grid = CreateGridVB(40, 16);
+
+printf(trackdata.markerpositions);
+printf(trackposspeed);
+
+execinfo = "";

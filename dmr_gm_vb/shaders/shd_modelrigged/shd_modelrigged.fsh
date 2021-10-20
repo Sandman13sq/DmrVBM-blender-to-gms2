@@ -9,7 +9,7 @@ varying vec4 v_color;
 varying vec3 v_nor;
 
 uniform vec3 u_camera[2]; // [pos, dir, light]
-uniform vec4 u_drawmatrix[4]; // [alpha emission shine ??? colorfill[4] colorblend[4]]
+uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorblend[4]]
 
 void main()
 {
@@ -32,13 +32,13 @@ void main()
 	float shine = pow(dp + 0.03, 512.0);
 	
 	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
-	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), v_color.a);
+	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), u_drawmatrix[0].w);
 	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb, 0.7);
 	vec3 shinecolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
 	
 	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
 	//outcolor += (diffusecolor.rgb * 0.4) * clamp(shine+fresnel, 0.0, 1.0);
-	outcolor += shinecolor * clamp(shine, 0.0, 1.0);
+	outcolor += shinecolor * clamp(shine, 0.0, 1.0) * u_drawmatrix[0][2];
 	
 	// Emission
 	outcolor = mix(outcolor, diffusecolor.rgb, u_drawmatrix[0][1]);
@@ -47,6 +47,7 @@ void main()
 	// Blend Color
 	outcolor = mix(outcolor, u_drawmatrix[2].rgb*diffusecolor.rgb, u_drawmatrix[2].a);
 	
+	// Alpha
     gl_FragColor = vec4(outcolor, u_drawmatrix[0][0]*diffusecolor.a);
 	
 	if (gl_FragColor.a == 0.0) {discard;}
