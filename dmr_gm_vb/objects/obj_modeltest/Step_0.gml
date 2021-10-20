@@ -5,6 +5,7 @@ isplaying ^= keyboard_check_pressed(vk_space);
 keymode ^= keyboard_check_pressed(ord("K"));
 wireframe ^= keyboard_check_pressed(ord("L"));
 
+// Animation Playback
 var lev = 0;
 if isplaying {lev = trackposspeed;}
 else {lev = trackposspeed*LevKeyPressed(VKey.greaterThan, VKey.lessThan);}
@@ -20,6 +21,14 @@ if lev != 0
 	CalculateAnimationPose(
 		vbx.bone_parentindices, vbx.bone_localmatricies, vbx.bone_inversematricies, 
 		inpose, matpose);
+}
+
+// Pose Matrices
+lev = LevKeyPressed(VKey.bracketClose, VKey.bracketOpen);
+if lev != 0
+{
+	poseindex = Modulo(poseindex+lev, array_length(posemats));
+	matpose = posemats[poseindex];
 }
 
 x += keyboard_check(vk_right) - keyboard_check(vk_left);
@@ -42,6 +51,7 @@ var fwrd = mouselook.viewforward;
 var rght = mouselook.viewright;
 
 var lev = keyboard_check(ord("W")) - keyboard_check(ord("S"));
+lev += 4 * (mouse_wheel_up() - mouse_wheel_down());
 if lev != 0
 {
 	camera[0] += fwrd[0] * lev;

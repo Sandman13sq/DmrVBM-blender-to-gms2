@@ -49,6 +49,7 @@ vbmode = 1;
 keymode = 0;
 wireframe = 0;
 zrot = 0;
+poseindex = 0;
 
 // Camera ==============================================================
 
@@ -67,6 +68,8 @@ mattran = matrix_build(0,0,0, 0,0,0, 1,1,1);
 mouselook = new MouseLook();
 mouselook.SetDirection(90);
 
+bkcolor = 0x201010;
+
 // VBX Vars ===========================================================
 
 // vbx struct. Model + Bone data
@@ -80,6 +83,8 @@ for (var i = DMRVBX_MATPOSEMAX-1; i >= 0; i--)
 matpose = array_create(DMRVBX_MATPOSEMAX*16);
 // track data struct. Holds decomposed transforms in tracks for each bone 
 trackdata = LoadAniTrack("curly.trk");
+posemats = [];
+LoadPoses("curly.pse", posemats);
 
 // Animation Vars =====================================================
 

@@ -223,3 +223,47 @@ function LoadVBX(path, format, freeze = 1)
 	
 	return out;
 }
+
+// Loads flattened matrix array
+function LoadPoses(path, outarray, offset=0)
+{
+	var bzipped = buffer_load(path);
+	
+	if bzipped < 0
+	{
+		show_debug_message("LoadPoses(): Error loading pose data from \"" + path + "\"");
+		return -1;
+	}
+	
+	var b = buffer_decompress(bzipped);
+	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	
+	var bonecount = buffer_read(b, buffer_u32);
+	var posecount = buffer_read(b, buffer_u32);
+	var matrixcount = bonecount*16;
+	var pindex, mindex;
+	
+	var posedata = array_create(posecount);
+	var matrixdata;
+	
+	// For each pose
+	pindex = 0; repeat(posecount)
+	{
+		matrixdata = array_create(matrixcount);
+		posedata[@ pindex++] = matrixdata;
+		
+		// For each bone
+		mindex = 0; repeat(matrixcount)
+		{
+			matrixdata[@ mindex++] = buffer_read(b, buffer_f32);
+		}
+	}
+	
+	
+	
+	buffer_delete(b);
+	
+	array_copy(outarray, offset, posedata, 0, posecount);
+	
+	return posedata;
+}

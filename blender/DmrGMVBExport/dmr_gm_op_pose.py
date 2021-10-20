@@ -502,6 +502,78 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         return {'FINISHED'}
 classlist.append(DMR_GM_ExportAction);
 
+# =============================================================================
+
+class DMR_GM_ExportPoseMatrix(bpy.types.Operator, ExportHelper):
+    """Exports all poses in active object's Action/Pose Library"""
+    bl_idname = "dmr.gm_export_action";
+    bl_label = "Export Action";
+    
+    filename_ext = ".trk";
+    filter_glob: StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255);
+    
+    bakesamples: IntProperty(
+        name="Bake Steps",
+        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking",
+        default=5, min=0
+    );
+    
+    startfromzero: BoolProperty(
+        name="Trim Empty Leading",
+        description='Start writing from first keyframe instead of from "Frame Start"',
+        default=True,
+    );
+    
+    writemarkernames: BoolProperty(
+        name="Write Marker Names",
+        description="Write names of markers before track data",
+        default=True,
+    );
+    
+    normalizeframes: BoolProperty(
+        name="Normalize Frames",
+        description="Convert Frames to [0-1] range",
+        default=True,
+    );
+    
+    makestartframe: BoolProperty(
+        name="Starting Keyframe",
+        description="Insert a keyframe at the start of the animation",
+        default=True,
+    );
+    
+    makeendframe: BoolProperty(
+        name="Ending Keyframe",
+        description="Insert a keyframe at the end of the animation",
+        default=False,
+    );
+    
+    def execute(self, context):
+        # Find Armature
+        object = bpy.context.object;
+        if not object:
+            self.report({'WARNING'}, 'No object selected');
+            return {'FINISHED'}
+        if object.type != 'ARMATURE':
+            self.report({'WARNING'}, 'Active object "%s" is not an armature' % object.name);
+            return {'FINISHED'}
+        
+        
+        # Output to File
+        oldlen = len(out);
+        out = zlib.compress(out);
+        
+        file = open(self.filepath, 'wb');
+        file.write(out);
+        file.close();
+        
+        report = 'Data written to "%s". (%.2fKB -> %.2fKB) %.2f%%' % \
+            (self.filepath, oldlen / 1000, len(out) / 1000, 100 * len(out) / oldlen);
+        print(report);
+        self.report({'INFO'}, report);
+        return {'FINISHED'}
+        
+
 def register():
     for c in classlist:
         bpy.utils.register_class(c)

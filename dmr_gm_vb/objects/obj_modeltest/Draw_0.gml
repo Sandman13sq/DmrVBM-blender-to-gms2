@@ -1,6 +1,6 @@
 /// @desc
 
-draw_clear(0);
+draw_clear(bkcolor);
 
 gpu_push_state();
 
@@ -45,8 +45,8 @@ else // Rigged Model (With Bones)
 	if (!wireframe)
 	{
 		var _drawmatrix = [
-			BuildDrawMatrix(1, 0, 0, 0),
-			BuildDrawMatrix(1, 0, 0, 1),
+			BuildDrawMatrix(1, 0, 1, 0),
+			BuildDrawMatrix(1, 0, 1, 1),
 			];
 		
 		for (var i = 0; i < vbx.vbcount; i++)
@@ -76,8 +76,17 @@ matrix_set(matrix_projection, oldmats[0]);
 
 gpu_pop_state();
 
-draw_text(300, 200, camera);
-draw_text(300, 216, [x, y, z]);
-draw_text(300, 232, stringf("Trackpos: %s", trackpos));
-draw_text(300, 248, stringf("Parsemode: %s", keymode? "name": "index"));
+var s = [];
+array_push(s,
+	camera,
+	[x, y, z],
+	stringf("Trackpos: %s", trackpos),
+	stringf("Posemat: %s", poseindex),
+	stringf("Parsemode: %s", keymode? "name": "index"),
+	);
+
+var xx = 300, yy = 100;
+for (var i = 0; i < array_length(s); i++) 
+	{draw_text(xx, yy, s[i]); yy += 16;}
+
 draw_text(300, 16, execinfo);
