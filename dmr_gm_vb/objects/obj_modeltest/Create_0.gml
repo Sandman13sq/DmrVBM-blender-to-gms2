@@ -119,7 +119,7 @@ uniformset[1] = {
 	u_matpose : shader_get_uniform(shd, "u_matpose"),
 }
 
-drawmatrix = BuildDrawMatrix(1); // Shader uniforms sent as one array
+drawmatrix = BuildDrawMatrix(1, 0, 1, 0); // Shader uniforms sent as one array
 
 // etc. =============================================================
 
@@ -131,6 +131,8 @@ for (var i = 0; i < array_length(wireframecolors); i++)
 
 vb = LoadVertexBuffer("curly.vb", vbf_model);
 vb_grid = CreateGridVB(40, 16);
+
+vb_world = LoadVertexBuffer("world.vb", vbf_model);
 
 printf(trackdata.markerpositions);
 printf(trackposspeed);

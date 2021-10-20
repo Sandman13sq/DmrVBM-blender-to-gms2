@@ -21,9 +21,10 @@ class DMR_ExportVBPanel(bpy.types.Panel):
         
         section = layout.box().column();
         section.column().label(text='-- Animations --');
-        section.operator("dmr.gm_export_pose", text='Export Current Pose', icon='ARMATURE_DATA');
+        #section.operator("dmr.gm_export_pose", text='Export Current Pose', icon='ARMATURE_DATA');
         #section.operator("dmr.gm_export_poselib", text='Export PoseLib', icon='POSE_HLT');
         section.operator("dmr.gm_export_action", text='Export Action', icon='RENDER_ANIMATION');
+        section.operator("dmr.gm_export_posematrix", text='Export Pose Matrices', icon='LIGHTPROBE_GRID');
         
         section = layout.box();
         section.column().label(text='-- Anim Exportables --');
@@ -39,7 +40,6 @@ classlist.append(dmr_exportanimationslist);
 def register():
     for c in classlist:
         bpy.utils.register_class(c);
-    
     #bpy.types.Scene.dmr_exportanimationslist = bpy.props.CollectionProperty(type = dmr_exportanimationslist);
 
 def unregister():

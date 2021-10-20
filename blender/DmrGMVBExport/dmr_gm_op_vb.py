@@ -63,6 +63,11 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         default=False,
     );
     
+    maxsubdivisions : bpy.props.IntProperty(
+        name="Max Subdivisions", default = 2, min = -1,
+        description="Maximum number of subdivisions for Subdivision Surface modifier.\n(-1 for no limit)",
+    );
+    
     upaxis: bpy.props.EnumProperty(
         name="Up Axis", 
         description="Up Axis to use when Exporting",
@@ -102,6 +107,40 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         items = LayerChoiceItems, 
         default='render',
     );
+    
+    def draw(self, context):
+        layout = self.layout;
+        
+        r = layout.column_flow(align=1);
+        #r.prop(self, 'exportarmature', text='Export Armature');
+        r.prop(self, 'edgesonly', text='Edges Only');
+        r.prop(self, 'yflip', text='Y Flip');
+        r.prop(self, 'maxsubdivisions', text='Max Subdivisions');
+        r.prop(self, 'upaxis', text='Up Axis');
+        r.prop(self, 'forwardaxis', text='Forward Axis');
+        
+        b = layout.box();
+        b = b.column_flow(align=1);
+        r = b.row();
+        r.alignment = 'CENTER';
+        r.label(text='Vertex Attributes');
+        b.prop(self, 'vbf0', text='Attrib0');
+        b.prop(self, 'vbf1', text='Attrib1');
+        b.prop(self, 'vbf2', text='Attrib2');
+        b.prop(self, 'vbf3', text='Attrib3');
+        b.prop(self, 'vbf4', text='Attrib4');
+        b.prop(self, 'vbf5', text='Attrib5');
+        b.prop(self, 'vbf6', text='Attrib6');
+        b.prop(self, 'vbf7', text='Attrib7');
+        
+        rr = layout.row();
+        c = rr.column(align=1);
+        c.scale_x = 0.8;
+        c.label(text='UV Source:');
+        c.label(text='Color Source:');
+        c = rr.column(align=1);
+        c.prop(self, 'uvlayerpick', text='');
+        c.prop(self, 'colorlayerpick', text='');
 
     def execute(self, context):
         active = bpy.context.view_layer.objects.active;
@@ -141,6 +180,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
             'colorlayerpick': self.colorlayerpick == 'render',
             'yflip': self.yflip,
             'matrix': mattran,
+            'maxsubdivisions': self.maxsubdivisions,
         };
         
         FCODE = 'f';
@@ -262,15 +302,14 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
     );
     
     maxsubdivisions : bpy.props.IntProperty(
-        name="Max Subdivisions", default = 1, min = -1,
+        name="Max Subdivisions", default = 2, min = -1,
         description="Maximum number of subdivisions for Subdivision Surface modifier.\n(-1 for no limit)",
     );
     
     floattype : bpy.props.EnumProperty(
         name="Float Type", 
         description='Data type to export floats in for vertex attributes and bone matrices', 
-        items=FloatChoiceItems, 
-        default='f'
+        items=FloatChoiceItems, default='f'
     );
     
     # Vertex Attributes
@@ -288,17 +327,48 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
     uvlayerpick: bpy.props.EnumProperty(
         name="Target UV Layer", 
         description="UV Layer to reference when exporting.",
-        items = LayerChoiceItems, 
-        default='render',
+        items = LayerChoiceItems, default='render',
     );
     
     colorlayerpick: bpy.props.EnumProperty(
         name="Target Color Layer", 
         description="Color Layer to reference when exporting.",
-        items = LayerChoiceItems, 
-        default='render',
+        items = LayerChoiceItems, default='render',
     );
-
+    
+    def draw(self, context):
+        layout = self.layout;
+        layout.prop(self, 'grouping', text='Grouping');
+        
+        r = layout.column_flow(align=1);
+        r.prop(self, 'exportarmature', text='Export Armature');
+        r.prop(self, 'edgesonly', text='Edges Only');
+        r.prop(self, 'yflip', text='Y Flip');
+        r.prop(self, 'maxsubdivisions', text='Max Subdivisions');
+        
+        b = layout.box();
+        b = b.column_flow(align=1);
+        r = b.row();
+        r.alignment = 'CENTER';
+        r.label(text='Vertex Attributes');
+        b.prop(self, 'vbf0', text='Attrib0');
+        b.prop(self, 'vbf1', text='Attrib1');
+        b.prop(self, 'vbf2', text='Attrib2');
+        b.prop(self, 'vbf3', text='Attrib3');
+        b.prop(self, 'vbf4', text='Attrib4');
+        b.prop(self, 'vbf5', text='Attrib5');
+        b.prop(self, 'vbf6', text='Attrib6');
+        b.prop(self, 'vbf7', text='Attrib7');
+        
+        rr = layout.row();
+        c = rr.column(align=1);
+        c.scale_x = 0.8;
+        c.label(text='UV Source:');
+        c.label(text='Color Source:');
+        c = rr.column(align=1);
+        c.prop(self, 'uvlayerpick', text='');
+        c.prop(self, 'colorlayerpick', text='');
+        
     def execute(self, context):
         active = bpy.context.view_layer.objects.active;
         format = [];
