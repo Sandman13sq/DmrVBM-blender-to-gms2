@@ -47,3 +47,46 @@ function CreateGridVB(cellcount, cellsize)
 	return out;
 }
 
+function UpdateView()
+{
+	var d;
+	
+	// Forward
+	cameraforward[0] = dcos(cameradirection) * dcos(camerapitch);
+	cameraforward[1] = -dsin(cameradirection) * dcos(camerapitch);
+	cameraforward[2] = -dsin(camerapitch);
+	d = point_distance_3d(0,0,0, cameraforward[0], cameraforward[1], cameraforward[2]);
+	cameraforward[0] /= d;
+	cameraforward[1] /= d;
+	cameraforward[2] /= d;
+	
+	// Right
+	cameraright[0] = dcos(cameradirection+90) * dcos(camerapitch);
+	cameraright[1] = -dsin(cameradirection+90) * dcos(camerapitch);
+	cameraright[2] = -dsin(camerapitch);
+	d = point_distance_3d(0,0,0, cameraright[0], cameraright[1], cameraright[2]);
+	cameraright[0] /= d;
+	cameraright[1] /= d;
+	cameraright[2] /= d;
+	
+	// Up
+	cameraup[0] = dcos(cameradirection) * dcos(camerapitch-90);
+	cameraup[1] = -dsin(cameradirection) * dcos(camerapitch-90);
+	cameraup[2] = -dsin(camerapitch-90);
+	d = point_distance_3d(0,0,0, cameraup[0], cameraup[1], cameraup[2]);
+	cameraup[0] /= d;
+	cameraup[1] /= d;
+	cameraup[2] /= d;
+	
+	// View Matrix
+	d = cameradist;
+	matview = matrix_build_lookat(
+		camera[0]-cameraforward[0]*d, camera[1]-cameraforward[1]*d, camera[2]-cameraforward[2]*d, 
+		camera[0], camera[1], camera[2], 
+		cameraup[0], cameraup[1], cameraup[2]);
+	// Correct Yflip
+	matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
+	
+	array_copy(camera, 3, cameraforward, 0, 3);
+
+}

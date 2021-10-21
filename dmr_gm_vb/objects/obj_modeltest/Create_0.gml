@@ -56,12 +56,26 @@ dm_emission = 0;
 dm_shine = 1;
 dm_sss = 0;
 
+mouseanchor = [0, 0];
+cameraanchor = [0,0,0];
+rotationanchor = [0, 0];
+middlemode = 0;
+middlelock = 0;
+
 // Camera ==============================================================
 
 camera = [
-	4, 28, 10,	// x, y, z
+	0, 0, 7,	// x, y, z
 	0, 0, 0,	// fwrd
 ];
+
+cameraforward = [0,1,0];
+cameraright = [1,0,0];
+cameraup = [0,0,1];
+
+cameradist = 32;
+cameradirection = 110;
+camerapitch = 15;
 
 camerawidth = 0;
 cameraheight = 0;
@@ -73,8 +87,7 @@ matview = matrix_build_lookat(camera[0], camera[1], camera[2], 0, 0, 10, 0, 0, 1
 matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
 mattran = matrix_build(0,0,0, 0,0,0, 1,1,1);
 
-mouselook = new MouseLook();
-mouselook.SetDirection(90);
+UpdateView();
 
 bkcolor = 0x201010;
 
