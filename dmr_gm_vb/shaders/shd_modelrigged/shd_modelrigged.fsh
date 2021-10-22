@@ -8,6 +8,7 @@ varying vec2 v_uv;
 varying vec4 v_color;
 varying vec3 v_nor;
 
+// Uniforms
 uniform vec3 u_camera[2]; // [pos, dir, light]
 uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorblend[4]]
 

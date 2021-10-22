@@ -95,6 +95,7 @@ bkcolor = 0x201010;
 
 // vbx struct. Model + Bone data
 vbx = LoadVBX("curly.vbx", vbf_rigged);
+vbx_nm = LoadVBX("curly_nor.vbx", vbf_full);
 vbx_wireframe = LoadVBX("curly_l.vbx", vbf_rigged);
 // 2D array of matrices. Holds relative transforms for bones
 inpose = array_create(DMRVBX_MATPOSEMAX);
@@ -135,6 +136,13 @@ uniformset[0] = {
 
 shd = shd_modelrigged;
 uniformset[1] = {
+	u_drawmatrix : shader_get_uniform(shd, "u_drawmatrix"),
+	u_camera : shader_get_uniform(shd, "u_camera"),
+	u_matpose : shader_get_uniform(shd, "u_matpose"),
+}
+
+shd = shd_normalmap;
+uniformset[2] = {
 	u_drawmatrix : shader_get_uniform(shd, "u_drawmatrix"),
 	u_camera : shader_get_uniform(shd, "u_camera"),
 	u_matpose : shader_get_uniform(shd, "u_matpose"),

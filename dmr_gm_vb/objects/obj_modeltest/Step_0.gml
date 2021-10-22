@@ -1,5 +1,6 @@
 /// @desc
 
+// Check if window size changed
 if window_get_width() != camerawidth
 || window_get_height() != cameraheight
 {
@@ -12,7 +13,10 @@ if window_get_width() != camerawidth
 	event_user(1);
 }
 
-vbmode ^= keyboard_check_pressed(ord("M"));
+if keyboard_check_pressed(ord("M"))
+{
+	vbmode = (vbmode+1) mod 3;
+}
 isplaying ^= keyboard_check_pressed(vk_space);
 
 keymode ^= keyboard_check_pressed(ord("K"));
@@ -42,6 +46,7 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 		array_copy(matpose, 0, posemats[poseindex], 0, array_length(posemats[poseindex]));
 	}
 	
+	// Set anchor variables for movement
 	if mouse_check_button_pressed(mb_middle)
 	|| (keyboard_check(vk_alt) && mouse_check_button_pressed(mb_left))
 	{
@@ -57,6 +62,7 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 		middlelock = 1;
 	}
 	
+	// Is moving
 	if middlelock
 	{
 		// Rotate
@@ -65,7 +71,7 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 			var r, u;
 			r = window_mouse_get_x() - mouseanchor[0];
 			u = window_mouse_get_y() - mouseanchor[1];
-		
+			
 			cameradirection = rotationanchor[0] - r/4;
 			camerapitch = rotationanchor[1] + u/4;
 		}
@@ -82,7 +88,7 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 			camera[2] = cameraanchor[2] + (cameraright[2]*r) + (cameraup[2]*u);
 		}
 		
-		// Wrap
+		// Wrap Mouse Position
 		var _mx = window_mouse_get_x(),
 			_my = window_mouse_get_y();
 		var _w = window_get_width(),
@@ -96,6 +102,7 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 		else if _my >= _h-1 {window_mouse_set(_mx, _my-_h); mouseanchor[1] -= _h;}
 		_my = window_mouse_get_y();
 		
+		// Wrap Camera Rotations
 		if mouse_check_button_released(mb_middle)
 		|| (mouse_check_button_released(mb_left))
 		{
@@ -111,11 +118,10 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 	
 	//mouselook.Update(mouse_check_button(mb_middle) || (mouse_check_button(mb_left) && keyboard_check(vk_alt)));
 	
-	var lev = (keyboard_check(ord("W")) - keyboard_check(ord("S")))*0.1;
-	lev += 4 * (mouse_wheel_up() - mouse_wheel_down());
+	var lev = mouse_wheel_up() - mouse_wheel_down();
 	if lev != 0
 	{
-		var d = 1.2;
+		var d = 1.1;
 		cameradist *= (lev<0)? d: (1/d);
 	}
 
@@ -133,11 +139,13 @@ if levplayback != 0
 	if trackpos < trackdata.positionrange[0] {trackpos = trackdata.positionrange[1];}
 	if trackpos > trackdata.positionrange[1] {trackpos = trackdata.positionrange[0];}
 	
+	// Matrix from animation position
 	exectime[0] = get_timer();
 	EvaluateAnimationTracks(lerp(trackdata.positionrange[0], trackdata.positionrange[1], trackpos), 
 		2, keymode? vbx.bonenames: 0, trackdata, inpose);
 	exectime[0] = get_timer()-exectime[0];
 	
+	// Bone-space matrices to model-space matrices
 	exectime[1] = get_timer();
 	CalculateAnimationPose(
 		vbx.bone_parentindices, vbx.bone_localmatricies, vbx.bone_inversematricies, 

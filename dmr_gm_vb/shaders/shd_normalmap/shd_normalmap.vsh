@@ -24,29 +24,29 @@ varying vec3 v_dirtocamera_ts;
 // Uniforms passed in before draw call
 uniform mat4 u_matpose[192];
 
-const vec3 NY = vec3(1.0, -1.0, 1.0);
-
-const vec3 u_lightpos = vec3(10.0, -10.0, 20.0);
+const vec3 u_lightpos = 16.0*vec3(0.5, 3.0, 2.0);
 
 void main()
 {
-	vec4 vertexpos = vec4(in_Position, 1.0);
-	vec4 normal = vec4(in_Normal, 0.0);
+	// Attributes
+    vec4 vertexpos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
+	vec4 normal = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 0.0);
 	
 	// Weight & Bones
 	mat4 m = mat4(0.0);
 	for (int i = 0; i < 4; i++)
-	{m += u_matpose[ int(in_Bone[i]) ] * in_Weight[i];}
+	{m += (u_matpose[ int(in_Bone[i]) ]) * in_Weight[i];}
 	
-	normal = m * normal;
 	vertexpos = m * vertexpos;
+	normal = m * normal;
 	
-	// Apply view and proj matricies
+	// Set draw position
 	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
     
+	// Varyings
 	v_pos = (gm_Matrices[MATRIX_WORLD] * vertexpos).xyz;
-	v_uv = in_Uv;
-	v_color = in_Color;
+    v_color = in_Color;
+    v_uv = in_Uv;
 	v_normal = normalize( ( gm_Matrices[MATRIX_VIEW] * gm_Matrices[MATRIX_WORLD] * normal ).xyz );
 	
 	vec3 vertexpos_cs = (gm_Matrices[MATRIX_VIEW] * gm_Matrices[MATRIX_WORLD] * vertexpos).xyz;

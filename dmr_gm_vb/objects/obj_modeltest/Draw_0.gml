@@ -33,25 +33,31 @@ shader_set_uniform_f_array(uniformset[0].u_drawmatrix, BuildDrawMatrix(1));
 shader_set_uniform_f_array(uniformset[0].u_camera, camera);
 vertex_submit(vb_world, pr_trianglelist, -1);
 
+var uniset;
+
 if vbmode == 0 // Static Model (No Bones)
 {
+	uniset = uniformset[0];
+	
 	shader_set(shd_model);
 	matrix_set(matrix_world, mattran);
-	shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, drawmatrix);
-	shader_set_uniform_f_array(uniformset[vbmode].u_camera, camera);
+	shader_set_uniform_f_array(uniset.u_drawmatrix, drawmatrix);
+	shader_set_uniform_f_array(uniset.u_camera, camera);
 	vertex_submit(vb, pr_trianglelist, -1);
 }
-else // Rigged Model (With Bones)
+else if vbmode == 1 // Rigged Model (With Bones)
 {
+	uniset = uniformset[1];
+	
 	shader_set(shd_modelrigged);
 	matrix_set(matrix_world, mattran);
-	shader_set_uniform_f_array(uniformset[vbmode].u_camera, camera);
-	shader_set_uniform_f_array(uniformset[vbmode].u_matpose, matpose);
+	shader_set_uniform_f_array(uniset.u_camera, camera);
+	shader_set_uniform_f_array(uniset.u_matpose, matpose);
 	
 	// Solid
 	if (!wireframe)
 	{
-		shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, drawmatrix);
+		shader_set_uniform_f_array(uniset.u_drawmatrix, drawmatrix);
 		
 		for (var i = 0; i < vbx.vbcount; i++)
 		{
@@ -62,7 +68,7 @@ else // Rigged Model (With Bones)
 		}
 		
 		// Shadow
-		shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, 
+		shader_set_uniform_f_array(uniset.u_drawmatrix, 
 			BuildDrawMatrix(1, 1, 0, 0, c_dkgray, 1));
 		matrix_set(matrix_world, matrix_multiply(mattran, matrix_build(0,0,0, 0,0,0, 1, 1, 0.001)));
 		for (var i = 0; i < vbx.vbcount; i++)
@@ -80,11 +86,34 @@ else // Rigged Model (With Bones)
 		{
 			if vbxvisible & (1<<i)
 			{
-				shader_set_uniform_f_array(uniformset[vbmode].u_drawmatrix, 
+				shader_set_uniform_f_array(uniset.u_drawmatrix, 
 					BuildDrawMatrix(1, 1, 1, 0, wireframecolors[i], 1));
 				vertex_submit(vbx_wireframe.vb[i], pr_linelist, -1);
 			}
 		}	
+	}
+}
+else if vbmode == 2
+{
+	uniset = uniformset[2];
+	
+	shader_set(shd_normalmap);
+	matrix_set(matrix_world, mattran);
+	shader_set_uniform_f_array(uniset.u_camera, camera);
+	shader_set_uniform_f_array(uniset.u_matpose, matpose);
+	
+	// Solid
+	shader_set_uniform_f_array(uniset.u_drawmatrix, drawmatrix);
+		
+	for (var i = 0; i < vbx_nm.vbcount; i++)
+	{
+		if vbxvisible & (1<<i)
+		{
+			if string_pos("skin", vbx_nm.vbnames[i]) > 0
+			{vertex_submit(vbx_nm.vb[i], pr_trianglelist, sprite_get_texture(spr_normalmap, 0));}
+			else
+			{vertex_submit(vbx_nm.vb[i], pr_trianglelist, -1);}	
+		}
 	}
 }
 

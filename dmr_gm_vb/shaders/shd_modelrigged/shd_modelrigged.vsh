@@ -39,7 +39,6 @@ void main()
 	// Varyings
 	v_pos = (gm_Matrices[MATRIX_WORLD] * vertexpos).xyz;
     v_color = in_Color;
-	v_color.a = 1.0;
     v_uv = in_Uv;
 	v_nor = normalize(gm_Matrices[MATRIX_WORLD] * normal).xyz;
 }
