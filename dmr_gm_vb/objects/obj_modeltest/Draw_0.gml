@@ -21,7 +21,6 @@ shader_set(shd_default);
 
 //vertex_submit(vb_grid, pr_linelist, -1);
 
-
 // Model
 gpu_set_cullmode(cull_clockwise);
 gpu_set_ztestenable(1);

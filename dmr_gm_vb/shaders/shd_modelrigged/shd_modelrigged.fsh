@@ -8,7 +8,7 @@ varying vec2 v_uv;
 varying vec4 v_color;
 varying vec3 v_nor;
 
-// Uniforms
+// Uniforms passed in before draw call
 uniform vec3 u_camera[2]; // [pos, dir, light]
 uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorblend[4]]
 
@@ -21,7 +21,7 @@ void main()
 	
 	// Dot Product
 	float dp = clamp(dot(n, l), 0.0, 1.0);
-	dp = pow(dp, 0.5);
+	//dp = pow(dp, 0.5);
 	
 	// Fake Fresnel
 	float fresnel = dot(n, c);
@@ -59,4 +59,5 @@ void main()
 	//gl_FragColor = vec4(vec3(fresnel), 1.0);
 	//gl_FragColor = vec4(vec3(shine), 1.0);
 	//gl_FragColor = vec4(vec2(v_vTexcoord), 0.0, 1.0);
+	
 }

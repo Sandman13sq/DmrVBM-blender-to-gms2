@@ -22,9 +22,9 @@ varying vec3 v_dirtolight_ts;
 varying vec3 v_dirtocamera_ts;
 
 // Uniforms passed in before draw call
-uniform mat4 u_matpose[192];
+uniform mat4 u_matpose[200];
 
-const vec3 u_lightpos = 16.0*vec3(0.5, 3.0, 2.0);
+const vec3 u_lightpos = 160.0*vec3(0.5, -3.0, 2.0);
 
 void main()
 {
@@ -42,6 +42,14 @@ void main()
 	
 	// Set draw position
 	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
+	
+	mat4 matview = gm_Matrices[MATRIX_VIEW] * mat4(
+		1.0, 0.0, 0.0, 0.0,
+		0.0, -1.0, 0.0, 0.0,
+		0.0, 0.0, 1.0, 0.0,
+		0.0, 0.0, 0.0, 1.0
+		);
+	
     
 	// Varyings
 	v_pos = (gm_Matrices[MATRIX_WORLD] * vertexpos).xyz;
@@ -60,7 +68,12 @@ void main()
 	vec3 tangent_camspace = matmodelview * normalize(in_Tangent);
 	vec3 bitangent_camspace = matmodelview * normalize(in_Bitangent);
 	
-	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace);
+	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace) * mat3(
+		1.0, 0.0, 0.0,
+		0.0, -1.0, 0.0,
+		0.0, 0.0, 1.0
+		);
+	
 	tbn = mat3(
 		tbn[0][0], tbn[1][0], tbn[2][0],
 		tbn[0][1], tbn[1][1], tbn[2][1],

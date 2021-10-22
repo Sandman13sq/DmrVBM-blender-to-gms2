@@ -15,7 +15,8 @@ if window_get_width() != camerawidth
 
 if keyboard_check_pressed(ord("M"))
 {
-	vbmode = (vbmode+1) mod 3;
+	//vbmode = (vbmode+1) mod 3;
+	vbmode = (vbmode == 1)? 2: 1;
 }
 isplaying ^= keyboard_check_pressed(vk_space);
 

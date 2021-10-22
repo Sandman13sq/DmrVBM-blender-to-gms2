@@ -13,7 +13,7 @@ varying vec3 v_dirtocamera_cs;
 varying vec3 v_dirtolight_ts;
 varying vec3 v_dirtocamera_ts;
 
-// Uniforms
+// Uniforms passed in before draw call
 uniform vec3 u_camera[2]; // [pos, dir, light]
 uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorblend[4]]
 
@@ -31,14 +31,18 @@ void main()
 	}
 	else
 	{
-		n = normalize(texture2D(gm_BaseTexture, v_uv).xyz * 2.0 - 1.0);
+		vec3 texnor = texture2D(gm_BaseTexture, v_uv).xyz;
+		texnor = mix(texnor, vec3(0.5, 0.5, 1.0), float(texnor == vec3(1.0, 1.0, 1.0)));
+		
+		n = normalize((texnor * 2.0) - 1.0);
 		l = normalize(v_dirtolight_ts);
 		c = normalize(v_dirtocamera_ts);
 	}
+	c.y *= -1.0;
 	
 	// Dot Product
 	float dp = clamp(dot(n, l), 0.0, 1.0); // (1 = exposed, -1 = hidden, 0 = perpendicular)
-	dp = pow(dp, 0.5);
+	//dp = pow(dp, 0.5);
 	
 	// Fake Fresnel
 	float fresnel = dot(n, c);
@@ -46,7 +50,6 @@ void main()
 	fresnel = float(fresnel >= 0.02);
 	
 	// Specular
-	//float shine = pow(dp + 0.01, 512.0);
 	float shine = pow(dp + 0.03, 512.0);
 	
 	vec4 diffusecolor = v_color;// * texture2D( gm_BaseTexture, v_uv);
@@ -69,4 +72,5 @@ void main()
     gl_FragColor = vec4(outcolor, u_drawmatrix[0][0]*diffusecolor.a);
 	
 	if (gl_FragColor.a == 0.0) {discard;}
+	
 }
