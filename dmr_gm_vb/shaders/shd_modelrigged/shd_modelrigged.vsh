@@ -16,8 +16,14 @@ varying vec2 v_uv;
 varying vec4 v_color;
 varying vec3 v_nor;
 
+varying vec3 v_lightdir_cs;
+varying vec3 v_eyedir_cs;
+varying vec3 v_nor_cs;
+
 // Uniforms passed in before draw call
 uniform mat4 u_matpose[200];
+
+const vec3 lightpos_ws = vec3(64.0, -128.0, 80.0);
 
 void main()
 {
@@ -39,6 +45,18 @@ void main()
 	// Varyings
 	v_pos = (gm_Matrices[MATRIX_WORLD] * vertexpos).xyz;
     v_color = in_Color;
+	v_color.a = 1.0;
     v_uv = in_Uv;
 	v_nor = normalize(gm_Matrices[MATRIX_WORLD] * normal).xyz;
+	
+	vec3 vertexpos_cs = vec3(0.0)-(gm_Matrices[MATRIX_WORLD_VIEW] * vertexpos).xyz;
+	v_eyedir_cs = vec3(0.0) - vertexpos_cs;
+	
+	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(lightpos_ws, 1.0)).xyz;
+	v_lightdir_cs = lightpos_cs + v_eyedir_cs;
+	
+	v_nor_cs = normalize( (gm_Matrices[MATRIX_WORLD_VIEW] * normal).xyz);
+	
+	//v_eyedir_cs = normalize(v_eyedir_cs);
+	//v_lightdir_cs = normalize(v_lightdir_cs);
 }

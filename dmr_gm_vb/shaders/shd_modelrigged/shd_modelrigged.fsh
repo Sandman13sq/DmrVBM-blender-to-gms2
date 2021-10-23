@@ -8,29 +8,35 @@ varying vec2 v_uv;
 varying vec4 v_color;
 varying vec3 v_nor;
 
+varying vec3 v_lightdir_cs;
+varying vec3 v_eyedir_cs;
+varying vec3 v_nor_cs;
+
 // Uniforms passed in before draw call
 uniform vec3 u_camera[2]; // [pos, dir, light]
 uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorblend[4]]
 
 void main()
 {
-	vec3 l = normalize(vec3(0.5, -3.0, 2.0));
-	vec3 n = v_nor;
-	vec3 c = normalize(u_camera[0]-v_pos);
-	c.y *= -1.0;
+	vec3 l = normalize(v_lightdir_cs);
+	vec3 n = normalize(v_nor_cs);
+	vec3 e = normalize(v_eyedir_cs);
+	vec3 r = reflect(l, n);
+	//c.y *= -1.0;
 	
 	// Dot Product
 	float dp = clamp(dot(n, l), 0.0, 1.0);
-	//dp = pow(dp, 0.5);
+	dp = pow(dp, 0.5);
 	
 	// Fake Fresnel
-	float fresnel = dot(n, c);
-	fresnel = clamp(pow(1.0-fresnel, 8.0), 0.0, 1.0);
-	fresnel = float(fresnel >= 0.02);
+	float fresnel = dot(n, -e);
+	fresnel = clamp(pow(1.0-fresnel, 8.0)+0.02, 0.0, 1.0);
+	fresnel = float(fresnel > 0.1);
 	
 	// Specular
 	//float shine = pow(dp + 0.01, 512.0);
-	float shine = pow(dp + 0.03, 512.0);
+	//float shine = pow(dp + 0.03, 512.0);
+	float shine = pow( clamp( dot(e, r), 0.0, 1.0) + 0.02, 512.0 );
 	
 	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
 	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), u_drawmatrix[0].w);
@@ -39,7 +45,7 @@ void main()
 	
 	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
 	//outcolor += (diffusecolor.rgb * 0.4) * clamp(shine+fresnel, 0.0, 1.0);
-	outcolor += shinecolor * clamp(shine, 0.0, 1.0) * u_drawmatrix[0][2];
+	outcolor += shinecolor * clamp(shine+fresnel, 0.0, 1.0) * u_drawmatrix[0][2];
 	
 	// Emission
 	outcolor = mix(outcolor, diffusecolor.rgb, u_drawmatrix[0][1]);
