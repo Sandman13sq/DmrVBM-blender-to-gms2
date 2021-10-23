@@ -359,7 +359,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				switch(interpolationtype)
 				{
 					case(AniTrack_Intrpl.constant): blendamt = blendamt >= 0.99; break;
-					case(AniTrack_Intrpl.linear): blendamt = blendamt; break;
+					//case(AniTrack_Intrpl.linear): blendamt = blendamt; break;
 					case(AniTrack_Intrpl.smooth): blendamt = 0.5*(1-cos(pi*blendamt)); break;
 				}
 				

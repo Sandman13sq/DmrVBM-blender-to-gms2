@@ -2,42 +2,7 @@
 
 event_user(0);
 
-#region VBF Setup
-
-vertex_format_begin();
-vertex_format_add_position_3d();
-vertex_format_add_color();
-vertex_format_add_texcoord();
-vbf_default = vertex_format_end();
-
-vertex_format_begin();
-vertex_format_add_position_3d();
-vertex_format_add_normal();
-vertex_format_add_color();
-vertex_format_add_texcoord();
-vbf_model = vertex_format_end();
-
-vertex_format_begin();
-vertex_format_add_position_3d();
-vertex_format_add_normal();
-vertex_format_add_color();
-vertex_format_add_texcoord();
-vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Indices
-vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Weights
-vbf_rigged = vertex_format_end();
-
-vertex_format_begin();
-vertex_format_add_position_3d();
-vertex_format_add_normal();
-vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); // Tangent
-vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); // Bitangent
-vertex_format_add_color();
-vertex_format_add_texcoord();
-vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Indices
-vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Weights
-vbf_full = vertex_format_end();
-
-#endregion
+Structor_VBFormat(1);
 
 // Controls ==========================================================
 
@@ -90,9 +55,9 @@ bkcolor = 0x201010;
 // VBX Vars ===========================================================
 
 // vbx struct. Model + Bone data
-vbx = LoadVBX("curly.vbx", vbf_rigged);
-vbx_nm = LoadVBX("curly_nor.vbx", vbf_full);
-vbx_wireframe = LoadVBX("curly_l.vbx", vbf_rigged);
+vbx = LoadVBX("curly.vbx", vbf.rigged);
+vbx_nm = LoadVBX("curly_nor.vbx", vbf.normal);
+vbx_wireframe = LoadVBX("curly_l.vbx", vbf.rigged);
 // 2D array of matrices. Holds relative transforms for bones
 inpose = array_create(DMRVBX_MATPOSEMAX);
 for (var i = DMRVBX_MATPOSEMAX-1; i >= 0; i--) 
@@ -103,6 +68,11 @@ matpose = array_create(DMRVBX_MATPOSEMAX*16);
 trackdata = LoadAniTrack("curly.trk");
 posemats = [];
 LoadPoses("curly.pse", posemats);
+
+vb = LoadVertexBuffer("curly.vb", vbf.model);
+vb_grid = CreateGridVB(40, 16);
+
+vb_world = LoadVertexBuffer("world.vb", vbf.model);
 
 // Animation Vars =====================================================
 
@@ -156,11 +126,6 @@ for (var i = 0; i < array_length(wireframecolors); i++)
 {
 	wireframecolors[i] = make_color_hsv(irandom(255), irandom(255), 255);
 }
-
-vb = LoadVertexBuffer("curly.vb", vbf_model);
-vb_grid = CreateGridVB(40, 16);
-
-vb_world = LoadVertexBuffer("world.vb", vbf_model);
 
 printf(trackdata.markerpositions);
 printf(trackposspeed);

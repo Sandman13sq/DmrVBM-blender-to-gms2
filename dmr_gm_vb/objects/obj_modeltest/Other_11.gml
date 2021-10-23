@@ -69,6 +69,8 @@ for (var i = 0; i < vbx.vbcount; i++)
 	el.Value(vbxvisible & (1<<i));
 }
 
+//b.List();
+
 layout_model.Button().Label("Bind Pose").Operator(OP_BindPose);
 layout_model.Button().SetIDName("toggleplayback")
 	.Operator(OP_TogglePlayback).Value(isplaying).toggle_on_click = 1;

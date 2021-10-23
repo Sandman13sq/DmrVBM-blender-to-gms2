@@ -21,7 +21,7 @@ function CreateGridVB(cellcount, cellsize)
 	var width = cellsize * cellcount;
 	
 	var out = vertex_create_buffer();
-	vertex_begin(out, vbf_default);
+	vertex_begin(out, vbf.basic);
 	for (var i = -cellcount; i <= cellcount; i++)
 	{
 		MakeVert(out, i*cellsize, width, colgrid);
