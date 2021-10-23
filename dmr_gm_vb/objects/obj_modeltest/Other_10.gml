@@ -81,12 +81,10 @@ function UpdateView()
 	// View Matrix
 	d = cameradist;
 	matview = matrix_build_lookat(
-		camera[0]-cameraforward[0]*d, camera[1]-cameraforward[1]*d, camera[2]-cameraforward[2]*d, 
-		camera[0], camera[1], camera[2], 
+		camerapos[0]-cameraforward[0]*d, camerapos[1]-cameraforward[1]*d, camerapos[2]-cameraforward[2]*d, 
+		camerapos[0], camerapos[1], camerapos[2], 
 		cameraup[0], cameraup[1], cameraup[2]);
 	// Correct Yflip
 	matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
-	
-	array_copy(camera, 3, cameraforward, 0, 3);
 
 }

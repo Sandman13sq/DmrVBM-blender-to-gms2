@@ -6,7 +6,7 @@ if window_get_width() != camerawidth
 {
 	camerawidth = window_get_width();
 	cameraheight = window_get_height();
-	matproj = matrix_build_projection_perspective_fov(50, camerawidth/cameraheight, znear, zfar);
+	matproj = matrix_build_projection_perspective_fov(fieldofview, camerawidth/cameraheight, znear, zfar);
 	
 	surface_resize(application_surface, camerawidth, cameraheight);
 	
@@ -53,9 +53,9 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 	{
 		mouseanchor[0] = window_mouse_get_x();
 		mouseanchor[1] = window_mouse_get_y();
-		cameraanchor[0] = camera[0];
-		cameraanchor[1] = camera[1];
-		cameraanchor[2] = camera[2];
+		cameraanchor[0] = camerapos[0];
+		cameraanchor[1] = camerapos[1];
+		cameraanchor[2] = camerapos[2];
 		rotationanchor[0] = cameradirection;
 		rotationanchor[1] = camerapitch;
 		
@@ -84,9 +84,9 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 			r = (window_mouse_get_x() - mouseanchor[0])*d/20;
 			u = (window_mouse_get_y() - mouseanchor[1])*d/20;
 			
-			camera[0] = cameraanchor[0] + (cameraright[0]*r) + (cameraup[0]*u);
-			camera[1] = cameraanchor[1] + (cameraright[1]*r) + (cameraup[1]*u);
-			camera[2] = cameraanchor[2] + (cameraright[2]*r) + (cameraup[2]*u);
+			camerapos[0] = cameraanchor[0] + (cameraright[0]*r) + (cameraup[0]*u);
+			camerapos[1] = cameraanchor[1] + (cameraright[1]*r) + (cameraup[1]*u);
+			camerapos[2] = cameraanchor[2] + (cameraright[2]*r) + (cameraup[2]*u);
 		}
 		
 		// Wrap Mouse Position

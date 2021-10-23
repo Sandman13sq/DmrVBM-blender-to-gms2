@@ -9,7 +9,7 @@ draw_set_valign(0);
 
 frametime = get_timer()-frametime;
 array_push(s,
-	camera,
+	camerapos,
 	[x, y, z],
 	stringf("Trackpos: %s", trackpos),
 	stringf("Posemat: %s", poseindex),

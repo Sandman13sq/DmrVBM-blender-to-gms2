@@ -32,6 +32,8 @@ function OP_DmShine(btn) {obj_modeltest.dm_shine = btn.value;}
 function OP_DmEmission(btn) {obj_modeltest.dm_emission = btn.value;}
 function OP_DmSSS(btn) {obj_modeltest.dm_sss = btn.value;}
 
+function OP_FieldOvView(btn) {obj_modeltest.camera = btn.value;}
+
 function OP_LoadVBX(btn) 
 {
 	var _fname = get_open_filename("*.vbx", "curly.vbx");

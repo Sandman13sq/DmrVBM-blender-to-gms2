@@ -64,11 +64,7 @@ middlelock = 0;
 
 // Camera ==============================================================
 
-camera = [
-	0, 0, 7,	// x, y, z
-	0, 0, 0,	// fwrd
-];
-
+camerapos = [0,0,7];
 cameraforward = [0,1,0];
 cameraright = [1,0,0];
 cameraup = [0,0,1];
@@ -82,12 +78,12 @@ cameraheight = 0;
 
 zfar = 1000;
 znear = 1;
-matproj = matrix_build_projection_perspective_fov(50, camerawidth/cameraheight, znear, zfar);
-matview = matrix_build_lookat(camera[0], camera[1], camera[2], 0, 0, 10, 0, 0, 1);
-matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
+fieldofview = 50;
+matproj = matrix_build_projection_perspective_fov(fieldofview, camerawidth/cameraheight, znear, zfar);
+matview = matrix_build_identity();
 mattran = matrix_build(0,0,0, 0,0,0, 1,1,1);
 
-UpdateView();
+UpdateView(); // Matrices are set here
 
 bkcolor = 0x201010;
 

@@ -29,7 +29,7 @@ gpu_set_zwriteenable(1);
 shader_set(shd_model);
 matrix_set(matrix_world, matrix_build_identity());
 shader_set_uniform_f_array(uniformset[0].u_drawmatrix, BuildDrawMatrix(1));
-shader_set_uniform_f_array(uniformset[0].u_camera, camera);
+shader_set_uniform_f_array(uniformset[0].u_camera, camerapos);
 vertex_submit(vb_world, pr_trianglelist, -1);
 
 var uniset;
@@ -41,7 +41,7 @@ if vbmode == 0 // Static Model (No Bones)
 	shader_set(shd_model);
 	matrix_set(matrix_world, mattran);
 	shader_set_uniform_f_array(uniset.u_drawmatrix, drawmatrix);
-	shader_set_uniform_f_array(uniset.u_camera, camera);
+	shader_set_uniform_f_array(uniset.u_camera, camerapos);
 	vertex_submit(vb, pr_trianglelist, -1);
 }
 else if vbmode == 1 // Rigged Model (With Bones)
@@ -50,7 +50,7 @@ else if vbmode == 1 // Rigged Model (With Bones)
 	
 	shader_set(shd_modelrigged);
 	matrix_set(matrix_world, mattran);
-	shader_set_uniform_f_array(uniset.u_camera, camera);
+	shader_set_uniform_f_array(uniset.u_camera, camerapos);
 	shader_set_uniform_f_array(uniset.u_matpose, matpose);
 	
 	// Solid
@@ -98,7 +98,7 @@ else if vbmode == 2
 	
 	shader_set(shd_normalmap);
 	matrix_set(matrix_world, mattran);
-	shader_set_uniform_f_array(uniset.u_camera, camera);
+	shader_set_uniform_f_array(uniset.u_camera, camerapos);
 	shader_set_uniform_f_array(uniset.u_matpose, matpose);
 	
 	// Solid
