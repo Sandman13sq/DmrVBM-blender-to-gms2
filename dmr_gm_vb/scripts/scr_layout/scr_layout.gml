@@ -16,10 +16,24 @@ function __LayoutSuper() constructor
 	w = 0;
 	h = 0;
 	b = 2;
+	
 	label = "";
 	idname = "";
 	
 	#region // Elements =======================================================
+	
+	function ReplaceElement(idname, el_function)
+	{
+		for (var i = 0; i < childrencount; i++)
+		{
+			if children[i].idname == idname
+			{
+				children[i].Clean();
+				delete children[i];
+				children[i] = new el_type();
+			}
+		}
+	}
 	
 	function Row()
 	{
@@ -72,6 +86,14 @@ function __LayoutSuper() constructor
 	function Real()
 	{
 		var el = new LayoutElement_Real(root, self);
+		array_push(children, el);
+		childrencount++;
+		return el;		
+	}
+	
+	function List()
+	{
+		var el = new LayoutElement_List(root, self);
 		array_push(children, el);
 		childrencount++;
 		return el;		
@@ -170,6 +192,15 @@ function __LayoutSuper() constructor
 	}
 	
 	#endregion
+	
+	function Clear()
+	{
+		for (var i = 0; i < childrencount; i++)
+		{
+			children[i].Clear();
+			delete children[i];
+		}
+	}
 	
 	function toString()
 	{
@@ -1005,4 +1036,98 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 	}
 }
 
+function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) constructor
+{
+	color = common.c_base;
+	toggle_on_click = false;
+	
+	list = [0, 1, 2, 3, 4, 5];
+	size = 0;
+	itemsperpage = 6;
+	indexover = -1;
+	offset = 0;
+	
+	static drawitem_default = function(button, x, y, value, index)
+	{
+		draw_set_halign(0);
+		draw_set_valign(0);
+		DrawText(x + 4, y, "Item[" + string(index) + "]: " + string(value),
+			
+			);
+	}
+	drawitem_function = drawitem_default;
+	
+	function UpdatePos(_x1, _y1, _x2, _y2)
+	{
+		x1 = _x1;
+		y1 = _y1;
+		x2 = _x2;
+		y2 = _y2;
+		w = x2-x1;
+		
+		var n = array_length(list);
+		//itemsperpage = h div common.cellmax;
+		if n <= itemsperpage {offset = 0;}
+		
+		h = common.cellmax * itemsperpage;
+		y2 = y1 + h;
+		
+		xc = lerp(x1, x2, 0.5);
+		yc = lerp(y1, y2, 0.5);
+		
+		return [w, h];
+	}
+	
+	function Update()
+	{
+		if IsMouseOver()
+		{
+			
+			
+			color = common.c_highlight;	
+			
+			if common.clickheld
+				{color = common.c_active;}
+			
+			if common.clickreleased
+			{
+				if op {op(self, index, list);}
+			}
+		}
+		else
+		{
+			color = common.c_base;	
+			indexover = -1;
+		}
+	}
+	
+	function Draw()
+	{
+		DrawRectWH(x1, y1, w, h, color);
+		
+		var n = array_length(list);
+		var yy = y1;
+		var xx1 = x1 + 4, xx2 = x2 - 4;
+		for (var i = 0; i < n; i++)
+		{
+			drawitem_default(self, x1, yy, list[i], i);
+			yy += common.cellmax;
+			
+			if i < n-1
+			{
+				draw_line_color(xx1, yy, xx2, yy, c_white, c_white);
+			}
+		}
+		
+		if label != ""
+		{
+			draw_set_halign(1);
+			draw_set_valign(0);
+			DrawTextYCenter(xc, label);
+		}
+	}
+}
+
+
 #endregion
+
