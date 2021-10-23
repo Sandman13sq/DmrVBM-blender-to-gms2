@@ -10,7 +10,7 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
     bl_idname = "DMR_PT_EditModeVertexGroups"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Item" # Name of sidebar
+    bl_category = "Edit" # Name of sidebar
     
     @classmethod 
     def poll(self, context):

@@ -78,6 +78,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
     """Exports all poses in active object's Action/Pose Library"""
     bl_idname = "dmr.gm_export_action";
     bl_label = "Export Action";
+    bl_options = {'PRESET'};
     
     filename_ext = ".trk";
     filter_glob: StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255);

@@ -7,7 +7,7 @@ class DmrToolsPanel_VertexColors(bpy.types.Panel): # ---------------------------
     bl_idname = "DMR_PT_VERTEXCOLORS"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Item" # Name of sidebar
+    bl_category = "Edit" # Name of sidebar
     bl_options = {'DEFAULT_CLOSED'}
     COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
     

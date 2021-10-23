@@ -28,6 +28,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
     """Exports selected objects as one compressed vertex buffer"""
     bl_idname = "dmr.gm_export_vb";
     bl_label = "Export VB";
+    bl_options = {'PRESET'};
     
     # ExportHelper mixin class uses this
     filename_ext = ".vb";
@@ -108,6 +109,13 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         default='render',
     );
     
+    modifierpick: bpy.props.EnumProperty(
+        name="Target Modifiers", 
+        description="Requirements for modifers when exporting.",
+        items = ModChoiceItems, 
+        default='OR',
+    );
+    
     def draw(self, context):
         layout = self.layout;
         
@@ -136,11 +144,13 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         rr = layout.row();
         c = rr.column(align=1);
         c.scale_x = 0.8;
-        c.label(text='UV Source:');
-        c.label(text='Color Source:');
+        c.label(text='UV Src:');
+        c.label(text='Color Src:');
+        c.label(text='Modifier Src:');
         c = rr.column(align=1);
         c.prop(self, 'uvlayerpick', text='');
         c.prop(self, 'colorlayerpick', text='');
+        c.prop(self, 'modifierpick', text='');
 
     def execute(self, context):
         active = bpy.context.view_layer.objects.active;
@@ -156,6 +166,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
             'applyarmature' : 0,
             'uvlayerpick': self.uvlayerpick == 'render',
             'colorlayerpick': self.colorlayerpick == 'render',
+            'modifierpick': self.modifierpick,
             #'maxsubdivisions': self.maxsubdivisions,
             'yflip' : self.yflip,
         };
@@ -185,6 +196,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         
         FCODE = 'f';
         
+        RemoveTempObjects();
         # Get list of selected objects
         objects = [x for x in context.selected_objects if x.type == 'MESH'];
         if len(objects) == 0:
@@ -255,6 +267,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
             self.report({'INFO'}, 'VB data written to \"%s\"' % rootpath);
         
         # Restore state
+        RemoveTempObjects();
         for obj in objects: 
             obj.select_set(1);
         
@@ -269,6 +282,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
     """Exports selected objects as vbx data"""
     bl_idname = "dmr.gm_export_vbx";
     bl_label = "Export VBX";
+    bl_options = {'PRESET'};
 
     # ExportHelper mixin class uses this
     filename_ext = ".vbx"
@@ -336,6 +350,13 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         items = LayerChoiceItems, default='render',
     );
     
+    modifierpick: bpy.props.EnumProperty(
+        name="Target Modifiers", 
+        description="Requirements for modifers when exporting.",
+        items = ModChoiceItems, 
+        default='OR',
+    );
+    
     def draw(self, context):
         layout = self.layout;
         layout.prop(self, 'grouping', text='Grouping');
@@ -363,11 +384,13 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         rr = layout.row();
         c = rr.column(align=1);
         c.scale_x = 0.8;
-        c.label(text='UV Source:');
-        c.label(text='Color Source:');
+        c.label(text='UV Src:');
+        c.label(text='Color Src:');
+        c.label(text='Modifier Src:');
         c = rr.column(align=1);
         c.prop(self, 'uvlayerpick', text='');
         c.prop(self, 'colorlayerpick', text='');
+        c.prop(self, 'modifierpick', text='');
         
     def execute(self, context):
         active = bpy.context.view_layer.objects.active;
@@ -383,12 +406,15 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
             'applyarmature' : 0,
             'uvlayerpick': self.uvlayerpick == 'render',
             'colorlayerpick': self.colorlayerpick == 'render',
+            'modifierpick': self.modifierpick,
             'maxsubdivisions': self.maxsubdivisions,
             'yflip' : self.yflip,
         };
         
         path = self.filepath;
         FCODE = self.floattype;
+        
+        RemoveTempObjects();
         
         # Get list of selected objects
         objects = [x for x in context.selected_objects if x.type == 'MESH'];
@@ -499,6 +525,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         file.write(outcompressed);
         file.close();
         
+        RemoveTempObjects();
         bpy.context.view_layer.objects.active = active;
         for obj in objects: obj.select_set(1);
         

@@ -82,6 +82,20 @@ LayerChoiceItems = (
     ('active', 'Active Layer', 'Use the layer that is active (highlighted)', 'RESTRICT_SELECT_OFF', 1),
 );
 
+MTY_VIEW = 'V';
+MTY_RENDER = 'R';
+MTY_OR = 'OR';
+MTY_AND = 'AND';
+MTY_ALL = 'ALL';
+
+ModChoiceItems = (
+    (MTY_VIEW, 'Viewport Only', 'Only export modifiers visible in viewports'), 
+    (MTY_RENDER, 'Render Only', 'Only export modifiers visible in renders'), 
+    (MTY_OR, 'Viewport or Render', 'Export modifiers if they are visible in viewport or renders'), 
+    (MTY_AND, 'Viewport and Render', 'Export modifiers only if they are visible in viewport and renders'), 
+    (MTY_ALL, 'All', 'Export all supported modifiers')
+);
+
 UpAxisItems = (
     ('+x', '+X Up', 'Export model(s) with +X Up axis'),
     ('+y', '+Y Up', 'Export model(s) with +Y Up axis'),
@@ -137,16 +151,29 @@ def GetVBData(sourceobj, format = [], settings = {}):
     
     # Apply modifiers
     maxsubdivisions = settings.get('maxsubdivisions', -1);
+    modreq = settings.get('modifierpick', MTY_OR);
     if obj.modifiers != None:
         modifiers = obj.modifiers;
-        
-        for i in range(0, len(modifiers)):
-            m = modifiers[0];
+        for i, m in enumerate(modifiers):
+            # Modifier requirements
+            if modreq == MTY_VIEW:
+                if not m.show_viewport:
+                    bpy.ops.object.modifier_remove(modifier = m.name);
+                    continue;
+            elif modreq == MTY_RENDER:
+                if not m.show_render:
+                    bpy.ops.object.modifier_remove(modifier = m.name);
+                    continue;
+            elif modreq == MTY_OR:
+                if not (m.show_viewport or m.show_render):
+                    bpy.ops.object.modifier_remove(modifier = m.name);
+                    continue;
+            elif modreq == MTY_AND:
+                if not (m.show_viewport and m.show_render):
+                    bpy.ops.object.modifier_remove(modifier = m.name);
+                    continue;
             
-            if m.show_viewport == False:
-                bpy.ops.object.modifier_remove(modifier = m.name);
-                continue;
-            
+            # Subdivision maximum
             if m.type == 'SUBSURF':
                 if maxsubdivisions >= 0:
                     m.levels = min(m.levels, maxsubdivisions);
@@ -196,9 +223,10 @@ def GetVBData(sourceobj, format = [], settings = {}):
     if not obj.vertex_groups:
         obj.vertex_groups.new();
     vgroups = obj.vertex_groups;
-    #group_select_mode = 'BONE_DEFORM' if armature else 'ALL';
-    #bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
-    #bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
+    if armature and vgroups:
+        group_select_mode = 'BONE_DEFORM' if armature else 'ALL';
+        bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
+        bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
     
     uvloops = mesh.uv_layers.active.data if mesh.uv_layers else mesh.vertex_groups.new().data;
     if settings.get('uvlayerpick', 1):
@@ -358,12 +386,32 @@ def GetVBData(sourceobj, format = [], settings = {}):
                 s = "".join(["%.2f, " % x for x in data[i:i+stride]]);
                 print("< %s>" % s);
     
-    # Free duplicate
-    if '__temp' in obj.name:
-        bpy.ops.object.delete();
-    
     bpy.context.view_layer.objects.active = sourceobj;
     sourceobj.select_set(1);
     
     return out;
 
+def RemoveTempObjects():
+    lastobjectmode = bpy.context.active_object.mode;
+    bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
+    lastactive = bpy.context.view_layer.objects.active;
+    
+    objects = bpy.data.objects;
+    
+    selected = [x for x in objects if x.select_get() and '__temp' not in x.name];
+    bpy.ops.object.select_all(action='DESELECT');
+    
+    targets = [x for x in objects if '__temp' in x.name];
+    for x in targets:
+        x.select_set(1);
+    
+    bpy.ops.object.delete(use_global=False, confirm=False);
+    
+    # Restore State
+    bpy.context.view_layer.objects.active = lastactive;
+    for obj in selected:
+        obj.select_set(1);
+    if not lastactive:
+        bpy.context.view_layer.objects.active = selected[0];
+    bpy.ops.object.mode_set(mode = lastobjectmode);
+    
