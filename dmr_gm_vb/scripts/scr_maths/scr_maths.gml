@@ -56,3 +56,27 @@ function Intrpl_Circ(x1, x2, amt)
 {
 	return lerp(x1, x2, 1-sqrt(1-amt*amt))	
 }
+
+function ArrayNextPos(array, pos)
+{
+	var n = array_length(array);
+	if n == 0 {return pos;}
+	printf(array)
+	for (var i = 0; i < n; i++)
+	{
+		printf(array[i]);
+		if array[i] > pos {return array[i];}
+	}
+	return array[0];
+}
+
+function ArrayPrevPos(array, pos)
+{
+	var n = array_length(array);
+	if n == 0 {return pos;}
+	for (var i = n-1; i >= 0; i--)
+	{
+		if array[i] < pos {return array[i];}
+	}
+	return array[n-1];
+}

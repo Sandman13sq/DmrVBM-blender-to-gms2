@@ -17,11 +17,10 @@ array_push(s,
 	stringf("DeltaTime: %.4fms", frametime*0.001),
 	stringf("EvaluationTime: %.4fms", exectime[0]*0.001),
 	stringf("CalcuationTime: %.4fms", exectime[1]*0.001),
+	execinfo
 	);
 frametime = get_timer();
 
-var xx = 16, yy = window_get_height()-160;
+var xx = 16, yy = window_get_height()-320;
 for (var i = 0; i < array_length(s); i++) 
 	{draw_text(xx, yy, s[i]); yy += 16;}
-
-draw_text(300, 16, execinfo);

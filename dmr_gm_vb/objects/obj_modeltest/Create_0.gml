@@ -12,6 +12,7 @@ z = 0;
 
 vbmode = 1;
 keymode = 1;
+interpolationtype = AniTrack_Intrpl.linear;
 wireframe = 0;
 zrot = 0;
 poseindex = 0;
@@ -77,7 +78,7 @@ vb_world = LoadVertexBuffer("world.vb", vbf.model);
 // Animation Vars =====================================================
 
 trackpos = 0; // Position in animation
-trackposspeed = 0.1*(trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
+trackposspeed = (trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
 isplaying = 0;
 
 // Generate relative bone matrices for position in animation

@@ -86,7 +86,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
     bakesamples: IntProperty(
         name="Bake Steps",
         description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking",
-        default=5, min=0
+        default=5, min=-1
     );
     
     startfromzero: BoolProperty(
@@ -274,6 +274,13 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         print('Action = "%s", Range: %s' % (action.name, framerange));
         print('> Writing Tracks...');
         
+        frame_map_old = render.frame_map_old;
+        render.frame_map_old = render.frame_map_new / 10;
+        
+        samples = self.bakesamples;
+        if samples < 0:
+            samples = framerange[1]-framerange[0];
+        
         for b in bones: # For each bone (track)
             outchunk = b'';
             transcurves = bonecurvemap[b.name];
@@ -290,7 +297,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
                 # Merge keyframe positions for each track in transform
                 # [location[0].frames + location[1].frames + location[2].frames]
                 trackframes = set([
-                    int(k.co[0])
+                    k.co[0]
                     for curve in curveset
                     for k in (curve.keyframe_points if curve else [])
                 ]);
@@ -303,23 +310,29 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
                 trackframes = list(trackframes);
                 trackframes.sort();
                 
+                if b.name == 'hand_l':
+                    print("Prebaked: %s" % trackframes)
+                
                 # Manual Sampling
                 #"""
-                if self.bakesamples > 0:
+                if samples != 0:
                     newpts = [];
                     for i in range(0, len(trackframes)-1):
                         p1 = trackframes[i];
                         p2 = trackframes[i+1];
-                        step = (p2-p1) / self.bakesamples;
+                        step = (p2-p1) / samples;
                         while p1 < p2:
                             newpts.append(p1);
                             p1 += step;
                         newpts.append(p2);
-                    newpts = list(set([(round(x)) for x in newpts]));
+                    newpts = list(set([round(x) for x in newpts]));
                     newpts.sort();
                     trackframes = newpts;
                 #"""
                 outchunk += Pack('H', len(trackframes)); # Frame count
+                
+                if b.name == 'hand_l':
+                    print("Baked: %s" % trackframes)
                 
                 # Write Frame Positions
                 if self.normalizeframes: # Frame Positions are [0-1] range
@@ -346,11 +359,15 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             # Add chunk to output
             out += outchunk;
         
+        render.frame_map_old = frame_map_old;
+        
         # Write Marker Data
         if self.writemarkernames:
             print('> Writing Marker Data...');
             
-            markers = lastaction.pose_markers;
+            markers = [m for m in lastaction.pose_markers];
+            markers.sort(key = lambda m: m.frame);
+            
             out += Pack('H', len(markers));
             # Write Marker Names
             out += b''.join( [PackString(m.name) for m in markers] );

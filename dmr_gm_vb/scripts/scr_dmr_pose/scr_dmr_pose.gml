@@ -344,7 +344,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				}
 				else // Search starting from end moving backwards
 				{
-					while (pos < trackframes[findexcurr] && findexcurr > 0) {findexcurr--;}
+					while (pos <= trackframes[findexcurr] && findexcurr > 0) {findexcurr--;}
 					findexnext = min(findexcurr + 1, findexmax);
 				}
 				
@@ -495,7 +495,9 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				
 				continue;
 				
-				if bonekeys[b] == "h_cheek_l" && ttype == 2
+				if bonekeys != 0
+				if t < 120
+				if bonekeys[t] == "hand_r" && ttype == 2
 				{
 					execinfo = "";
 					execinfo += stringf("Current Pos: %F", pos) + "\n";

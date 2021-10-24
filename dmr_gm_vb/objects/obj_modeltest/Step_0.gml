@@ -127,7 +127,9 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 	}
 
 	x += keyboard_check(vk_right) - keyboard_check(vk_left);
-	y += keyboard_check(vk_up) - keyboard_check(vk_down);
+	lev = keyboard_check_pressed(vk_up) - keyboard_check_pressed(vk_down);
+	if lev > 0 {levplayback = ArrayNextPos(trackdata.markerpositions, trackpos)-trackpos;}
+	if lev < 0 {levplayback = ArrayPrevPos(trackdata.markerpositions, trackpos)-trackpos;}
 
 	zrot += keyboard_check(ord("E")) - keyboard_check(ord("Q"));
 }
@@ -143,7 +145,7 @@ if levplayback != 0
 	// Matrix from animation position
 	exectime[0] = get_timer();
 	EvaluateAnimationTracks(lerp(trackdata.positionrange[0], trackdata.positionrange[1], trackpos), 
-		2, keymode? vbx.bonenames: 0, trackdata, inpose);
+		interpolationtype, keymode? vbx.bonenames: 0, trackdata, inpose);
 	exectime[0] = get_timer()-exectime[0];
 	
 	// Bone-space matrices to model-space matrices

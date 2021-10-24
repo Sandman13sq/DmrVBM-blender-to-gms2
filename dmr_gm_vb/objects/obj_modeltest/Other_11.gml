@@ -34,6 +34,8 @@ function OP_DmSSS(btn) {obj_modeltest.dm_sss = btn.value;}
 
 function OP_FieldOvView(btn) {obj_modeltest.camera = btn.value;}
 
+function OP_ReloadPoses(btn) {with obj_modeltest ReloadPoses();}
+
 function OP_LoadVBX(btn) 
 {
 	var _fname = get_open_filename("*.vbx", "curly.vbx");
@@ -74,6 +76,7 @@ for (var i = 0; i < vbx.vbcount; i++)
 layout_model.Button().Label("Bind Pose").Operator(OP_BindPose);
 layout_model.Button().SetIDName("toggleplayback")
 	.Operator(OP_TogglePlayback).Value(isplaying).toggle_on_click = 1;
+layout_model.Button().Label("Reload Poses").Operator(OP_ReloadPoses);
 
 var d = layout_model.Dropdown().Label("Shader Uniforms");
 d.Real().Label("Shine").SetBounds(0, 1, 0.1)

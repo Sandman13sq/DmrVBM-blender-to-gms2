@@ -50,18 +50,20 @@ VBF_COL = 'COL';
 VBF_CO2 = 'CO2';
 VBF_WEI = 'WEI';
 VBF_BON = 'BON';
+VBF_BOI = 'BOI';
 
 VBFSize = {
     VBF_000: 0,
     VBF_POS: 3, 
     VBF_TEX: 2, 
     VBF_NOR: 3, 
+    VBF_TAN: 3,
+    VBF_BTN: 3,
     VBF_COL: 4, 
     VBF_CO2: 1, 
     VBF_WEI: 4, 
     VBF_BON: 4,
-    VBF_TAN: 3,
-    VBF_BTN: 3,
+    VBF_BOI: 1,
     };
 
 VBFItems = (
@@ -69,12 +71,13 @@ VBFItems = (
     (VBF_POS, 'Position', '3 Floats'),
     (VBF_TEX, 'UVs', '2 Floats'),
     (VBF_NOR, 'Normal', '3 Floats'),
+    (VBF_TAN, 'Tangents', '3 Floats'),
+    (VBF_BTN, 'Bitangents', '3 Floats'),
     (VBF_COL, 'Color (RGBA)', '4 Floats'),
     (VBF_CO2, 'Color Bytes (RGBA)', '4 Bytes = Size of 1 Float in format 0xRRGGBBAA'),
     (VBF_BON, 'Bone Indices', '4 Floats (Use with Weights)'),
+    (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYZZ'),
     (VBF_WEI, 'Weights', '4 Floats'),
-    (VBF_TAN, 'Tangents', '3 Floats'),
-    (VBF_BTN, 'Bitangents', '3 Floats'),
 );
 
 LayerChoiceItems = (
@@ -312,14 +315,18 @@ def GetVBData(sourceobj, format = [], settings = {}):
                     elif formatentry == VBF_CO2: # Color
                         materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcolors[l].color]);
                     
-                    elif formatentry == VBF_BON: # Bone
+                    elif formatentry == VBF_BON or formatentry == VBF_BOI: # Bone
                         vertbones = [grouptobone[vge.group] for vge in v.groups if vge.group in validvgroups];
                         vertbones += [0] * (4-len(vertbones));
-                        materialgroup[-1] += PackVector(FCODE, vertbones[:4]);
+                        if formatentry == VBF_BON:
+                            materialgroup[-1] += PackVector(FCODE, vertbones[:4]);
+                        else:
+                            materialgroup[-1] += PackVector('B', vertbones[:4]);
                     
                     elif formatentry == VBF_WEI: # Weight
                         vertweights = [vge.weight for vge in v.groups if vge.group in validvgroups];
                         vertweights += [0] * (4-len(vertweights));
+                        vertweights = vertweights[:4];
                         weightmagnitude = sum(vertweights);
                         if weightmagnitude != 0:
                             materialgroup[-1] += PackVector(FCODE, [x/weightmagnitude for x in vertweights[:4]]);
