@@ -26,3 +26,8 @@ d.Bool().Label("Simplify");
 display_set_gui_maximize(1, 1);
 draw_set_font(fnt_default);
 
+RENDERING = new Rendering();
+RENDERING.DefineUniform("u_drawmatrix");
+RENDERING.DefineUniform("u_camera");
+RENDERING.DefineUniform("u_matpose");
+

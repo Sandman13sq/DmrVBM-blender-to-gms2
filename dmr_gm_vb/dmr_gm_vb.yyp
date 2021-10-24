@@ -1,5 +1,6 @@
 {
   "resources": [
+    {"id":{"name":"obj_curly","path":"objects/obj_curly/obj_curly.yy",},"order":2,},
     {"id":{"name":"shd_default","path":"shaders/shd_default/shd_default.yy",},"order":1,},
     {"id":{"name":"scr_dmr_vbx","path":"scripts/scr_dmr_vbx/scr_dmr_vbx.yy",},"order":2,},
     {"id":{"name":"scr_layout","path":"scripts/scr_layout/scr_layout.yy",},"order":0,},
@@ -61,7 +62,7 @@
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly.vbx","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly.trk","resourceType":"GMIncludedFile",},
-    {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_l.vbx","resourceType":"GMIncludedFile",},
+    {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_wire.vbx","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly.pse","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"world.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_nor.vbx","resourceType":"GMIncludedFile",},

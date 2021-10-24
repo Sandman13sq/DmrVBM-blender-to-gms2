@@ -55,7 +55,7 @@ function OP_LoadVBX(btn)
 #region // Layout =============================================================
 
 layout_model = new Layout()
-	.SetPosXY(camerawidth-200, 16, camerawidth-16, 2)
+	.SetPosXY(camera.width-200, 16, camera.width-16, 2)
 layout_model.common.uiscale = 1;
 
 layout_model.Button().Label("Open VBX").Operator(OP_LoadVBX);
@@ -64,18 +64,19 @@ var b = layout_model.Box();
 b.Label("Model");
 
 var el;
-for (var i = 0; i < vbx.vbcount; i++)
+var _vbx = curly.vbx_model;
+for (var i = 0; i < _vbx.vbcount; i++)
 {
-	el = b.Bool().Label(vbx.vbnames[i]).Operator(OP_MeshVisibility);
+	el = b.Bool().Label(_vbx.vbnames[i]).Operator(OP_MeshVisibility);
 	el.vbindex = i;
-	el.Value(vbxvisible & (1<<i));
+	el.Value(curly.meshvisible & (1<<i));
 }
 
 //b.List();
 
 layout_model.Button().Label("Bind Pose").Operator(OP_BindPose);
 layout_model.Button().SetIDName("toggleplayback")
-	.Operator(OP_TogglePlayback).Value(isplaying).toggle_on_click = 1;
+	.Operator(OP_TogglePlayback).Value(curly.isplaying).toggle_on_click = 1;
 layout_model.Button().Label("Reload Poses").Operator(OP_ReloadPoses);
 
 var d = layout_model.Dropdown().Label("Shader Uniforms");

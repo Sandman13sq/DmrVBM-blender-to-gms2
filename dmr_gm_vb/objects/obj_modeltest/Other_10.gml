@@ -50,41 +50,47 @@ function CreateGridVB(cellcount, cellsize)
 function UpdateView()
 {
 	var d;
+	var loc = camera.location;
+	var fwrd = camera.viewforward;
+	var rght = camera.viewright;
+	var up = camera.viewup;
+	var dir = camera.viewdirection;
+	var pitch = camera.viewpitch;
 	
 	// Forward
-	cameraforward[0] = dcos(cameradirection) * dcos(camerapitch);
-	cameraforward[1] = -dsin(cameradirection) * dcos(camerapitch);
-	cameraforward[2] = -dsin(camerapitch);
-	d = point_distance_3d(0,0,0, cameraforward[0], cameraforward[1], cameraforward[2]);
-	cameraforward[0] /= d;
-	cameraforward[1] /= d;
-	cameraforward[2] /= d;
+	fwrd[@ 0] = dcos(dir) * dcos(pitch);
+	fwrd[@ 1] = -dsin(dir) * dcos(pitch);
+	fwrd[@ 2] = -dsin(pitch);
+	d = point_distance_3d(0,0,0, fwrd[0], fwrd[1], fwrd[2]);
+	fwrd[@ 0] /= d;
+	fwrd[@ 1] /= d;
+	fwrd[@ 2] /= d;
 	
 	// Right
-	cameraright[0] = dcos(cameradirection+90) * dcos(camerapitch);
-	cameraright[1] = -dsin(cameradirection+90) * dcos(camerapitch);
-	cameraright[2] = -dsin(camerapitch);
-	d = point_distance_3d(0,0,0, cameraright[0], cameraright[1], cameraright[2]);
-	cameraright[0] /= d;
-	cameraright[1] /= d;
-	cameraright[2] /= d;
+	rght[@ 0] = dcos(dir+90) * dcos(pitch);
+	rght[@ 1] = -dsin(dir+90) * dcos(pitch);
+	rght[@ 2] = -dsin(pitch);
+	d = point_distance_3d(0,0,0, rght[0], rght[1], rght[2]);
+	rght[@ 0] /= d;
+	rght[@ 1] /= d;
+	rght[@ 2] /= d;
 	
 	// Up
-	cameraup[0] = dcos(cameradirection) * dcos(camerapitch-90);
-	cameraup[1] = -dsin(cameradirection) * dcos(camerapitch-90);
-	cameraup[2] = -dsin(camerapitch-90);
-	d = point_distance_3d(0,0,0, cameraup[0], cameraup[1], cameraup[2]);
-	cameraup[0] /= d;
-	cameraup[1] /= d;
-	cameraup[2] /= d;
+	up[@ 0] = dcos(dir) * dcos(pitch-90);
+	up[@ 1] = -dsin(dir) * dcos(pitch-90);
+	up[@ 2] = -dsin(pitch-90);
+	d = point_distance_3d(0,0,0, up[0], up[1], up[2]);
+	up[@ 0] /= d;
+	up[@ 1] /= d;
+	up[@ 2] /= d;
 	
 	// View Matrix
-	d = cameradist;
-	matview = matrix_build_lookat(
-		camerapos[0]-cameraforward[0]*d, camerapos[1]-cameraforward[1]*d, camerapos[2]-cameraforward[2]*d, 
-		camerapos[0], camerapos[1], camerapos[2], 
-		cameraup[0], cameraup[1], cameraup[2]);
+	d = camera.viewdistance;
+	camera.matview = matrix_build_lookat(
+		loc[0]-fwrd[0]*d, loc[1]-fwrd[1]*d, loc[2]-fwrd[2]*d, 
+		loc[0], loc[1], loc[2], 
+		up[0], up[1], up[2]);
 	// Correct Yflip
-	matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
+	camera.matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), camera.matview);
 
 }

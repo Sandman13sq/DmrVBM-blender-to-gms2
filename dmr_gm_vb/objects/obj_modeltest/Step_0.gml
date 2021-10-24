@@ -1,14 +1,15 @@
 /// @desc
 
 // Check if window size changed
-if window_get_width() != camerawidth
-|| window_get_height() != cameraheight
+if window_get_width() != camera.width
+|| window_get_height() != camera.height
 {
-	camerawidth = window_get_width();
-	cameraheight = window_get_height();
-	matproj = matrix_build_projection_perspective_fov(fieldofview, camerawidth/cameraheight, znear, zfar);
+	camera.width = window_get_width();
+	camera.height = window_get_height();
+	camera.matproj = matrix_build_projection_perspective_fov(
+		camera.fieldofview, camera.width/camera.height, camera.znear, camera.zfar);
 	
-	surface_resize(application_surface, camerawidth, cameraheight);
+	surface_resize(application_surface, camera.width, camera.height);
 	
 	event_user(1);
 }
@@ -18,7 +19,7 @@ if keyboard_check_pressed(ord("M"))
 	//vbmode = (vbmode+1) mod 3;
 	vbmode = (vbmode == 1)? 2: 1;
 }
-isplaying ^= keyboard_check_pressed(vk_space);
+curly.isplaying ^= keyboard_check_pressed(vk_space);
 
 keymode ^= keyboard_check_pressed(ord("K"));
 wireframe ^= keyboard_check_pressed(ord("L"));
@@ -31,14 +32,9 @@ if keyboard_check_pressed(vk_space)
 // Controls
 if !middlelock {layout_model.Update();}
 
-var levplayback = 0;
-if isplaying {levplayback = trackposspeed;}
-
 if (!layout_model.IsMouseOver() && !layout_model.active)
 || middlelock
 {
-	levplayback += trackposspeed*LevKeyPressed(VKey.greaterThan, VKey.lessThan);
-	
 	// Pose Matrices
 	lev = LevKeyPressed(VKey.bracketClose, VKey.bracketOpen);
 	if lev != 0
@@ -53,11 +49,11 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 	{
 		mouseanchor[0] = window_mouse_get_x();
 		mouseanchor[1] = window_mouse_get_y();
-		cameraanchor[0] = camerapos[0];
-		cameraanchor[1] = camerapos[1];
-		cameraanchor[2] = camerapos[2];
-		rotationanchor[0] = cameradirection;
-		rotationanchor[1] = camerapitch;
+		cameraanchor[0] = camera.location[0];
+		cameraanchor[1] = camera.location[1];
+		cameraanchor[2] = camera.location[2];
+		rotationanchor[0] = camera.viewdirection;
+		rotationanchor[1] = camera.viewpitch;
 		
 		middlemode = keyboard_check(vk_shift);
 		middlelock = 1;
@@ -73,20 +69,20 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 			r = window_mouse_get_x() - mouseanchor[0];
 			u = window_mouse_get_y() - mouseanchor[1];
 			
-			cameradirection = rotationanchor[0] - r/4;
-			camerapitch = rotationanchor[1] + u/4;
+			camera.viewdirection = rotationanchor[0] - r/4;
+			camera.viewpitch = rotationanchor[1] + u/4;
 		}
 		// Pan
 		else
 		{
 			var r, u;
-			var d = cameradist/40;
+			var d = camera.viewdistance/40;
 			r = (window_mouse_get_x() - mouseanchor[0])*d/20;
 			u = (window_mouse_get_y() - mouseanchor[1])*d/20;
 			
-			camerapos[0] = cameraanchor[0] + (cameraright[0]*r) + (cameraup[0]*u);
-			camerapos[1] = cameraanchor[1] + (cameraright[1]*r) + (cameraup[1]*u);
-			camerapos[2] = cameraanchor[2] + (cameraright[2]*r) + (cameraup[2]*u);
+			camera.location[0] = cameraanchor[0] + (camera.viewright[0]*r) + (camera.viewup[0]*u);
+			camera.location[1] = cameraanchor[1] + (camera.viewright[1]*r) + (camera.viewup[1]*u);
+			camera.location[2] = cameraanchor[2] + (camera.viewright[2]*r) + (camera.viewup[2]*u);
 		}
 		
 		// Wrap Mouse Position
@@ -107,11 +103,11 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 		if mouse_check_button_released(mb_middle)
 		|| (mouse_check_button_released(mb_left))
 		{
-			while (cameradirection < 0) {cameradirection += 360;}
-			cameradirection = cameradirection mod 360;
+			while (camera.viewdirection < 0) {camera.viewdirection += 360;}
+			camera.viewdirection = camera.viewdirection mod 360;
 		
-			while (camerapitch < 0) {camerapitch += 360;}
-			camerapitch = camerapitch mod 360;
+			while (camera.viewpitch < 0) {camera.viewpitch += 360;}
+			camera.viewpitch = camera.viewpitch mod 360;
 		
 			middlelock = 0;
 		}
@@ -123,37 +119,11 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 	if lev != 0
 	{
 		var d = 1.1;
-		cameradist *= (lev<0)? d: (1/d);
+		camera.viewdistance *= (lev<0)? d: (1/d);
 	}
 
 	x += keyboard_check(vk_right) - keyboard_check(vk_left);
 	lev = keyboard_check_pressed(vk_up) - keyboard_check_pressed(vk_down);
-	if lev > 0 {levplayback = ArrayNextPos(trackdata.markerpositions, trackpos)-trackpos;}
-	if lev < 0 {levplayback = ArrayPrevPos(trackdata.markerpositions, trackpos)-trackpos;}
-
-	zrot += keyboard_check(ord("E")) - keyboard_check(ord("Q"));
-}
-
-// Animation Playback ================================================================
-
-if levplayback != 0
-{
-	trackpos += levplayback;
-	if trackpos < trackdata.positionrange[0] {trackpos = trackdata.positionrange[1];}
-	if trackpos > trackdata.positionrange[1] {trackpos = trackdata.positionrange[0];}
-	
-	// Matrix from animation position
-	exectime[0] = get_timer();
-	EvaluateAnimationTracks(lerp(trackdata.positionrange[0], trackdata.positionrange[1], trackpos), 
-		interpolationtype, keymode? vbx.bonenames: 0, trackdata, inpose);
-	exectime[0] = get_timer()-exectime[0];
-	
-	// Bone-space matrices to model-space matrices
-	exectime[1] = get_timer();
-	CalculateAnimationPose(
-		vbx.bone_parentindices, vbx.bone_localmatricies, vbx.bone_inversematricies, 
-		inpose, matpose);
-	exectime[1] = get_timer()-exectime[1];
 }
 
 // Rendering ==============================================================
@@ -164,8 +134,6 @@ drawmatrix = BuildDrawMatrix(
 	dm_shine,
 	dm_sss//(string_pos("skin", vbx.vbnames[i]) != 0),
 	);
-
-mattran = matrix_build(x,y,z, 0,0,zrot, 1,1,1);
 
 UpdateView();
 

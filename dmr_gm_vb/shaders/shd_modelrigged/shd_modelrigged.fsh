@@ -13,15 +13,14 @@ varying vec3 v_eyedir_cs;
 varying vec3 v_nor_cs;
 
 // Uniforms passed in before draw call
-uniform vec3 u_camera[2]; // [pos, dir, light]
 uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorblend[4]]
 
 void main()
 {
-	vec3 l = normalize(v_lightdir_cs);
-	vec3 n = normalize(v_nor_cs);
-	vec3 e = normalize(v_eyedir_cs);
-	vec3 r = reflect(l, n);
+	vec3 l = normalize(v_lightdir_cs);	// Light Direction
+	vec3 n = normalize(v_nor_cs);		// Vertex Normal
+	vec3 e = normalize(v_eyedir_cs);	// Camera Direction
+	vec3 r = reflect(l, n);				// Reflect Angle
 	//c.y *= -1.0;
 	
 	// Dot Product
