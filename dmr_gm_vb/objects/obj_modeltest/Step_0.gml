@@ -19,8 +19,8 @@ if keyboard_check_pressed(ord("M"))
 	//vbmode = (vbmode+1) mod 3;
 	vbmode = (vbmode == 1)? 2: 1;
 }
-curly.isplaying ^= keyboard_check_pressed(vk_space);
 
+curly.isplaying ^= keyboard_check_pressed(vk_space);
 keymode ^= keyboard_check_pressed(ord("K"));
 wireframe ^= keyboard_check_pressed(ord("L"));
 
