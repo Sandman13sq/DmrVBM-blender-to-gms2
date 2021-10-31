@@ -47,6 +47,7 @@ CalculateAnimationPose(
 
 drawmatrix = BuildDrawMatrix(1, 0, 1, 0); // Shader uniforms sent as one array
 meshvisible = ~0;	// Bit Field
+poseindex = 0;
 
 wireframecolors = array_create(32);
 for (var i = 0; i < array_length(wireframecolors); i++)

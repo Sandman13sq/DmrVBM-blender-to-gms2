@@ -39,8 +39,11 @@ if (!layout_model.IsMouseOver() && !layout_model.active)
 	lev = LevKeyPressed(VKey.bracketClose, VKey.bracketOpen);
 	if lev != 0
 	{
-		poseindex = Modulo(poseindex+lev, array_length(posemats));
-		array_copy(matpose, 0, posemats[poseindex], 0, array_length(posemats[poseindex]));
+		with curly
+		{
+			poseindex = Modulo(poseindex+lev, array_length(posemats));
+			array_copy(matpose, 0, posemats[poseindex], 0, array_length(posemats[poseindex]));
+		}
 	}
 	
 	// Set anchor variables for movement
