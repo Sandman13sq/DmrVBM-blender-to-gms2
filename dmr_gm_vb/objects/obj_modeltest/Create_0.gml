@@ -33,7 +33,6 @@ middlelock = 0;
 camera = {
 	location : [0,0,7],
 	
-	
 	width : 0,
 	height : 0,
 	
@@ -52,6 +51,10 @@ camera = {
 	matproj : matrix_build_identity(),
 	matview : matrix_build_identity(),
 };
+
+camera.viewdistance = 24;
+camera.viewdirection = 90;
+camera.viewpitch = 7;
 
 UpdateView(); // Matrices are set here
 

@@ -9,7 +9,7 @@ if window_get_width() != camera.width
 	camera.matproj = matrix_build_projection_perspective_fov(
 		camera.fieldofview, camera.width/camera.height, camera.znear, camera.zfar);
 	
-	surface_resize(application_surface, camera.width, camera.height);
+	surface_resize(application_surface, camera.width*2, camera.height*2);
 	
 	event_user(1);
 }
@@ -17,12 +17,12 @@ if window_get_width() != camera.width
 if keyboard_check_pressed(ord("M"))
 {
 	//vbmode = (vbmode+1) mod 3;
-	vbmode = (vbmode == 1)? 2: 1;
+	curly.shadermode = Modulo(curly.shadermode+1, 2);
 }
 
 curly.isplaying ^= keyboard_check_pressed(vk_space);
-keymode ^= keyboard_check_pressed(ord("K"));
-wireframe ^= keyboard_check_pressed(ord("L"));
+curly.keymode ^= keyboard_check_pressed(ord("K"));
+curly.wireframe ^= keyboard_check_pressed(ord("L"));
 
 if keyboard_check_pressed(vk_space)
 {

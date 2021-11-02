@@ -35,3 +35,4 @@ if levplayback != 0
 
 mattran = matrix_build(x,y,z, 0,0,zrot, 1,1,1);
 
+drawmatrix = BuildDrawMatrix(1, dm_emission, dm_shine, dm_sss);

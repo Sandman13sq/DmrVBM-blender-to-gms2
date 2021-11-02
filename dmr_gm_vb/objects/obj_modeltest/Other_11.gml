@@ -4,11 +4,11 @@
 
 function OP_BindPose(button)
 {
-	with obj_modeltest
+	with obj_curly
 	CalculateAnimationPose(
-		vbx.bone_parentindices,
-		vbx.bone_localmatricies,
-		vbx.bone_inversematricies,
+		vbx_model.bone_parentindices,
+		vbx_model.bone_localmatricies,
+		vbx_model.bone_inversematricies,
 		array_create(200, matrix_build_identity()),
 		matpose
 		);
@@ -17,35 +17,35 @@ function OP_BindPose(button)
 function OP_MeshVisibility(button)
 {
 	var i = button.vbindex;
-	with obj_modeltest
-	vbxvisible = button.value? (vbxvisible | (1<<i)): (vbxvisible & ~(1<<i));
+	with obj_curly
+	meshvisible = button.value? (meshvisible | (1<<i)): (meshvisible & ~(1<<i));
 }
 
 function OP_TogglePlayback(button)
 {
 	button.Label(button.value? "Stop Animation": "Play Animation");
-	with obj_modeltest
+	with obj_curly
 	isplaying = button.value;
 }
 
-function OP_DmShine(btn) {obj_modeltest.dm_shine = btn.value;}
-function OP_DmEmission(btn) {obj_modeltest.dm_emission = btn.value;}
-function OP_DmSSS(btn) {obj_modeltest.dm_sss = btn.value;}
+function OP_DmShine(btn) {obj_curly.dm_shine = btn.value;}
+function OP_DmEmission(btn) {obj_curly.dm_emission = btn.value;}
+function OP_DmSSS(btn) {obj_curly.dm_sss = btn.value;}
 
-function OP_FieldOvView(btn) {obj_modeltest.camera = btn.value;}
+function OP_FieldOvView(btn) {obj_curly.camera = btn.value;}
 
-function OP_ReloadPoses(btn) {with obj_modeltest ReloadPoses();}
+function OP_ReloadPoses(btn) {with obj_curly ReloadPoses();}
 
 function OP_LoadVBX(btn) 
 {
 	var _fname = get_open_filename("*.vbx", "curly.vbx");
 	if _fname != ""
 	{
-		var _vbx = LoadVBX(_fname, obj_modeltest.vbf_rigged);
+		var _vbx = LoadVBX(_fname, RENDERING.vbformat.rigged);
 		if _vbx
 		{
-			VBXFree(obj_modeltest.vbx);
-			obj_modeltest.vbx = _vbx;
+			VBXFree(obj_curly.vbx_model);
+			obj_curly.vbx_model = _vbx;
 		}
 	}
 }

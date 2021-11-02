@@ -19,6 +19,45 @@ uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorble
 
 void main()
 {
+	vec3 texnor = texture2D(gm_BaseTexture, v_uv).xyz;
+	texnor = mix(texnor, vec3(0.5, 0.5, 1.0), float(texnor == vec3(1.0, 1.0, 1.0)));
+		
+	vec3 n = normalize((texnor * 2.0) - 1.0);
+	vec3 l = normalize(v_dirtolight_ts);
+	vec3 e = normalize(v_dirtocamera_ts);
+	vec3 r = reflect(l, n);				// Reflect Angle
+	
+	// Dot Product
+	float dp = clamp(dot(n, l), 0.0, 1.0);
+	dp = dot(n, l);
+	
+	// Specular
+	float shine = pow( clamp( dot(-e, r), 0.0, 1.0), 64.0 );
+	
+	vec4 diffusecolor = v_color;// * texture2D( gm_BaseTexture, v_uv);
+	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), u_drawmatrix[0].w);
+	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb*0.5, 0.7);
+	vec3 shinecolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
+	shinecolor = mix(shinecolor, vec3(1.0), 0.5);
+	
+	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
+	outcolor += shinecolor * clamp(shine, 0.0, 1.0) * u_drawmatrix[0][2];
+	
+	// Emission
+	outcolor = mix(outcolor, diffusecolor.rgb, u_drawmatrix[0][1]);
+	// Fill Color
+	outcolor = mix(outcolor, u_drawmatrix[1].rgb, u_drawmatrix[1].a);
+	// Blend Color
+	outcolor = mix(outcolor, u_drawmatrix[2].rgb*diffusecolor.rgb, u_drawmatrix[2].a);
+	
+	// Alpha
+    gl_FragColor = vec4(outcolor, u_drawmatrix[0][0]*diffusecolor.a);
+	
+	if (gl_FragColor.a == 0.0) {discard;}
+}
+
+void main0()
+{
 	vec3 n; // Surface Normal
 	vec3 l; // Direction from fragment -> light
 	vec3 c; // Direction from fragment -> camera

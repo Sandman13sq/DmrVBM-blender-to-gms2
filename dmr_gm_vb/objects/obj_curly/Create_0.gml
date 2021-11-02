@@ -31,6 +31,7 @@ isplaying = false;
 
 keymode = 0;
 vbmode = 1;
+wireframe = 0;
 interpolationtype = AniTrack_Intrpl.linear;
 
 var _vbx = vbx_model;
@@ -49,10 +50,19 @@ drawmatrix = BuildDrawMatrix(1, 0, 1, 0); // Shader uniforms sent as one array
 meshvisible = ~0;	// Bit Field
 poseindex = 0;
 
+dm_emission = 0;
+dm_shine = 1;
+dm_sss = 0;
+
 wireframecolors = array_create(32);
 for (var i = 0; i < array_length(wireframecolors); i++)
 {
 	wireframecolors[i] = make_color_hsv(irandom(255), irandom(255), 255);
 }
 
+meshtexture = array_create(32, -1);
+meshtexture[vbx_normal.vbnamemap[$ "curly_clothes_sym"]] = sprite_get_texture(tex_curly_def_nor, 0);
+
+
+shadermode = 0;
 
