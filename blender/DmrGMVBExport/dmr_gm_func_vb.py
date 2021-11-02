@@ -215,7 +215,8 @@ def GetVBData(sourceobj, format = [], settings = {}):
     usetris = (len(mesh.loop_triangles) > 0) and (not settings.get('edgesonly', False));
     if usetris:
         mesh.calc_normals_split();
-        mesh.calc_tangents();
+        if mesh.uv_layers:
+            mesh.calc_tangents();
     mesh.update();
     
     # Setup Object Data
@@ -231,7 +232,7 @@ def GetVBData(sourceobj, format = [], settings = {}):
         bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
         bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
     
-    uvloops = mesh.uv_layers.active.data if mesh.uv_layers else mesh.vertex_groups.new().data;
+    uvloops = mesh.uv_layers.active.data if mesh.uv_layers else mesh.uv_layers.new().data;
     if settings.get('uvlayerpick', 1):
         for lyr in mesh.uv_layers: # if use render
             if lyr.active_render: 
@@ -265,6 +266,8 @@ def GetVBData(sourceobj, format = [], settings = {}):
     
     vertexcount = 0;
     chunksize = 1024;
+    
+    vgesortfunc = lambda x: x.weight;
     
     # Triangles
     if usetris:
@@ -316,7 +319,10 @@ def GetVBData(sourceobj, format = [], settings = {}):
                         materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcolors[l].color]);
                     
                     elif formatentry == VBF_BON or formatentry == VBF_BOI: # Bone
-                        vertbones = [grouptobone[vge.group] for vge in v.groups if vge.group in validvgroups];
+                        vgelements = [vge for vge in v.groups if vge.group in validvgroups];
+                        vgelements.sort(reverse=True, key=vgesortfunc);
+                        
+                        vertbones = [grouptobone[vge.group] for vge in vgelements];
                         vertbones += [0] * (4-len(vertbones));
                         if formatentry == VBF_BON:
                             materialgroup[-1] += PackVector(FCODE, vertbones[:4]);
@@ -324,7 +330,10 @@ def GetVBData(sourceobj, format = [], settings = {}):
                             materialgroup[-1] += PackVector('B', vertbones[:4]);
                     
                     elif formatentry == VBF_WEI: # Weight
-                        vertweights = [vge.weight for vge in v.groups if vge.group in validvgroups];
+                        vgelements = [vge for vge in v.groups if vge.group in validvgroups];
+                        vgelements.sort(reverse=True, key=vgesortfunc);
+                        
+                        vertweights = [vge.weight for vge in vgelements];
                         vertweights += [0] * (4-len(vertweights));
                         vertweights = vertweights[:4];
                         weightmagnitude = sum(vertweights);
@@ -399,16 +408,24 @@ def GetVBData(sourceobj, format = [], settings = {}):
     return out;
 
 def RemoveTempObjects():
+    objects = bpy.data.objects;
+    selected = [x for x in objects if x.select_get() and '__temp' not in x.name];
+    
+    if not bpy.context.view_layer.objects.active:
+        selected[0].select_set(1);
+        bpy.context.view_layer.objects.active = selected[0];
+        lastactive = bpy.context.view_layer.objects.active;
+    
     lastobjectmode = bpy.context.active_object.mode;
-    bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
     lastactive = bpy.context.view_layer.objects.active;
     
-    objects = bpy.data.objects;
-    
-    selected = [x for x in objects if x.select_get() and '__temp' not in x.name];
+    bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
     bpy.ops.object.select_all(action='DESELECT');
     
     targets = [x for x in objects if '__temp' in x.name];
+    if lastactive in targets:
+        lastactive = None;
+    
     for x in targets:
         x.select_set(1);
     
@@ -420,5 +437,6 @@ def RemoveTempObjects():
         obj.select_set(1);
     if not lastactive:
         bpy.context.view_layer.objects.active = selected[0];
-    bpy.ops.object.mode_set(mode = lastobjectmode);
+    else:
+        bpy.ops.object.mode_set(mode = lastobjectmode);
     
