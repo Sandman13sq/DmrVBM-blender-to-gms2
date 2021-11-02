@@ -20,6 +20,7 @@ function VBXData() constructor
 	vb = [];	// Vertex buffers
 	vbmap = {};	// {vbname: vertex_buffer} for each vb
 	vbnames = [];	// Names corresponding to buffers
+	vbnamemap = {};	// Names to indices
 	vbcount = 0;
 	
 	bone_parentindices = [];	// Parent transform corresponding to each bone
@@ -176,6 +177,7 @@ function LoadVBX(path, format, freeze = 1)
 			name += chr(buffer_read(b, buffer_u8));
 		}
 		out.vbnames[i] = name;
+		out.vbnamemap[$ name] = i;
 	}
 	
 	for (var i = 0; i < vbcount; i++) // VB Data
