@@ -119,6 +119,18 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         default=False,
     );
     
+    lastsimplify = -1;
+    
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self);
+        self.lastsimplify = context.scene.render.use_simplify;
+        context.scene.render.use_simplify = True;
+        return {'RUNNING_MODAL'}
+    
+    def cancel(self, context):
+        context.scene.render.use_simplify = self.lastsimplify;
+        return {'FINISHED'}
+    
     def draw(self, context):
         layout = self.layout;
         layout.prop(self, 'bakesamples');
@@ -127,7 +139,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         layout.prop(self, 'normalizeframes');
         layout.prop(self, 'makestartframe');
         layout.prop(self, 'makeendframe');
-    
+        
     def execute(self, context):
         # Find Armature
         object = bpy.context.object;
@@ -261,6 +273,14 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         out += Pack('B', flag);
         
         render = context.scene.render;
+        view_layer = bpy.context.view_layer;
+        view_layer.update();
+        scene = context.scene;
+        
+        for obj in scene.objects:
+            if obj.type == 'MESH':
+                obj.data.update();
+        
         out += Pack('f', render.fps); # Animation Framerate
         out += Pack('H', int(framemax) ); # Max animation frame
         out += Pack('H', len(bones)); # Bone Count
@@ -275,11 +295,14 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         print('> Writing Tracks...');
         
         frame_map_old = render.frame_map_old;
-        render.frame_map_old = render.frame_map_new / 10;
+        #render.frame_map_old = render.frame_map_new / 10;
         
+        # Settings
         samples = self.bakesamples;
         if samples < 0:
             samples = framerange[1]-framerange[0];
+        makestartframe = self.makestartframe;
+        makeendframe = self.makeendframe;
         
         for b in bones: # For each bone (track)
             outchunk = b'';
@@ -302,20 +325,17 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
                     for k in (curve.keyframe_points if curve else [])
                 ]);
                 
-                if self.makestartframe:
+                if makestartframe:
                     trackframes.add(framerange[0]);
-                if self.makeendframe:
+                if makeendframe:
                     trackframes.add(framerange[1]);
                     
                 trackframes = list(trackframes);
                 trackframes.sort();
                 
-                if b.name == 'hand_l':
-                    print("Prebaked: %s" % trackframes)
-                
                 # Manual Sampling
                 #"""
-                if samples != 0:
+                if samples > 0 and len(trackframes) > 1:
                     newpts = [];
                     for i in range(0, len(trackframes)-1):
                         p1 = trackframes[i];
@@ -331,9 +351,6 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
                 #"""
                 outchunk += Pack('H', len(trackframes)); # Frame count
                 
-                if b.name == 'hand_l':
-                    print("Baked: %s" % trackframes)
-                
                 # Write Frame Positions
                 if self.normalizeframes: # Frame Positions are [0-1] range
                     outchunk += b''.join( Pack('f', (frame+frameoffset)/framemax) for frame in trackframes );
@@ -343,8 +360,8 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
                 # For each frame in track
                 for f in trackframes:
                     if f not in posesnap.keys():
-                        context.scene.frame_set(f);
-                        bpy.context.view_layer.update()
+                        scene.frame_set(f);
+                        view_layer.update()
                         posesnap[f] = {
                             #pb.name: (pb.location[:], pb.rotation_quaternion[:], pb.scale[:])
                             pb.name: object.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL').decompose()
@@ -390,6 +407,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             object.pose.bones[i].matrix_basis = prepose[i];
         #if poselibonly:
             #object.animation_data = None;
+        render.use_simplify = self.lastsimplify;
         
         # Output to File
         oldlen = len(out);
