@@ -9,10 +9,9 @@ switch(shadermode)
 		shader_set_uniform_f_array(
 			RENDERING.shaderactive.u_drawmatrix, drawmatrix);
 		shader_set_uniform_matrix_array(
-			RENDERING.shaderactive.u_matpose, mattran);
-		shader_set_uniform_matrix_array(
 			RENDERING.shaderactive.u_matpose, matpose);
-
+		matrix_set(matrix_world, mattran);
+		
 		var n = vbx_model.vbcount;
 		for (var i = 0; i < n; i++)
 		{
@@ -30,9 +29,8 @@ switch(shadermode)
 		shader_set_uniform_f_array(
 			RENDERING.shaderactive.u_drawmatrix, drawmatrix);
 		shader_set_uniform_matrix_array(
-			RENDERING.shaderactive.u_matpose, mattran);
-		shader_set_uniform_matrix_array(
 			RENDERING.shaderactive.u_matpose, matpose);
+		matrix_set(matrix_world, mattran);
 
 		var n = vbx_normal.vbcount;
 		for (var i = 0; i < n; i++)

@@ -269,29 +269,36 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 			trackvectors = track.vectors;
 			findexmax = track.count - 1;
 			
+			if bonekeys != 0 
+			if bonekeys[t-1] == "have.l"
+			{
+				printf("count[%d]: %s", ttype, track.count);	
+			}
+			
 			// Single Keyframe
-			if (findexmax == 0)
+			if (findexmax == -1)
 			{
 				veccurr = trackvectors[0];
+				msg(veccurr)
 				switch(ttype)
 				{
 					case(0): // Transform
-						array_copy(outposematrix, 12, veccurr, 12, 3);
+						break;
+						//array_copy(outposematrix, 12, veccurr, 12, 3);
+						outposematrix[@ 12] = veccurr[0];
+						outposematrix[@ 13] = veccurr[1];
+						outposematrix[@ 14] = veccurr[2];
 						break;
 					
 					case(2): // Scale
-						array_copy(
-							outposematrix, 
-							0,
-							matrix_multiply(
-								matrix_build(0,0,0, 0,0,0,
-									veccurr[0],
-									veccurr[1],
-									veccurr[2]
-									),
-								outposematrix),
-							0, 16
-							);
+						mm = matrix_multiply(
+							matrix_build(0,0,0, 0,0,0,
+								veccurr[0],
+								veccurr[1],
+								veccurr[2]
+								),
+							outposematrix);
+						array_copy(outposematrix, 0, mm, 0, 16);
 						break;
 				
 					case(1): // Quaternion

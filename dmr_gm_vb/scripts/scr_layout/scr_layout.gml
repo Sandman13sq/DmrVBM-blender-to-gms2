@@ -91,6 +91,14 @@ function __LayoutSuper() constructor
 		return el;		
 	}
 	
+	function Enum()
+	{
+		var el = new LayoutElement_Enum(root, self);
+		array_push(children, el);
+		childrencount++;
+		return el;		
+	}
+	
 	function List()
 	{
 		var el = new LayoutElement_List(root, self);
@@ -120,7 +128,7 @@ function __LayoutSuper() constructor
 		value = _value;
 		if runop
 		{
-			if op {op(self);}
+			if op {op(value, self);}
 		}
 		return self;
 	}
@@ -699,7 +707,7 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 				{
 					value ^= 1;
 				}
-				if op {op(self);}
+				if op {op(value, self);}
 			}
 			
 			
@@ -730,7 +738,7 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 	function Value(_value, runop=true)
 	{
 		value = bool(_value);
-		if runop && op {op(self);}
+		if runop && op {op(value, self);}
 		return self;
 	}
 	
@@ -770,7 +778,7 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 			if common.clickreleased
 			{
 				value ^= 1;
-				if op {op(self);}
+				if op {op(value, self);}
 			}
 		}
 		else
@@ -849,7 +857,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				if mbreleased
 				{
 					value = max(valuemin, value-1);
-					if op {op(self);}
+					if op {op(value, self);}
 				}
 			}
 			// Increment
@@ -860,7 +868,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				if mbreleased 
 				{
 					value = min(valuemax, value+1);
-					if op {op(self);}
+					if op {op(value, self);}
 				}
 			}
 			// Middle
@@ -890,7 +898,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					
 					if mbreleased
 					{
-						if op {op(self);}
+						if op {op(value, self);}
 						window_set_cursor(cr_arrow);
 					}
 					
@@ -901,7 +909,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 							
 						if operator_on_change
 						{
-							if op {op(self);}
+							if op {op(value, self);}
 						}
 					}
 				}
@@ -922,7 +930,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					if string_digits(valueanchor) != ""
 					{
 						value = real(valueanchor);
-						if op {op(self);}
+						if op {op(value, self);}
 					}
 				}
 				else if keyboard_check_pressed(vk_backspace)
@@ -967,7 +975,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 							
 					if operator_on_change
 					{
-						if op {op(self);}
+						if op {op(value, self);}
 					}
 				}
 			}
@@ -979,7 +987,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				
 				if operator_on_change
 				{
-					if op {op(self);}
+					if op {op(value, self);}
 				}
 			}
 			
@@ -1124,6 +1132,174 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			draw_set_halign(1);
 			draw_set_valign(0);
 			DrawTextYCenter(xc, label);
+		}
+	}
+}
+
+function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) constructor
+{
+	color = common.c_base;
+	enumvalues = [];	// <value, name, description>
+	enumsize = 0;
+	enumindex = 0;
+	enumhighlight = 0;
+	
+	function Value(_value, runop=true)
+	{
+		for (var i = 0; i < enumsize; i++)
+		{
+			if value == enumvalues[i][0]
+			{
+				enumindex = i;
+				value = enumvalues[enumindex][0];
+				if runop && op {op(value, self);}
+				return self;
+			}
+		}
+		
+		show_debug_message("ERROR: No enum entry with value \""+string(value)+"\" exists!");
+		enumindex = clamp(enumindex, 0, enumsize-1);
+		value = enumvalues[enumindex][0];
+		return self;
+	}
+	
+	function DefineEnum(_value, _name, _desc)
+	{
+		array_push(enumvalues, [_value, _name, _desc]);
+		enumsize = array_length(enumvalues);
+		enumindex = clamp(enumindex, 0, enumsize-1);
+		value = enumvalues[enumindex][0];
+		return self;
+	}
+	
+	function DefineEnumList(_enumlist)
+	{
+		var n, e;
+		n = array_length(_enumlist);
+		
+		array_resize(enumvalues, n);
+		enumsize = n;
+		
+		for (var i = 0; i < n; i++)
+		{
+			e = _enumlist[i];
+			while (array_length(e) < 3) {e[array_length(e)] = undefined;}
+			enumvalues[i] = e;
+		}
+		
+		enumindex = clamp(enumindex, 0, enumsize-1);
+		value = enumvalues[enumindex][0];
+		
+		return self;
+	}
+	
+	function UpdatePos(_x1, _y1, _x2, _y2)
+	{
+		x1 = _x1;
+		y1 = _y1;
+		x2 = _x2;
+		y2 = y1 + common.cellmax;
+		
+		if active
+		{
+			y2 += common.cellmax * enumsize;	
+		}
+		
+		w = x2-x1;
+		h = y2-y1;
+		
+		xc = lerp(x1, x2, 0.5);
+		yc = lerp(y1, y2, 0.5);
+		
+		return [w, h];
+	}
+	
+	function Update()
+	{
+		if IsMouseOver()
+		{
+			common.active = self;
+			
+			color = common.c_highlight;	
+			
+			if !active
+			{
+				if common.clickreleased
+				{
+					// Open dropdown
+					active = 1;
+				}
+				
+				// 
+				var lev = mouse_wheel_down()-mouse_wheel_up();
+				if lev != 0
+				{
+					enumindex = enumindex+lev;
+					if (enumindex < 0) {enumindex = enumsize + enumindex;}
+					enumindex = enumindex mod enumsize;
+					
+					value = enumvalues[enumindex][0];
+					if op {op(value, self);}
+				}
+			}
+			else
+			{
+				if IsMouseOver2(x1, y1, x2, y2)
+				{
+					enumhighlight = clamp(floor((common.my-y1-common.cellmax)/common.cellmax), 0, enumsize-1);
+					
+					if common.clickreleased
+					{
+						enumindex = enumhighlight;
+						value = enumvalues[enumindex][0];
+						if op {op(value, self);}
+						active = 0;
+					}
+				}
+				else
+				{
+					active = 0;
+				}
+			}
+		}
+		else
+		{
+			color = common.c_base;	
+		}
+	}
+	
+	function Draw()
+	{
+		draw_set_halign(0);
+		draw_set_valign(0);
+		
+		// Draw enum elements
+		if active
+		{
+			var e;
+			var hh = common.cellmax;
+			var yy = y1+hh;
+			DrawRectWH(x1, y1, w, h, 0);
+			for (var i = 0; i < enumsize; i++)
+			{
+				e = enumvalues[i];
+				DrawText(x1+5, yy, e[1], (enumhighlight==i)? c_white: common.c_active);
+				yy += hh;
+			}
+		}
+		
+		DrawRectWH(x1, y1, w, common.cellmax, color);
+		
+		// Draw Label
+		if label != ""
+		{
+			DrawText(x1+3, y1, string(label)+":");
+			draw_set_halign(2);
+			DrawText(x2-3, y1, enumvalues[enumindex][1]);
+		}
+		else
+		{
+			DrawText(x1+3, y1, enumvalues[enumindex][1]);
 		}
 	}
 }

@@ -1,4 +1,4 @@
-/// @desc
+/// @desc Demo Methods
 
 function CreateGridVB(cellcount, cellsize)
 {

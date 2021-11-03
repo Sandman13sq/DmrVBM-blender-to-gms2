@@ -1,6 +1,6 @@
 /// @desc 
 
-zrot += keyboard_check(ord("E")) - keyboard_check(ord("Q"));
+zrot += LevKeyHeld(ord("E"), ord("Q"))
 
 var levplayback = isplaying * trackposspeed;
 
@@ -16,6 +16,8 @@ if levplayback != 0
 	var _vbx = vbx_model;
 	
 	trackpos += levplayback;
+	
+	// Wrap position around range
 	if trackpos < trackdata.positionrange[0] {trackpos = trackdata.positionrange[1];}
 	if trackpos > trackdata.positionrange[1] {trackpos = trackdata.positionrange[0];}
 	

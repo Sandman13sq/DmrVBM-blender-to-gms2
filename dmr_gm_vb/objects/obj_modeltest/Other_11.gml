@@ -1,8 +1,8 @@
-/// @desc 
+/// @desc Operators
 
 #region // Operators ======================================================
 
-function OP_BindPose(button)
+function OP_BindPose(value, btn)
 {
 	with obj_curly
 	CalculateAnimationPose(
@@ -14,29 +14,31 @@ function OP_BindPose(button)
 		);
 }
 
-function OP_MeshVisibility(button)
+function OP_MeshVisibility(value, btn)
 {
-	var i = button.vbindex;
+	var i = btn.vbindex;
 	with obj_curly
-	meshvisible = button.value? (meshvisible | (1<<i)): (meshvisible & ~(1<<i));
+	meshvisible = value? (meshvisible | (1<<i)): (meshvisible & ~(1<<i));
 }
 
-function OP_TogglePlayback(button)
+function OP_TogglePlayback(value, btn)
 {
-	button.Label(button.value? "Stop Animation": "Play Animation");
+	btn.Label(value? "Stop Animation": "Play Animation");
 	with obj_curly
-	isplaying = button.value;
+	isplaying = value;
 }
 
-function OP_DmShine(btn) {obj_curly.dm_shine = btn.value;}
-function OP_DmEmission(btn) {obj_curly.dm_emission = btn.value;}
-function OP_DmSSS(btn) {obj_curly.dm_sss = btn.value;}
+function OP_DmShine(value, btn) {obj_curly.dm_shine = value;}
+function OP_DmEmission(value, btn) {obj_curly.dm_emission = value;}
+function OP_DmSSS(value, btn) {obj_curly.dm_sss = value;}
 
-function OP_FieldOvView(btn) {obj_curly.camera = btn.value;}
+function OP_FieldOvView(value, btn) {obj_curly.camera = value;}
 
-function OP_ReloadPoses(btn) {with obj_curly ReloadPoses();}
+function OP_ReloadPoses(value, btn) {with obj_curly ReloadPoses();}
 
-function OP_LoadVBX(btn) 
+function OP_SetInterpolation(value, btn) {with obj_curly interpolationtype = value;}
+
+function OP_LoadVBX(value, btn) 
 {
 	var _fname = get_open_filename("*.vbx", "curly.vbx");
 	if _fname != ""
@@ -86,5 +88,11 @@ d.Real().Label("Fake SSS").SetBounds(0, 1, 0.1)
 	.Operator(OP_DmSSS).Value(dm_sss).operator_on_change=true;
 d.Real().Label("Emission").SetBounds(0, 1, 0.1)
 	.Operator(OP_DmEmission).Value(dm_emission).operator_on_change=true;
+
+layout_model.Enum().Label("Interpolation").DefineEnumList([
+	[AniTrack_Intrpl.constant, "Constant"],
+	[AniTrack_Intrpl.linear, "Linear"],
+	[AniTrack_Intrpl.smooth, "Smooth"],
+	]).Operator(OP_SetInterpolation);
 
 #endregion

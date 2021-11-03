@@ -1,8 +1,8 @@
 /// @desc
 
 // Check if window size changed
-if window_get_width() != camera.width
-|| window_get_height() != camera.height
+if (window_get_width() != camera.width || window_get_height() != camera.height)
+&& (window_get_width() > 0 && window_get_height() > 0)
 {
 	camera.width = window_get_width();
 	camera.height = window_get_height();
@@ -14,11 +14,15 @@ if window_get_width() != camera.width
 	event_user(1);
 }
 
+#region // Toggleables ==========================================
+
 if keyboard_check_pressed(ord("M"))
 {
 	//vbmode = (vbmode+1) mod 3;
 	curly.shadermode = Modulo(curly.shadermode+1, 2);
 }
+
+#endregion
 
 curly.isplaying ^= keyboard_check_pressed(vk_space);
 curly.keymode ^= keyboard_check_pressed(ord("K"));
