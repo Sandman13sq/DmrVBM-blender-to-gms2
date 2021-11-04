@@ -2,6 +2,17 @@
 */
 
 #macro DMRVBX_MATPOSEMAX 200
+#macro DMRVBX_MAT4ARRAYFLAT global.g_mat4identityflat
+#macro DMRVBX_MAT4ARRAY2D global.g_mat4identity2d
+
+DMRVBX_MAT4ARRAYFLAT = array_create(16*DMRVBX_MATPOSEMAX);
+DMRVBX_MAT4ARRAY2D = array_create(DMRVBX_MATPOSEMAX);
+
+for (var i = 0; i < DMRVBX_MATPOSEMAX; i++)
+{
+	array_copy(DMRVBX_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
+	DMRVBX_MAT4ARRAY2D[i] = matrix_build_identity();
+}
 
 /*
 	GM mat ref:

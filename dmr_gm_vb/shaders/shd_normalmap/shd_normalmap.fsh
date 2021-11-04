@@ -30,6 +30,7 @@ void main()
 	// Dot Product
 	float dp = clamp(dot(n, l), 0.0, 1.0);
 	dp = dot(n, l);
+	dp = dp/2.0+0.5;
 	
 	// Specular
 	float shine = pow( clamp( dot(-e, r), 0.0, 1.0), 64.0 );

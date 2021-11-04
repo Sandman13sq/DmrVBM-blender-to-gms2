@@ -24,7 +24,7 @@ varying vec3 v_dirtocamera_ts;
 // Uniforms passed in before draw call
 uniform mat4 u_matpose[200];
 
-const vec3 u_lightpos = 160.0*vec3(0.5, -3.0, 2.0);
+const vec3 u_lightpos = vec3(28.5, -222.0, 100.0);
 
 void main()
 {
