@@ -111,6 +111,13 @@ function __LayoutSuper() constructor
 	
 	#region // Utility ======================================================
 	
+	function SetIDName(_idname)
+	{
+		idname = _idname;
+		root.elementmap[$ _idname] = self;
+		return self;
+	}
+	
 	function Label(_label)
 	{
 		label = string(_label);	
@@ -166,13 +173,6 @@ function __LayoutSuper() constructor
 	function SetUIScale(_scale)
 	{
 		common.uiscale = _scale;
-		return self;
-	}
-	
-	function SetIDName(_idname)
-	{
-		idname = _idname;
-		root.elementmap[$ _idname] = self;
 		return self;
 	}
 	
@@ -856,7 +856,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				if mbheld {color[0] = common.c_active;}
 				if mbreleased
 				{
-					value = max(valuemin, value-1);
+					value = max(valuemin, value-valuestep);
 					if op {op(value, self);}
 				}
 			}
@@ -867,7 +867,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				if mbheld {color[2] = common.c_active;}
 				if mbreleased 
 				{
-					value = min(valuemax, value+1);
+					value = min(valuemax, value+valuestep);
 					if op {op(value, self);}
 				}
 			}
@@ -1049,21 +1049,67 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	color = common.c_base;
 	toggle_on_click = false;
 	
-	list = [0, 1, 2, 3, 4, 5];
-	size = 0;
+	items = [];
+	itemsize = 0;	// Updated in UpdatePos()
 	itemsperpage = 6;
-	indexover = -1;
+	itemindex = 0;
 	offset = 0;
 	
-	static drawitem_default = function(button, x, y, value, index)
+	highlight = 0;
+	
+	static drawitem_default = function(x, y, value, index, textcolor, button)
 	{
 		draw_set_halign(0);
 		draw_set_valign(0);
-		DrawText(x + 4, y, "Item[" + string(index) + "]: " + string(value),
-			
-			);
+		
+		//DrawText(x + 4, y, "[" + string(index) + "]: " + string(value), _color);
+		DrawText(x + 4, y, string(value), textcolor);
 	}
 	drawitem_function = drawitem_default;
+	
+	function SetItemDrawFunction(_function)
+	{
+		drawitem_function = _function;
+		return self;
+	}
+	
+	function DefineListItem(_value, _name, _desc)
+	{
+		array_push(items, [_value, _name, _desc]);
+		itemsize = array_length(items);
+		itemindex = clamp(itemindex, 0, itemsize-1);
+		value = items[itemindex][0];
+		return self;
+	}
+	
+	function DefineListItems(_itemlist)
+	{
+		var n, e;
+		n = array_length(_itemlist);
+		
+		array_resize(items, n);
+		itemsize = n;
+		
+		for (var i = 0; i < n; i++)
+		{
+			e = _itemlist[i];
+			while (array_length(e) < 3) {e[array_length(e)] = undefined;}
+			items[i] = e;
+		}
+		
+		itemindex = clamp(itemindex, 0, itemsize-1);
+		value = items[itemindex][0];
+		
+		return self;
+	}
+	
+	function ClearListItems()
+	{
+		array_resize(items, 0);
+		itemsize = 0;
+		itemindex = 0;
+		highlight = -1;
+	}
 	
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
@@ -1073,11 +1119,15 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		y2 = _y2;
 		w = x2-x1;
 		
-		var n = array_length(list);
+		var n = array_length(items);
 		//itemsperpage = h div common.cellmax;
+		itemsize = n;
 		if n <= itemsperpage {offset = 0;}
 		
 		h = common.cellmax * itemsperpage;
+		
+		if label != "" {h += common.cellmax;}
+		
 		y2 = y1 + h;
 		
 		xc = lerp(x1, x2, 0.5);
@@ -1088,50 +1138,91 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	
 	function Update()
 	{
-		if IsMouseOver()
+		if IsMouseOver() && itemsize > 0
 		{
+			// Index of item that mouse is over
+			highlight = clamp(floor((common.my-y1-common.cellmax*(label != "")) / common.cellmax)+offset, 0, itemsize-1);
 			
-			
-			color = common.c_highlight;	
-			
-			if common.clickheld
-				{color = common.c_active;}
-			
+			// On mouse click
 			if common.clickreleased
 			{
-				if op {op(self, index, list);}
+				itemindex = highlight;
+				value = items[itemindex][0];
+				if op {op(value, self, items);}
+			}
+			
+			// Scroll item list
+			if itemsize > itemsperpage
+			{
+				var _lev = mouse_wheel_down()-mouse_wheel_up();
+				if _lev != 0
+				{
+					offset = clamp(offset+_lev, 0, itemsize-itemsperpage);	
+				}
 			}
 		}
 		else
 		{
 			color = common.c_base;	
-			indexover = -1;
+			highlight = -1;
 		}
 	}
 	
 	function Draw()
 	{
-		DrawRectWH(x1, y1, w, h, color);
-		
-		var n = array_length(list);
-		var yy = y1;
+		var yy = y1 + common.cellmax*(label != "");
 		var xx1 = x1 + 4, xx2 = x2 - 4;
-		for (var i = 0; i < n; i++)
+		var _color;
+		var _chigh = common.c_highlight;
+		
+		// Draw Items
+		var _start = offset, _end = min(offset+itemsperpage, itemsize);
+		for (var i = _start; i < _end; i++)
 		{
-			drawitem_default(self, x1, yy, list[i], i);
+			// Active item
+			if itemindex == i
+			{
+				draw_rectangle_color(x1+1, yy+1, x2-2, yy+common.cellmax,
+					_chigh, _chigh, _chigh, _chigh, 0);
+			}
+			
+			// Text Color
+			if highlight == i || itemindex == i {_color = c_white;}
+			else {_color = c_ltgray;}
+			
+			// Item Text
+			drawitem_default(x1, yy, items[i][1], i, _color, self);
 			yy += common.cellmax;
 			
-			if i < n-1
+			// Item Separator
+			if i < _end-1
 			{
 				draw_line_color(xx1, yy, xx2, yy, c_white, c_white);
 			}
 		}
 		
+		// Draw Label
 		if label != ""
 		{
 			draw_set_halign(1);
 			draw_set_valign(0);
-			DrawTextYCenter(xc, label);
+			DrawText(xc, y1, label);
+		}
+		
+		// Draw Scrollbar
+		if itemsize > itemsperpage
+		{
+			var ww = 6;
+			var hh = h * itemsperpage/itemsize;
+			var xx = x2-ww-1;
+			var yy = y1 + common.cellmax*(label != "");
+			
+			DrawRectWH(xx, yy, ww, h-common.cellmax*(label != ""), c_black);
+			DrawRectWH(
+				xx, 
+				lerp(yy, y2-hh, offset/(itemsize-itemsperpage)),
+				ww, hh, common.c_base
+				);
 		}
 	}
 }
@@ -1163,7 +1254,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		return self;
 	}
 	
-	function DefineEnum(_value, _name, _desc)
+	function DefineListItem(_value, _name, _desc)
 	{
 		array_push(enumvalues, [_value, _name, _desc]);
 		enumsize = array_length(enumvalues);
@@ -1172,7 +1263,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		return self;
 	}
 	
-	function DefineEnumList(_enumlist)
+	function DefineListItems(_enumlist)
 	{
 		var n, e;
 		n = array_length(_enumlist);
