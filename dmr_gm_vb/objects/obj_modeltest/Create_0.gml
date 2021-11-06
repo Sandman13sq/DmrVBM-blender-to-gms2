@@ -61,6 +61,8 @@ UpdateView(); // Matrices are set here
 bkcolor = 0x201010;
 
 curly = instance_create_depth(0,0,0, obj_curly);
+meshindex = 0;
+meshdataactive = curly.meshdata[meshindex];
 
 vb_world = LoadVertexBuffer("world.vb", RENDERING.vbformat.model);
 
@@ -68,6 +70,8 @@ drawmatrix = BuildDrawMatrix(1, 0, 1, 0); // Shader uniforms sent as one array
 
 // Layout
 event_user(1);
+
+UpdateActiveVBX();
 
 execinfo = "";
 exectime = [0, 0];

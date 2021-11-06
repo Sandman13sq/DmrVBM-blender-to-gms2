@@ -50,9 +50,19 @@ drawmatrix = BuildDrawMatrix(1, 0, 1, 0); // Shader uniforms sent as one array
 meshvisible = ~0;	// Bit Field
 poseindex = 0;
 
-dm_emission = 0;
-dm_shine = 1;
-dm_sss = 0;
+meshdata = array_create(32);
+for (var i = 0; i < 32; i++)
+{
+	meshdata[i] = {
+		index : i,
+		name : "",
+		emission : 0,
+		shine : 1,
+		sss : 0,
+		texturediffuse : -1,
+		texturenormal : -1,
+	};
+}
 
 wireframecolors = array_create(32);
 for (var i = 0; i < array_length(wireframecolors); i++)
@@ -63,6 +73,33 @@ for (var i = 0; i < array_length(wireframecolors); i++)
 meshtexture = array_create(32, -1);
 meshtexture[vbx_normal.vbnamemap[$ "curly_clothes_sym"]] = sprite_get_texture(tex_curly_def_nor, 0);
 
+var _vbx = vbx_model;
+var _me;
+for (var i = 0; i < _vbx.vbcount; i++)
+{
+	_me = meshdata[i];
+	_me.name = _vbx.vbnames[i];
+	
+	if string_pos("skin", meshdata[i].name)
+	|| string_pos("head", meshdata[i].name)
+	{
+		_me.sss = 1.0;
+		//_me.texturediffuse = sprite_get_texture(tex_curly_skin_col, 0);
+		//_me.texturenormal = sprite_get_texture(tex_curly_skin_nor, 0);
+	}
+	
+	if string_pos("eye", meshdata[i].name)
+	{
+		_me.emission = 1.0;
+	}
+	
+	if string_pos("cloth", meshdata[i].name)
+	|| string_pos("boot", meshdata[i].name)
+	{
+		_me.texturediffuse = sprite_get_texture(tex_curly_def_col, irandom(3));
+		_me.texturenormal = sprite_get_texture(tex_curly_def_nor, 0);
+	}
+}
 
 shadermode = 0;
 

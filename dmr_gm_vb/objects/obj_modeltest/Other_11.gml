@@ -14,11 +14,12 @@ function OP_BindPose(value, btn)
 		);
 }
 
-function OP_MeshVisibility(value, btn)
+function OP_MeshVisibility(value, btn) 
 {
-	var i = btn.vbindex;
-	with obj_curly
-	meshvisible = value? (meshvisible | (1<<i)): (meshvisible & ~(1<<i));
+	if value {obj_curly.meshvisible |= (1 << obj_modeltest.meshindex);}
+	else {obj_curly.meshvisible &= ~(1 << obj_modeltest.meshindex);}
+	
+	obj_modeltest.UpdateActiveVBX();
 }
 
 function OP_TogglePlayback(value, btn)
@@ -28,9 +29,9 @@ function OP_TogglePlayback(value, btn)
 	isplaying = value;
 }
 
-function OP_DmShine(value, btn) {obj_curly.dm_shine = value;}
-function OP_DmEmission(value, btn) {obj_curly.dm_emission = value;}
-function OP_DmSSS(value, btn) {obj_curly.dm_sss = value;}
+function OP_DmShine(value, btn) {obj_modeltest.meshdataactive.shine = value;}
+function OP_DmEmission(value, btn) {obj_modeltest.meshdataactive.emission = value;}
+function OP_DmSSS(value, btn) {obj_modeltest.meshdataactive.sss = value;}
 
 function OP_FieldOvView(value, btn) {obj_curly.camera = value;}
 
@@ -65,6 +66,7 @@ layout_model.Button().Label("Open VBX").Operator(OP_LoadVBX);
 var b = layout_model.Box();
 b.Label("Model");
 
+/*
 var el;
 var _vbx = curly.vbx_model;
 for (var i = 0; i < _vbx.vbcount; i++)
@@ -73,23 +75,47 @@ for (var i = 0; i < _vbx.vbcount; i++)
 	el.vbindex = i;
 	el.Value(curly.meshvisible & (1<<i));
 }
+*/
 
-//b.List();
+var _vbx = curly.vbx_model;
 
+// Mesh Select
+layout_meshselect = b.List()
+	.Operator(function(value) {obj_modeltest.meshindex = value; obj_modeltest.UpdateActiveVBX();})
+
+layout_meshselect.ClearListItems();
+for (var i = 0; i < _vbx.vbcount; i++)
+{
+	layout_meshselect.DefineListItem(i, _vbx.vbnames[i], _vbx.vbnames[i]);
+}
+
+// Mesh Attributes
+layout_meshattributes = b.Column();
+layout_meshattributes.Bool()
+	.Label("Visible")
+	.SetIDName("meshvisible")
+	.Operator(OP_MeshVisibility)
+	.Value(curly.meshvisible & (1 << meshindex), false);
+
+//layout_meshattributes.Enum().Operator(0);
+
+layout_meshattributes.Real().Label("Shine").SetIDName("meshshine").SetBounds(0, 1, 0.1)
+	.Operator(OP_DmShine).operator_on_change=true;
+layout_meshattributes.Real().Label("Fake SSS").SetIDName("meshsss").SetBounds(0, 1, 0.1)
+	.Operator(OP_DmSSS).operator_on_change=true;
+layout_meshattributes.Real().Label("Emission").SetIDName("meshemission").SetBounds(0, 1, 0.1)
+	.Operator(OP_DmEmission).operator_on_change=true;
+
+// Animation
 layout_model.Button().Label("Bind Pose").Operator(OP_BindPose);
 layout_model.Button().SetIDName("toggleplayback")
 	.Operator(OP_TogglePlayback).Value(curly.isplaying).toggle_on_click = 1;
 layout_model.Button().Label("Reload Poses").Operator(OP_ReloadPoses);
 
 var d = layout_model.Dropdown().Label("Shader Uniforms");
-d.Real().Label("Shine").SetBounds(0, 1, 0.1)
-	.Operator(OP_DmShine).Value(dm_shine).operator_on_change=true;
-d.Real().Label("Fake SSS").SetBounds(0, 1, 0.1)
-	.Operator(OP_DmSSS).Value(dm_sss).operator_on_change=true;
-d.Real().Label("Emission").SetBounds(0, 1, 0.1)
-	.Operator(OP_DmEmission).Value(dm_emission).operator_on_change=true;
 
-layout_model.Enum().Label("Interpolation").DefineEnumList([
+
+layout_model.Enum().Label("Interpolation").DefineListItems([
 	[AniTrack_Intrpl.constant, "Constant"],
 	[AniTrack_Intrpl.linear, "Linear"],
 	[AniTrack_Intrpl.smooth, "Smooth"],

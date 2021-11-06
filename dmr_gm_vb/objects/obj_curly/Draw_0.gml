@@ -6,18 +6,23 @@ switch(shadermode)
 	case(0):
 		RENDERING.SetShader(shd_modelrigged);
 		
-		shader_set_uniform_f_array(
-			RENDERING.shaderactive.u_drawmatrix, drawmatrix);
 		shader_set_uniform_matrix_array(
 			RENDERING.shaderactive.u_matpose, matpose);
 		matrix_set(matrix_world, mattran);
 		
+		var me;
 		var n = vbx_model.vbcount;
 		for (var i = 0; i < n; i++)
 		{
 			if meshvisible & (1<<i)
 			{
-				vertex_submit(vbx_model.vb[i], pr_trianglelist, -1);	
+				me = meshdata[i];
+				
+				shader_set_uniform_f_array(
+					RENDERING.shaderactive.u_drawmatrix, 
+					BuildDrawMatrix(1, me.emission, me.shine, me.sss));
+				
+				vertex_submit(vbx_model.vb[i], pr_trianglelist, me.texturediffuse);	
 			}
 		}
 		break;
@@ -31,13 +36,20 @@ switch(shadermode)
 		shader_set_uniform_matrix_array(
 			RENDERING.shaderactive.u_matpose, matpose);
 		matrix_set(matrix_world, mattran);
-
+		
+		var me;
 		var n = vbx_normal.vbcount;
 		for (var i = 0; i < n; i++)
 		{
 			if meshvisible & (1<<i)
 			{
-				vertex_submit(vbx_normal.vb[i], pr_trianglelist, meshtexture[i]);	
+				me = meshdata[i];
+				
+				shader_set_uniform_f_array(
+					RENDERING.shaderactive.u_drawmatrix, 
+					BuildDrawMatrix(1, me.emission, me.shine, me.sss));
+				
+				vertex_submit(vbx_normal.vb[i], pr_trianglelist, me.texturenormal);	
 			}
 		}
 		break;
