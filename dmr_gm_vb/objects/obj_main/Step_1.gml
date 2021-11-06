@@ -1,4 +1,4 @@
-/// @desc
+/// @desc Global Controls
 
 if keyboard_check(vk_tab)
 {
