@@ -80,3 +80,8 @@ function ArrayPrevPos(array, pos)
 	}
 	return array[n-1];
 }
+
+function ArrayToRGB(_array, index=0)
+{
+	return make_color_rgb(255*_array[index], 255*_array[index+1], 255*_array[index+2])
+}
