@@ -383,7 +383,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             print('> Writing Marker Data...');
             
             markers = [m for m in lastaction.pose_markers];
-            markers.sort(key = lambda m: m.frame);
+            #markers.sort(key = lambda m: m.frame);
             
             out += Pack('H', len(markers));
             # Write Marker Names
@@ -391,14 +391,12 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             # Write Marker Frame Positions
             if self.normalizeframes:
                 out += b''.join( [Pack('f', (m.frame+frameoffset)/framemax) for m in markers] );
-                print("Markers: %s" % 
-                    ''.join(["(%s %.4f), " % (m.name, (m.frame+frameoffset)/framemax) for m in markers])
-                );
+                for m in markers:
+                    print("<%s: %.4f>" % (m.name, (m.frame+frameoffset)/framemax))
             else:
                 out += b''.join( [Pack('f', m.frame+frameoffset) for m in markers] );
-                print("Markers: %s" % 
-                    ''.join(["(%s: %.4f), " % (m.name, (m.frame+frameoffset)) for m in markers])
-                );
+                for m in markers:
+                    print("<%s: %.4f>" % (m.name, m.frame+frameoffset))
         else:
             out += Pack('H', 0);
         

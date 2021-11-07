@@ -24,6 +24,7 @@ if (
 	lastfullscreen = window_get_fullscreen();
 	
 	surface_resize(application_surface, width, height);
+	display_set_gui_size(width, height);
 	
 	with all {event_perform(ev_draw, 65);}
 }

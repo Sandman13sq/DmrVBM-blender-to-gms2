@@ -16,9 +16,9 @@ modelobj[ModelType.simple]	= instance_create_depth(0,0,0, obj_demomodel_simple);
 modelobj[ModelType.normal]	= instance_create_depth(0,0,0, obj_demomodel_normal);
 modelobj[ModelType.vbx]	= instance_create_depth(0,0,0, obj_demomodel_vbx);
 //modelobj[ModelType.normalmap]	= obj_demomodel_normal;
-//modelobj[ModelType.rigged]	= obj_demomodel_rigged;
+modelobj[ModelType.rigged]	= instance_create_depth(0,0,0, obj_demomodel_rigged);
 //modelobj[ModelType.full]	= obj_demomodel_full;
-modelmode = ModelType.vbx;
+modelmode = ModelType.rigged;
 
 instance_deactivate_object(obj_demomodel);
 instance_activate_object(modelobj[modelmode]);
