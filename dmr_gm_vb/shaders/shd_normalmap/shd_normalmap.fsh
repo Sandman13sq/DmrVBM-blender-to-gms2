@@ -15,7 +15,7 @@ varying vec3 v_dirtocamera_ts;
 
 // Uniforms passed in before draw call
 uniform vec3 u_camera[2]; // [pos, dir, light]
-uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorfill[4] colorblend[4]]
+uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorblend[4] colorfill[4]]
 
 void main()
 {
@@ -46,10 +46,10 @@ void main()
 	
 	// Emission
 	outcolor = mix(outcolor, diffusecolor.rgb, u_drawmatrix[0][1]);
-	// Fill Color
-	outcolor = mix(outcolor, u_drawmatrix[1].rgb, u_drawmatrix[1].a);
 	// Blend Color
-	outcolor = mix(outcolor, u_drawmatrix[2].rgb*diffusecolor.rgb, u_drawmatrix[2].a);
+	outcolor = mix(outcolor, u_drawmatrix[1].rgb*outcolor.rgb, u_drawmatrix[1].a);
+	// Fill Color
+	outcolor = mix(outcolor, u_drawmatrix[2].rgb, u_drawmatrix[2].a);
 	
 	// Alpha
     gl_FragColor = vec4(outcolor, u_drawmatrix[0][0]*diffusecolor.a);
