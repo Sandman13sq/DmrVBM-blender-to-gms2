@@ -79,8 +79,11 @@ layout.Enum().Label("Model")
 	[ModelType.full, "VBX Full", "VBX model with all features (curly_full.vbx)"],
 	]);
 
+layout.Bool("Show World").DefineControl(self, "drawworld");
 layout.Bool("Show Grid").DefineControl(self, "drawgrid");
 layout.Bool("Show Camera Anchor").DefineControl(self, "drawcamerapos");
+layout.Button("Reset Model Position").Operator(self.ResetModelPosition);
+layout.Button("Reset Camera Position").Operator(obj_camera.ResetCameraPosition);
 
 layout_model = new Layout()
 	.SetPosXY(camera.width-200, 16, camera.width-16, 2)

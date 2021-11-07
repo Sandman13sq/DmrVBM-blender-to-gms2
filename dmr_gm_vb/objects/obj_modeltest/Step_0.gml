@@ -25,7 +25,7 @@ lev = LevKeyHeld(VKey.w, VKey.s);
 modelposition[0] += f[0]*lev;
 modelposition[1] -= f[1]*lev;
 
-modelzrot = LevKeyHeld(VKey.e, VKey.q);
+modelzrot += LevKeyHeld(VKey.e, VKey.q);
 
 curly.isplaying ^= keyboard_check_pressed(vk_space);
 curly.keymode ^= keyboard_check_pressed(ord("K"));

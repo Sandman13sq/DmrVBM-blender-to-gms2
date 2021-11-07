@@ -63,3 +63,11 @@ function UpdateActiveVBX()
 	layout_model.FindElement("meshshine").Value(meshdataactive.shine, false);
 	layout_model.FindElement("meshsss").Value(meshdataactive.sss, false);
 }
+
+function ResetModelPosition()
+{
+	modelposition[0] = 0;
+	modelposition[1] = 0;
+	modelposition[2] = 0;
+	modelzrot = 0;
+}

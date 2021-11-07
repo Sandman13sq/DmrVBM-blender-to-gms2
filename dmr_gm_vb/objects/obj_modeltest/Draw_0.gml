@@ -12,8 +12,11 @@ shader_set(shd_model);
 matrix_set(matrix_world, matrix_build_identity());
 
 // Draw World
-shader_set_uniform_f_array(u_shd_model_drawmatrix, BuildDrawMatrix(1, 0, 0.5, 0));
-vertex_submit(vb_world, pr_trianglelist, -1);
+if drawworld
+{
+	shader_set_uniform_f_array(u_shd_model_drawmatrix, BuildDrawMatrix(1, 0, 0.5, 0));
+	vertex_submit(vb_world, pr_trianglelist, -1);
+}
 
 shader_reset();
 

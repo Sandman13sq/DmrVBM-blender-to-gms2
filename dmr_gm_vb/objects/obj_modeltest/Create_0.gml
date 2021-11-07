@@ -37,6 +37,7 @@ vb_world = LoadVertexBuffer("world.vb", RENDERING.vbformat.model);
 vb_ball = LoadVertexBuffer("ball.vb", RENDERING.vbformat.basic);
 vb_grid = CreateGridVB(128, 1);
 
+drawworld = true;
 drawcamerapos = false;
 drawgrid = true;
 

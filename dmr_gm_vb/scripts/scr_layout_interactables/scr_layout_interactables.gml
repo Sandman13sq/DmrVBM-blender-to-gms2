@@ -763,7 +763,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 			}
 			else
 			{
-				if IsMouseOver2(x1, y1, x2, y2)
+				if IsMouseOver2(x1, y1+common.cellmax, x2, y2)
 				{
 					itemhighlight = clamp(floor((common.my-y1-common.cellmax)/common.cellmax), 0, itemcount-1);
 					
@@ -776,15 +776,12 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 						active = 0;
 					}
 				}
-				else
-				{
-					active = 0;
-				}
 			}
 		}
 		else
 		{
-			color = common.c_base;	
+			color = common.c_base;
+			active = 0;
 		}
 	}
 	

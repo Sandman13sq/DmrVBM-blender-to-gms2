@@ -8,11 +8,7 @@ height = 0;
 viewforward = [0,1,0];
 viewright = [1,0,0];
 viewup = [0,0,1];
-	
-viewdistance = 32;
-viewdirection = 110;
-viewpitch = 15;
-	
+
 zfar = 1000;
 znear = 1;
 fieldofview = 50;
@@ -91,4 +87,16 @@ function UpdateMatView()
 	matrix_set(matrix_view, matview);
 }
 
+function ResetCameraPosition()
+{
+	viewforward[0] = 0;
+	viewforward[1] = 0;
+	viewforward[2] = 7;
+	
+	viewdistance = 24;
+	viewdirection = 110;
+	viewpitch = 7;
+}
+
+ResetCameraPosition();
 UpdateMatView();
