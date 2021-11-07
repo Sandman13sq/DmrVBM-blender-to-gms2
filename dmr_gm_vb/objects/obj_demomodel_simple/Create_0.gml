@@ -13,13 +13,18 @@ vb = LoadVertexBuffer("curly_simple.vb", vbf);
 
 // Control Variables
 alpha = 1;
-emission = 0;
-shine = 1;
-sss = 0;
-drawmatrix = BuildDrawMatrix(alpha, emission, shine, sss);
+
+colorfill = [0, 1, 0.5, 0];
+colorblend = [1, 1, 1, 0];
 
 wireframe = false;
 cullmode = cull_clockwise;
+drawmatrix = BuildDrawMatrix(alpha, 0, 0, 0,
+	ArrayToRGB(colorblend), colorblend[3],
+	ArrayToRGB(colorfill), colorfill[3],
+	);
+
+use_gm_default_shader = false;
 
 // Uniforms
 var _shd;
