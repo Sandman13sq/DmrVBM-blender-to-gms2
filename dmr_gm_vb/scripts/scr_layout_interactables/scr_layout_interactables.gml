@@ -737,7 +737,6 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		if IsMouseOver()
 		{
 			common.active = self;
-			
 			color = common.c_highlight;	
 			
 			if !active
@@ -760,12 +759,20 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 					UpdateControl(value);
 					if op {op(value, self);}
 				}
+				
+				common.tooltip_name = label;
+				common.tooltip_text = description;
+				common.tooltip_target = self;
 			}
 			else
 			{
 				if IsMouseOver2(x1, y1+common.cellmax, x2, y2)
 				{
 					itemhighlight = clamp(floor((common.my-y1-common.cellmax)/common.cellmax), 0, itemcount-1);
+					
+					common.tooltip_name = label;
+					common.tooltip_text = items[itemhighlight][2];
+					common.tooltip_target = self;
 					
 					if common.clickreleased
 					{

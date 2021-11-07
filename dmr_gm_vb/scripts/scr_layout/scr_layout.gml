@@ -18,6 +18,7 @@ function __LayoutSuper() constructor
 	b = 2;
 	
 	label = "";
+	description = "";
 	idname = "";
 	
 	#region // Elements =======================================================
@@ -150,6 +151,12 @@ function __LayoutSuper() constructor
 	function Label(_label)
 	{
 		label = string(_label);	
+		return self;
+	}
+	
+	function Description(_desc)
+	{
+		description = string(_desc);	
 		return self;
 	}
 	
@@ -328,7 +335,9 @@ function Layout() : __LayoutSuper() constructor
 		tooltip_name : "",
 		tooltip_text : "",
 		tooltip_wait : 0,
-		tooltip_waittime : 20000,
+		tooltip_waittime : 600000,
+		tooltip_target : 0,
+		tooltip_lasttarget : 0,
 	};
 	
 	elementmap = {};
@@ -366,14 +375,20 @@ function Layout() : __LayoutSuper() constructor
 		var _mx = window_mouse_get_x();
 		var _my = window_mouse_get_y();
 		
+		common.tooltip_text = "";
+		common.tooltip_name = "";
 		if common.mx == _mx && common.my == _my
 		{
 			common.tooltip_wait = max(common.tooltip_wait-delta_time, 0);
 		}
-		else
+		else if common.tooltip_lasttarget != common.tooltip_target
+		|| !common.tooltip_lasttarget
 		{
 			common.tooltip_wait = common.tooltip_waittime;	
 		}
+		
+		common.tooltip_lasttarget = common.tooltip_target;
+		common.tooltip_target = noone;
 		
 		common.mx = _mx;
 		common.my = _my;
@@ -449,10 +464,36 @@ function Layout() : __LayoutSuper() constructor
 			DrawText(x1+2, y1, label);	
 		}
 		
-		// 
+		// Draw Children
 		for (var i = 0; i < childrencount; i++)
 		{
 			children[i].Draw();	
+		}
+		
+		// Draw Tooltip
+		if common.tooltip_wait == 0
+		if common.tooltip_target
+		{
+			var _s = "";
+			
+			if common.tooltip_name != "" {_s += common.tooltip_name;}
+			if common.tooltip_text != "" 
+			{
+				if _s != "" {_s += "\n";}
+				_s += common.tooltip_text;
+			}
+			
+			var xx = common.mx;
+			var yy = common.my+6;
+			var ww = string_width(_s)+8;
+			var hh = string_height(_s)+4;
+			
+			if xx+ww >= window_get_width() {xx -= ww;}
+			
+			draw_set_halign(0);
+			draw_set_valign(0);
+			DrawRectWH(xx, yy, ww, hh, 0, 0.8);
+			DrawText(xx+4, yy+2, _s, c_white);
 		}
 		
 		//DrawText(200, 200, common.lastpress);
