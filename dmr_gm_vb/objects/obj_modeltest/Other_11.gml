@@ -7,6 +7,8 @@ function OP_ModelMode(value, btn)
 	obj_modeltest.modelmode = value;
 	instance_deactivate_object(obj_demomodel);
 	instance_activate_object(obj_modeltest.modelobj[value]);
+	
+	with obj_modeltest.modelobj[value] event_perform(ev_draw, 65);
 }
 
 function OP_BindPose(value, btn)
@@ -76,6 +78,9 @@ layout.Enum().Label("Model")
 	[ModelType.rigged, "VBX Rigged", "VBX model with bone transforms (curly_rigged.vbx)"],
 	[ModelType.full, "VBX Full", "VBX model with all features (curly_full.vbx)"],
 	]);
+
+layout.Bool("Show Grid").DefineControl(self, "drawgrid");
+layout.Bool("Show Camera Anchor").DefineControl(self, "drawcamerapos");
 
 layout_model = new Layout()
 	.SetPosXY(camera.width-200, 16, camera.width-16, 2)

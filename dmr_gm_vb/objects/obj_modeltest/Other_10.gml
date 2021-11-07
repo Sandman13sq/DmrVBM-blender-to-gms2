@@ -2,6 +2,7 @@
 
 function CreateGridVB(cellcount, cellsize)
 {
+	// static = lambda ???
 	static MakeVert = function(vb,x,y,col)
 	{
 		vertex_position_3d(vb, x, y, 0); 
@@ -14,8 +15,8 @@ function CreateGridVB(cellcount, cellsize)
 	var col = [ [0,0,0], [0,0,0], [0,0,0] ];
 	
 	var colgrid = c_dkgray;
-	var colx = [c_red, merge_color(0, c_red, 0.2)];
-	var coly = [c_lime, merge_color(0, c_lime, 0.2)];
+	var colx = [c_red, merge_color(0, c_red, 0.5)];
+	var coly = [c_lime, merge_color(0, c_lime, 0.5)];
 	
 	// Make Grid
 	var width = cellsize * cellcount;
@@ -24,8 +25,11 @@ function CreateGridVB(cellcount, cellsize)
 	vertex_begin(out, vbf.basic);
 	for (var i = -cellcount; i <= cellcount; i++)
 	{
+		if i == 0 {continue;}
+		
 		MakeVert(out, i*cellsize, width, colgrid);
 		MakeVert(out, i * cellsize, -width, colgrid);
+		
 		MakeVert(out, width, i * cellsize, colgrid);
 		MakeVert(out, -width, i * cellsize, colgrid);
 	}
