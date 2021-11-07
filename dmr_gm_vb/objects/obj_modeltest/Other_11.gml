@@ -112,13 +112,14 @@ layout_model.Button().SetIDName("toggleplayback")
 	.Operator(OP_TogglePlayback).Value(curly.isplaying).toggle_on_click = 1;
 layout_model.Button().Label("Reload Poses").Operator(OP_ReloadPoses);
 
-var d = layout_model.Dropdown().Label("Shader Uniforms");
-
-
 layout_model.Enum().Label("Interpolation").DefineListItems([
 	[AniTrack_Intrpl.constant, "Constant"],
 	[AniTrack_Intrpl.linear, "Linear"],
 	[AniTrack_Intrpl.smooth, "Smooth"],
 	]).Operator(OP_SetInterpolation);
+
+layout_model.Real().Label("Hue").DefineControl(obj_curly, "hue").SetBounds(-1, 1, 0.02)
+layout_model.Real().Label("Saturation").DefineControl(obj_curly, "sat").SetBounds(-2, 2, 0.02)
+layout_model.Real().Label("Brightness").DefineControl(obj_curly, "lum").SetBounds(-2, 2, 0.02)
 
 #endregion

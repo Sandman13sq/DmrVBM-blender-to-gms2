@@ -73,6 +73,10 @@ for (var i = 0; i < array_length(wireframecolors); i++)
 meshtexture = array_create(32, -1);
 meshtexture[vbx_normal.vbnamemap[$ "curly_clothes_sym"]] = sprite_get_texture(tex_curly_def_nor, 0);
 
+defsurf = -1;
+deftexture = 0;
+meshclothes = 0;
+
 var _vbx = vbx_model;
 var _me;
 for (var i = 0; i < _vbx.vbcount; i++)
@@ -96,10 +100,17 @@ for (var i = 0; i < _vbx.vbcount; i++)
 	if string_pos("cloth", meshdata[i].name)
 	|| string_pos("boot", meshdata[i].name)
 	{
-		_me.texturediffuse = sprite_get_texture(tex_curly_def_col, irandom(3));
+		_me.texturediffuse = sprite_get_texture(tex_curly_def_col, 0);
 		_me.texturenormal = sprite_get_texture(tex_curly_def_nor, 0);
 	}
 }
 
 shadermode = 0;
+
+u_shd_edit_hue = shader_get_uniform(shd_edit, "u_hue");
+u_shd_edit_sat = shader_get_uniform(shd_edit, "u_sat");
+u_shd_edit_lum = shader_get_uniform(shd_edit, "u_lum");
+hue = 0;
+sat = 1;
+lum = 0;
 

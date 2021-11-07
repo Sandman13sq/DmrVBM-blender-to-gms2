@@ -160,6 +160,45 @@ function __LayoutSuper() constructor
 		return point_in_rectangle(common.mx, common.my, x, y, x+w, y+h);
 	}
 	
+	function GetControl()
+	{
+		if !is_undefined(control_src)
+		{
+			if variable_struct_exists(control_src, control_var)
+			{
+				return control_index >= 0?
+					(variable_struct_get(control_src, control_var)[control_index]):
+					(variable_struct_get(control_src, control_var));
+			}
+		}
+		
+		return value;
+	}
+	
+	function DefineControl(_source, _varname, _varindex = -1)
+	{
+		control_src = _source;
+		control_var = _varname;
+		control_index = _varindex;
+		return self;
+	}
+	
+	function UpdateControl(_value)
+	{
+		if !is_undefined(control_src)
+		{
+			if variable_struct_exists(control_src, control_var)
+			{
+				// Variable
+				if control_index < 0
+					{variable_struct_set(control_src, control_var, _value);}
+				// Array
+				else
+					{variable_struct_set(control_src, control_var[control_index], _value);}
+			}
+		}
+	}
+	
 	#endregion
 	
 	#region Drawing ----------------------------------------------
@@ -387,6 +426,10 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	
 	op = 0; // Function to call
 	active = 0;
+	
+	control_src = noone; // Object to read variables from
+	control_var = ""; // Variable name
+	control_index = -1; // Array index (-1 for no array)
 	
 	x1 = 0; // Following are unit values [0.0-1.0]
 	y1 = 0;
@@ -692,25 +735,29 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 	
 	function Update()
 	{
+		value = GetControl();
+		
 		if IsMouseOver()
 		{
 			common.active = self;
 			
 			color = common.c_highlight;	
 			
+			// When mouse is held
 			if common.clickheld
 				{color = common.c_active;}
 			
+			// When mouse is released
 			if common.clickreleased
 			{
 				if toggle_on_click
 				{
 					value ^= 1;
 				}
+				UpdateControl(value);
+				
 				if op {op(value, self);}
 			}
-			
-			
 		}
 		else
 		{
@@ -764,6 +811,8 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 	
 	function Update()
 	{
+		value = GetControl();
+		
 		if IsMouseOver()
 		{
 			common.active = self;
@@ -778,6 +827,7 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 			if common.clickreleased
 			{
 				value ^= 1;
+				UpdateControl(value);
 				if op {op(value, self);}
 			}
 		}
@@ -841,6 +891,8 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		color[1] = common.c_base;
 		color[2] = common.c_base;
 		
+		value = GetControl();
+		
 		var mbheld = common.clickheld;
 		var mbpressed = common.clickpressed;
 		var mbreleased = common.clickreleased;
@@ -857,6 +909,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				if mbreleased
 				{
 					value = max(valuemin, value-valuestep);
+					UpdateControl(value);
 					if op {op(value, self);}
 				}
 			}
@@ -868,6 +921,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				if mbreleased 
 				{
 					value = min(valuemax, value+valuestep);
+					UpdateControl(value);
 					if op {op(value, self);}
 				}
 			}
@@ -906,6 +960,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					if lev != 0
 					{
 						value = clamp(value+lev*valuestep, valuemin, valuemax);
+						UpdateControl(value);
 							
 						if operator_on_change
 						{
@@ -930,6 +985,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					if string_digits(valueanchor) != ""
 					{
 						value = real(valueanchor);
+						UpdateControl(value);
 						if op {op(value, self);}
 					}
 				}
@@ -969,9 +1025,11 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				if abs(d) >= ((valuestep >= 1)? 2: 1)
 				{
 					var sh = keyboard_check(vk_shift)? 0.1: 1;
+					
 					scroll += sign(d)*valuestep*sh;
 					valueanchor += sign(d)*valuestep*sh;
 					value = clamp(valueanchor, valuemin, valuemax);
+					UpdateControl(value);
 							
 					if operator_on_change
 					{

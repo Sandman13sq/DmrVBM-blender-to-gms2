@@ -38,6 +38,8 @@ void main()
 	float shine = pow( clamp( dot(e, r), 0.0, 1.0) + 0.02, 512.0 );
 	
 	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
+	diffusecolor = mix(texture2D( gm_BaseTexture, v_uv), v_color, 
+		float(texture2D( gm_BaseTexture, vec2(0.0))==vec4(1.0)));
 	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), u_drawmatrix[0].w);
 	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb, 0.7);
 	vec3 shinecolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
