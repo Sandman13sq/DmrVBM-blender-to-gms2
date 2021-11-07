@@ -1,5 +1,6 @@
 {
   "resources": [
+    {"id":{"name":"scr_layout_interactables","path":"scripts/scr_layout_interactables/scr_layout_interactables.yy",},"order":10,},
     {"id":{"name":"rm_worldtest","path":"rooms/rm_worldtest/rm_worldtest.yy",},"order":2,},
     {"id":{"name":"obj_curly","path":"objects/obj_curly/obj_curly.yy",},"order":2,},
     {"id":{"name":"obj_demomodel_normal","path":"objects/obj_demomodel_normal/obj_demomodel_normal.yy",},"order":0,},
@@ -25,7 +26,9 @@
     {"id":{"name":"obj_demomodel","path":"objects/obj_demomodel/obj_demomodel.yy",},"order":4,},
     {"id":{"name":"tex_curly_def_nor","path":"sprites/tex_curly_def_nor/tex_curly_def_nor.yy",},"order":0,},
     {"id":{"name":"shd_model","path":"shaders/shd_model/shd_model.yy",},"order":0,},
+    {"id":{"name":"scr_layout_panels","path":"scripts/scr_layout_panels/scr_layout_panels.yy",},"order":11,},
     {"id":{"name":"tex_curly_def_col","path":"sprites/tex_curly_def_col/tex_curly_def_col.yy",},"order":2,},
+    {"id":{"name":"obj_demomodel_vbx","path":"objects/obj_demomodel_vbx/obj_demomodel_vbx.yy",},"order":2,},
     {"id":{"name":"tex_curly_skin_nor","path":"sprites/tex_curly_skin_nor/tex_curly_skin_nor.yy",},"order":1,},
     {"id":{"name":"scr_rendering","path":"scripts/scr_rendering/scr_rendering.yy",},"order":4,},
     {"id":{"name":"fnt_default","path":"fonts/fnt_default/fnt_default.yy",},"order":0,},
@@ -90,6 +93,7 @@
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_single.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_simple.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_normal.vb","resourceType":"GMIncludedFile",},
+    {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"ball.vb","resourceType":"GMIncludedFile",},
   ],
   "MetaData": {
     "IDEVersion": "2.3.6.595",
