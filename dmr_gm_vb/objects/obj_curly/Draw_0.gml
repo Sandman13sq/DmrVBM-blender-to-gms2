@@ -1,5 +1,7 @@
 /// @desc 
 
+return;
+
 switch(shadermode)
 {
 	// Rigged

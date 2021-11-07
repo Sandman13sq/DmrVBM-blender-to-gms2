@@ -4,75 +4,38 @@ event_user(0);
 
 Structor_VBFormat(1);
 
-// Controls ==========================================================
+enum ModelType
+{
+	simple, normal, vbx, normalmap, rigged, full
+}
 
-x = 0;
-y = 0;
-z = 0;
+camera = instance_create_depth(0, 0, 0, obj_camera);
 
-vbmode = 1;
-keymode = 1;
-interpolationtype = AniTrack_Intrpl.linear;
-wireframe = 0;
-zrot = 0;
-poseindex = 0;
+modelobj = array_create(8);
+modelobj[ModelType.simple]	= instance_create_depth(0,0,0, obj_demomodel_simple);
+modelobj[ModelType.normal]	= instance_create_depth(0,0,0, obj_demomodel_normal);
+//modelobj[ModelType.vbx]		= obj_demomodel_vbx;
+//modelobj[ModelType.normalmap]	= obj_demomodel_normal;
+//modelobj[ModelType.rigged]	= obj_demomodel_rigged;
+//modelobj[ModelType.full]	= obj_demomodel_full;
+modelmode = ModelType.normal;
 
-vbxvisible = ~0; // Bit field
-dm_emission = 0;
-dm_shine = 1;
-dm_sss = 0;
-
-mouseanchor = [0, 0];
-cameraanchor = [0,0,0];
-rotationanchor = [0, 0];
-middlemode = 0;
-middlelock = 0;
+instance_deactivate_object(obj_demomodel);
+instance_activate_object(modelobj[modelmode]);
 
 // Camera ==============================================================
 
-camera = {
-	location : [0,0,7],
-	
-	width : 0,
-	height : 0,
-	
-	viewforward : [0,1,0],
-	viewright : [1,0,0],
-	viewup : [0,0,1],
-	
-	viewdistance : 32,
-	viewdirection : 110,
-	viewpitch : 15,
-	
-	zfar : 1000,
-	znear : 1,
-	fieldofview : 50,
-	
-	matproj : matrix_build_identity(),
-	matview : matrix_build_identity(),
-};
-
-camera.viewdistance = 24;
-camera.viewdirection = 90;
-camera.viewpitch = 7;
-
-UpdateView(); // Matrices are set here
-
-bkcolor = 0x201010;
 
 curly = instance_create_depth(0,0,0, obj_curly);
+
 meshindex = 0;
 meshdataactive = curly.meshdata[meshindex];
 
 vb_world = LoadVertexBuffer("world.vb", RENDERING.vbformat.model);
 
-drawmatrix = BuildDrawMatrix(1, 0, 1, 0); // Shader uniforms sent as one array
+u_shd_model_drawmatrix = shader_get_uniform(shd_model, "u_drawmatrix");
 
 // Layout
 event_user(1);
 
 UpdateActiveVBX();
-
-execinfo = "";
-exectime = [0, 0];
-frametime = 0;

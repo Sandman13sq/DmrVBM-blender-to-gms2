@@ -2,6 +2,13 @@
 
 #region // Operators ======================================================
 
+function OP_ModelMode(value, btn)
+{
+	obj_modeltest.modelmode = value;
+	instance_deactivate_object(obj_demomodel);
+	instance_activate_object(obj_modeltest.modelobj[value]);
+}
+
 function OP_BindPose(value, btn)
 {
 	with obj_curly
@@ -56,6 +63,19 @@ function OP_LoadVBX(value, btn)
 #endregion
 
 #region // Layout =============================================================
+
+layout = new Layout().SetPosXY(16, 16, 200, 2);
+layout.Enum().Label("Model")
+	.DefineControl(self, "modelmode")
+	.Operator(OP_ModelMode)
+	.DefineListItems([
+	[ModelType.simple, "Simple", "One vertex buffer with vertex colors (curly_simple.vb)"],
+	[ModelType.normal, "Normal", "One vertex buffer with normal shading (curly_normal.vb)"],
+	[ModelType.vbx, "VBX", "VBX model -- multiple vertex buffers (curly.vbx)"],
+	[ModelType.normalmap, "VBX Normal Map", "VBX model with normal mappings (curly_nor.vbx)"],
+	[ModelType.rigged, "VBX Rigged", "VBX model with bone transforms (curly_rigged.vbx)"],
+	[ModelType.full, "VBX Full", "VBX model with all features (curly_full.vbx)"],
+	]);
 
 layout_model = new Layout()
 	.SetPosXY(camera.width-200, 16, camera.width-16, 2)

@@ -1365,6 +1365,20 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 	
 	function Update()
 	{
+		var ctrl = GetControl();
+		if ctrl != value
+		{
+			for (var i = 0; i < enumsize; i++)
+			{
+				if enumvalues[i][0] == ctrl
+				{
+					value = enumvalues[i][0];
+					enumindex = i;
+					break;
+				}
+			}
+		}
+		
 		if IsMouseOver()
 		{
 			common.active = self;
@@ -1379,7 +1393,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 					active = 1;
 				}
 				
-				// 
+				// Mouse Wheel
 				var lev = mouse_wheel_down()-mouse_wheel_up();
 				if lev != 0
 				{
@@ -1388,6 +1402,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 					enumindex = enumindex mod enumsize;
 					
 					value = enumvalues[enumindex][0];
+					UpdateControl(value);
 					if op {op(value, self);}
 				}
 			}
@@ -1401,6 +1416,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 					{
 						enumindex = enumhighlight;
 						value = enumvalues[enumindex][0];
+						UpdateControl(value);
 						if op {op(value, self);}
 						active = 0;
 					}
@@ -1428,11 +1444,21 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 			var e;
 			var hh = common.cellmax;
 			var yy = y1+hh;
+			
+			var _chigh = common.c_highlight;
+			
 			DrawRectWH(x1, y1, w, h, 0);
 			for (var i = 0; i < enumsize; i++)
 			{
+				// Active item
+				if enumindex == i
+				{
+					draw_rectangle_color(x1+1, yy+1, x2-2, yy+common.cellmax,
+						_chigh, _chigh, _chigh, _chigh, 0);
+				}
+			
 				e = enumvalues[i];
-				DrawText(x1+5, yy, e[1], (enumhighlight==i)? c_white: common.c_active);
+				DrawText(x1+5, yy, e[1], (enumhighlight==i)? c_white: c_ltgray);
 				yy += hh;
 			}
 		}

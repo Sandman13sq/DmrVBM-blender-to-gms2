@@ -58,7 +58,7 @@ void main()
 	// Alpha
     gl_FragColor = vec4(outcolor, u_drawmatrix[0][0]*diffusecolor.a);
 	
-	if (gl_FragColor.a == 0.0) {discard;}
+	if (gl_FragColor.a <= 0.0) {discard;}
 	
 	//gl_FragColor = vec4(vec3(dp), 1.0);
 	//gl_FragColor.r += fresnel;

@@ -56,5 +56,4 @@ void main()
 	v_lightdir_cs = lightpos_cs + v_eyedir_cs;
 	
 	v_nor_cs = normalize( (gm_Matrices[MATRIX_WORLD_VIEW] * normal).xyz);
-	
 }

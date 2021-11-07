@@ -153,7 +153,6 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         c.prop(self, 'modifierpick', text='');
 
     def execute(self, context):
-        active = bpy.context.view_layer.objects.active;
         format = [];
         for x in '01234567':
             slot = getattr(self, 'vbf' + x);
@@ -197,6 +196,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         FCODE = 'f';
         
         RemoveTempObjects();
+        active = bpy.context.view_layer.objects.active;
         # Get list of selected objects
         objects = [x for x in context.selected_objects if x.type == 'MESH'];
         if len(objects) == 0:

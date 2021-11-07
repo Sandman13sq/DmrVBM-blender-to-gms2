@@ -193,6 +193,9 @@ def GetVBData(sourceobj, format = [], settings = {}):
         minquads.min_vertices = 5;
         bpy.ops.object.modifier_apply(modifier = 'MinQuads');
     
+    if not formatneedsbones:
+        armature = None;
+    
     # Apply Transforms
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True);
     bpy.ops.object.visual_transform_apply();
@@ -230,6 +233,7 @@ def GetVBData(sourceobj, format = [], settings = {}):
     if armature and vgroups:
         group_select_mode = 'BONE_DEFORM' if armature else 'ALL';
         bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
+        bpy.ops.object.vertex_group_clean(group_select_mode='ALL', limit=0, keep_single=True);
         bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
     
     uvloops = mesh.uv_layers.active.data if mesh.uv_layers else mesh.uv_layers.new().data;
