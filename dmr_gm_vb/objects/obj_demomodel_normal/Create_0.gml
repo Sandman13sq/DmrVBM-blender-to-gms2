@@ -17,10 +17,16 @@ alpha = 1;
 emission = 0;
 shine = 1;
 sss = 0;
-drawmatrix = BuildDrawMatrix(alpha, emission, shine, sss);
+
+colorfill = [0, 1, 0.5, 0];
+colorblend = [0.5, 1.0, 0.5, 0];
 
 wireframe = false;
 cullmode = cull_clockwise;
+drawmatrix = BuildDrawMatrix(alpha, emission, shine, sss,
+	ArrayToRGB(colorblend), colorblend[3],
+	ArrayToRGB(colorfill), colorfill[3],
+	);
 
 // Uniforms
 var _shd;
