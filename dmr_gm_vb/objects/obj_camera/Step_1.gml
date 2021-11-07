@@ -23,7 +23,7 @@ if (
 		fieldofview, width/height, znear, zfar);
 	lastfullscreen = window_get_fullscreen();
 	
-	surface_resize(application_surface, width*2, height*2);
+	surface_resize(application_surface, width, height);
 	
 	with all {event_perform(ev_draw, 65);}
 }
@@ -105,9 +105,5 @@ if lev != 0
 	var d = 1.1;
 	viewdistance *= (lev<0)? d: (1/d);
 }
-
-// Pan
-x += keyboard_check(vk_right) - keyboard_check(vk_left);
-lev = keyboard_check_pressed(vk_up) - keyboard_check_pressed(vk_down);
 
 UpdateMatView();
