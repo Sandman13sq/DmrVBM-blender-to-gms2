@@ -298,6 +298,12 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         default='MAT',
     );
     
+    applyarmature: bpy.props.BoolProperty(
+        name="Apply Armature",
+        description="Apply armature to meshes",
+        default=False,
+    );
+    
     exportarmature : bpy.props.BoolProperty(
         name="Export Armature", default = True,
         description="Include any selected or related armature on export",
@@ -362,6 +368,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         layout.prop(self, 'grouping', text='Grouping');
         
         r = layout.column_flow(align=1);
+        r.prop(self, 'applyarmature', text='Apply Armature');
         r.prop(self, 'exportarmature', text='Export Armature');
         r.prop(self, 'edgesonly', text='Edges Only');
         r.prop(self, 'yflip', text='Y Flip');
@@ -403,7 +410,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         settings = {
             'format' : format,
             'edgesonly' : self.edgesonly,
-            'applyarmature' : 0,
+            'applyarmature' : self.applyarmature,
             'uvlayerpick': self.uvlayerpick == 'render',
             'colorlayerpick': self.colorlayerpick == 'render',
             'modifierpick': self.modifierpick,
