@@ -1,7 +1,9 @@
 /// @desc
 
+game_set_speed(1, gamespeed_microseconds);
+
 location = [0,0,7];
-	
+
 width = 0;
 height = 0;
 	
@@ -27,6 +29,8 @@ middlemode = 0;
 middlelock = 0;
 
 lock = false;
+orbitmodel = false;
+orbitspeed = 1;
 clearcolor = 0x201010;
 
 lastfullscreen = window_get_fullscreen();

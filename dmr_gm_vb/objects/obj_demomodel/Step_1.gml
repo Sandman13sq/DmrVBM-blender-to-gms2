@@ -6,3 +6,4 @@ if layout.IsMouseOver()
 {
 	camera.lock = true;	
 }
+

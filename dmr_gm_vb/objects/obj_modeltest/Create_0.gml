@@ -13,7 +13,7 @@ camera = instance_create_depth(0, 0, 0, obj_camera);
 
 // Demos ==============================================================
 
-modelobj = array_create(8);
+modelobj = array_create(8, obj_demomodel_simple);
 modelobj[ModelType.simple]	= instance_create_depth(0,0,0, obj_demomodel_simple);
 modelobj[ModelType.normal]	= instance_create_depth(0,0,0, obj_demomodel_normal);
 modelobj[ModelType.vbx]	= instance_create_depth(0,0,0, obj_demomodel_vbx);

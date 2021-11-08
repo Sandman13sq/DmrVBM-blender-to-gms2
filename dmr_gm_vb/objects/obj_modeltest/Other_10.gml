@@ -58,3 +58,23 @@ function ResetModelPosition()
 	modelposition[2] = 0;
 	modelzrot = 0;
 }
+
+// Operators =================================================
+
+function OP_ModelMode(value, btn)
+{
+	with obj_modeltest
+	{
+		modelmode = value;
+		modelactive = modelobj[value];
+		instance_deactivate_object(obj_demomodel);
+		instance_activate_object(modelactive);
+		modelactive.reactivated = 1;
+	}
+}
+
+function OP_ToggleOrbit(value, btn)
+{
+	btn.root.FindElement("orbitspeed").interactable = value;
+}
+
