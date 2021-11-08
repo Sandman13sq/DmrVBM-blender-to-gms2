@@ -37,6 +37,7 @@ emission = 0;
 shine = 1;
 sss = 0;
 
+meshselect = 0;
 meshvisible = array_create(128, 1);
 
 colorfill = [0, 1, 0.5, 0];

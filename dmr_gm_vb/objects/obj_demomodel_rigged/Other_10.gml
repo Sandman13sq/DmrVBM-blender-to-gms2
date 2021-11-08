@@ -18,6 +18,12 @@ function UpdatePose()
 		);	
 }
 
+function OP_MeshSelect(value, btn)
+{
+	meshselect = value;
+	layout.FindElement("meshvisible").DefineControl(self, "meshvisible", value);
+}
+
 function OP_PoseMarkerJump(value, btn)
 {
 	trackpos = value;
