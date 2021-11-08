@@ -6,6 +6,8 @@ draw_set_valign(0);
 drawfext(
 	16, 200,
 	"middlelock: %s", middlelock,
+	"cameralocation: %s", [location],
+	"location: %s", [obj_modeltest.modelposition],
 	"viewdirection: %s", viewdirection,
 	"viewpitch: %s", viewpitch,
 	"forward: %s", string(viewforward),

@@ -41,7 +41,7 @@ if !lock
 			u = (window_mouse_get_y() - mouseanchor[1])*d/20;
 			
 			location[0] = cameraanchor[0] + (viewright[0]*r) + (viewup[0]*u);
-			location[1] = cameraanchor[1] + (viewright[1]*r) + (viewup[1]*u);
+			location[1] = cameraanchor[1] - (viewright[1]*r) - (viewup[1]*u);
 			location[2] = cameraanchor[2] + (viewright[2]*r) + (viewup[2]*u);
 		}
 		
@@ -112,8 +112,8 @@ if orbitmodel
 	var dir = point_direction(location[0], location[1], loc[0], loc[1]);
 	
 	// Smoothly move to position
-	location[0] = loc[0] - lengthdir_x(dist*0.9, dir);
-	location[1] = loc[1] - lengthdir_y(dist*0.9, dir);
+	location[0] = loc[0] - dist*0.9 * dcos(dir);
+	location[1] = -loc[1] + dist*0.9 * dsin(dir);
 	
 	viewdirection += orbitspeed*delta_time/60000;
 }
