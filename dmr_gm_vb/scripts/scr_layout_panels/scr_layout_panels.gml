@@ -91,8 +91,8 @@ function LayoutElement_Column(_root, _parent) : LayoutElement(_root, _parent) co
 		
 		if label != ""
 		{
-			yy += common.celltext;
-			h += common.celltext;
+			yy += common.celltext+2;
+			h += common.celltext+2;
 		}
 		
 		for (var i = 0; i < childrencount; i++)

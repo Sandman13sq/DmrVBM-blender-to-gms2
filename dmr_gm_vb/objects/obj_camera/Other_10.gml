@@ -4,7 +4,7 @@
 function UpdateMatView()
 {
 	var d;
-	var loc = location;
+	var loc = viewlocation;
 	var fwrd = viewforward;
 	var rght = viewright;
 	var up = viewup;
@@ -55,9 +55,9 @@ function UpdateMatView()
 
 function ResetCameraPosition()
 {
-	location[0] = 0;
-	location[1] = 0;
-	location[2] = 7.77;
+	viewlocation[0] = 0;
+	viewlocation[1] = 0;
+	viewlocation[2] = 7.77;
 	
 	viewdistance = 21;
 	viewdirection = 91;

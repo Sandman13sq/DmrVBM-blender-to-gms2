@@ -413,12 +413,13 @@ def GetVBData(sourceobj, format = [], settings = {}):
 
 def RemoveTempObjects():
     objects = bpy.data.objects;
-    selected = [x for x in objects if x.select_get() and '__temp' not in x.name];
+    selected = [x for x in bpy.context.selected_objects if '__temp' not in x.name];
     
-    if not bpy.context.view_layer.objects.active:
+    if not bpy.context.active_object:
         selected[0].select_set(1);
         bpy.context.view_layer.objects.active = selected[0];
         lastactive = bpy.context.view_layer.objects.active;
+        print(bpy.context.active_object.name)
     
     lastobjectmode = bpy.context.active_object.mode;
     lastactive = bpy.context.view_layer.objects.active;

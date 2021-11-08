@@ -1,6 +1,11 @@
-//
-// Simple passthrough vertex shader
-//
+/*
+	Renders vbs with basic shading.
+	
+	Used by:
+		obj_modeltest (world.vb)
+		obj_demomodel_normal
+		obj_demomodel_vbx
+*/
 
 // Vertex Attributes
 attribute vec3 in_Position;	// (x,y,z)

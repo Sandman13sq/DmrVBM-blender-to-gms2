@@ -1,4 +1,4 @@
-/// @desc
+/// @desc Debug
 
 draw_set_halign(0);
 draw_set_valign(0);
@@ -6,7 +6,7 @@ draw_set_valign(0);
 drawfext(
 	16, 200,
 	"middlelock: %s", middlelock,
-	"cameralocation: %s", [location],
+	"cameralocation: %s", [viewlocation],
 	"location: %s", [obj_modeltest.modelposition],
 	"viewdirection: %s", viewdirection,
 	"viewpitch: %s", viewpitch,

@@ -359,7 +359,7 @@ function Layout() : __LayoutSuper() constructor
 	
 	var _fnt = draw_get_font();
 	draw_set_font(0);
-	common.textheight = string_height("M");
+	common.textheight = string_height("Mplq");
 	draw_set_font(_fnt);
 	
 	function SetPosXY(_x1, _y1, _x2, _y2)

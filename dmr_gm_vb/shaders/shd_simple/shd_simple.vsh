@@ -1,5 +1,8 @@
 /*
 	Renders vbs with simple colors. No shading
+	
+	Used by:
+		obj_demomodel_simple
 */
 
 // Vertex Attributes

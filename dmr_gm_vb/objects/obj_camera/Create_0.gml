@@ -1,8 +1,6 @@
 /// @desc
 
-game_set_speed(1, gamespeed_microseconds);
-
-location = [0,0,7];
+viewlocation = [0,0,7];
 
 width = 0;
 height = 0;
@@ -19,8 +17,8 @@ matproj = matrix_build_identity();
 matview = matrix_build_identity();
 
 viewdistance = 21;
-viewdirection = 91;
-viewpitch = 7;
+viewdirection = 91;	// X Rotation
+viewpitch = 7;	// Y Rotation
 
 mouseanchor = [0, 0];
 cameraanchor = [0,0,0];

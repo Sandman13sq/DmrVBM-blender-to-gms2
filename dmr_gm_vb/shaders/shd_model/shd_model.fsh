@@ -1,6 +1,11 @@
-//
-// Simple passthrough fragment shader
-//
+/*
+	Renders vbs with basic shading.
+	
+	Used by:
+		obj_modeltest (world.vb)
+		obj_demomodel_normal
+		obj_demomodel_vbx
+*/
 
 // Passed from Vertex Shader
 varying vec3 v_pos;
@@ -17,6 +22,15 @@ uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorblend[4] colorfi
 
 void main()
 {
+	// Uniforms -------------------------------------------------------
+	
+	float alpha = u_drawmatrix[0][0];
+	float emission = u_drawmatrix[0][1];
+	float specular = u_drawmatrix[0][2];
+	float sss = u_drawmatrix[0][3];
+	vec4 colorblend = u_drawmatrix[1];
+	vec4 colorfill = u_drawmatrix[2];
+	
 	// Varyings -------------------------------------------------------
 	
 	vec3 n = normalize(v_normal_cs);		// Vertex Normal
@@ -29,46 +43,32 @@ void main()
 	
 	float dp = clamp(dot(n, l), 0.0, 1.0);	// Dot Product
 	float rim = 1.0-clamp(dot(n, e), 0.0, 1.0);	// Fake Fresnel
-	float shine = clamp( dot(e, r), 0.0, 1.0);	// Specular
+	float spe = clamp( dot(e, r), 0.0, 1.0);	// Specular
 	
-	/*
-	dp = pow(dp, 0.5);
-	rim = clamp(pow(1.0-rim, 8.0), 0.0, 1.0);
-	rim = float(rim > 0.05);
-	shine = pow( shine + 0.02, 512.0 );
-	*/
-	shine = pow(shine, 32.0 * u_drawmatrix[0][2] + 0.00001);
+	spe = pow(spe, 32.0 * specular + 0.00001);
 	rim = pow(rim, 3.0);
 	
 	// Colors ----------------------------------------------------------------
 	
-	/*
-	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
-	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), u_drawmatrix[0].w);
-	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb, 0.7);
-	vec3 shinecolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
-	*/
-	
 	vec4 diffusecolor = v_color;// * texture2D( gm_BaseTexture, v_uv);
-	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), u_drawmatrix[0].w);
+	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), sss);
 	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb*0.5, 0.7);
-	vec3 shinecolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
+	vec3 specularcolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
 	
 	// Output ----------------------------------------------------------------
 	
 	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
-	//outcolor += shinecolor * clamp(shine+rim, 0.0, 1.0) * u_drawmatrix[0][2];
-	outcolor += (shinecolor * shine + vec3(0.5) * rim) * u_drawmatrix[0][2];
+	outcolor += (specularcolor * spe + vec3(0.5) * rim) * specular;
 	
 	// Emission
-	outcolor = mix(outcolor, diffusecolor.rgb, u_drawmatrix[0][1]);
+	outcolor = mix(outcolor, diffusecolor.rgb, emission);
 	// Blend Color
-	outcolor = mix(outcolor, u_drawmatrix[1].rgb*outcolor.rgb, u_drawmatrix[1].a);
+	outcolor = mix(outcolor, colorblend.rgb*outcolor.rgb, colorblend.a);
 	// Fill Color
-	outcolor = mix(outcolor, u_drawmatrix[2].rgb, u_drawmatrix[2].a);
+	outcolor = mix(outcolor, colorfill.rgb, colorfill.a);
 	
 	// Alpha
-    gl_FragColor = vec4(outcolor, u_drawmatrix[0][0]*diffusecolor.a);
+    gl_FragColor = vec4(outcolor, alpha*diffusecolor.a);
 	
 	if (gl_FragColor.a <= 0.0) {discard;}
 }
