@@ -39,6 +39,7 @@ c.Real().Label("Shine").DefineControl(self, "shine").SetBounds(0, 1, 0.1);
 c.Real().Label("SSS").DefineControl(self, "sss").SetBounds(0, 1, 0.1);
 
 c.Bool().Label("Wireframe").DefineControl(self, "wireframe");
+c.Bool().Label("Use Textures").DefineControl(self, "usetextures");
 
 c.Enum().Label("Cullmode").DefineControl(self, "cullmode").DefineListItems([
 	[cull_noculling, "No Culling", "Draw all triangles"],

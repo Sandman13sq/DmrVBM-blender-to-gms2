@@ -4,6 +4,7 @@
     {"id":{"name":"rm_worldtest","path":"rooms/rm_worldtest/rm_worldtest.yy",},"order":2,},
     {"id":{"name":"obj_curly","path":"objects/obj_curly/obj_curly.yy",},"order":2,},
     {"id":{"name":"obj_demomodel_normal","path":"objects/obj_demomodel_normal/obj_demomodel_normal.yy",},"order":0,},
+    {"id":{"name":"tex_curly_hair_col","path":"sprites/tex_curly_hair_col/tex_curly_hair_col.yy",},"order":7,},
     {"id":{"name":"shd_default","path":"shaders/shd_default/shd_default.yy",},"order":1,},
     {"id":{"name":"scr_dmr_vbx","path":"scripts/scr_dmr_vbx/scr_dmr_vbx.yy",},"order":1,},
     {"id":{"name":"scr_layout","path":"scripts/scr_layout/scr_layout.yy",},"order":0,},

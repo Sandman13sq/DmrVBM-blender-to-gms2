@@ -23,16 +23,18 @@ shader_set_uniform_matrix_array(u_shd_rigged_matpose, matpose);
 
 matrix_set(matrix_world, matrix_build(
 	obj_modeltest.modelposition[0], 
-	obj_modeltest.modelposition[1], 
+	obj_modeltest.modelposition[1],
 	obj_modeltest.modelposition[2], 
 	0, 0, -obj_modeltest.modelzrot, 1, 1, 1));
 
+// Draw Meshes
 var n = vbx.vbcount;
 for (var i = 0; i < n; i++)
 {
 	if meshvisible[i]
 	{
-		vertex_submit(vbx.vb[i], wireframe? pr_linelist: pr_trianglelist, -1);
+		vertex_submit(vbx.vb[i], wireframe? pr_linelist: pr_trianglelist, 
+			usetextures? meshtexture[i]: -1);
 	}
 }
 

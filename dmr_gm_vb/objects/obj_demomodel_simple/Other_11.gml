@@ -19,6 +19,7 @@ c.Enum().Label("Cullmode").DefineControl(self, "cullmode").DefineListItems([
 	]);
 
 var d = layout.Dropdown().Label("Color Uniforms");
+d.active = true;
 var r;
 
 d.Text("Blend Color");

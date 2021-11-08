@@ -21,7 +21,7 @@ inpose = Mat4Array(DMRVBX_MATPOSEMAX, matrix_build_identity());
 // 1D flat array of matrices. Holds final transforms for bones
 matpose = Mat4ArrayFlat(DMRVBX_MATPOSEMAX, matrix_build_identity());
 
-trackpos = 0; // Position in animation
+trackpos = trackdata.markermap[$ "float"]; // Position in animation
 trackposspeed = (trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
 isplaying = false;
 
@@ -38,12 +38,26 @@ shine = 1;
 sss = 0;
 
 meshselect = 0;
-meshvisible = array_create(128, 1);
+meshvisible = array_create(32, 1);
+meshtexture = array_create(32, -1);
+
+var _tex_skin = sprite_get_texture(tex_curly_skin_col, 0);
+var _tex_def = sprite_get_texture(tex_curly_def_col, 0);
+var _tex_hair = sprite_get_texture(tex_curly_hair_col, 0);
+meshtexture[vbx.FindVBIndex_Contains("skin")] = _tex_skin;
+meshtexture[vbx.FindVBIndex_Contains("head")] = _tex_skin;
+meshtexture[vbx.FindVBIndex_Contains("cloth")] = _tex_def;
+meshtexture[vbx.FindVBIndex_Contains("boot")] = _tex_def;
+meshtexture[vbx.FindVBIndex_Contains("headphone")] = _tex_def;
+meshtexture[vbx.FindVBIndex_Contains("under")] = _tex_def;
+meshtexture[vbx.FindVBIndex_Contains("hair")] = _tex_hair;
+meshtexture[vbx.FindVBIndex_Contains("brow")] = _tex_hair;
 
 colorfill = [0, 1, 0.5, 0];
 colorblend = [0.5, 1.0, 0.5, 0];
 
 wireframe = false;
+usetextures = false;
 cullmode = cull_clockwise;
 drawmatrix = BuildDrawMatrix(alpha, emission, shine, sss,
 	ArrayToRGB(colorblend), colorblend[3],
