@@ -55,11 +55,11 @@ function UpdateMatView()
 
 function ResetCameraPosition()
 {
-	viewforward[0] = 0;
-	viewforward[1] = 0;
-	viewforward[2] = 7;
+	location[0] = 0;
+	location[1] = 0;
+	location[2] = 7.77;
 	
-	viewdistance = 24;
-	viewdirection = 110;
+	viewdistance = 21;
+	viewdirection = 91;
 	viewpitch = 7;
 }

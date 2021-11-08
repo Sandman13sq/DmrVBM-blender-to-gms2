@@ -113,7 +113,7 @@ if orbitmodel
 	
 	// Smoothly move to position
 	location[0] = loc[0] - dist*0.9 * dcos(dir);
-	location[1] = -loc[1] + dist*0.9 * dsin(dir);
+	location[1] = loc[1] + dist*0.9 * dsin(dir);
 	
 	viewdirection += orbitspeed*delta_time/60000;
 }
