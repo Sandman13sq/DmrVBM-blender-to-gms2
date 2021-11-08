@@ -40,6 +40,42 @@ function VBXData() constructor
 	bonemap = {};	// {bonename: index} for each bone
 	bonenames = [];
 	bonecount = 0;
+	
+	// Returns vertex buffer with given name. -1 if not found
+	static FindVB = function(_name)
+	{
+		var i = variable_struct_get(vbmap, _name);
+		return is_undefined(i)? -1: i;
+	}
+	
+	// Returns index of vb with given name. -1 if not found
+	static FindVBIndex = function(_name)
+	{
+		var i = 0; repeat(vbcount)
+		{
+			if vbnames[i] == _name {return i;}
+			i++;
+		}
+		return -1;
+	}
+	
+	// Returns index if vb contains given name. -1 if not found
+	static FindVBIndex_Contains = function(_name)
+	{
+		var i = 0; repeat(vbcount)
+		{
+			if string_pos(_name, vbnames[i]) {return i;}
+			i++;
+		}
+		return -1;
+	}
+	
+	// Returns VBXBone struct with given name. -1 if not found
+	static FindBone = function(_name)
+	{
+		var i = variable_struct_get(bonemap, _name);
+		return is_undefined(i)? -1: i;
+	}
 }
 
 function VBXFree(vbx)
