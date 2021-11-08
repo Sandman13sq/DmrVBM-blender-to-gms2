@@ -20,6 +20,7 @@ function __LayoutSuper() constructor
 	label = "";
 	description = "";
 	idname = "";
+	interactable = true;
 	
 	#region // Elements =======================================================
 	
@@ -253,20 +254,32 @@ function __LayoutSuper() constructor
 	
 	function DrawRectWH(x, y, w, h, color, alpha=1)
 	{
-		draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_white, alpha);
-		draw_sprite_stretched_ext(spr_layoutbox, 1, x, y, w, h, color, alpha);
+		if interactable
+		{
+			draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_white, alpha);
+			draw_sprite_stretched_ext(spr_layoutbox, 1, x, y, w, h, color, alpha);
+		}
+		else
+		{
+			draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_gray, alpha);
+			draw_sprite_stretched_ext(spr_layoutbox, 1, x, y, w, h, c_dkgray, alpha);
+		}
 	}
 	
 	function DrawText(x, y, text, color = c_white)
 	{
+		if !interactable {color = c_gray;}
+		
 		draw_text_ext_transformed_color(
 			x, y, text, 16, 3000, 
 			common.textscale, common.textscale, 
-			0, color, color, color, color, 1);	
+			0, color, color, color, color, 1);
 	}
 	
 	function DrawTextYCenter(x, text, color = c_white)
 	{
+		if !interactable {color = c_gray;}
+		
 		var yy = yc - common.textheightdiv2;
 		draw_text_ext_transformed_color(
 			x, yy, text, 16, 3000, 
@@ -417,7 +430,7 @@ function Layout() : __LayoutSuper() constructor
 		common.cellmax = max(common.celltext, common.cellui);
 		common.textheightdiv2 = common.textheight*0.5*common.textscale;
 		
-		// Elements
+		// Positioning
 		var yy = y1;
 		if label != "" {yy += common.celltext;}
 		
@@ -433,6 +446,7 @@ function Layout() : __LayoutSuper() constructor
 		
 		h = y2-y1+b*2;
 		
+		// Clicking Vars
 		var lastheld = common.clickheld;
 		if point_in_rectangle(common.mx, common.my, x1, y1, x2, y2)
 		{
@@ -446,9 +460,15 @@ function Layout() : __LayoutSuper() constructor
 		}
 		common.clickreleased = lastheld & ~common.clickheld;
 		
+		// Update Children
+		var c;
 		for (var i = 0; i < childrencount; i++)
 		{
-			children[i].Update();	
+			c = children[i];
+			if c.interactable
+			{
+				children[i].Update();
+			}
 		}
 	}
 	

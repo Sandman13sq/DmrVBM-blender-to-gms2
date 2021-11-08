@@ -46,17 +46,27 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	
 	function Update()
 	{
+		var c;
 		for (var i = 0; i < childrencount; i++)
 		{
-			children[i].Update();	
+			c = children[i];
+			if c.interactable
+			{
+				children[i].Update();
+			}
 		}
 	}
 	
 	function Draw()
 	{
+		var c;
 		for (var i = 0; i < childrencount; i++)
 		{
-			children[i].Draw();	
+			c = children[i];
+			if c.interactable
+			{
+				children[i].Draw();
+			}
 		}
 	}
 	
