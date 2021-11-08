@@ -1,6 +1,6 @@
-//
-// Simple passthrough fragment shader
-//
+/*
+	Renders vbs with simple colors. No shading
+*/
 
 // Passed from Vertex Shader
 varying vec3 v_pos;
@@ -12,9 +12,11 @@ uniform vec4 u_drawmatrix[4]; // [alpha emission shine ??? colorblend[4], colorf
 
 void main()
 {
+	// Colors ----------------------------------------------------------------
+	
 	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
-	diffusecolor = mix(texture2D( gm_BaseTexture, v_uv), v_color, 
-		float(texture2D( gm_BaseTexture, vec2(0.0))==vec4(1.0)));
+	
+	// Output ----------------------------------------------------------------
 	
 	vec3 outcolor = diffusecolor.rgb;
 	

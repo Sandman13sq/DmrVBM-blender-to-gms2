@@ -35,5 +35,6 @@ if levplayback != 0
 	exectime[1] = get_timer()-exectime[1];
 }
 
-mattran = matrix_build(x,y,z, 0,0,zrot, 1,1,1);
+mattran = matrix_build(x+10,y,z, 0,0,zrot, 1,1,1);
 
+visible ^= keyboard_check_pressed(ord("H"));

@@ -16,6 +16,7 @@ drawmatrix = BuildDrawMatrix(alpha, emission, shine, sss,
 	);
 
 shader_set_uniform_f_array(u_shd_model_drawmatrix, drawmatrix);
+shader_set_uniform_f_array(u_shd_model_light, obj_modeltest.lightdata);
 
 matrix_set(matrix_world, matrix_build(
 	obj_modeltest.modelposition[0], 

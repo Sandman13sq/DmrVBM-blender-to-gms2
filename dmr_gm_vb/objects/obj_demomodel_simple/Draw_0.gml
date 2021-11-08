@@ -24,7 +24,8 @@ else
 		ArrayToRGB(colorfill), colorfill[3],
 		);
 	
-	shader_set_uniform_f_array(u_shd_model_drawmatrix, drawmatrix);
+	shader_set_uniform_f_array(u_shd_simple_drawmatrix, drawmatrix);
+	shader_set_uniform_f_array(u_shd_simple_light, obj_modeltest.lightdata);
 	
 	matrix_set(matrix_world, matrix_build(
 		obj_modeltest.modelposition[0], 

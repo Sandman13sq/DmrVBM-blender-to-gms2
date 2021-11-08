@@ -1,12 +1,17 @@
 /// @desc 
 
-return;
+gpu_push_state();
+
+// GPU State
+gpu_set_cullmode(cull_clockwise);	// Don't draw tris facing away from camera
+gpu_set_ztestenable(true);	// Enable depth checking per pixel
+gpu_set_zwriteenable(true);	// Enable depth writing per pixel
 
 switch(shadermode)
 {
 	// Rigged
 	case(0):
-		RENDERING.SetShader(shd_modelrigged);
+		RENDERING.SetShader(shd_rigged);
 		
 		shader_set_uniform_matrix_array(
 			RENDERING.shaderactive.u_matpose, matpose);
@@ -59,3 +64,4 @@ switch(shadermode)
 
 RENDERING.SetShader();
 
+gpu_pop_state();

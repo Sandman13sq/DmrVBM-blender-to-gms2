@@ -51,8 +51,9 @@ drawmatrix = BuildDrawMatrix(alpha, emission, shine, sss,
 
 // Uniforms ========================================================
 var _shd;
-_shd = shd_modelrigged;
-u_shd_model_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
-u_shd_model_matpose = shader_get_uniform(_shd, "u_matpose");
+_shd = shd_rigged;
+u_shd_rigged_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
+u_shd_rigged_light = shader_get_uniform(_shd, "u_light");
+u_shd_rigged_matpose = shader_get_uniform(_shd, "u_matpose");
 
 event_user(1);

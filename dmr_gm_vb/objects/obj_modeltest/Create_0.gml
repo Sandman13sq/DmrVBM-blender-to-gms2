@@ -30,6 +30,8 @@ curly = instance_create_depth(0,0,0, obj_curly);
 modelposition = [0,0,0];
 modelzrot = 0;
 
+lightdata = [-32,-128,64, 1];
+
 meshindex = 0;
 meshdataactive = curly.meshdata[meshindex];
 

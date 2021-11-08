@@ -18,9 +18,9 @@ if !surface_exists(defsurf)
 		
 		if string_pos("cloth", meshdata[i].name)
 		|| string_pos("boot", meshdata[i].name)
+		|| string_pos("_def", meshdata[i].name)
 		{
 			_me.texturediffuse = deftexture;
-			_me.texturenormal = deftexture;
 		}
 	}
 }

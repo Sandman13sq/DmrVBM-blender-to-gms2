@@ -4,7 +4,7 @@ z = 0;
 zrot = 0;
 
 // vbx struct. Model + Bone data
-vbx_model = LoadVBX("curly.vbx", RENDERING.vbformat.rigged);
+vbx_model = LoadVBX("curly_rigged.vbx", RENDERING.vbformat.rigged);
 vbx_normal = LoadVBX("curly_nor.vbx", RENDERING.vbformat.normal);
 vbx_wireframe = LoadVBX("curly_wire.vbx", RENDERING.vbformat.rigged);
 
@@ -99,13 +99,14 @@ for (var i = 0; i < _vbx.vbcount; i++)
 	
 	if string_pos("cloth", meshdata[i].name)
 	|| string_pos("boot", meshdata[i].name)
+	|| string_pos("_def", meshdata[i].name)
 	{
 		_me.texturediffuse = sprite_get_texture(tex_curly_def_col, 0);
 		_me.texturenormal = sprite_get_texture(tex_curly_def_nor, 0);
 	}
 }
 
-shadermode = 0;
+shadermode = 1;
 
 u_shd_edit_hue = shader_get_uniform(shd_edit, "u_hue");
 u_shd_edit_sat = shader_get_uniform(shd_edit, "u_sat");

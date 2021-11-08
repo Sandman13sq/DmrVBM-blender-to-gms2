@@ -21,77 +21,78 @@ class DMR_SELECTBYVERTEXCOLOR(bpy.types.Operator):
         lastobjectmode = bpy.context.active_object.mode;
         bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
         
-        mesh = context.active_object.data;
-        
-        if not mesh.vertex_colors:
-            self.report({'WARNING'}, 'No vertex color data found');
-            bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
-            return {'FINISHED'}
-        
-        vcolors = mesh.vertex_colors.active.data;
-        loops = mesh.loops;
-        vertexmode = 0;
-        
-        targetpolys = [poly for poly in mesh.polygons if poly.select];
-        if targetpolys:
-            targetloops = [l for p in targetpolys for l in loops[p.loop_start:p.loop_start + p.loop_total]];
-            vertexmode = 0;
-        else:
-            targetloops = [l for l in loops if mesh.vertices[l.vertex_index].select];
-            vertexmode = 1;
-        
-        if len(targetloops) == 0:
-            self.report({'WARNING'}, 'No vertices selected');
-        else:
-            netcolor = [0.0, 0.0, 0.0, 0.0];
-            netcount = len(targetloops);
-            thresh = self.thresh;
-            thresh *= thresh;
-            for l in targetloops:
-                color = vcolors[l.index].color;
-                netcolor[0] += color[0];
-                netcolor[1] += color[1];
-                netcolor[2] += color[2];
-                netcolor[3] += color[3];
-            netcolor[0] /= netcount;
-            netcolor[1] /= netcount;
-            netcolor[2] /= netcount;
-            netcolor[3] /= netcount;
-            print('net: %s' % netcolor)
-            nr = netcolor[0];
-            ng = netcolor[1];
-            nb = netcolor[2];
-            na = netcolor[3];
+        for obj in context.selected_objects:
+            if obj.type != 'MESH':
+                continue;
             
-            # Faces
-            if vertexmode == 0:
-                for f in mesh.polygons:
-                    c2 = [0]*4;
-                    for l in f.loop_indices:
-                        vc = vcolors[loops[l].index].color;
-                        c2[0] += vc[0];
-                        c2[1] += vc[1];
-                        c2[2] += vc[2];
-                        c2[3] += vc[3];
-                    c2 = [x / len(f.loop_indices) for x in c2];
-                    r = c2[0]-nr;
-                    g = c2[1]-ng;
-                    b = c2[2]-nb;
-                    a = c2[3]-na;
-                    r*=r; g*=g; b*=b; a*=a;
-                    if (r<=thresh and g<=thresh and b<=thresh and a<=thresh):
-                        f.select = 1;
-            # Vertices
+            mesh = obj.data;
+            
+            if not mesh.vertex_colors:
+                self.report({'WARNING'}, 'No vertex color data found for "%s"' % obj.name);
+                continue;
+            
+            vcolors = mesh.vertex_colors.active.data;
+            loops = mesh.loops;
+            vertexmode = 0;
+            
+            targetpolys = [poly for poly in mesh.polygons if poly.select];
+            if targetpolys:
+                targetloops = [l for p in targetpolys for l in loops[p.loop_start:p.loop_start + p.loop_total]];
+                vertexmode = 0;
             else:
-                for l in [x for x in loops if x not in targetloops]:
-                    c2 = vcolors[l.index].color;
-                    r = c2[0]-nr;
-                    g = c2[1]-ng;
-                    b = c2[2]-nb;
-                    a = c2[3]-na;
-                    r*=r; g*=g; b*=b; a*=a;
-                    if (r<=thresh and g<=thresh and b<=thresh and a<=thresh):
-                        mesh.vertices[l.vertex_index].select = 1;
+                targetloops = [l for l in loops if mesh.vertices[l.vertex_index].select];
+                vertexmode = 1;
+            
+            if len(targetloops) > 0:
+                netcolor = [0.0, 0.0, 0.0, 0.0];
+                netcount = len(targetloops);
+                thresh = self.thresh;
+                thresh *= thresh;
+                for l in targetloops:
+                    color = vcolors[l.index].color;
+                    netcolor[0] += color[0];
+                    netcolor[1] += color[1];
+                    netcolor[2] += color[2];
+                    netcolor[3] += color[3];
+                netcolor[0] /= netcount;
+                netcolor[1] /= netcount;
+                netcolor[2] /= netcount;
+                netcolor[3] /= netcount;
+                print('net: %s' % netcolor)
+                nr = netcolor[0];
+                ng = netcolor[1];
+                nb = netcolor[2];
+                na = netcolor[3];
+                
+                # Faces
+                if vertexmode == 0:
+                    for f in mesh.polygons:
+                        c2 = [0]*4;
+                        for l in f.loop_indices:
+                            vc = vcolors[loops[l].index].color;
+                            c2[0] += vc[0];
+                            c2[1] += vc[1];
+                            c2[2] += vc[2];
+                            c2[3] += vc[3];
+                        c2 = [x / len(f.loop_indices) for x in c2];
+                        r = c2[0]-nr;
+                        g = c2[1]-ng;
+                        b = c2[2]-nb;
+                        a = c2[3]-na;
+                        r*=r; g*=g; b*=b; a*=a;
+                        if (r<=thresh and g<=thresh and b<=thresh and a<=thresh):
+                            f.select = 1;
+                # Vertices
+                else:
+                    for l in [x for x in loops if x not in targetloops]:
+                        c2 = vcolors[l.index].color;
+                        r = c2[0]-nr;
+                        g = c2[1]-ng;
+                        b = c2[2]-nb;
+                        a = c2[3]-na;
+                        r*=r; g*=g; b*=b; a*=a;
+                        if (r<=thresh and g<=thresh and b<=thresh and a<=thresh):
+                            mesh.vertices[l.vertex_index].select = 1;
         
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         return {'FINISHED'}

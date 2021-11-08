@@ -29,6 +29,7 @@ use_gm_default_shader = false;
 // Uniforms
 var _shd;
 _shd = shd_simple;
-u_shd_model_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
+u_shd_simple_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
+u_shd_simple_light = shader_get_uniform(_shd, "u_light");
 
 event_user(1);

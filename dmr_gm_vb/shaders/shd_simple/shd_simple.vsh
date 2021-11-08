@@ -1,6 +1,6 @@
-//
-// Simple passthrough vertex shader
-//
+/*
+	Renders vbs with simple colors. No shading
+*/
 
 // Vertex Attributes
 attribute vec3 in_Position;	// (x,y,z)   
