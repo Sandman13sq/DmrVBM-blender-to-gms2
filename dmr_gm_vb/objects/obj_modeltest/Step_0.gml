@@ -9,23 +9,25 @@ if layout.IsMouseOver()
 else if !modelactive.layout.IsMouseOver()
 {
 	// Move Model
-	var lev;
+	var lev, spd;
 	var f = camera.viewforward;
 	var r = camera.viewright;
 	var l;
 	l = point_distance(0,0, f[0], f[1]); f[0] = f[0]/l; f[1] = f[1]/l;
 	l = point_distance(0,0, r[0], r[1]); r[0] = r[0]/l; r[1] = r[1]/l;
-
-	lev = LevKeyHeld(VKey.d, VKey.a);
+	
+	spd = delta_time/60000;
+	lev = LevKeyHeld(VKey.d, VKey.a)*spd;
 	modelposition[0] -= r[0]*lev;
 	modelposition[1] += r[1]*lev;
-	lev = LevKeyHeld(VKey.w, VKey.s);
+	lev = LevKeyHeld(VKey.w, VKey.s)*spd;
 	modelposition[0] += f[0]*lev;
 	modelposition[1] -= f[1]*lev;
-
-	modelzrot += LevKeyHeld(VKey.e, VKey.q);
-
+	
 	// Rotate Model
+	spd = delta_time/10000;
+	modelzrot += LevKeyHeld(VKey.e, VKey.q)*spd;
+	
 	if mouse_check_button_pressed(mb_left)
 	{
 		mouseanchor[0] = window_mouse_get_x();
