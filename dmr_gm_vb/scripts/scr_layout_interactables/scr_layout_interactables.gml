@@ -447,7 +447,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	toggle_on_click = false;
 	
 	items = [];
-	itemsize = 0;	// Updated in UpdatePos()
+	itemcount = 0;	// Updated in UpdatePos()
 	itemsperpage = 6;
 	itemindex = 0;
 	offset = 0;
@@ -473,8 +473,8 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	function DefineListItem(_value, _name, _desc)
 	{
 		array_push(items, [_value, _name, _desc]);
-		itemsize = array_length(items);
-		itemindex = clamp(itemindex, 0, itemsize-1);
+		itemcount = array_length(items);
+		itemindex = clamp(itemindex, 0, itemcount-1);
 		value = items[itemindex][0];
 		return self;
 	}
@@ -485,7 +485,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		n = array_length(_itemlist);
 		
 		array_resize(items, n);
-		itemsize = n;
+		itemcount = n;
 		
 		for (var i = 0; i < n; i++)
 		{
@@ -494,7 +494,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			items[i] = e;
 		}
 		
-		itemindex = clamp(itemindex, 0, itemsize-1);
+		itemindex = clamp(itemindex, 0, itemcount-1);
 		value = items[itemindex][0];
 		
 		return self;
@@ -503,7 +503,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	function ClearListItems()
 	{
 		array_resize(items, 0);
-		itemsize = 0;
+		itemcount = 0;
 		itemindex = 0;
 		itemhighlight = -1;
 	}
@@ -518,7 +518,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		
 		var n = array_length(items);
 		//itemsperpage = h div common.cellmax;
-		itemsize = n;
+		itemcount = n;
 		if n <= itemsperpage {offset = 0;}
 		
 		h = common.cellmax * itemsperpage;
@@ -550,10 +550,10 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			}
 		}
 		
-		if IsMouseOver() && itemsize > 0
+		if IsMouseOver() && itemcount > 0
 		{
 			// Index of item that mouse is over
-			itemhighlight = clamp(floor((common.my-y1-common.cellmax*(label != "")) / common.cellmax)+offset, 0, itemsize-1);
+			itemhighlight = clamp(floor((common.my-y1-common.cellmax*(label != "")) / common.cellmax)+offset, 0, itemcount-1);
 			
 			// On mouse click
 			if common.clickreleased
@@ -563,13 +563,32 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 				if op {op(value, self, items);}
 			}
 			
-			// Scroll item list
-			if itemsize > itemsperpage
+			// Mouse Wheel
+			var lev = mouse_wheel_down()-mouse_wheel_up();
+			if lev != 0
 			{
-				var _lev = mouse_wheel_down()-mouse_wheel_up();
-				if _lev != 0
+				// Scroll item list
+				if !keyboard_check(vk_control)
 				{
-					offset = clamp(offset+_lev, 0, itemsize-itemsperpage);	
+					if itemcount > itemsperpage
+					{
+						var _lev = mouse_wheel_down()-mouse_wheel_up();
+						if _lev != 0
+						{
+							offset = clamp(offset+_lev, 0, itemcount-itemsperpage);	
+						}
+					}
+				}
+				// Move between items
+				else
+				{
+					itemindex = itemindex+lev;
+					if (itemindex < 0) {itemindex = itemcount + itemindex;}
+					itemindex = itemindex mod itemcount;
+					
+					value = items[itemindex][0];
+					UpdateControl(value);
+					if op {op(value, self);}
 				}
 			}
 		}
@@ -588,7 +607,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		var _chigh = common.c_highlight;
 		
 		// Draw Items
-		var _start = offset, _end = min(offset+itemsperpage, itemsize);
+		var _start = offset, _end = min(offset+itemsperpage, itemcount);
 		for (var i = _start; i < _end; i++)
 		{
 			// Active item
@@ -622,17 +641,17 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		}
 		
 		// Draw Scrollbar
-		if itemsize > itemsperpage
+		if itemcount > itemsperpage
 		{
 			var ww = 6;
-			var hh = h * itemsperpage/itemsize;
+			var hh = h * itemsperpage/itemcount;
 			var xx = x2-ww-1;
 			var yy = y1 + common.cellmax*(label != "");
 			
 			DrawRectWH(xx, yy, ww, h-common.cellmax*(label != ""), c_black);
 			DrawRectWH(
 				xx, 
-				lerp(yy, y2-hh, offset/(itemsize-itemsperpage)),
+				lerp(yy, y2-hh, offset/(itemcount-itemsperpage)),
 				ww, hh, common.c_base
 				);
 		}
