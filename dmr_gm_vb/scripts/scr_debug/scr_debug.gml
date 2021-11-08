@@ -132,7 +132,7 @@ function drawfext()
 			while ( string_count("%", _str) && j < _l )
 			{
 				_str = updatef(_str, _arr[j]);
-				i++;
+				j++;
 			}
 			
 			_out += _str + "\n";
@@ -145,7 +145,7 @@ function drawfext()
 /// @arg x,y,string_with_%s,values[],string_with_%s,values[],...
 function drawfextd()
 {
-	var _str, _out = "", _l, _arr;
+	var _str, _out = "", _l, _arr, j;
 	
 	var _drawmodev = draw_get_valign();
 	draw_set_valign(2);
@@ -170,7 +170,7 @@ function drawfextd()
 			while ( string_count("%", _str) && j < _l )
 			{
 				_str = updatef(_str, _arr[j]);
-				i++;
+				j++;
 			}
 			
 			_out += _str + "\n";
