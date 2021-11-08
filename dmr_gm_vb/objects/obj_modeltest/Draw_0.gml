@@ -1,4 +1,4 @@
-/// @desc
+/// @desc Draw Global Objects
 
 gpu_push_state();
 

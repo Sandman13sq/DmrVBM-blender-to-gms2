@@ -51,19 +51,6 @@ function CreateGridVB(cellcount, cellsize)
 	return out;
 }
 
-function UpdateActiveVBX()
-{
-	meshindex = layout_meshselect.value;
-	meshdataactive = curly.meshdata[meshindex];
-	
-	layout_model.FindElement("meshvisible")
-		.Value((curly.meshvisible & (1 << meshindex)) != 0, false);
-	
-	layout_model.FindElement("meshemission").Value(meshdataactive.emission, false);
-	layout_model.FindElement("meshshine").Value(meshdataactive.shine, false);
-	layout_model.FindElement("meshsss").Value(meshdataactive.sss, false);
-}
-
 function ResetModelPosition()
 {
 	modelposition[0] = 0;

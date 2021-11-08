@@ -11,6 +11,8 @@ enum ModelType
 
 camera = instance_create_depth(0, 0, 0, obj_camera);
 
+// Demos ==============================================================
+
 modelobj = array_create(8);
 modelobj[ModelType.simple]	= instance_create_depth(0,0,0, obj_demomodel_simple);
 modelobj[ModelType.normal]	= instance_create_depth(0,0,0, obj_demomodel_normal);
@@ -22,18 +24,18 @@ modelmode = ModelType.rigged;
 
 instance_deactivate_object(obj_demomodel);
 instance_activate_object(modelobj[modelmode]);
+modelactive = modelobj[modelmode];
 
-// Camera ==============================================================
-
-curly = instance_create_depth(0,0,0, obj_curly);
+// Vars ==============================================================
 
 modelposition = [0,0,0];
 modelzrot = 0;
 
-lightdata = [-32,-128,64, 1];
+zrotanchor = 0;
+mouseanchor = [0,0];
+mouselock = 0;
 
-meshindex = 0;
-meshdataactive = curly.meshdata[meshindex];
+lightdata = [-16,-128,64, 1];
 
 vb_world = LoadVertexBuffer("world.vb", RENDERING.vbformat.model);
 vb_ball = LoadVertexBuffer("ball.vb", RENDERING.vbformat.basic);
@@ -47,5 +49,3 @@ u_shd_model_drawmatrix = shader_get_uniform(shd_model, "u_drawmatrix");
 
 // Layout
 event_user(1);
-
-UpdateActiveVBX();

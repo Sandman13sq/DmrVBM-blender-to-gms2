@@ -1,15 +1,5 @@
 /// @desc
 
-#region // Toggleables ==========================================
-
-if keyboard_check_pressed(ord("M"))
-{
-	//vbmode = (vbmode+1) mod 3;
-	curly.shadermode = Modulo(curly.shadermode+1, 2);
-}
-
-#endregion
-
 // Move Model
 var lev;
 var f = camera.viewforward;
@@ -27,30 +17,25 @@ modelposition[1] -= f[1]*lev;
 
 modelzrot += LevKeyHeld(VKey.e, VKey.q);
 
-curly.isplaying ^= keyboard_check_pressed(vk_space);
-curly.keymode ^= keyboard_check_pressed(ord("K"));
-curly.wireframe ^= keyboard_check_pressed(ord("L"));
-
-if keyboard_check_pressed(vk_space)
-{
-	layout_model.FindElement("toggleplayback").Toggle();
-}
-
 layout.Update();
 
-if 0
-if (!layout_model.IsMouseOver() && !layout_model.active)
-|| middlelock
+// Rotate Model
+if mouse_check_button_pressed(mb_left)
 {
-	// Pose Matrices
-	lev = LevKeyPressed(VKey.bracketClose, VKey.bracketOpen);
-	if lev != 0
+	mouseanchor[0] = window_mouse_get_x();
+	mouseanchor[1] = window_mouse_get_y();
+	zrotanchor = modelzrot;
+	mouselock = 1;
+}
+if mouselock
+{
+	if mouse_check_button(mb_left)
 	{
-		with curly
-		{
-			poseindex = Modulo(poseindex+lev, array_length(posemats));
-			array_copy(matpose, 0, posemats[poseindex], 0, array_length(posemats[poseindex]));
-		}
+		camera.lock = 1;
+		modelzrot = zrotanchor + window_mouse_get_x()-mouseanchor[0];
+	}
+	else
+	{
+		mouselock = 0;	
 	}
 }
-

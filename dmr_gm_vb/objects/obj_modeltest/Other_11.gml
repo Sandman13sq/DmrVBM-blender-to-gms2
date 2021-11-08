@@ -5,10 +5,11 @@
 function OP_ModelMode(value, btn)
 {
 	obj_modeltest.modelmode = value;
+	obj_modeltest.modelactive = modelobj[value];
 	instance_deactivate_object(obj_demomodel);
-	instance_activate_object(obj_modeltest.modelobj[value]);
+	instance_activate_object(obj_modeltest.modelactive);
 	
-	with obj_modeltest.modelobj[value] event_perform(ev_draw, 65);
+	with obj_modeltest.modelactive event_perform(ev_draw, 65);
 }
 
 function OP_BindPose(value, btn)
@@ -84,70 +85,5 @@ layout.Bool("Show Grid").DefineControl(self, "drawgrid");
 layout.Bool("Show Camera Anchor").DefineControl(self, "drawcamerapos");
 layout.Button("Reset Model Position").Operator(self.ResetModelPosition);
 layout.Button("Reset Camera Position").Operator(obj_camera.ResetCameraPosition);
-
-layout_model = new Layout()
-	.SetPosXY(camera.width-200, 16, camera.width-16, 2)
-layout_model.common.uiscale = 1;
-
-layout_model.Button().Label("Open VBX").Operator(OP_LoadVBX);
-
-var b = layout_model.Box();
-b.Label("Model");
-
-/*
-var el;
-var _vbx = curly.vbx_model;
-for (var i = 0; i < _vbx.vbcount; i++)
-{
-	el = b.Bool().Label(_vbx.vbnames[i]).Operator(OP_MeshVisibility);
-	el.vbindex = i;
-	el.Value(curly.meshvisible & (1<<i));
-}
-*/
-
-var _vbx = curly.vbx_model;
-
-// Mesh Select
-layout_meshselect = b.List()
-	.Operator(function(value) {obj_modeltest.meshindex = value; obj_modeltest.UpdateActiveVBX();})
-
-layout_meshselect.ClearListItems();
-for (var i = 0; i < _vbx.vbcount; i++)
-{
-	layout_meshselect.DefineListItem(i, _vbx.vbnames[i], _vbx.vbnames[i]);
-}
-
-// Mesh Attributes
-layout_meshattributes = b.Column();
-layout_meshattributes.Bool()
-	.Label("Visible")
-	.SetIDName("meshvisible")
-	.Operator(OP_MeshVisibility)
-	.Value(curly.meshvisible & (1 << meshindex), false);
-
-//layout_meshattributes.Enum().Operator(0);
-
-layout_meshattributes.Real().Label("Shine").SetIDName("meshshine").SetBounds(0, 1, 0.1)
-	.Operator(OP_DmShine).operator_on_change=true;
-layout_meshattributes.Real().Label("Fake SSS").SetIDName("meshsss").SetBounds(0, 1, 0.1)
-	.Operator(OP_DmSSS).operator_on_change=true;
-layout_meshattributes.Real().Label("Emission").SetIDName("meshemission").SetBounds(0, 1, 0.1)
-	.Operator(OP_DmEmission).operator_on_change=true;
-
-// Animation
-layout_model.Button().Label("Bind Pose").Operator(OP_BindPose);
-layout_model.Button().SetIDName("toggleplayback")
-	.Operator(OP_TogglePlayback).Value(curly.isplaying).toggle_on_click = 1;
-layout_model.Button().Label("Reload Poses").Operator(OP_ReloadPoses);
-
-layout_model.Enum().Label("Interpolation").DefineListItems([
-	[AniTrack_Intrpl.constant, "Constant"],
-	[AniTrack_Intrpl.linear, "Linear"],
-	[AniTrack_Intrpl.smooth, "Smooth"],
-	]).Operator(OP_SetInterpolation);
-
-layout_model.Real().Label("Hue").DefineControl(obj_curly, "hue").SetBounds(-1, 1, 0.02)
-layout_model.Real().Label("Saturation").DefineControl(obj_curly, "sat").SetBounds(-2, 2, 0.02)
-layout_model.Real().Label("Brightness").DefineControl(obj_curly, "lum").SetBounds(-2, 2, 0.02)
 
 #endregion
