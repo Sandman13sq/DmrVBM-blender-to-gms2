@@ -14,9 +14,9 @@ function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 	var c = layout.Column("Display");
 	c.Bool().Label("Wireframe").DefineControl(demo, "wireframe");
 	if _hastextures
-		c.Bool().Label("Use Textures").DefineControl(demo, "usetextures");
+		{c.Bool().Label("Use Textures").DefineControl(demo, "usetextures");}
 	if _hasnormals
-		c.Bool().Label("Draw Normal").DefineControl(demo, "drawnormal");
+		{c.Bool().Label("Draw Normal Maps").DefineControl(demo, "drawnormal");}
 	
 	c.Enum().Label("Cullmode").DefineControl(demo, "cullmode").DefineListItems([
 		[cull_noculling, "No Culling", "Draw all triangles"],
@@ -24,32 +24,36 @@ function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 		[cull_counterclockwise, "Cull Counter", "Skip triangles facing towards the screen"],
 		]);
 	
-	c = layout.Dropdown("Draw Matrix");
-	c.Real().Label("Alpha").DefineControl(self, "alpha").SetBounds(0, 1, 0.1);
+	// Draw Matrix
+	c = layout.Dropdown("Draw Matrix").SetIDName("drawmatrix");
 	
-	if !_nodrawmatrix
+	if _nodrawmatrix
 	{
+		c.Real().Label("Alpha").DefineControl(self, "alpha").SetBounds(0, 1, 0.1);
+	}
+	else
+	{
+		c.Real().Label("Alpha").DefineControl(self, "alpha").SetBounds(0, 1, 0.1);
 		c.Real().Label("Emission").DefineControl(self, "emission").SetBounds(0, 1, 0.1);
 		c.Real().Label("Shine").DefineControl(self, "shine").SetBounds(0, 1, 0.1);
 		c.Real().Label("SSS").DefineControl(self, "sss").SetBounds(0, 1, 0.1);
 	}
-
-	var d = layout.Dropdown().Label("Color Uniforms");
+	
 	var r;
 
-	d.Text("Blend Color");
-	r = d.Row();
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorblend", 0).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorblend", 1).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorblend", 2).draw_increments = false;
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorblend", 3).draw_increments = false;
+	c.Text("Blend Color (R,G,B,amt)");
+	r = c.Row();
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 0).draw_increments = false; 
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 1).draw_increments = false; 
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 2).draw_increments = false;
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 3).draw_increments = false;
 
-	d.Text("Fill Color");
-	r = d.Row();
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorfill", 0).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorfill", 1).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorfill", 2).draw_increments = false;
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(self, "colorfill", 3).draw_increments = false;
+	c.Text("Fill Color (R,G,B,amt)");
+	r = c.Row();
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 0).draw_increments = false; 
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 1).draw_increments = false; 
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 2).draw_increments = false;
+	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 3).draw_increments = false;
 	
 }
 

@@ -6,3 +6,5 @@ event_inherited();
 layout.Label("Normal VB");
 
 CommonLayout(false, false, false);
+
+layout.FindElement("drawmatrix").active = true;
