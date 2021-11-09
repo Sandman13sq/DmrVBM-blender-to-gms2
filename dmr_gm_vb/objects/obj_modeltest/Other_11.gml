@@ -1,6 +1,6 @@
 /// @desc Layout
 
-layout = new Layout().SetPosXY(16, 16, 200, 2);
+layout = new Layout().SetPosXY(8, 24, 216, 240);
 layout.Enum().Label("Model")
 	.DefineControl(self, "modelmode")
 	.Operator(OP_ModelMode)

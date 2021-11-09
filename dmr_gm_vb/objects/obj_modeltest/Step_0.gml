@@ -1,12 +1,11 @@
 /// @desc
 
-layout.Update();
-
-if layout.IsMouseOver()
+if layout.Update()
 {
 	camera.lock = 1;
 }
-else if !modelactive.layout.IsMouseOver()
+
+if !camera.lock
 {
 	// Move Model
 	var lev, spd;

@@ -24,6 +24,7 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	b = 4; // Border
 	label = "";
 	value = 0;
+	usesscroll = false; // When true, prevents scrolling layout via mouse wheel
 	
 	// Called right before update
 	function UpdatePos()
@@ -224,31 +225,54 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 {
 	b = 4;
 	color = common.c_base;
+	usesscroll = true;
+	surf = -1;
+	surfyoffset = 0;
+	surfyoffset_target = 0;
+	contentheight = 0;
+	surfheight = 160;
 	
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
 		var hsep = common.cellmax;
+		
 		x1 = _x1;
 		y1 = _y1;
 		x2 = _x2;
 		y2 = y1;
 		w = x2-x1;
-		h = common.cellmax;
 		
 		if active
 		{
+			h = surfheight+hsep;
+			
+			var yy = -surfyoffset+b;
+			var _xx2 = w-b;
+			var _yy2 = h-b;
+			
+			// Scrollbar offset
+			if contentheight > h {_xx2 -= common.scrollx;}
+			contentheight = b;
+			
 			var offset;
-			var yy = common.cellmax+y1+b;
 			for (var i = 0; i < childrencount; i++)
 			{
-				offset = children[i].UpdatePos(x1+b, yy, x2-b, yy+hsep);
+				offset = children[i].UpdatePos(b, yy, _xx2, _yy2);	
 				yy += offset[1]+1;
-				y2 += offset[1]+1;
-				h += offset[1]+1;
+				contentheight += offset[1]+1;
 			}
-			
-			h += b*2;
 		}
+		else
+		{
+			h = hsep;	
+		}
+		
+		// Smooth scroll into position
+		var _d = (surfyoffset_target-surfyoffset)/3;
+		if _d > 0 {surfyoffset = min(surfyoffset_target, surfyoffset+_d);}
+		else if _d < 0 {surfyoffset = max(surfyoffset_target, surfyoffset+_d);}
+		
+		y2 = y1+h;
 		
 		xc = lerp(x1, x2, 0.5);
 		yc = lerp(y1, y2, 0.5);
@@ -258,9 +282,12 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 	
 	function Update()
 	{
+		var _cs = common.cellmax;
+		
 		color = common.c_base;
 		
-		if IsMouseOverExt(x1, y1, w, active? common.cellmax: h)
+		// Toggle Expand
+		if IsMouseOverExt(x1, y1, w, active? _cs: h)
 		{
 			color = common.c_highlight;
 			if common.clickheld
@@ -269,13 +296,37 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 				{active ^= 1;}
 		}
 		
+		// Update Children
 		if active
 		{
+			var _oldmy = common.my;
+			common.my -= y1+_cs;
+			
+			if IsMouseOverExt(0, 0, w, h-_cs)
+			{
+				// Scroll
+				var _spd = 16;
+				var _lev = mouse_wheel_down()-mouse_wheel_up();
+				if _lev != 0
+				{
+					surfyoffset_target += _spd*_lev;
+				}
+				
+				// Clamp Scroll Offset
+				surfyoffset_target = max(0, min(surfyoffset_target, contentheight-h+_cs+b));
+				common.scrolllock = true;
+			}
+			else
+			{
+				common.my = -infinity;	
+			}
+			
 			var i = 0; repeat(childrencount)
 			{
 				children[i].Update();
 				i++;
 			}
+			common.my = _oldmy;
 		}
 	}
 	
@@ -296,10 +347,44 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 		
 		if active
 		{
-			var i = 0; repeat(childrencount)
+			// Update surface
+			var _w = 1 << ceil(log2(w)); // Use highest power of 2
+			var _h = 1 << ceil(log2(contentheight));
+		
+			if !surface_exists(surf)
 			{
-				children[i].Draw();
-				i++;
+				surf = surface_create(_w, _h);
+			}
+			else if surface_get_width(surf) < _w || surface_get_height(surf) < _h
+			{
+				surface_resize(surf, _w, _h);	
+			}
+		
+			// Surface Start ----------------------------------------------------
+			surface_set_target(surf);
+		
+			draw_clear_alpha(0, 0);
+			
+			// Draw Children
+			for (var i = 0; i < childrencount; i++)
+			{
+				children[i].Draw();	
+			}
+		
+			surface_reset_target(); // It pops the active surface, DOESN'T return to application surface
+			// Surface End -----------------------------------------------------
+			
+			draw_surface_part(surf, 0, 0, w, surfheight-b, x1, y1+common.cellmax);
+			
+			// Draw Scrollbar
+			if contentheight > h
+			{
+				DrawScrollBar(
+					y1+common.cellmax, 
+					y2-4, 
+					-surfyoffset/(h-contentheight-common.cellmax),
+					h/contentheight
+					);
 			}
 		}
 	}

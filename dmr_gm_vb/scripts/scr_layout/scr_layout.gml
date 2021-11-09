@@ -266,6 +266,11 @@ function __LayoutSuper() constructor
 		}
 	}
 	
+	function DrawRectXY(x1, y1, x2, y2, color, alpha=1)
+	{
+		DrawRectWH(x1, y1, x2-x1, y2-y1, color, alpha);
+	}
+	
 	function DrawText(x, y, text, color = c_white)
 	{
 		if !interactable {color = c_gray;}
@@ -285,6 +290,20 @@ function __LayoutSuper() constructor
 			x, yy, text, 16, 3000, 
 			common.textscale, common.textscale, 
 			0, color, color, color, color, 1);	
+	}
+	
+	function DrawScrollBar(_yy1, _yy2, _amt, _baramt)
+	{
+		var hh = (_yy2-_yy1) * _baramt;
+		var ww = common.scrollx-2;
+		var xx = x2-common.scrollx;
+			
+		DrawRectXY(xx, _yy1, xx+ww, _yy2, c_black);
+		DrawRectWH(
+			xx, 
+			lerp(_yy1, _yy2-hh, _amt),
+			ww, hh, common.c_active
+			);	
 	}
 	
 	#endregion
@@ -315,6 +334,11 @@ function Layout() : __LayoutSuper() constructor
 	active = 0;
 	highlight = 0;
 	b = 4;
+	contentheight = 0;
+	
+	surf = -1;
+	surfyoffset = 0;
+	surfyoffset_target = 0;
 	
 	common = {
 		c_base : 0x342022,
@@ -328,7 +352,7 @@ function Layout() : __LayoutSuper() constructor
 		cellui : 1,
 		cellmax : 1, // Max of textscale and uiscale
 		
-		buttonheight : 16,
+		buttonheight : 24,
 		textheight : 16,
 		textheightdiv2 : 8,
 		active : 0,
@@ -351,6 +375,9 @@ function Layout() : __LayoutSuper() constructor
 		tooltip_waittime : 600000,
 		tooltip_target : 0,
 		tooltip_lasttarget : 0,
+		
+		scrolllock : 0, // Set to zero at start of update
+		scrollx : 10,
 	};
 	
 	elementmap = {};
@@ -359,7 +386,7 @@ function Layout() : __LayoutSuper() constructor
 	
 	var _fnt = draw_get_font();
 	draw_set_font(0);
-	common.textheight = string_height("Mplq");
+	common.textheight = string_height("Mplq|,_");
 	draw_set_font(_fnt);
 	
 	function SetPosXY(_x1, _y1, _x2, _y2)
@@ -370,6 +397,18 @@ function Layout() : __LayoutSuper() constructor
 		y2 = _y2;
 		w = x2-x1;
 		h = y2-y1;
+		return self;	
+	}
+	
+	function SetPosWH(_x, _y, _w, _h)
+	{
+		x1 = _x;
+		y1 = _y;
+		w = _w;
+		h = _h;
+		x2 = _x+_w;
+		y2 = _y+_h;
+		
 		return self;	
 	}
 	
@@ -384,9 +423,10 @@ function Layout() : __LayoutSuper() constructor
 		// Common
 		common.active = 0;
 		common.doubleclick = 0;
+		common.scrolllock = 0;
 		
-		var _mx = window_mouse_get_x();
-		var _my = window_mouse_get_y();
+		var _mx = window_mouse_get_x()-x1;
+		var _my = window_mouse_get_y()-y1;
 		
 		common.tooltip_text = "";
 		common.tooltip_name = "";
@@ -406,6 +446,8 @@ function Layout() : __LayoutSuper() constructor
 		common.mx = _mx;
 		common.my = _my;
 		
+		if label != "" {common.my -= common.celltext;}
+		
 		if common.lastpress < 255
 		{
 			common.lastpress++;	
@@ -419,8 +461,8 @@ function Layout() : __LayoutSuper() constructor
 				common.doubleclick = 1;
 			}
 			
-			mouseonpress_x = common.mx;
-			mouseonpress_y = common.my;
+			mouseonpress_x = _mx;
+			mouseonpress_y = _my;
 			
 			common.lastpress = 0;
 		}
@@ -431,27 +473,33 @@ function Layout() : __LayoutSuper() constructor
 		common.textheightdiv2 = common.textheight*0.5*common.textscale;
 		
 		// Positioning
-		var yy = y1;
-		if label != "" {yy += common.celltext;}
+		var yy = -surfyoffset+b;
+		var _xx2 = w-b;
+		var _yy2 = h-b;
 		
-		y2 = yy;
+		if contentheight > h {_xx2 -= common.scrollx;}
+		contentheight = b;
+		
+		if label != "" {contentheight += common.cellmax;}
 		
 		var offset;
 		for (var i = 0; i < childrencount; i++)
 		{
-			offset = children[i].UpdatePos(x1+b, yy+b, x2-b, y2-b);	
+			offset = children[i].UpdatePos(b, yy, _xx2, _yy2);	
 			yy += offset[1]+1;
-			y2 += offset[1]+1;
+			contentheight += offset[1]+1;
 		}
-		
-		h = y2-y1+b*2;
 		
 		// Clicking Vars
 		var lastheld = common.clickheld;
-		if point_in_rectangle(common.mx, common.my, x1, y1, x2, y2)
+		var _ismouseover = false;
+		if point_in_rectangle(
+			window_mouse_get_x(), window_mouse_get_y(), 
+			x1, y1, x2, y2)
 		{
 			common.clickheld = mouse_check_button(mb_left);
 			common.clickpressed = ~lastheld & common.clickheld;
+			_ismouseover = true;
 		}
 		else
 		{
@@ -470,10 +518,59 @@ function Layout() : __LayoutSuper() constructor
 				children[i].Update();
 			}
 		}
+		
+		// Scroll
+		if !common.scrolllock && _ismouseover
+		{
+			var _spd = 16;
+			var _lev = mouse_wheel_down()-mouse_wheel_up();
+			if _lev != 0
+			{
+				surfyoffset_target += _spd*_lev;	
+			}
+		}
+		
+		// Clamp offset
+		surfyoffset_target = max(0, min(surfyoffset_target, contentheight-h));
+		
+		// Smooth scroll into position
+		var _d = (surfyoffset_target-surfyoffset)/3;
+		if _d > 0 {surfyoffset = min(surfyoffset_target, surfyoffset+_d);}
+		else if _d < 0 {surfyoffset = max(surfyoffset_target, surfyoffset+_d);}
+		
+		return _ismouseover;
 	}
 	
 	function Draw()
 	{
+		// Update surface
+		var _w = 1 << ceil(log2(w)); // Use highest power of 2
+		var _h = 1 << ceil(log2(contentheight));
+		
+		if !surface_exists(surf)
+		{
+			surf = surface_create(_w, _h);
+		}
+		else if surface_get_width(surf) < _w
+		|| surface_get_height(surf) < _h
+		{
+			surface_resize(surf, _w, _h);	
+		}
+		
+		// Surface Start ----------------------------------------------------
+		surface_set_target(surf);
+		
+		draw_clear_alpha(0, 0);
+		
+		// Draw Children
+		for (var i = 0; i < childrencount; i++)
+		{
+			children[i].Draw();	
+		}
+		
+		surface_reset_target();
+		// Surface End -----------------------------------------------------
+		
 		DrawRectWH(x1, y1, w, h, 0);
 		
 		// Draw Label
@@ -481,13 +578,28 @@ function Layout() : __LayoutSuper() constructor
 		{
 			draw_set_halign(0);
 			draw_set_valign(0);
-			DrawText(x1+2, y1, label);	
+			DrawText(x1+2, y1, label);
 		}
 		
-		// Draw Children
-		for (var i = 0; i < childrencount; i++)
+		var _cs = common.celltext;
+		if label != "" 
 		{
-			children[i].Draw();	
+			draw_surface_part(surf, 0, 0, w, h-_cs-b, x1, y1+_cs);
+		}
+		else 
+		{
+			draw_surface_part(surf, 0, 0, w, h-b, x1, y1);
+		}
+		
+		// Draw Scrollbar
+		if contentheight > h
+		{
+			DrawScrollBar(
+				y1 + common.cellmax*(label != ""), 
+				y2-4, 
+				-surfyoffset/(h-contentheight),
+				(h/contentheight)
+				);
 		}
 		
 		// Draw Tooltip
@@ -516,11 +628,15 @@ function Layout() : __LayoutSuper() constructor
 			DrawText(xx+4, yy+2, _s, c_white);
 		}
 		
-		//DrawText(200, 200, common.lastpress);
 	}
 	
 	function FindElement(_idname)
 	{
 		return variable_struct_get(root.elementmap, _idname);
+	}
+	
+	function IsMouseOver()
+	{
+			
 	}
 }

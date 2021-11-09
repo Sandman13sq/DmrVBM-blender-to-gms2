@@ -234,6 +234,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		
 		if IsMouseOver() && !active
 		{
+			// Lock layout scrolling
 			var xx = [x1, x1+16, x2-16, x2];
 			if !draw_increments {xx[1] = x1; xx[2] = x2;}
 			
@@ -264,6 +265,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			// Middle
 			else if IsMouseOver2(xx[1], y1, xx[2], y2)
 			{
+				common.scrolllock = true;
 				color[1] = common.c_highlight;
 				
 				if common.doubleclick
@@ -552,6 +554,12 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		
 		if IsMouseOver() && itemcount > 0
 		{
+			// Lock layout scrolling
+			if itemcount > itemsperpage
+			{
+				common.scrolllock = true;
+			}
+			
 			// Index of item that mouse is over
 			itemhighlight = clamp(floor((common.my-y1-common.cellmax*(label != "")) / common.cellmax)+offset, 0, itemcount-1);
 			
@@ -610,10 +618,16 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	
 	function Draw()
 	{
-		var yy = y1 + common.cellmax*(label != "");
-		var xx1 = x1 + 4, xx2 = x2 - 4;
+		var _cs = common.cellmax;
+		
+		var _itemysep = _cs;
+		var yy = y1 + _cs*(label != "");
+		var _xx1 = x1+1, _xx2 = x2-2;
+		var _linex1 = x1+4, _linex2 = x2-4-common.scrollx;
+		var _recty1 = y1+4, _recty2 = y1+_cs-2;
 		var _color;
 		var _chigh = common.c_highlight;
+		var _texty = (_itemysep-common.celltext)/2;
 		
 		// Draw Items
 		var _start = offset, _end = min(offset+itemsperpage, itemcount);
@@ -622,7 +636,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			// Active item
 			if itemindex == i
 			{
-				draw_rectangle_color(x1+1, yy+1, x2-2, yy+common.cellmax,
+				draw_rectangle_color(_xx1, yy+2, _xx2, yy+_itemysep-2,
 					_chigh, _chigh, _chigh, _chigh, 0);
 			}
 			
@@ -631,13 +645,13 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			else {_color = c_ltgray;}
 			
 			// Item Text
-			drawitem_default(x1, yy, items[i][1], i, _color, self);
-			yy += common.cellmax;
+			drawitem_default(_xx1, yy+_texty, items[i][1], i, _color, self);
+			yy += _itemysep;
 			
 			// Item Separator
 			if i < _end-1
 			{
-				draw_line_color(xx1, yy, xx2, yy, c_white, c_white);
+				draw_line_color(_linex1, yy, _linex2, yy, c_white, c_white);
 			}
 		}
 		
@@ -652,16 +666,11 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		// Draw Scrollbar
 		if itemcount > itemsperpage
 		{
-			var ww = 6;
-			var hh = h * itemsperpage/itemcount;
-			var xx = x2-ww-1;
-			var yy = y1 + common.cellmax*(label != "");
-			
-			DrawRectWH(xx, yy, ww, h-common.cellmax*(label != ""), c_black);
-			DrawRectWH(
-				xx, 
-				lerp(yy, y2-hh, offset/(itemcount-itemsperpage)),
-				ww, hh, common.c_base
+			DrawScrollBar(
+				y1 + _cs*(label != ""), 
+				y2-4, 
+				offset/(itemcount-itemsperpage),
+				itemsperpage/itemcount
 				);
 		}
 	}
@@ -764,6 +773,9 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		
 		if IsMouseOver()
 		{
+			// Lock layout scrolling
+			common.scrolllock = true;
+			
 			common.active = self;
 			color = common.c_highlight;	
 			

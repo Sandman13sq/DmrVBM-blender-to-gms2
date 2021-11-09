@@ -1,9 +1,3 @@
 /// @desc Layout Update
 
-layout.Update();
-
-if layout.IsMouseOver()
-{
-	camera.lock = true;	
-}
-
+if layout.Update() {camera.lock = true;}
