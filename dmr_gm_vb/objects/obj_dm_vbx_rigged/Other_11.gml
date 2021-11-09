@@ -41,4 +41,4 @@ var e = layout.Enum("Interpolation")
 		[AniTrack_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
 		]);
 
-CommonLayout(true, true, false);
+CommonLayout(true, false, false);

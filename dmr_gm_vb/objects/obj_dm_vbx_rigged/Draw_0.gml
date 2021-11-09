@@ -31,10 +31,7 @@ for (var i = 0; i < n; i++)
 {
 	if meshvisible[i]
 	{
-		texture_set_stage(u_shd_rigged_texnormal, meshnormalmap[i]);
-		
-		if demo.drawnormal {vertex_submit(vbx.vb[i], _primitivetype, meshnormalmap[i]);}
-		else if demo.usetextures {vertex_submit(vbx.vb[i], _primitivetype, meshtexture[i]);}
+		if demo.usetextures {vertex_submit(vbx.vb[i], _primitivetype, meshtexture[i]);}
 		else {vertex_submit(vbx.vb[i], _primitivetype, -1);}
 	}
 }

@@ -41,10 +41,8 @@ interpolationtype = AniTrack_Intrpl.linear;
 meshselect = 0;
 meshvisible = array_create(32, 1);
 meshtexture = array_create(32, -1);
-meshnormalmap = array_create(32, -1);
 
 LoadDiffuseTextures();
-LoadNormalTextures();
 
 drawmatrix = BuildDrawMatrix();
 
@@ -54,6 +52,5 @@ _shd = shd_rigged;
 u_shd_rigged_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
 u_shd_rigged_light = shader_get_uniform(_shd, "u_light");
 u_shd_rigged_matpose = shader_get_uniform(_shd, "u_matpose");
-u_shd_rigged_texnormal = shader_get_uniform(_shd, "u_texnormal");
 
 event_user(1);
