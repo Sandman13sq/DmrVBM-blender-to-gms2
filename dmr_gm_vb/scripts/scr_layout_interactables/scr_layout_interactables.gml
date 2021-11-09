@@ -589,6 +589,15 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 					value = items[itemindex][0];
 					UpdateControl(value);
 					if op {op(value, self);}
+					
+					// Push offset so that index is in view
+					if itemcount > itemsperpage
+					{
+						if itemindex < offset+1 
+							{offset = max(0, itemindex-1);}
+						if itemindex+2 > offset+itemsperpage
+							{offset = clamp(itemindex-itemsperpage+2, 0, itemcount-itemsperpage);}
+					}
 				}
 			}
 		}
