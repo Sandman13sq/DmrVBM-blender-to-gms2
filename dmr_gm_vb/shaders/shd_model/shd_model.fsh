@@ -23,7 +23,6 @@ uniform vec4 u_drawmatrix[4]; // [alpha emission shine sss colorblend[4] colorfi
 void main()
 {
 	// Uniforms -------------------------------------------------------
-	
 	float alpha = u_drawmatrix[0][0];
 	float emission = u_drawmatrix[0][1];
 	float specular = u_drawmatrix[0][2];
@@ -32,7 +31,6 @@ void main()
 	vec4 colorfill = u_drawmatrix[2];
 	
 	// Varyings -------------------------------------------------------
-	
 	vec3 n = normalize(v_normal_cs);		// Vertex Normal
 	vec3 l = normalize(v_dirtolight_cs);	// Light Direction
 	vec3 e = normalize(v_dirtocamera_cs);	// Camera Direction
@@ -40,7 +38,6 @@ void main()
 	//e.y *= -1.0;
 	
 	// Vars -------------------------------------------------------------
-	
 	float dp = clamp(dot(n, l), 0.0, 1.0);	// Dot Product
 	float rim = 1.0-clamp(dot(n, e), 0.0, 1.0);	// Fake Fresnel
 	float spe = clamp( dot(e, r), 0.0, 1.0);	// Specular
@@ -49,14 +46,12 @@ void main()
 	rim = pow(rim, 3.0);
 	
 	// Colors ----------------------------------------------------------------
-	
-	vec4 diffusecolor = v_color;// * texture2D( gm_BaseTexture, v_uv);
+	vec4 diffusecolor = v_color * texture2D( gm_BaseTexture, v_uv);
 	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), sss);
 	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb*0.5, 0.7);
 	vec3 specularcolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
 	
 	// Output ----------------------------------------------------------------
-	
 	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
 	outcolor += (specularcolor * spe + vec3(0.5) * rim) * specular;
 	

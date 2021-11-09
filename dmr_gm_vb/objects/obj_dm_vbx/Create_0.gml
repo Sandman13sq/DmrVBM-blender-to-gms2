@@ -14,9 +14,6 @@ vbx = LoadVBX("curly.vbx", vbf);
 
 // Control Variables
 meshvisible = array_create(32, 1);
-meshtexture = array_create(32, -1);
-
-LoadDiffuseTextures();
 
 drawmatrix = BuildDrawMatrix();
 

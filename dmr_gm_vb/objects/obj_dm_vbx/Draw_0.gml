@@ -28,8 +28,7 @@ for (var i = 0; i < n; i++)
 {
 	if meshvisible[i]
 	{
-		if demo.usetextures {vertex_submit(vbx.vb[i], _primitivetype, meshtexture[i]);}
-		else {vertex_submit(vbx.vb[i], _primitivetype, -1);}
+		vertex_submit(vbx.vb[i], _primitivetype, -1);
 	}
 }
 
