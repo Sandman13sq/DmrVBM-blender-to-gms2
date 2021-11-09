@@ -3,4 +3,3 @@
 - Playback timeline
 - Layout element defaults
 - Fix Marker Name Order
-- Vertex Format per object?

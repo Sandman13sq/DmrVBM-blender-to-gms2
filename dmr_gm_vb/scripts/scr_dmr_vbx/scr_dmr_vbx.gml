@@ -14,6 +14,22 @@ for (var i = 0; i < DMRVBX_MATPOSEMAX; i++)
 	DMRVBX_MAT4ARRAY2D[i] = matrix_build_identity();
 }
 
+enum VBX_AttributeType
+{
+	_other = 0,
+	
+	position3d = 1,
+	uv = 2,
+	normal = 3,
+	color = 4,
+	colorbytes = 5,
+	
+	weight = 6,
+	weightindex = 7,
+	tangent = 8,
+	bitangent = 9,
+}
+
 /*
 	GM mat ref:
 	[
@@ -40,6 +56,8 @@ function VBXData() constructor
 	bonemap = {};	// {bonename: index} for each bone
 	bonenames = [];
 	bonecount = 0;
+	
+	vbformat = -1;	// Vertex Buffer Format created in LoadVBX() (Don't touch!)
 	
 	// Returns vertex buffer with given name. -1 if not found
 	static FindVB = function(_name)
@@ -81,16 +99,20 @@ function VBXData() constructor
 function VBXFree(vbx)
 {
 	var n = vbx.vbcount;
+	var vbuffers = vbx.vb;
 	for (var i = 0; i < n; i++)
 	{
-		vertex_delete_buffer(vbx.vb[i]);
+		vertex_delete_buffer(vbuffers[i]);
 	}
-	delete vbx;
+	
+	if vbx.vbformat > -1
+	{
+		vertex_format_delete(vbx.vbformat);	
+	}
 }
 
-
 // Returns vertex buffer from file (.vb)
-function LoadVertexBuffer(path, format, freeze = 1)
+function LoadVertexBuffer(path, format, freeze=true)
 {
 	var bzipped = buffer_load(path);
 	
@@ -112,7 +134,7 @@ function LoadVertexBuffer(path, format, freeze = 1)
 }
 
 // Returns vbx struct from file (.vbx)
-function LoadVBX(path, format, freeze = 1)
+function LoadVBX(path, format=-1, freeze=true)
 {
 	var bzipped = buffer_load(path);
 	
@@ -125,7 +147,7 @@ function LoadVBX(path, format, freeze = 1)
 	var b = buffer_decompress(bzipped);
 	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
 	
-	var out = new VBXData();
+	var vbx = new VBXData();
 	
 	var flag;
 	var floattype;
@@ -140,6 +162,7 @@ function LoadVBX(path, format, freeze = 1)
 	var vbbuffer;
 	var targetmats;
 	var i, j, c;
+	var noformatgiven = format < 0;
 	
 	// Header
 	buffer_read(b, buffer_u32);
@@ -154,66 +177,62 @@ function LoadVBX(path, format, freeze = 1)
 		case(2): floattype = buffer_f16; break;
 	}
 	
-	#region // Bones ======================================================
+	// Vertex Format
+	var numattributes = buffer_read(b, buffer_u8);
+	printf("Attribute Count: %s", numattributes);
 	
-	bonecount = buffer_read(b, buffer_u16);
-	out.bonecount = bonecount;
-	array_resize(out.bonenames, bonecount);
-	array_resize(out.bone_parentindices, bonecount);
-	array_resize(out.bone_localmatricies, bonecount);
-	array_resize(out.bone_inversematricies, bonecount);
-	
-	// Bone Names
-	for (var i = 0; i < bonecount; i++) 
+	if noformatgiven
 	{
-		name = "";
-		namelength = buffer_read(b, buffer_u8);
-		repeat(namelength)
+		vertex_format_begin();
+		
+		var attributetype;
+		var attributesize;
+		
+		repeat(numattributes)
 		{
-			name += chr(buffer_read(b, buffer_u8));
+			attributetype = buffer_read(b, buffer_u8);
+			attributesize = buffer_read(b, buffer_u8);
+			
+			printf("AttribType: %s %s", attributetype, attributesize);
+			
+			switch(attributetype)
+			{
+				// Native types
+				case(VBX_AttributeType.position3d):
+					vertex_format_add_position_3d(); break;
+				case(VBX_AttributeType.uv):
+					vertex_format_add_texcoord(); break;
+				case(VBX_AttributeType.normal):
+					vertex_format_add_normal(); break;
+				case(VBX_AttributeType.colorbytes):
+					vertex_format_add_color(); break;
+				
+				// Non native types
+				default:
+					switch(attributesize)
+					{
+						case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
+						case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
+						case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
+						case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
+					}
+					break;
+			}
 		}
-		out.bonenames[i] = name;
-		out.bonemap[$ name] = i;
+		
+		format = vertex_format_end();
 	}
-	
-	// Parent Indices
-	targetmats = out.bone_parentindices;
-	i = 0; repeat(bonecount)
+	else
 	{
-		targetmats[@ i++] = buffer_read(b, buffer_u16);
+		buffer_seek(b, buffer_seek_relative, numattributes*2);	
 	}
 	
-	// Local Matrices
-	targetmats = out.bone_localmatricies;
-	i = 0; repeat(bonecount)
-	{
-		mat = array_create(16);
-		j = 0; repeat(16)
-		{
-			mat[j++] = buffer_read(b, floattype);
-		}
-		targetmats[@ i++] = mat;
-	}
-	
-	// Inverse Model Matrices
-	targetmats = out.bone_inversematricies;
-	i = 0; repeat(bonecount)
-	{
-		mat = array_create(16);
-		j = 0; repeat(16)
-		{
-			mat[j++] = buffer_read(b, floattype);
-		}
-		targetmats[@ i++] = mat;
-	}
-	
-	#endregion -------------------------------------------------------------
 	
 	#region // Vertex Buffers ==============================================
 	
 	vbcount = buffer_read(b, buffer_u16);
-	out.vbcount = vbcount;
-	array_resize(out.vbnames, vbcount);
+	vbx.vbcount = vbcount;
+	array_resize(vbx.vbnames, vbcount);
 	
 	for (var i = 0; i < vbcount; i++) // VB Names
 	{
@@ -223,8 +242,8 @@ function LoadVBX(path, format, freeze = 1)
 		{
 			name += chr(buffer_read(b, buffer_u8));
 		}
-		out.vbnames[i] = name;
-		out.vbnamemap[$ name] = i;
+		vbx.vbnames[i] = name;
+		vbx.vbnamemap[$ name] = i;
 	}
 	
 	for (var i = 0; i < vbcount; i++) // VB Data
@@ -259,8 +278,8 @@ function LoadVBX(path, format, freeze = 1)
 		buffer_delete(vbbuffer);
 		
 		if freeze {vertex_freeze(vb);}
-		out.vb[i] = vb;
-		out.vbmap[$ out.vbnames[i]] = vb;
+		vbx.vb[i] = vb;
+		vbx.vbmap[$ vbx.vbnames[i]] = vb;
 		
 		// move to next compressed vb
 		buffer_seek(b, buffer_seek_relative, compressedsize);
@@ -268,9 +287,73 @@ function LoadVBX(path, format, freeze = 1)
 	
 	#endregion -------------------------------------------------------------
 	
+	#region // Bones ======================================================
+	
+	bonecount = buffer_read(b, buffer_u16);
+	vbx.bonecount = bonecount;
+	array_resize(vbx.bonenames, bonecount);
+	array_resize(vbx.bone_parentindices, bonecount);
+	array_resize(vbx.bone_localmatricies, bonecount);
+	array_resize(vbx.bone_inversematricies, bonecount);
+	
+	// Bone Names
+	for (var i = 0; i < bonecount; i++) 
+	{
+		name = "";
+		namelength = buffer_read(b, buffer_u8);
+		repeat(namelength)
+		{
+			name += chr(buffer_read(b, buffer_u8));
+		}
+		vbx.bonenames[i] = name;
+		vbx.bonemap[$ name] = i;
+	}
+	
+	// Parent Indices
+	targetmats = vbx.bone_parentindices;
+	i = 0; repeat(bonecount)
+	{
+		targetmats[@ i++] = buffer_read(b, buffer_u16);
+	}
+	
+	// Local Matrices
+	targetmats = vbx.bone_localmatricies;
+	i = 0; repeat(bonecount)
+	{
+		mat = array_create(16);
+		j = 0; repeat(16)
+		{
+			mat[j++] = buffer_read(b, floattype);
+		}
+		targetmats[@ i++] = mat;
+	}
+	
+	// Inverse Model Matrices
+	targetmats = vbx.bone_inversematricies;
+	i = 0; repeat(bonecount)
+	{
+		mat = array_create(16);
+		j = 0; repeat(16)
+		{
+			mat[j++] = buffer_read(b, floattype);
+		}
+		targetmats[@ i++] = mat;
+	}
+	
+	#endregion -------------------------------------------------------------
+	
 	buffer_delete(b);
 	
-	return out;
+	// Keep Temporary format
+	if noformatgiven
+	{
+		vbx.vbformat = format;
+		
+		// Apparently formats need to stay in memory...
+		//vertex_format_delete(format);
+	}
+	
+	return vbx;
 }
 
 // Loads flattened matrix array
@@ -307,8 +390,6 @@ function LoadPoses(path, outarray, offset=0)
 			matrixdata[@ mindex++] = buffer_read(b, buffer_f32);
 		}
 	}
-	
-	
 	
 	buffer_delete(b);
 	

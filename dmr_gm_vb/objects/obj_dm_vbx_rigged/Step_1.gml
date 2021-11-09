@@ -6,7 +6,7 @@ event_inherited();
 // Toggle playback
 if keyboard_check_pressed(vk_space)
 {
-	isplaying ^= true;	
+	isplaying ^= true;
 }
 
 // Progress Animation

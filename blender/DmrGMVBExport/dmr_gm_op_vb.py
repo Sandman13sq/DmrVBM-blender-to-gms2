@@ -445,27 +445,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
             self.report({'WARNING'}, 'No armature found in object selection or modifiers. Aborting export.');
             return {'FINISHED'}
         
-        # Compose Bone Data
-        """
-            bonecount (2B)
-            bonenames[bonecount] ((1 + name length)B each)
-            parentindices[bonecount] (2B)
-            localmatrices[bonecount] (16f each)
-            inversemodelmatrices[bonecount] (16f each)
-        """
-        
-        bones = armature.data.bones[:];
-        out_bone = b'';
-        
-        out_bone += Pack('H', len(bones));
-        out_bone += b''.join( [PackString(b.name) for b in bones] );
-        out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] );
-        out_bone += b''.join( [PackMatrix('f',
-            (b.parent.matrix_local.inverted() @ b.matrix_local)
-            if b.parent else b.matrix_local) for b in bones] );
-        out_bone += b''.join( [PackMatrix('f', b.matrix_local.inverted()) for b in bones] );
-        
-        # Compose Vertex Buffer Data
+        # Compose Vertex Buffer Data ================================================
         """
             vbcount (2B)
             vbnames[vbcount] ((1 + name length)B each)
@@ -512,10 +492,31 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
             #chunk = struct.pack('<%s' % ('f' * len(vb)), *vb);
             chunk = vb;
             vbcompressed = zlib.compress(chunk);
-            print('tell(): %d' % (4 + 1 + len(out_bone) + len(out_vb)));
             print('%s compressed size: %d' % (name, len(vbcompressed)));
             out_vb += Pack('L', len(vbcompressed));
             out_vb += vbcompressed;
+        
+        # Compose Bone Data =========================================================
+        """
+            bonecount (2B)
+            bonenames[bonecount] ((1 + name length)B each)
+            parentindices[bonecount] (2B)
+            localmatrices[bonecount] (16f each)
+            inversemodelmatrices[bonecount] (16f each)
+        """
+        
+        bones = armature.data.bones[:];
+        out_bone = b'';
+        
+        out_bone += Pack('H', len(bones));
+        out_bone += b''.join( [PackString(b.name) for b in bones] );
+        out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] );
+        out_bone += b''.join( [PackMatrix('f',
+            (b.parent.matrix_local.inverted() @ b.matrix_local)
+            if b.parent else b.matrix_local) for b in bones] );
+        out_bone += b''.join( [PackMatrix('f', b.matrix_local.inverted()) for b in bones] );
+        
+        # Header ============================================================
         
         # Make flag
         flag = 0;
@@ -524,7 +525,14 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         elif self.floattype == 'e':
             flag |= 1 << 1;
         
-        out = b'VBX' + Pack('B', VBXVERSION) + Pack('B', flag) + out_bone + out_vb;
+        # Vertex Format
+        out_format = b'';
+        out_format += Pack('B', len(format)); # Format length
+        for f in format:
+            out_format += Pack('B', VBFType[f]); # Attribute Type
+            out_format += Pack('B', VBFSize[f]); # Attribute Float Size
+        
+        out = b'VBX' + Pack('B', VBXVERSION) + Pack('B', flag) + out_format + out_vb + out_bone;
         outcompressed = zlib.compress(out);
         outlen = (len(out), len(outcompressed));
         

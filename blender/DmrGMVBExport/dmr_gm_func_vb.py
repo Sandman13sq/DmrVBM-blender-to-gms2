@@ -80,6 +80,19 @@ VBFItems = (
     (VBF_WEI, 'Weights', '4 Floats'),
 );
 
+VBFType = {x[1]: x[0] for x in enumerate([
+    VBF_000,
+    VBF_POS,
+    VBF_TEX,
+    VBF_NOR,
+    VBF_COL,
+    VBF_CO2,
+    VBF_WEI,
+    VBF_BON,
+    VBF_TAN,
+    VBF_BTN,
+    ])};
+
 LayerChoiceItems = (
     ('render', 'Render Layer', 'Use the layer that will be rendered (camera icon is on)', 'RESTRICT_RENDER_OFF', 0),
     ('active', 'Active Layer', 'Use the layer that is active (highlighted)', 'RESTRICT_SELECT_OFF', 1),
