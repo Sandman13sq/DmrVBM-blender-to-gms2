@@ -3,15 +3,25 @@
 // Inherit the parent event
 event_inherited();
 
-var lev = LevKeyHeld(vk_right, vk_left);
-if lev != 0
+// Toggle playback
+if keyboard_check_pressed(vk_space)
 {
-	trackpos += lev*0.002;
-	UpdatePose(true);
+	isplaying ^= true;	
 }
 
+// Progress Animation
 if isplaying
 {
 	trackpos = Modulo(trackpos + trackposspeed, 1);
-	UpdatePose(true);
+	UpdateAnim();
+}
+else
+{
+	// Move by frame
+	var lev = LevKeyHeld(vk_right, vk_left);
+	if lev != 0
+	{
+		trackpos += lev*trackposspeed;
+		UpdatePose(true);
+	}
 }

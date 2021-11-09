@@ -13,8 +13,8 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Wei
 vbf = vertex_format_end();
 
 vbx = LoadVBX("curly_rigged.vbx", vbf);
-trackdata_poses = LoadAniTrack("curly_poses.trk");
-trackdata_anim = LoadAniTrack("curly_anim.trk");
+trackdata_anim = LoadAniTrack("curly_anim.trk");	// Animation
+trackdata_poses = LoadAniTrack("curly_poses.trk");	// Poses with markers
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones
@@ -22,17 +22,20 @@ posetransform = Mat4Array(DMRVBX_MATPOSEMAX, matrix_build_identity());
 // 1D flat array of matrices. Holds final transforms for bones
 matpose = Mat4ArrayFlat(DMRVBX_MATPOSEMAX, matrix_build_identity());
 
-trackpos = trackdata_poses.markermap[$ "float"]; // Position in animation
+trackpos = 0; // Position in animation
 trackposspeed = (trackdata_anim.framespersecond/game_get_speed(gamespeed_fps))/trackdata_anim.length;
 trackposlength = trackdata_anim.length;
 isplaying = false;
 
+posemode = 0; // 0 = Poses, 1 = Animation
+poseindex = 0; // Index of pose in trackdata_poses
+UpdatePose();
+
 keymode = 0;
 vbmode = 1;
-posemode = 0;
+
 wireframe = 0;
 interpolationtype = AniTrack_Intrpl.linear;
-UpdatePose(posemode);
 
 // Control Variables ========================================================
 meshselect = 0;
