@@ -26,6 +26,7 @@
     {"id":{"name":"shd_edit","path":"shaders/shd_edit/shd_edit.yy",},"order":4,},
     {"id":{"name":"scr_maths","path":"scripts/scr_maths/scr_maths.yy",},"order":0,},
     {"id":{"name":"tex_curly_eyewhite_c","path":"sprites/tex_curly_eyewhite_c/tex_curly_eyewhite_c.yy",},"order":6,},
+    {"id":{"name":"todo","path":"notes/todo/todo.yy",},"order":0,},
     {"id":{"name":"obj_demomodel","path":"objects/obj_demomodel/obj_demomodel.yy",},"order":5,},
     {"id":{"name":"tex_curly_def_nor","path":"sprites/tex_curly_def_nor/tex_curly_def_nor.yy",},"order":0,},
     {"id":{"name":"shd_model","path":"shaders/shd_model/shd_model.yy",},"order":0,},
