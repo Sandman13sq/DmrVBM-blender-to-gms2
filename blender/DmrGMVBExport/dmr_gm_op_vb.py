@@ -401,6 +401,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         
     def execute(self, context):
         active = bpy.context.view_layer.objects.active;
+        activename = active.name;
         format = [];
         for x in '01234567':
             slot = getattr(self, 'vbf' + x);
@@ -541,7 +542,9 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         file.close();
         
         RemoveTempObjects();
-        bpy.context.view_layer.objects.active = active;
+        if activename in [x.name for x in bpy.context.selected_objects]:
+            bpy.context.view_layer.objects.active = bpy.data.objects[activename];
+        
         for obj in objects: obj.select_set(1);
         
         print('FCODE: %s' % FCODE);

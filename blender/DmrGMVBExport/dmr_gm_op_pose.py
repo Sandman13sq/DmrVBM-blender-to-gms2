@@ -161,6 +161,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             lastaction = object.pose_library;
         if not lastaction:
             self.report({'WARNING'}, '"%s" has no active Action' % object.name);
+            context.scene.render.use_simplify = self.lastsimplify;
             return {'FINISHED'}
         
         bones = object.data.bones;

@@ -6,8 +6,6 @@
 varying vec2 v_uv;
 varying vec4 v_color;
 
-varying vec3 v_dirtolight_cs;
-varying vec3 v_dirtocamera_cs;
 varying vec3 v_dirtolight_ts;
 varying vec3 v_dirtocamera_ts;
 

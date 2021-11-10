@@ -10,7 +10,7 @@ layout.Enum().Label("Model")
 	[ModelType.vbx, "VBX", "VBX model -- multiple vertex buffers (curly.vbx)"],
 	[ModelType.normalmap, "VBX Normal Map", "VBX model with normal mappings (curly_nor.vbx)"],
 	[ModelType.rigged, "VBX Rigged", "VBX model with bone transforms (curly_rigged.vbx)"],
-	[ModelType.full, "VBX Full", "VBX model with all features (curly_full.vbx)"],
+	[ModelType.complete, "VBX Complete", "VBX model with all features (curly_complete.vbx)"],
 	]);
 
 layout.Bool("Show World").DefineControl(self, "drawworld");

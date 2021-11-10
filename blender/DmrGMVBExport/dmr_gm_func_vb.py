@@ -135,6 +135,7 @@ def GetVBData(sourceobj, format = [], settings = {}):
     
     armature = None;
     formatneedsbones = VBF_BON in format or VBF_WEI in format;
+    formatneedsbones = formatneedsbones and not settings.get('applyarmature', 0);
     
     # Set source as active
     bpy.ops.object.select_all(action='DESELECT');
@@ -243,10 +244,10 @@ def GetVBData(sourceobj, format = [], settings = {}):
     if not obj.vertex_groups:
         obj.vertex_groups.new();
     vgroups = obj.vertex_groups;
+    
     if armature and vgroups:
         group_select_mode = 'BONE_DEFORM' if armature else 'ALL';
         bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
-        bpy.ops.object.vertex_group_clean(group_select_mode='ALL', limit=0, keep_single=True);
         bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
     
     uvloops = mesh.uv_layers.active.data if mesh.uv_layers else mesh.uv_layers.new().data;

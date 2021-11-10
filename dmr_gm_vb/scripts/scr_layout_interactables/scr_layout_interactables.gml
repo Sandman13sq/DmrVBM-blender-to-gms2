@@ -422,7 +422,11 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					default:
 						if clearonkey 
 						{
-							keyboard_string = keyboard_lastchar;
+							if ord(keyboard_lastchar) >= 32
+							{
+								keyboard_string = keyboard_lastchar;
+							}
+							
 							clearonkey = false;
 						}
 						break;

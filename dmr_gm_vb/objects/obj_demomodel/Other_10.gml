@@ -81,14 +81,13 @@ function LoadDiffuseTextures()
 	var _tex_hair = sprite_get_texture(tex_curly_hair_col, 0);
 	var i;
 	
-	i = vbx.FindVBIndex_Contains("skin"); if i meshtexture[i] = _tex_skin;
-	i = vbx.FindVBIndex_Contains("head"); if i meshtexture[i] = _tex_skin;
-	i = vbx.FindVBIndex_Contains("cloth"); if i meshtexture[i] = _tex_def;
-	i = vbx.FindVBIndex_Contains("boot"); if i meshtexture[i] = _tex_def;
-	i = vbx.FindVBIndex_Contains("headphone"); if i meshtexture[i] = _tex_def;
-	i = vbx.FindVBIndex_Contains("under"); if i meshtexture[i] = _tex_def;
-	i = vbx.FindVBIndex_Contains("hair"); if i meshtexture[i] = _tex_hair;
-	i = vbx.FindVBIndex_Contains("brow"); if i meshtexture[i] = _tex_hair;	
+	for (var i = 0; i < vbx.vbcount; i++)
+	{
+		if string_pos("def", vbx.vbnames[i]) {meshtexture[i] = _tex_def;}
+		if string_pos("skin", vbx.vbnames[i]) {meshtexture[i] = _tex_skin;}
+		if string_pos("hair", vbx.vbnames[i]) {meshtexture[i] = _tex_hair;}
+		if string_pos("brow", vbx.vbnames[i]) {meshtexture[i] = _tex_hair;}
+	}
 }
 
 function LoadNormalTextures()
@@ -96,8 +95,8 @@ function LoadNormalTextures()
 	var _tex_def_nor = sprite_get_texture(tex_curly_def_nor, 0);
 	var i;
 	
-	i = vbx.FindVBIndex_Contains("cloth"); if i meshnormalmap[i] = _tex_def_nor;
-	i = vbx.FindVBIndex_Contains("boot"); if i meshnormalmap[i] = _tex_def_nor;
-	i = vbx.FindVBIndex_Contains("headphone"); if i meshnormalmap[i] = _tex_def_nor;
-	i = vbx.FindVBIndex_Contains("under"); if i meshnormalmap[i] = _tex_def_nor;
+	for (var i = 0; i < vbx.vbcount; i++)
+	{
+		if string_pos("def", vbx.vbnames[i]) {meshnormalmap[i] = _tex_def_nor;}
+	}
 }

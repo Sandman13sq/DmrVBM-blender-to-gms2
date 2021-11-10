@@ -27,18 +27,14 @@ matrix_set(matrix_world, matrix_build(
 // Draw Meshes
 var n = vbx.vbcount;
 var _primitivetype = demo.wireframe? pr_linelist: pr_trianglelist;
+var _dm;
+var _name;
+
 for (var i = 0; i < n; i++)
 {
 	if meshvisible[i]
 	{
-		if string_pos("skin", vbx.vbnames[i])
-		|| string_pos("head", vbx.vbnames[i])
-		|| string_pos("body", vbx.vbnames[i])
-		{
-			var _dm = FetchDrawMatrix();
-			_dm[3] = 1;
-			shader_set_uniform_f_array(u_shd_rigged_drawmatrix, _dm);
-		}
+		_name = vbx.vbnames[i];
 		
 		if demo.usetextures {vertex_submit(vbx.vb[i], _primitivetype, meshtexture[i]);}
 		else {vertex_submit(vbx.vb[i], _primitivetype, -1);}
