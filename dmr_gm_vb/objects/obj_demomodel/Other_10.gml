@@ -62,21 +62,25 @@ function LoadDiffuseTextures()
 	var _tex_skin = sprite_get_texture(tex_curly_skin_col, 0);
 	var _tex_def = sprite_get_texture(tex_curly_def_col, 0);
 	var _tex_hair = sprite_get_texture(tex_curly_hair_col, 0);
-	meshtexture[vbx.FindVBIndex_Contains("skin")] = _tex_skin;
-	meshtexture[vbx.FindVBIndex_Contains("head")] = _tex_skin;
-	meshtexture[vbx.FindVBIndex_Contains("cloth")] = _tex_def;
-	meshtexture[vbx.FindVBIndex_Contains("boot")] = _tex_def;
-	meshtexture[vbx.FindVBIndex_Contains("headphone")] = _tex_def;
-	meshtexture[vbx.FindVBIndex_Contains("under")] = _tex_def;
-	meshtexture[vbx.FindVBIndex_Contains("hair")] = _tex_hair;
-	meshtexture[vbx.FindVBIndex_Contains("brow")] = _tex_hair;	
+	var i;
+	
+	i = vbx.FindVBIndex_Contains("skin"); if i meshtexture[i] = _tex_skin;
+	i = vbx.FindVBIndex_Contains("head"); if i meshtexture[i] = _tex_skin;
+	i = vbx.FindVBIndex_Contains("cloth"); if i meshtexture[i] = _tex_def;
+	i = vbx.FindVBIndex_Contains("boot"); if i meshtexture[i] = _tex_def;
+	i = vbx.FindVBIndex_Contains("headphone"); if i meshtexture[i] = _tex_def;
+	i = vbx.FindVBIndex_Contains("under"); if i meshtexture[i] = _tex_def;
+	i = vbx.FindVBIndex_Contains("hair"); if i meshtexture[i] = _tex_hair;
+	i = vbx.FindVBIndex_Contains("brow"); if i meshtexture[i] = _tex_hair;	
 }
 
 function LoadNormalTextures()
 {
 	var _tex_def_nor = sprite_get_texture(tex_curly_def_nor, 0);
-	meshnormalmap[vbx.FindVBIndex_Contains("cloth")] = _tex_def_nor;
-	meshnormalmap[vbx.FindVBIndex_Contains("boot")] = _tex_def_nor;
-	meshnormalmap[vbx.FindVBIndex_Contains("headphones")] = _tex_def_nor;
-	meshnormalmap[vbx.FindVBIndex_Contains("under")] = _tex_def_nor;
+	var i;
+	
+	i = vbx.FindVBIndex_Contains("cloth"); if i meshnormalmap[i] = _tex_def_nor;
+	i = vbx.FindVBIndex_Contains("boot"); if i meshnormalmap[i] = _tex_def_nor;
+	i = vbx.FindVBIndex_Contains("headphone"); if i meshnormalmap[i] = _tex_def_nor;
+	i = vbx.FindVBIndex_Contains("under"); if i meshnormalmap[i] = _tex_def_nor;
 }
