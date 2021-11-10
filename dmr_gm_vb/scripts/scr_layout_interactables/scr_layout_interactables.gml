@@ -78,6 +78,8 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 				
 				if op {op(value, self);}
 			}
+			
+			UpdateTooltip();
 		}
 		else
 		{
@@ -153,6 +155,8 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 			}
 			
 			ismouseover = true;
+			
+			UpdateTooltip();
 		}
 		else
 		{
@@ -195,16 +199,17 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 {
 	color = [0, 0, 0];
 	value = 0;
-	valuestep = 1;
+	valuestep = 3/100;
 	valuemin = -infinity;
 	valuemax = infinity;
 	valueanchor = 0;
-	valuedec = 2;
 	mouseanchor = [0, 0];
 	typing = 0;
+	clearonkey = false;
 	
-	operator_on_change = false;
-	draw_increments = true;
+	valueprecision = 2;	// Number of decimal places to display
+	operator_on_change = false;	// Call operator when value is updated
+	draw_increments = true;	// Draw plus and minus signs
 	
 	function SetBounds(_min, _max, _step = valuestep)
 	{
@@ -232,8 +237,73 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		var mbpressed = common.clickpressed;
 		var mbreleased = common.clickreleased;
 		
+		if active
+		{
+			// Drag Value
+			if mouse_check_button(mb_left)
+			{
+				window_set_cursor(cr_none);
+				color[1] = common.c_active;
+				common.active = self;
+				
+				//var d = window_mouse_get_x()-window_get_width()/2;
+				//window_mouse_set(window_get_width()/2, window_get_height()/2);
+				
+				var d = window_mouse_get_x()-mouseanchor[0];
+				window_mouse_set(mouseanchor[0], mouseanchor[1]);
+				
+				// Mouse movement is high enough
+				if abs(d) >= ((valuestep >= 1)? 2: 1)
+				{
+					var _add;
+					
+					// Fractional Drag
+					if keyboard_check(vk_control)
+					{
+						var _steps = (valuestep > 1)? 1: (valuemax-valuemin)/10;
+						_add = sign(d)*_steps;
+						
+						value = floor(value/_steps)*_steps;
+ 					}
+					// Normal Drag
+					else
+					{
+						var sh = keyboard_check(vk_shift)? 0.1: 1;
+						_add = d*valuestep*sh;
+					}
+					
+					// Clamp only if value is already within bounds
+					if d > 0
+					if value <= valuemax {value = min(value+_add, valuemax);} else {value += _add;}
+					else if d < 0
+					if value >= valuemin {value = max(value+_add, valuemin);} else {value += _add;}
+					
+					UpdateControl(value);
+							
+					if operator_on_change
+					{
+						if op {op(value, self);}
+					}
+				}
+			}
+			else
+			{
+				active = 0;
+				window_mouse_set(mouseanchor[0], mouseanchor[1]);
+				window_set_cursor(cr_arrow);
+				
+				if operator_on_change
+				{
+					if op {op(value, self);}
+				}
+			}
+			
+		}
+		
 		if IsMouseOver() && !active
 		{
+			UpdateTooltip();
+			
 			// Lock layout scrolling
 			var xx = [x1, x1+16, x2-16, x2];
 			if !draw_increments {xx[1] = x1; xx[2] = x2;}
@@ -272,7 +342,8 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				|| (mbreleased && common.lastpress <= 10)
 				{
 					typing = 1;
-					valueanchor = string(value);
+					clearonkey = true;
+					keyboard_string = string(value);
 				}
 				
 				if !typing
@@ -280,12 +351,12 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					if mbpressed
 					{
 						valueanchor = value;
-						scroll = 0;
 						active = 1;
 					
 						mouseanchor[0] = window_mouse_get_x();
 						mouseanchor[1] = window_mouse_get_y();
-						window_mouse_set(window_get_width()/2, window_get_height()/2);
+						//window_mouse_set(window_get_width()/2, window_get_height()/2);
+						window_mouse_set(mouseanchor[0], mouseanchor[1]);
 					}
 					
 					if mbreleased
@@ -294,10 +365,17 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 						window_set_cursor(cr_arrow);
 					}
 					
-					var lev = mouse_wheel_up()-mouse_wheel_down();
-					if lev != 0
+					var d = mouse_wheel_up()-mouse_wheel_down();
+					if d != 0
 					{
-						value = clamp(value+lev*valuestep, valuemin, valuemax);
+						var _add = d*valuestep*2;
+						
+						// Clamp only if value is already within bounds
+						if d > 0
+						if value <= valuemax {value = min(value+_add, valuemax);} else {value += _add;}
+						else if d < 0
+						if value >= valuemin {value = max(value+_add, valuemin);} else {value += _add;}
+						
 						UpdateControl(value);
 							
 						if operator_on_change
@@ -308,85 +386,64 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				}
 			}
 		}
-		else
-		{
-			if typing
-			{
-				if keyboard_check_pressed(vk_escape)
-				{
-					typing = 0;
-					valueanchor = value;
-				}
-				else if keyboard_check_pressed(vk_enter)
-				{
-					typing = 0;
-					if string_digits(valueanchor) != ""
-					{
-						value = real(valueanchor);
-						UpdateControl(value);
-						if op {op(value, self);}
-					}
-				}
-				else if keyboard_check_pressed(vk_backspace)
-				{
-					valueanchor = string_copy(valueanchor, 1, string_length(valueanchor)-1);
-				}
-				else if keyboard_check_pressed(vk_anykey)
-				{
-					var c = keyboard_lastchar;
-					if keyboard_lastkey >= 0x20
-					{
-						valueanchor += c;
-					}
-				}
-				
-				if common.clickpressed
-				{
-					typing = 0;	
-					valueanchor = value;
-					active = 0;
-				}	
-			}
-		}
 		
-		if active
+		// Typing Value
+		if typing
 		{
-			if mouse_check_button(mb_left)
+			if keyboard_check_pressed(vk_escape)
 			{
-				window_set_cursor(cr_none);
-				color[1] = common.c_active;
-				common.active = self;
-				
-				var d = window_mouse_get_x()-window_get_width()/2;
-				window_mouse_set(window_get_width()/2, window_get_height()/2);
-				
-				if abs(d) >= ((valuestep >= 1)? 2: 1)
-				{
-					var sh = keyboard_check(vk_shift)? 0.1: 1;
-					
-					scroll += sign(d)*valuestep*sh;
-					valueanchor += sign(d)*valuestep*sh;
-					value = clamp(valueanchor, valuemin, valuemax);
-					UpdateControl(value);
-							
-					if operator_on_change
-					{
-						if op {op(value, self);}
-					}
-				}
+				typing = 0;
+				valueanchor = value;
 			}
-			else
+			else if keyboard_check_pressed(vk_enter)
 			{
-				active = 0;
-				window_mouse_set(mouseanchor[0], mouseanchor[1]);
-				window_set_cursor(cr_arrow);
-				
-				if operator_on_change
+				typing = 0;
+				if string_digits(keyboard_string) != ""
 				{
+					var err;
+					var _lastval = value;
+					try
+					{
+						value = real(keyboard_string);
+					}
+					catch(err)
+					{
+						value = _lastval;
+						show_debug_message(err);
+					}
+					UpdateControl(value);
 					if op {op(value, self);}
 				}
 			}
-			
+			else if keyboard_check_pressed(vk_anykey)
+			{
+				switch(keyboard_lastkey)
+				{
+					default:
+						if clearonkey 
+						{
+							keyboard_string = keyboard_lastchar;
+							clearonkey = false;
+						}
+						break;
+					
+					case(vk_right):
+					case(vk_left):
+					case(vk_up):
+					case(vk_down):
+						clearonkey = false;
+						break;
+					
+				}
+				
+			}
+				
+			if common.clickpressed
+			{
+				typing = 0;	
+				valueanchor = value;
+				active = 0;
+			}	
 		}
 	}
 	
@@ -399,7 +456,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		// Typing pipe
 		if typing
 		{
-			v = string(valueanchor);
+			v = string(keyboard_string);
 			
 			if (current_time/500) mod 2 
 			{v += "|";} else {v += " ";}
@@ -411,7 +468,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		// Display
 		else
 		{
-			v = string_format(value, 0, valuedec);
+			v = string_format(value, 0, valueprecision);
 			
 			draw_set_valign(0);
 			if label != ""
@@ -800,9 +857,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 					if op {op(value, self);}
 				}
 				
-				common.tooltip_name = label;
-				common.tooltip_text = description;
-				common.tooltip_target = self;
+				UpdateTooltip();
 			}
 			else
 			{
@@ -810,9 +865,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 				{
 					itemhighlight = clamp(floor((common.my-y1-common.cellmax)/common.cellmax), 0, itemcount-1);
 					
-					common.tooltip_name = label;
-					common.tooltip_text = items[itemhighlight][2];
-					common.tooltip_target = self;
+					UpdateTooltip(label, items[itemhighlight][2]);
 					
 					if common.clickreleased
 					{
@@ -822,6 +875,10 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 						if op {op(value, self);}
 						active = 0;
 					}
+				}
+				else
+				{
+					UpdateTooltip();	
 				}
 			}
 		}
