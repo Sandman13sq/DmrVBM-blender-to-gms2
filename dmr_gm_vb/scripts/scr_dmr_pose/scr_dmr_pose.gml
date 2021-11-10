@@ -252,7 +252,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 	{
 		transformtracks = tracklist[t]; // [frames[], vectors[]]
 		
-		if transformtracks == 0 {continue;}
+		if transformtracks == 0 {t++; continue;}
 		
 		outposematrix = outpose[@ t]; // Target Bone Matrix
 		t++;
@@ -508,6 +508,8 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				}
 			}
 		}
+		
+		
 	}
 	
 	return outpose;
