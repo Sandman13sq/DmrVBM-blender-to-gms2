@@ -236,6 +236,13 @@ function __LayoutSuper() constructor
 		}
 	}
 	
+	function UpdateTooltip(_label=label, _desc=description)
+	{
+		common.tooltip_name = _label;
+		common.tooltip_text = _desc;
+		common.tooltip_target = self;	
+	}
+	
 	#endregion
 	
 	#region Drawing ----------------------------------------------
@@ -615,8 +622,8 @@ function Layout() : __LayoutSuper() constructor
 				_s += common.tooltip_text;
 			}
 			
-			var xx = common.mx;
-			var yy = common.my+6;
+			var xx = window_mouse_get_x()+8;
+			var yy = window_mouse_get_y()+8;
 			var ww = string_width(_s)+8;
 			var hh = string_height(_s)+4;
 			

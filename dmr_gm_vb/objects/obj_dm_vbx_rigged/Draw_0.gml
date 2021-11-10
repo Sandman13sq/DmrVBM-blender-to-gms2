@@ -31,6 +31,15 @@ for (var i = 0; i < n; i++)
 {
 	if meshvisible[i]
 	{
+		if string_pos("skin", vbx.vbnames[i])
+		|| string_pos("head", vbx.vbnames[i])
+		|| string_pos("body", vbx.vbnames[i])
+		{
+			var _dm = FetchDrawMatrix();
+			_dm[3] = 1;
+			shader_set_uniform_f_array(u_shd_rigged_drawmatrix, _dm);
+		}
+		
 		if demo.usetextures {vertex_submit(vbx.vb[i], _primitivetype, meshtexture[i]);}
 		else {vertex_submit(vbx.vb[i], _primitivetype, -1);}
 	}

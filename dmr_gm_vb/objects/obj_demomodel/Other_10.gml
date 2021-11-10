@@ -12,31 +12,48 @@ function FetchDrawMatrix()
 function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 {
 	var c = layout.Column("Display");
-	c.Bool().Label("Wireframe").DefineControl(demo, "wireframe");
-	if _hastextures
-		{c.Bool().Label("Use Textures").DefineControl(demo, "usetextures");}
-	if _hasnormals
-		{c.Bool().Label("Draw Normal Maps").DefineControl(demo, "drawnormal");}
 	
-	c.Enum().Label("Cullmode").DefineControl(demo, "cullmode").DefineListItems([
+	c.Bool("Wireframe").DefineControl(demo, "wireframe")
+		.Description("Change primitive type to wireframe.");
+	
+	if _hastextures
+	{
+		c.Bool("Use Textures").DefineControl(demo, "usetextures")
+			.Description("Use textures instead of vertex colors.");
+	}
+	if _hasnormals
+	{
+		c.Bool("Draw Normal Maps").DefineControl(demo, "drawnormal")
+			.Description("Display normal maps on objects that have them.");
+	}
+	
+	c.Enum("Cullmode").DefineControl(demo, "cullmode").DefineListItems([
 		[cull_noculling, "No Culling", "Draw all triangles"],
 		[cull_clockwise, "Cull Clockwise", "Skip triangles facing away from screen"],
 		[cull_counterclockwise, "Cull Counter", "Skip triangles facing towards the screen"],
-		]);
+		]).
+		Description("Set which triangles to NOT draw.\nGood for speeding up draw time");
 	
 	// Draw Matrix
-	c = layout.Dropdown("Draw Matrix").SetIDName("drawmatrix");
+	c = layout.Dropdown("Draw Matrix").SetIDName("drawmatrix")
+		.Description("Show variables sent in for draw matrix uniform");
 	
 	if _nodrawmatrix
 	{
-		c.Real().Label("Alpha").DefineControl(self, "alpha").SetBounds(0, 1, 0.1);
+		c.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
 	}
 	else
 	{
-		c.Real().Label("Alpha").DefineControl(self, "alpha").SetBounds(0, 1, 0.1);
-		c.Real().Label("Emission").DefineControl(self, "emission").SetBounds(0, 1, 0.1);
-		c.Real().Label("Shine").DefineControl(self, "shine").SetBounds(0, 1, 0.1);
-		c.Real().Label("SSS").DefineControl(self, "sss").SetBounds(0, 1, 0.1);
+		c.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
+		c.Real("Emission").DefineControl(self, "emission").SetBounds(0, 1)
+			.Description("Amount that the natural color shows over the shading.")
+			.valueprecision=3;
+		c.Real("Specular").DefineControl(self, "shine").SetBounds(0, 1)
+			.Description("Amount of \"shine\"")
+			.valueprecision=3;
+		c.Real("SSS").DefineControl(self, "sss").SetBounds(0, 1)
+			.Description("Amount of red tint to shadows.\n(Not real Subsurface Scattering)")
+			.valueprecision=3;
 	}
 	
 	var r;

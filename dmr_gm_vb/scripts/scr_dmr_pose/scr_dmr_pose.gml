@@ -257,7 +257,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 		outposematrix = outpose[@ t]; // Target Bone Matrix
 		t++;
 		
-		array_copy(outposematrix, 0, mat4identity, 0, 16);
+		//array_copy(outposematrix, 0, mat4identity, 0, 16);
 		
 		// For each transform (location, scale, rotation)
 		// Performs in this order: Translation, Rotation, Scale

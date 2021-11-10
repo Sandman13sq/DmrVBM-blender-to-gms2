@@ -45,7 +45,7 @@ void main()
 	float rim = 1.0-clamp(dot(n, e), 0.0, 1.0);	// Fake Fresnel
 	float spe = clamp( dot(e, r), 0.0, 1.0);	// Specular
 	
-	spe = pow(spe, 32.0 * specular + 0.00001);
+	spe = pow(spe, 128.0 * specular + 0.00001);
 	rim = pow(rim, 3.0);
 	
 	// Colors ----------------------------------------------------------------
@@ -53,13 +53,14 @@ void main()
 	vec4 diffusecolor = mix(texture2D(gm_BaseTexture, v_uv), v_color, 
 		float(texture2D(gm_BaseTexture, vec2(0.0)) == vec4(1.0))
 		);
-	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .0, .2), sss);
-	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb*0.5, 0.7);
+	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.7, .0, .2), sss);
+	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb*mix(0.5, 0.7, sss), 0.7);
 	vec3 specularcolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
 	
 	// Output ----------------------------------------------------------------
 	vec3 outcolor = mix(shadowcolor, diffusecolor.rgb, dp);
-	outcolor += (specularcolor * spe + vec3(0.5) * rim) * specular;
+	outcolor += (specularcolor * spe) * specular;
+	outcolor += (vec3(0.5) * rim) * clamp(specular, 0.0, 1.0);
 	
 	// Emission
 	outcolor = mix(outcolor, diffusecolor.rgb, emission);

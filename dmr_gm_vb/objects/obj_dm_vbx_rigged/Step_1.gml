@@ -22,6 +22,7 @@ else
 	if lev != 0
 	{
 		trackpos += lev*trackposspeed;
-		UpdatePose(true);
+		posemode = 1;
+		UpdateAnim();
 	}
 }

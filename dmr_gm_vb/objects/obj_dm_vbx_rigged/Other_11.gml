@@ -23,6 +23,7 @@ layout.Real("Pos")
 	.Operator(OP_ChangeTrackPos)
 	.DefineControl(self, "trackpos")
 	.SetBounds(0, 1, 0.02)
+	.Description("Toggle animation playback")
 	.operator_on_change = true;
 
 // Pose
@@ -39,6 +40,7 @@ var e = layout.Enum("Interpolation")
 		[AniTrack_Intrpl.constant, "Constant", "Floors keyframe position when evaluating pose"],
 		[AniTrack_Intrpl.linear, "Linear", "Linearly keyframe position when evaluating pose"],
 		[AniTrack_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
-		]);
+		])
+	.Description("Method of blending together transforms when evaluating animation.");
 
 CommonLayout(true, false, false);
