@@ -177,6 +177,12 @@ function __LayoutSuper() constructor
 		return self;
 	}
 	
+	function SetDefault(_default_value)
+	{
+		valuedefault = _default_value;
+		return self;
+	}
+	
 	function Toggle(runop=true)
 	{
 		Value(!value, runop);
@@ -199,39 +205,89 @@ function __LayoutSuper() constructor
 	
 	function GetControl()
 	{
+		// Source exists
 		if !is_undefined(control_src)
 		{
-			if variable_struct_exists(control_src, control_var)
+			var n = array_length(control_path);
+			var _current = control_src;
+			
+			// For each path step
+			for (var i = 0; i < n; i++)
 			{
-				return control_index >= 0?
-					(variable_struct_get(control_src, control_var)[control_index]):
-					(variable_struct_get(control_src, control_var));
+				if variable_struct_exists(_current, control_path[i])
+				{
+					_current = _current[$ control_path[i]];
+				}
+				else
+				{
+					break;	
+				}
+			}
+			
+			// Path result is array and index is given
+			if control_index >= 0 && is_array(_current)
+			{
+				return _current[control_index];
+			}
+			// Path result is not an array
+			else
+			{
+				return _current;	
 			}
 		}
 		
 		return value;
 	}
 	
-	function DefineControl(_source, _varname, _varindex = -1)
+	function DefineControl(_source, _varpatharray, _varindex = -1)
 	{
 		control_src = _source;
-		control_var = _varname;
+		if is_array(_varpatharray)
+		{
+			array_copy(control_path, 0, _varpatharray, 0, array_length(_varpatharray));	
+		}
+		else
+		{
+			array_resize(control_path, 1);
+			control_path[0] = _varpatharray;
+		}
 		control_index = _varindex;
 		return self;
 	}
 	
 	function UpdateControl(_value)
 	{
+		// Source exists
 		if !is_undefined(control_src)
 		{
-			if variable_struct_exists(control_src, control_var)
+			var n = array_length(control_path);
+			var _current = control_src;
+			var _lastcurrent = _current;
+			var i = 0;
+			
+			// For each path step
+			for (i = 0; i < n; i++)
 			{
-				// Variable
-				if control_index < 0
-					{variable_struct_set(control_src, control_var, _value);}
-				// Array
+				if variable_struct_exists(_current, control_path[i])
+				{
+					_lastcurrent = _current;
+					_current = _current[$ control_path[i]];
+				}
 				else
-					{variable_struct_get(control_src, control_var)[@ control_index] = _value;}
+				{
+					break;	
+				}
+			}
+			
+			// Path result is array and index is given
+			if control_index >= 0 && is_array(_current)
+			{
+				_current[@ control_index] = _value;
+			}
+			// Path result is not an array
+			else
+			{
+				_lastcurrent[$ control_path[i-1]] = _value;
 			}
 		}
 	}

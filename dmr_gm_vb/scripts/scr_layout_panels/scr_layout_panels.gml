@@ -4,15 +4,13 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 {
 	root = _root;
 	parent = _parent;
-	children = [];
-	childrencount = 0;
 	common = root.common;
 	
 	op = 0; // Function to call
 	active = 0;
 	
 	control_src = noone; // Object to read variables from
-	control_var = ""; // Variable name
+	control_path = []; // Variable name
 	control_index = -1; // Array index (-1 for no array)
 	
 	x1 = 0; // Following are unit values [0.0-1.0]
@@ -24,6 +22,7 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	b = 4; // Border
 	label = "";
 	value = 0;
+	valuedefault = 0;
 	usesscroll = false; // When true, prevents scrolling layout via mouse wheel
 	
 	clickpress = 0;

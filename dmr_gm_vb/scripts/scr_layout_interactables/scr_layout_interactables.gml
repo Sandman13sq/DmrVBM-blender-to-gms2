@@ -37,6 +37,7 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 {
 	color = common.c_base;
 	toggle_on_click = false;
+	valuedefault = value;
 	
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
@@ -80,6 +81,14 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 				if op {op(value, self);}
 			}
 			
+			// Default Value
+			if keyboard_check_pressed(vk_backspace)
+			{
+				value = valuedefault;
+				UpdateControl(value);
+				if op {op(value, self);}
+			}
+			
 			UpdateTooltip();
 		}
 		else
@@ -105,6 +114,7 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 {
 	color = common.c_base;
 	ismouseover = false;
+	valuedefault = value;
 	
 	function Value(_value, runop=true)
 	{
@@ -156,6 +166,14 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 			
 			ismouseover = true;
 			
+			// Default Value
+			if keyboard_check_pressed(vk_backspace)
+			{
+				value = valuedefault;
+				UpdateControl(value);
+				if op {op(value, self);}
+			}
+			
 			UpdateTooltip();
 		}
 		else
@@ -199,6 +217,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 {
 	color = [0, 0, 0];
 	value = 0;
+	valuedefault = value;
 	valuestep = 3/100;
 	valuemin = -infinity;
 	valuemax = infinity;
@@ -384,6 +403,14 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 							if op {op(value, self);}
 						}
 					}
+					
+					// Default Value
+					if keyboard_check_pressed(vk_backspace)
+					{
+						value = valuedefault;
+						UpdateControl(value);
+						if op {op(value, self);}
+					}
 				}
 			}
 		}
@@ -509,6 +536,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 {
 	color = common.c_base;
 	toggle_on_click = false;
+	valuedefault = value;
 	
 	items = [];
 	itemcount = 0;	// Updated in UpdatePos()
@@ -516,10 +544,13 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	itemindex = 0;
 	itemoffset = 0;
 	
+	itemsdisplay = [];
+	itemsdisplayindex = 0;
+	itemsdisplaycount = 0;
+	
 	itemhighlight = 0;
 	scrollhighlight = false;
 	scrollactive = false;
-	scrollanchor = 0;
 	
 	extendhighlight = false;
 	extendactive = false;
@@ -534,6 +565,15 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		DrawText(x + 4, y, string(value), textcolor);
 	}
 	drawitem_function = drawitem_default;
+	
+	function ValueGetIndex(_value)
+	{
+		for (var i = 0; i < itemcount; i++)
+		{
+			if items[i][0] == _value {return i;}
+		}
+		return -1;
+	}
 	
 	function SetItemDrawFunction(_function)
 	{
@@ -588,7 +628,6 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		w = x2-x1;
 		
 		var n = array_length(items);
-		//itemsperpage = h div common.cellmax;
 		itemcount = n;
 		if n <= itemsperpage {itemoffset = 0;}
 		
@@ -616,14 +655,11 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		var ctrl = GetControl();
 		if ctrl != value
 		{
-			for (var i = 0; i < itemcount; i++)
+			itemindex = ValueGetIndex(ctrl);
+			if itemindex != -1
 			{
-				if items[i][0] == ctrl
-				{
-					value = items[i][0];
-					itemindex = i;
-					break;
-				}
+				value = ctrl;
+				if op {op(value, self);}
 			}
 		}
 		
@@ -672,13 +708,12 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 					else
 					{
 						itemindex = itemindex+lev;
-						if (itemindex < 0) {itemindex = itemcount + itemindex;}
-						itemindex = itemindex mod itemcount;
-					
+						itemindex = clamp(itemindex, 0, itemcount-1);
+						
 						value = items[itemindex][0];
 						UpdateControl(value);
 						if op {op(value, self);}
-					
+						
 						// Push itemoffset so that index is in view
 						if itemcount > itemsperpage
 						{
@@ -688,6 +723,14 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 								{itemoffset = max(0, min(itemindex-itemsperpage+2, itemcount-itemsperpage));}
 						}
 					}
+				}
+				
+				// Default Value
+				if keyboard_check_pressed(vk_backspace)
+				{
+					value = valuedefault;
+					UpdateControl(value);
+					if op {op(value, self);}
 				}
 			}
 			else if _showscroll && !extendactive
@@ -830,6 +873,8 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) constructor
 {
 	color = common.c_base;
+	valuedefault = value;
+	
 	items = [];	// <value, name, description>
 	itemcount = 0;
 	itemindex = 0;
@@ -939,16 +984,21 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 				}
 				
 				// Mouse Wheel
-				var lev = mouse_wheel_down()-mouse_wheel_up();
-				if lev != 0
+				if keyboard_check(vk_control)
 				{
-					itemindex = itemindex+lev;
-					if (itemindex < 0) {itemindex = itemcount + itemindex;}
-					itemindex = itemindex mod itemcount;
+					common.scrolllock = true;
 					
-					value = items[itemindex][0];
-					UpdateControl(value);
-					if op {op(value, self);}
+					var lev = mouse_wheel_down()-mouse_wheel_up();
+					if lev != 0
+					{
+						itemindex = itemindex+lev;
+						if (itemindex < 0) {itemindex = itemcount + itemindex;}
+						itemindex = clamp(itemindex, 0, itemcount-1);
+					
+						value = items[itemindex][0];
+						UpdateControl(value);
+						if op {op(value, self);}
+					}
 				}
 				
 				UpdateTooltip();
