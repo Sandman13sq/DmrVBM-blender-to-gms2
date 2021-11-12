@@ -48,6 +48,19 @@ function UpdatePose()
 		);
 }
 
+function OP_BindPose(value, btn)
+{
+	isplaying = false;
+	Mat4ArrayFlatClear(matpose, Mat4());
+	demo.modelzrot = 0;
+	
+	if keyboard_check_direct(vk_alt)
+	{
+		Mat4ArrayFlatClear(matpose, Mat4Rotate(0, 0, 180));
+		demo.modelzrot = 180;
+	}
+}
+
 function OP_MeshSelect(value, btn)
 {
 	meshselect = value;

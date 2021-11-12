@@ -27,6 +27,7 @@ layout.Real("Pos")
 	.SetBounds(0, 1, 0.02)
 	.Description("Toggle animation playback")
 	.operator_on_change = true;
+layout.Button("Bind Pose").Operator(OP_BindPose);
 
 // Pose
 var l = layout.Dropdown("Poses").List().Operator(OP_PoseMarkerJump);

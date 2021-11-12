@@ -23,6 +23,13 @@ varying vec3 v_dirtocamera_ts;	// ^
 uniform mat4 u_matpose[200];
 uniform vec4 u_light;	// [x, y, z, strength]
 
+const vec3 VEC3YFLIP = vec3(1.0, -1.0, 1.0);
+const mat3 MAT3YFLIP = mat3(
+	1.0,  0.0, 0.0,
+	0.0, -1.0, 0.0,
+	0.0,  0.0, 1.0
+	);
+
 void main()
 {
 	// Attributes --------------------------------------------------------
@@ -57,12 +64,10 @@ void main()
 	vec3 tangent_camspace = matmodelview * normalize(in_Tangent);
 	vec3 bitangent_camspace = matmodelview * normalize(in_Bitangent);
 	
-	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace) * mat3(
-		1.0, 0.0, 0.0,
-		0.0, -1.0, 0.0,
-		0.0, 0.0, 1.0
-		);
+	// Tangent, Bitangent, Normal
+	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace) * MAT3YFLIP;
 	
+	// Transpose Matrix
 	tbn = mat3(
 		tbn[0][0], tbn[1][0], tbn[2][0],
 		tbn[0][1], tbn[1][1], tbn[2][1],

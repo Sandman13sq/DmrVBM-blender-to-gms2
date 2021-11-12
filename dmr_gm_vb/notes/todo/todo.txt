@@ -3,3 +3,4 @@
 - Playback timeline
 - Layout element defaults
 - Fix Marker Name Order
+- Mattran rotations screws up normal lighting

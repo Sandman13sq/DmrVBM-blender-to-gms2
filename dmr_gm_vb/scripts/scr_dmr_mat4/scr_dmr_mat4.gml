@@ -38,11 +38,42 @@ function Mat4Array(nummatrices, m = matrix_build_identity())
 // [ 0, 0, 0, 1, 0, 0, 1, 0, ... ]
 function Mat4ArrayFlat(nummatrices, m = matrix_build_identity())
 {
-	nummatrices *= 16; // Resize to number of values (nummatrices * size of matrix)
-	var out = array_create(nummatrices, 0);
-	for (var i = 0; i < nummatrices; i += 16)
+	var out = array_create(nummatrices*16);
+	
+	if nummatrices > 0
 	{
-		array_copy(out, i, m, i div 16, 16); // Copy default array to position
+		// Set first entry
+		array_copy(out, 0, m, 0, 16);
+	
+		if nummatrices > 1
+		{
+			// Copy section of copied matrices to index of non-copied position
+			/*
+				10000000 (Start with first matrix copied)
+				11000000 (Copy values [0-1] to index 1. Num copies = 2)
+				11110000 (Copy values [0-2] to index 2. Copies = 4)
+				11111111 (Copy values [0-4] to index 4. Copies = 8)
+				[0-8] to 8, [0-16] to 16, [0-32] to 32, and so on...
+				
+				iterations = log2(n)
+				leftover = n - 2^log2(n)
+			*/
+			
+			var nn = 1; // Number of copied matrices
+			
+			// Fill up most of array
+			repeat( log2(nummatrices) ) //while (nn*2 <= n)
+			{
+				array_copy(out, nn*16, out, 0, nn*16);
+				nn *= 2;
+			}
+			
+			// Fill in leftoveer
+			if nn < nummatrices
+			{
+				array_copy(out, (nummatrices-nn)*16, out, 0, nn*16);
+			}
+		}
 	}
 	
 	return out;
@@ -90,7 +121,37 @@ function Mat4ArrayFlatGet(flatarray, index, out = array_create(16))
 }
 
 // Sets all matrices in flat array to matrix "m"
-function Mat4ArrayFlatClear(flatarray, m = matrix_build_identity(), startindex = 0, endindex = -1)
+function Mat4ArrayFlatClear(flatarray, m)
+{
+	var n = array_length(flatarray) div 16;
+	
+	if n > 0
+	{
+		// Set first entry
+		array_copy(flatarray, 0, m, 0, 16);
+	
+		if n > 1
+		{
+			var nn = 1; // Number of copied matrices
+			
+			// Fill up most of array
+			repeat( log2(n) ) //while (nn*2 <= n)
+			{
+				array_copy(flatarray, nn*16, flatarray, 0, nn*16);
+				nn *= 2;
+			}
+			
+			// Fill in leftover
+			if nn < n
+			{
+				array_copy(flatarray, (n-nn)*16, flatarray, 0, nn*16);
+			}
+		}
+	}
+}
+
+// Sets all matrices in flat array to matrix "m"
+function Mat4ArrayFlatClearExt(flatarray, m, startindex = 0, endindex = -1)
 {
 	if startindex < 0 {startindex = 0;}
 	if endindex < 0 {endindex = array_length(flatarray) div 16;}
