@@ -187,7 +187,7 @@ function __LayoutSuper() constructor
 		return point_in_rectangle(common.mx, common.my, x1, y1, x2, y2);
 	}
 	
-	function IsMouseOver2(_x1, _y1, _x2, _y2)
+	function IsMouseOverXY(_x1, _y1, _x2=x2, _y2=y2)
 	{
 		return point_in_rectangle(common.mx, common.my, _x1, _y1, _x2, _y2);
 	}
@@ -309,7 +309,7 @@ function __LayoutSuper() constructor
 		DrawRectWH(
 			xx, 
 			lerp(_yy1, _yy2-hh, _amt),
-			ww, hh, common.c_active
+			ww, hh, scrollhighlight? c_white: common.c_active
 			);	
 	}
 	
@@ -346,6 +346,8 @@ function Layout() : __LayoutSuper() constructor
 	surf = -1;
 	surfyoffset = 0;
 	surfyoffset_target = 0;
+	scrollhighlight = false;
+	scrolloffset = 0;
 	
 	common = {
 		c_base : 0x342022,
@@ -369,9 +371,8 @@ function Layout() : __LayoutSuper() constructor
 		mouseonpress_y : 0,
 		doubleclick : 0,
 		doubleclicktime : 20,
-		clickpressed : 0,
-		clickheld : 0,
-		clickreleased : 0,
+		
+		cursorsprite : cr_arrow,
 		
 		mx : 0,
 		my : 0,
@@ -385,6 +386,8 @@ function Layout() : __LayoutSuper() constructor
 		
 		scrolllock : 0, // Set to zero at start of update
 		scrollx : 10,
+		
+		extendy : 4,
 	};
 	
 	elementmap = {};
@@ -432,8 +435,13 @@ function Layout() : __LayoutSuper() constructor
 		common.doubleclick = 0;
 		common.scrolllock = 0;
 		
+		var _lastcursor = common.cursorsprite;
+		common.cursorsprite = cr_arrow;
+		
 		var _mx = window_mouse_get_x()-x1;
 		var _my = window_mouse_get_y()-y1;
+		var _ystart = (label!="")*common.cellmax;
+		var _displayh = h-(label!="")*common.cellmax;
 		
 		common.tooltip_text = "";
 		common.tooltip_name = "";
@@ -483,6 +491,7 @@ function Layout() : __LayoutSuper() constructor
 		var yy = -surfyoffset+b;
 		var _xx2 = w-b;
 		var _yy2 = h-b;
+		var _lastcontentheight = contentheight;
 		
 		if contentheight > h {_xx2 -= common.scrollx;}
 		contentheight = b;
@@ -498,22 +507,13 @@ function Layout() : __LayoutSuper() constructor
 		}
 		
 		// Clicking Vars
-		var lastheld = common.clickheld;
 		var _ismouseover = false;
 		if point_in_rectangle(
 			window_mouse_get_x(), window_mouse_get_y(), 
 			x1, y1, x2, y2)
 		{
-			common.clickheld = mouse_check_button(mb_left);
-			common.clickpressed = ~lastheld & common.clickheld;
 			_ismouseover = true;
 		}
-		else
-		{
-			common.clickheld = 0;
-			common.clickpressed = 0;
-		}
-		common.clickreleased = lastheld & ~common.clickheld;
 		
 		// Update Children
 		var c;
@@ -527,6 +527,8 @@ function Layout() : __LayoutSuper() constructor
 		}
 		
 		// Scroll
+		scrollhighlight = false;
+		
 		if !common.scrolllock && _ismouseover
 		{
 			var _spd = 16;
@@ -535,15 +537,50 @@ function Layout() : __LayoutSuper() constructor
 			{
 				surfyoffset_target += _spd*_lev;	
 			}
+			
+			if common.mx >= w-common.scrollx
+			{
+				var _ystart = y1+common.cellmax*(label!="");
+				scrollhighlight = true;
+				
+				if mouse_check_button_pressed(mb_left)
+				{
+					scrollactive = true;
+					scrolloffset = (surfyoffset_target/contentheight) * _displayh - (common.my-_ystart);
+				}
+			}
+		}
+		
+		// Scrolling via mouse
+		if !mouse_check_button(mb_left) {scrollactive = false;}
+		if scrollactive
+		{
+			scrollhighlight = true;
+			surfyoffset_target = ( (common.my-_ystart)+scrolloffset ) / _displayh * contentheight;
+		}
+		
+		if _lastcontentheight != contentheight
+		{
+			//surfyoffset_target += contentheight-_lastcontentheight;
 		}
 		
 		// Clamp offset
 		surfyoffset_target = max(0, min(surfyoffset_target, contentheight-h));
 		
 		// Smooth scroll into position
-		var _d = (surfyoffset_target-surfyoffset)/3;
-		if _d > 0 {surfyoffset = min(surfyoffset_target, surfyoffset+_d);}
-		else if _d < 0 {surfyoffset = max(surfyoffset_target, surfyoffset+_d);}
+		if surfyoffset_target != surfyoffset
+		{
+			surfyoffset += (surfyoffset_target-surfyoffset)/(delta_time/3000);
+			if abs(surfyoffset_target-surfyoffset) < 0.2
+			{
+				surfyoffset = surfyoffset_target;
+			}
+		}
+		
+		if _lastcursor != common.cursorsprite
+		{
+			window_set_cursor(common.cursorsprite);
+		}
 		
 		return _ismouseover;
 	}

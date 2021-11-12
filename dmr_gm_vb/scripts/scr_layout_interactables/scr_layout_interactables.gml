@@ -56,6 +56,7 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 	function Update()
 	{
 		value = GetControl();
+		ClickUpdate();
 		
 		if IsMouseOver()
 		{
@@ -64,11 +65,11 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 			color = common.c_highlight;	
 			
 			// When mouse is held
-			if common.clickheld
+			if clickhold
 				{color = common.c_active;}
 			
 			// When mouse is released
-			if common.clickreleased
+			if clickrelease
 			{
 				if toggle_on_click
 				{
@@ -135,6 +136,7 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 	function Update()
 	{
 		value = GetControl();
+		ClickUpdate();
 		
 		if IsMouseOver()
 		{
@@ -142,12 +144,10 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 			
 			color = common.c_highlight;	
 			
-			if common.clickheld
-			{
-				color = common.c_active;
-			}
+			if clickhold
+				{color = common.c_active;}
 			
-			if common.clickreleased
+			if clickrelease
 			{
 				value ^= 1; // Toggle boolean
 				UpdateControl(value);
@@ -232,15 +232,16 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		color[2] = common.c_base;
 		
 		value = GetControl();
+		ClickUpdate();
 		
-		var mbheld = common.clickheld;
-		var mbpressed = common.clickpressed;
-		var mbreleased = common.clickreleased;
+		var mbheld = clickhold;
+		var mbpressed = clickpress;
+		var mbreleased = clickrelease;
 		
 		if active
 		{
 			// Drag Value
-			if mouse_check_button(mb_left)
+			if clickhold
 			{
 				window_set_cursor(cr_none);
 				color[1] = common.c_active;
@@ -309,7 +310,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			if !draw_increments {xx[1] = x1; xx[2] = x2;}
 			
 			// Decrement
-			if draw_increments && IsMouseOver2(xx[0], y1, xx[1], y2)
+			if draw_increments && IsMouseOverXY(xx[0], y1, xx[1], y2)
 			{
 				color[0] = common.c_highlight;
 				if mbheld {color[0] = common.c_active;}
@@ -321,7 +322,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				}
 			}
 			// Increment
-			else if draw_increments && IsMouseOver2(xx[2], y1, xx[3], y2)
+			else if draw_increments && IsMouseOverXY(xx[2], y1, xx[3], y2)
 			{
 				color[2] = common.c_highlight;
 				if mbheld {color[2] = common.c_active;}
@@ -333,7 +334,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				}
 			}
 			// Middle
-			else if IsMouseOver2(xx[1], y1, xx[2], y2)
+			else if IsMouseOverXY(xx[1], y1, xx[2], y2)
 			{
 				common.scrolllock = true;
 				color[1] = common.c_highlight;
@@ -441,8 +442,8 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				}
 				
 			}
-				
-			if common.clickpressed
+			
+			if clickpress
 			{
 				typing = 0;	
 				valueanchor = value;
@@ -513,9 +514,16 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	itemcount = 0;	// Updated in UpdatePos()
 	itemsperpage = 6;
 	itemindex = 0;
-	offset = 0;
+	itemoffset = 0;
 	
 	itemhighlight = 0;
+	scrollhighlight = false;
+	scrollactive = false;
+	scrollanchor = 0;
+	
+	extendhighlight = false;
+	extendactive = false;
+	extendanchor = 0;
 	
 	static drawitem_default = function(x, y, value, index, textcolor, button)
 	{
@@ -582,9 +590,9 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		var n = array_length(items);
 		//itemsperpage = h div common.cellmax;
 		itemcount = n;
-		if n <= itemsperpage {offset = 0;}
+		if n <= itemsperpage {itemoffset = 0;}
 		
-		h = common.cellmax * itemsperpage;
+		h = common.cellmax * itemsperpage + common.extendy;
 		
 		if label != "" {h += common.cellmax;}
 		
@@ -598,6 +606,12 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	
 	function Update()
 	{
+		scrollhighlight = false;
+		
+		var _y1 = y1+(label!="")*common.cellmax;
+		var _showscroll = itemcount > itemsperpage;
+		var _displayh = y2-_y1;
+		
 		// Sync Control
 		var ctrl = GetControl();
 		if ctrl != value
@@ -613,60 +627,78 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			}
 		}
 		
-		if IsMouseOver() && itemcount > 0
+		ClickUpdate();
+		
+		if itemcount > 0
 		{
-			// Lock layout scrolling
-			if itemcount > itemsperpage
+			if IsMouseOverXY(x1, _y1, _showscroll? x2-common.scrollx: x2, y2-common.extendy)
+			&& !scrollactive
+			&& !extendactive
 			{
-				common.scrolllock = true;
-			}
-			
-			// Index of item that mouse is over
-			itemhighlight = clamp(floor((common.my-y1-common.cellmax*(label != "")) / common.cellmax)+offset, 0, itemcount-1);
-			
-			// On mouse click
-			if common.clickreleased
-			{
-				itemindex = itemhighlight;
-				value = items[itemindex][0];
-				if op {op(value, self, items);}
-			}
-			
-			// Mouse Wheel
-			var lev = mouse_wheel_down()-mouse_wheel_up();
-			if lev != 0
-			{
-				// Scroll item list
-				if !keyboard_check(vk_control)
+				// Lock layout scrolling
+				if _showscroll
 				{
-					if itemcount > itemsperpage
+					common.scrolllock = true;
+				}
+			
+				// Index of item that mouse is over
+				itemhighlight = clamp(floor((common.my-_y1) / common.cellmax)+itemoffset, 0, itemcount-1);
+				
+				// On mouse click
+				if clickpress
+				{
+					itemindex = itemhighlight;
+					value = items[itemindex][0];
+					if op {op(value, self, items);}
+				}
+			
+				// Mouse Wheel
+				var lev = mouse_wheel_down()-mouse_wheel_up();
+				if lev != 0
+				{
+					// Scroll item list
+					if !keyboard_check(vk_control)
 					{
-						var _lev = mouse_wheel_down()-mouse_wheel_up();
-						if _lev != 0
+						if _showscroll
 						{
-							offset = clamp(offset+_lev, 0, itemcount-itemsperpage);	
+							var _lev = mouse_wheel_down()-mouse_wheel_up();
+							if _lev != 0
+							{
+								itemoffset = clamp(itemoffset+_lev, 0, itemcount-itemsperpage);	
+							}
+						}
+					}
+					// Move between items
+					else
+					{
+						itemindex = itemindex+lev;
+						if (itemindex < 0) {itemindex = itemcount + itemindex;}
+						itemindex = itemindex mod itemcount;
+					
+						value = items[itemindex][0];
+						UpdateControl(value);
+						if op {op(value, self);}
+					
+						// Push itemoffset so that index is in view
+						if itemcount > itemsperpage
+						{
+							if itemindex < itemoffset+1 
+								{itemoffset = max(0, itemindex-1);}
+							else if itemindex+2 > itemoffset+itemsperpage
+								{itemoffset = max(0, min(itemindex-itemsperpage+2, itemcount-itemsperpage));}
 						}
 					}
 				}
-				// Move between items
-				else
+			}
+			else if _showscroll && !extendactive
+			if IsMouseOverXY(x1+common.scrollx, _y1, x2, y2-common.extendy)
+			{
+				scrollhighlight = true;
+				
+				if clickpress
 				{
-					itemindex = itemindex+lev;
-					if (itemindex < 0) {itemindex = itemcount + itemindex;}
-					itemindex = itemindex mod itemcount;
-					
-					value = items[itemindex][0];
-					UpdateControl(value);
-					if op {op(value, self);}
-					
-					// Push offset so that index is in view
-					if itemcount > itemsperpage
-					{
-						if itemindex < offset+1 
-							{offset = max(0, itemindex-1);}
-						if itemindex+2 > offset+itemsperpage
-							{offset = clamp(itemindex-itemsperpage+2, 0, itemcount-itemsperpage);}
-					}
+					scrollactive = true;
+					scrolloffset = (itemoffset/itemcount) * _displayh - (common.my-_y1);
 				}
 			}
 		}
@@ -674,6 +706,57 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		{
 			color = common.c_base;	
 			itemhighlight = -1;
+		}
+		
+		// Scrolling via mouse
+		if !clickhold {scrollactive = false;}
+		if scrollactive
+		{
+			scrollhighlight = true;
+			itemoffset = ( (common.my-_y1)+scrolloffset ) / (_displayh) * itemcount;
+			itemoffset = clamp(round(itemoffset), 0, itemcount-itemsperpage);
+		}
+		
+		// Extender
+		if IsMouseOverXY(x1, y2-common.extendy, x2, y2)
+		{
+			extendhighlight = true;
+			common.cursorsprite = cr_size_ns;
+			
+			if clickpress
+			{
+				extendactive = true;
+			}
+		}
+		else
+		{
+			extendhighlight = false;	
+		}
+		
+		if extendactive
+		{
+			if clickhold
+			{
+				extendhighlight = true;
+				itemsperpage = floor((common.my-_y1) / common.cellmax);
+				itemsperpage = max(itemsperpage, 1);
+				common.cursorsprite = cr_size_ns;
+				
+				// Push itemoffset so that index is in view
+				if itemcount > itemsperpage
+				{
+					if itemindex < itemoffset+1 
+						{itemoffset = max(0, itemindex-1);}
+					else if itemindex+2 > itemoffset+itemsperpage
+						{itemoffset = max(0, min(itemindex-itemsperpage+2, itemcount-itemsperpage));}
+					
+					itemoffset = max(0, min(itemoffset, itemcount-itemsperpage));
+				}	
+			}
+			else
+			{
+				extendactive = false;	
+			}
 		}
 	}
 	
@@ -685,13 +768,12 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		var yy = y1 + _cs*(label != "");
 		var _xx1 = x1+1, _xx2 = x2-2;
 		var _linex1 = x1+4, _linex2 = x2-4-common.scrollx;
-		var _recty1 = y1+4, _recty2 = y1+_cs-2;
 		var _color;
 		var _chigh = common.c_highlight;
 		var _texty = (_itemysep-common.celltext)/2;
 		
 		// Draw Items
-		var _start = offset, _end = min(offset+itemsperpage, itemcount);
+		var _start = itemoffset, _end = min(itemoffset+itemsperpage, itemcount);
 		for (var i = _start; i < _end; i++)
 		{
 			// Active item
@@ -730,10 +812,18 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			DrawScrollBar(
 				y1 + _cs*(label != ""), 
 				y2-4, 
-				offset/(itemcount-itemsperpage),
+				itemoffset/(itemcount-itemsperpage),
 				itemsperpage/itemcount
 				);
 		}
+		
+		// Draw Extender
+		var _col = extendactive? c_white: common.c_active;
+		draw_rectangle_color(
+			lerp(x1, x2, 0.4), y2-common.extendy+1,
+			lerp(x1, x2, 0.6), y2-1,
+			_col, _col, _col, _col, !extendhighlight
+			);
 	}
 }
 
@@ -832,17 +922,17 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 			}
 		}
 		
+		ClickUpdate();
+		
+		// Mouse Controls
 		if IsMouseOver()
 		{
-			// Lock layout scrolling
-			common.scrolllock = true;
-			
 			common.active = self;
-			color = common.c_highlight;	
+			color = common.c_highlight;
 			
 			if !active
 			{
-				if common.clickreleased
+				if clickrelease
 				{
 					// Open dropdown
 					active = 1;
@@ -865,13 +955,13 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 			}
 			else
 			{
-				if IsMouseOver2(x1, y1+common.cellmax, x2, y2)
+				if IsMouseOverXY(x1, y1+common.cellmax, x2, y2)
 				{
 					itemhighlight = clamp(floor((common.my-y1-common.cellmax)/common.cellmax), 0, itemcount-1);
 					
 					UpdateTooltip(label, items[itemhighlight][2]);
 					
-					if common.clickreleased
+					if clickrelease
 					{
 						itemindex = itemhighlight;
 						value = items[itemindex][0];
@@ -935,6 +1025,190 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		else
 		{
 			DrawText(x1+3, y1, items[itemindex][1]);
+		}
+	}
+}
+
+function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) constructor
+{
+	b = 4;
+	color = common.c_base;
+	usesscroll = true;
+	surf = -1;
+	surfyoffset = 0;
+	surfyoffset_target = 0;
+	contentheight = 0;
+	surfheight = 160;
+	scrollhighlight = false;
+	
+	function UpdatePos(_x1, _y1, _x2, _y2)
+	{
+		var hsep = common.cellmax;
+		
+		x1 = _x1;
+		y1 = _y1;
+		x2 = _x2;
+		y2 = y1;
+		w = x2-x1;
+		
+		if active
+		{
+			var yy = -surfyoffset+b;
+			var _xx2 = w-b;
+			var _yy2 = h-b;
+			
+			// Scrollbar offset
+			if contentheight > h {_xx2 -= common.scrollx;}
+			contentheight = b;
+			
+			var offset;
+			for (var i = 0; i < childrencount; i++)
+			{
+				offset = children[i].UpdatePos(b, yy, _xx2, _yy2);	
+				yy += offset[1]+1;
+				contentheight += offset[1]+1;
+			}
+			
+			surfheight = contentheight+b;
+			h = surfheight+hsep;
+		}
+		else
+		{
+			h = hsep;	
+		}
+		
+		// Smooth scroll into position
+		if surfyoffset_target != surfyoffset
+		{
+			surfyoffset += (surfyoffset_target-surfyoffset)/(delta_time/3000);
+			if abs(surfyoffset_target-surfyoffset) < 0.2
+			{
+				surfyoffset = surfyoffset_target;
+			}
+		}
+		
+		y2 = y1+h;
+		
+		xc = lerp(x1, x2, 0.5);
+		yc = lerp(y1, y2, 0.5);
+		
+		return [w, h];
+	}
+	
+	function Update()
+	{
+		ClickUpdate();
+		
+		var _cs = common.cellmax;
+		
+		color = common.c_base;
+		scrollhighlight = false;
+		
+		// Toggle Expand
+		if IsMouseOverExt(x1, y1, w, active? _cs: h)
+		{
+			color = common.c_highlight;
+			if clickhold
+				{color = common.c_active;}
+			if clickrelease
+				{active ^= 1;}
+		}
+		
+		// Update Children
+		if active
+		{
+			var _oldmy = common.my;
+			common.my -= y1+_cs;
+			
+			if IsMouseOverExt(0, 0, w, h-_cs)
+			{
+				// Scroll
+				var _spd = 16;
+				var _lev = mouse_wheel_down()-mouse_wheel_up();
+				if _lev != 0
+				{
+					surfyoffset_target += _spd*_lev;
+				}
+				
+				// Clamp Scroll Offset
+				surfyoffset_target = max(0, min(surfyoffset_target, contentheight-h+_cs+b));
+				common.scrolllock = true;
+				
+				if common.mx > x2 - common.scrollx
+				{
+					scrollhighlight = true;	
+				}
+				else
+				{
+					scrollhighlight = false;	
+				}
+			}
+			
+			var i = 0; repeat(childrencount)
+			{
+				children[i].Update();
+				i++;
+			}
+			common.my = _oldmy;
+		}
+	}
+	
+	function Draw()
+	{
+		DrawRectWH(x1, y1, w, h, color);
+		
+		if label != ""
+		{
+			draw_set_halign(0);
+			draw_set_valign(0);
+			DrawText(x1+4, y1, label);
+		}
+		
+		draw_set_halign(2);
+		draw_set_valign(0);
+		DrawText(x2-4, y1, active? "-": "+");
+		
+		if active
+		{
+			// Update surface
+			var _w = 1 << ceil(log2(w)); // Use highest power of 2
+			var _h = 1 << ceil(log2(contentheight));
+		
+			if !surface_exists(surf)
+			{
+				surf = surface_create(_w, _h);
+			}
+			else if surface_get_width(surf) < _w || surface_get_height(surf) < _h
+			{
+				surface_resize(surf, _w, _h);	
+			}
+		
+			// Surface Start ----------------------------------------------------
+			surface_set_target(surf);
+		
+			draw_clear_alpha(0, 0);
+			
+			// Draw Children
+			for (var i = 0; i < childrencount; i++)
+			{
+				children[i].Draw();	
+			}
+		
+			surface_reset_target(); // It pops the active surface, DOESN'T return to application surface
+			// Surface End -----------------------------------------------------
+			
+			draw_surface_part(surf, 0, 0, w, surfheight-b, x1, y1+common.cellmax);
+			
+			// Draw Scrollbar
+			if contentheight > h
+			{
+				DrawScrollBar(
+					y1+common.cellmax, 
+					y2-4, 
+					-surfyoffset/(h-contentheight-common.cellmax),
+					h/contentheight
+					);
+			}
 		}
 	}
 }
