@@ -7,7 +7,7 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	common = root.common;
 	
 	op = 0; // Function to call
-	active = 0;
+	active = false;
 	
 	control_src = noone; // Object to read variables from
 	control_path = []; // Variable name
@@ -20,6 +20,10 @@ function LayoutElement(_root, _parent) : __LayoutSuper() constructor
 	w = 0;
 	h = 0;
 	b = 4; // Border
+	
+	xscale = 1.0;
+	yscale = 1.0;
+	
 	label = "";
 	value = 0;
 	valuedefault = 0;

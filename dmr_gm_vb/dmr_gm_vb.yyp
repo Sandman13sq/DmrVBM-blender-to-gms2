@@ -2,7 +2,6 @@
   "resources": [
     {"id":{"name":"scr_layout_interactables","path":"scripts/scr_layout_interactables/scr_layout_interactables.yy",},"order":10,},
     {"id":{"name":"rm_worldtest","path":"rooms/rm_worldtest/rm_worldtest.yy",},"order":2,},
-    {"id":{"name":"obj_curly","path":"objects/obj_curly/obj_curly.yy",},"order":2,},
     {"id":{"name":"obj_dm_normal","path":"objects/obj_dm_normal/obj_dm_normal.yy",},"order":0,},
     {"id":{"name":"tex_curly_hair_col","path":"sprites/tex_curly_hair_col/tex_curly_hair_col.yy",},"order":7,},
     {"id":{"name":"shd_default","path":"shaders/shd_default/shd_default.yy",},"order":1,},
@@ -36,7 +35,6 @@
     {"id":{"name":"tex_curly_def_col","path":"sprites/tex_curly_def_col/tex_curly_def_col.yy",},"order":2,},
     {"id":{"name":"obj_dm_vbx","path":"objects/obj_dm_vbx/obj_dm_vbx.yy",},"order":2,},
     {"id":{"name":"shd_full","path":"shaders/shd_full/shd_full.yy",},"order":6,},
-    {"id":{"name":"scr_rendering","path":"scripts/scr_rendering/scr_rendering.yy",},"order":4,},
     {"id":{"name":"fnt_default","path":"fonts/fnt_default/fnt_default.yy",},"order":0,},
     {"id":{"name":"scr_dmr_quat","path":"scripts/scr_dmr_quat/scr_dmr_quat.yy",},"order":2,},
     {"id":{"name":"tex_curly_eyewhite_col","path":"sprites/tex_curly_eyewhite_col/tex_curly_eyewhite_col.yy",},"order":4,},

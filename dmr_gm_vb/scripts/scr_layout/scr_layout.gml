@@ -203,6 +203,22 @@ function __LayoutSuper() constructor
 		return point_in_rectangle(common.mx, common.my, x, y, x+w, y+h);
 	}
 	
+	function DefineControl(_source, _varpatharray, _varindex = -1)
+	{
+		control_src = _source;
+		if is_array(_varpatharray)
+		{
+			array_copy(control_path, 0, _varpatharray, 0, array_length(_varpatharray));	
+		}
+		else
+		{
+			array_resize(control_path, 1);
+			control_path[0] = _varpatharray;
+		}
+		control_index = _varindex;
+		return self;
+	}
+	
 	function GetControl()
 	{
 		// Source exists
@@ -239,55 +255,56 @@ function __LayoutSuper() constructor
 		return value;
 	}
 	
-	function DefineControl(_source, _varpatharray, _varindex = -1)
-	{
-		control_src = _source;
-		if is_array(_varpatharray)
-		{
-			array_copy(control_path, 0, _varpatharray, 0, array_length(_varpatharray));	
-		}
-		else
-		{
-			array_resize(control_path, 1);
-			control_path[0] = _varpatharray;
-		}
-		control_index = _varindex;
-		return self;
-	}
-	
 	function UpdateControl(_value)
 	{
 		// Source exists
 		if !is_undefined(control_src)
 		{
 			var n = array_length(control_path);
-			var _current = control_src;
-			var _lastcurrent = _current;
-			var i = 0;
 			
-			// For each path step
-			for (i = 0; i < n; i++)
+			// One key
+			if n == 1
 			{
-				if variable_struct_exists(_current, control_path[i])
+				if control_index >= 0
 				{
-					_lastcurrent = _current;
-					_current = _current[$ control_path[i]];
+					control_src[$ control_path[0]][@ control_index] = _value;	
 				}
 				else
 				{
-					break;	
+					control_src[$ control_path[0]] = _value;	
 				}
 			}
+			// More than one key
+			else if n > 1
+			{
+				var _current = control_src;
+				var _lastcurrent = _current;
+				var i = 0;
 			
-			// Path result is array and index is given
-			if control_index >= 0 && is_array(_current)
-			{
-				_current[@ control_index] = _value;
-			}
-			// Path result is not an array
-			else
-			{
-				_lastcurrent[$ control_path[i-1]] = _value;
+				// For each path step
+				for (i = 0; i < n; i++)
+				{
+					if variable_struct_exists(_current, control_path[i])
+					{
+						_lastcurrent = _current;
+						_current = _current[$ control_path[i]];
+					}
+					else
+					{
+						break;	
+					}
+				}
+			
+				// Path result is array and index is given
+				if control_index >= 0 && is_array(_current)
+				{
+					_current[@ control_index] = _value;
+				}
+				// Path result is not an array
+				else
+				{
+					_lastcurrent[$ control_path[i-1]] = _value;
+				}
 			}
 		}
 	}
@@ -332,6 +349,21 @@ function __LayoutSuper() constructor
 	function DrawRectXY(x1, y1, x2, y2, color, alpha=1)
 	{
 		DrawRectWH(x1, y1, x2-x1, y2-y1, color, alpha);
+	}
+	
+	function DrawFillXY(x1, y1, x2, y2, color, alpha=1)
+	{
+		draw_primitive_begin(pr_trianglelist);
+		
+		draw_vertex_color(x1, y1, color, alpha);
+		draw_vertex_color(x1, y2, color, alpha);
+		draw_vertex_color(x2, y2, color, alpha);
+		
+		draw_vertex_color(x2, y2, color, alpha);
+		draw_vertex_color(x2, y1, color, alpha);
+		draw_vertex_color(x1, y1, color, alpha);
+		
+		draw_primitive_end();
 	}
 	
 	function DrawText(x, y, text, color = c_white)
@@ -735,8 +767,4 @@ function Layout() : __LayoutSuper() constructor
 		return variable_struct_get(root.elementmap, _idname);
 	}
 	
-	function IsMouseOver()
-	{
-			
-	}
 }

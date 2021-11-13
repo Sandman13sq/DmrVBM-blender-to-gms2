@@ -30,14 +30,30 @@ mouselock = 0;
 
 lightdata = [-16,-128,64, 1];
 
-vb_world = LoadVertexBuffer("world.vb", RENDERING.vbformat.model);
-vb_ball = LoadVertexBuffer("ball.vb", RENDERING.vbformat.basic);
+// Models =============================================================
+
+vertex_format_begin();
+vertex_format_add_position_3d();
+vertex_format_add_color();
+vertex_format_add_texcoord();
+vbf_basic = vertex_format_end();
+
+vertex_format_begin();
+vertex_format_add_position_3d();
+vertex_format_add_normal();
+vertex_format_add_color();
+vertex_format_add_texcoord();
+vbf_model = vertex_format_end();
+
+vb_world = LoadVertexBuffer("world.vb", vbf_model);
+vb_ball = LoadVertexBuffer("ball.vb", vbf_basic);
 vb_grid = CreateGridVB(128, 1);
 
 drawworld = true;
 drawcamerapos = false;
 drawgrid = true;
 
+u_shd_model_light = shader_get_uniform(shd_model, "u_light");
 u_shd_model_drawmatrix = shader_get_uniform(shd_model, "u_drawmatrix");
 
 // Demos ==============================================================

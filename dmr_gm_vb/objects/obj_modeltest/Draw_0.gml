@@ -11,6 +11,8 @@ shader_set(shd_model);
 
 matrix_set(matrix_world, matrix_build_identity());
 
+shader_set_uniform_f_array(u_shd_model_light, lightdata);
+
 // Draw World
 if drawworld
 {

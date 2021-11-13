@@ -188,8 +188,7 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 		// Draw back highlight
 		if ismouseover
 		{
-			var c = color;
-			draw_rectangle_color(x1+2, y1+2, x2-2, y2-2, c, c, c, c, 0);	
+			DrawFillXY(x1+2, y1+2, x2-2, y2-2, color, 0);	
 		}
 		
 		// Draw "checkbox"
@@ -257,12 +256,12 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		var mbpressed = clickpress;
 		var mbreleased = clickrelease;
 		
+		// Drag Value
 		if active
 		{
-			// Drag Value
 			if clickhold
 			{
-				window_set_cursor(cr_none);
+				common.cursorsprite = cr_none;
 				color[1] = common.c_active;
 				common.active = self;
 				
@@ -308,7 +307,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			}
 			else
 			{
-				active = 0;
+				active = false;
 				window_mouse_set(mouseanchor[0], mouseanchor[1]);
 				window_set_cursor(cr_arrow);
 				
@@ -320,6 +319,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			
 		}
 		
+		// Basic Controls
 		if IsMouseOver() && !active
 		{
 			UpdateTooltip();
@@ -371,18 +371,16 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 					if mbpressed
 					{
 						valueanchor = value;
-						active = 1;
+						active = true;
 					
 						mouseanchor[0] = window_mouse_get_x();
 						mouseanchor[1] = window_mouse_get_y();
-						//window_mouse_set(window_get_width()/2, window_get_height()/2);
 						window_mouse_set(mouseanchor[0], mouseanchor[1]);
 					}
 					
 					if mbreleased
 					{
 						if op {op(value, self);}
-						window_set_cursor(cr_arrow);
 					}
 					
 					var d = mouse_wheel_up()-mouse_wheel_down();
@@ -411,6 +409,8 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 						UpdateControl(value);
 						if op {op(value, self);}
 					}
+					
+					common.cursorsprite = cr_size_we;
 				}
 			}
 		}
@@ -420,12 +420,12 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		{
 			if keyboard_check_pressed(vk_escape)
 			{
-				typing = 0;
+				typing = false;
 				valueanchor = value;
 			}
 			else if keyboard_check_pressed(vk_enter)
 			{
-				typing = 0;
+				typing = false;
 				if string_digits(keyboard_string) != ""
 				{
 					var err;
@@ -470,11 +470,12 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				
 			}
 			
-			if clickpress
+			if mouse_check_button_pressed(mb_left)
+			&& !IsMouseOver()
 			{
-				typing = 0;	
+				typing = false;	
 				valueanchor = value;
-				active = 0;
+				active = false;
 			}	
 		}
 	}
@@ -631,7 +632,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		itemcount = n;
 		if n <= itemsperpage {itemoffset = 0;}
 		
-		h = common.cellmax * itemsperpage + common.extendy;
+		h = common.cellmax * itemsperpage + common.extendy + b;
 		
 		if label != "" {h += common.cellmax;}
 		
@@ -667,7 +668,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		
 		if itemcount > 0
 		{
-			if IsMouseOverXY(x1, _y1, _showscroll? x2-common.scrollx: x2, y2-common.extendy)
+			if IsMouseOverXY(x1, _y1, _showscroll? x2-common.scrollx: x2, y2-common.extendy-b)
 			&& !scrollactive
 			&& !extendactive
 			{
@@ -761,7 +762,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		}
 		
 		// Extender
-		if IsMouseOverXY(x1, y2-common.extendy, x2, y2)
+		if IsMouseOverXY(x1, y2-common.extendy-b, x2, y2)
 		{
 			extendhighlight = true;
 			common.cursorsprite = cr_size_ns;
@@ -801,6 +802,8 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 				extendactive = false;	
 			}
 		}
+		
+		label = [itemindex, itemhighlight];
 	}
 	
 	function Draw()
@@ -816,14 +819,13 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		var _texty = (_itemysep-common.celltext)/2;
 		
 		// Draw Items
-		var _start = itemoffset, _end = min(itemoffset+itemsperpage, itemcount);
+		var _start = max(itemoffset, 0), _end = min(itemoffset+itemsperpage, itemcount);
 		for (var i = _start; i < _end; i++)
 		{
 			// Active item
 			if itemindex == i
 			{
-				draw_rectangle_color(_xx1, yy+2, _xx2, yy+_itemysep-2,
-					_chigh, _chigh, _chigh, _chigh, 0);
+				DrawFillXY(_xx1, yy+2, _xx2, yy+_itemysep-2, c_white, 0.5);
 			}
 			
 			// Text Color
@@ -837,7 +839,8 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 			// Item Separator
 			if i < _end-1
 			{
-				draw_line_color(_linex1, yy, _linex2, yy, c_white, c_white);
+				draw_line_color(_linex1, yy, _linex2, yy, 
+					common.c_base, common.c_base);
 			}
 		}
 		
@@ -861,11 +864,11 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		}
 		
 		// Draw Extender
-		var _col = extendactive? c_white: common.c_active;
-		draw_rectangle_color(
-			lerp(x1, x2, 0.4), y2-common.extendy+1,
-			lerp(x1, x2, 0.6), y2-1,
-			_col, _col, _col, _col, !extendhighlight
+		var _col = extendactive? c_white: (extendhighlight? common.c_active: common.c_highlight);
+		DrawFillXY(
+			lerp(x1, x2, 0.4), y2-common.extendy+1-b,
+			lerp(x1, x2, 0.6), y2-1-b,
+			_col, 1
 			);
 	}
 }
@@ -980,7 +983,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 				if clickrelease
 				{
 					// Open dropdown
-					active = 1;
+					active = true;
 				}
 				
 				// Mouse Wheel
@@ -1017,7 +1020,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 						value = items[itemindex][0];
 						UpdateControl(value);
 						if op {op(value, self);}
-						active = 0;
+						active = false;
 					}
 				}
 				else
@@ -1029,8 +1032,9 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		else
 		{
 			color = common.c_base;
-			active = 0;
+			active = false;
 		}
+		
 	}
 	
 	function Draw()
@@ -1053,10 +1057,9 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 				// Active item
 				if itemindex == i
 				{
-					draw_rectangle_color(x1+1, yy+1, x2-2, yy+common.cellmax,
-						_chigh, _chigh, _chigh, _chigh, 0);
+					DrawFillXY(x1+1, yy+1, x2-2, yy+common.cellmax, c_white, 0.5);
 				}
-			
+				
 				e = items[i];
 				DrawText(x1+5, yy, e[1], (itemhighlight==i)? c_white: c_ltgray);
 				yy += hh;

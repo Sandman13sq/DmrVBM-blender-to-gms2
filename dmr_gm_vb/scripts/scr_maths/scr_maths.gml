@@ -85,3 +85,44 @@ function ArrayToRGB(_array, index=0)
 {
 	return make_color_rgb(255*_array[index], 255*_array[index+1], 255*_array[index+2])
 }
+
+function ArrayClear(_array, value)
+{
+	var n = array_length(_array);
+	
+	if n > 0
+	{
+		// Set first entry
+		_array[@ 0] = value;
+	
+		if n > 1
+		{
+			var nn = 1; // Number of copied values
+			
+			// Fill up most of array
+			repeat( log2(n) )
+			{
+				array_copy(_array, nn, _array, 0, nn);
+				nn *= 2;
+			}
+			
+			// Fill in leftoveer
+			if nn < n
+			{
+				array_copy(_array, (n-nn), _array, 0, nn);
+			}
+		}
+	}
+	
+	return _array;
+}
+
+function BuildDrawMatrix(alpha=1, emission=0, shine=1, sss=0, blendcol=0, blendamt=0, fillcol=0, fillamt=0)
+{
+	return [
+		alpha, emission, shine, sss, 
+		color_get_red(blendcol)*0.004, color_get_green(blendcol)*0.004, color_get_blue(blendcol)*0.004, blendamt,
+		color_get_red(fillcol)*0.004, color_get_green(fillcol)*0.004, color_get_blue(fillcol)*0.004, fillamt,
+		0,0,0,0
+	];
+}

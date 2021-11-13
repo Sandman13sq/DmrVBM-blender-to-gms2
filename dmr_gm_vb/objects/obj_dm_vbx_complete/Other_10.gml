@@ -94,3 +94,18 @@ function OP_SetInterpolation(value, btn)
 	interpolationtype = value;
 	UpdateAnim();
 }
+
+function OP_ToggleAllVisibility(value, btn)
+{
+	var n = array_length(meshvisible);
+	for (var i = 0; i < n; i++)
+	{
+		if meshvisible[i]
+		{
+			ArrayClear(meshvisible, 0);
+			return;
+		}
+	}
+	
+	ArrayClear(meshvisible, 1);
+}

@@ -22,7 +22,7 @@ function CreateGridVB(cellcount, cellsize)
 	var width = cellsize * cellcount;
 	
 	var out = vertex_create_buffer();
-	vertex_begin(out, vbf.basic);
+	vertex_begin(out, vbf_basic);
 	for (var i = -cellcount; i <= cellcount; i++)
 	{
 		if i == 0 {continue;}

@@ -14,8 +14,13 @@ for (var i = 0; i < vbx.vbcount; i++)
 {
 	l.DefineListItem(i, vbx.vbnames[i], vbx.vbnames[i]);
 }
-b.Bool("Visible").SetIDName("meshvisible")
-	.DefineControl(self, "meshvisible", meshselect);
+
+var r = b.Row();
+r.Bool("Visible").SetIDName("meshvisible")
+	.DefineControl(self, "meshvisible", meshselect)
+	.Description("Toggle visibility for selected mesh");
+r.Button("Toggle All").Operator(OP_ToggleAllVisibility)
+	.Description("Toggle visibility for all meshes");
 
 layout.Real("Skin SSS").DefineControl(self, "skinsss").SetBounds(0, 1).operator_on_change = true;
 
