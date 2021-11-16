@@ -23,6 +23,8 @@ function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 	}
 	if _hasnormals
 	{
+		c.Bool("Use Normal Maps").DefineControl(demo, "usenormalmap")
+			.Description("Use normal maps on objects that have them.");
 		c.Bool("Draw Normal Maps").DefineControl(demo, "drawnormal")
 			.Description("Display normal maps on objects that have them.");
 	}

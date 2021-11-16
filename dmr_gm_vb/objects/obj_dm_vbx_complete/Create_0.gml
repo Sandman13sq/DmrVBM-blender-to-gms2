@@ -60,5 +60,11 @@ u_shd_complete_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
 u_shd_complete_light = shader_get_uniform(_shd, "u_light");
 u_shd_complete_matpose = shader_get_uniform(_shd, "u_matpose");
 u_shd_complete_texnormal = shader_get_sampler_index(_shd, "u_texnormal");
+u_shd_complete_mattex = shader_get_uniform(_shd, "u_mattex");
+
+mattex_x = 0;
+mattex_y = 0;
+mattex_z = 0;
+mattex = Mat4();
 
 event_user(1);

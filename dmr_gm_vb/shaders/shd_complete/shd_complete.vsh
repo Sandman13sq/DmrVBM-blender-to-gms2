@@ -22,6 +22,7 @@ varying vec3 v_dirtocamera_ts;	// ^
 // Uniforms passed in before draw call
 uniform mat4 u_matpose[200];
 uniform vec4 u_light;	// [x, y, z, strength]
+uniform mat4 u_mattex;
 
 const vec3 VEC3YFLIP = vec3(1.0, -1.0, 1.0);
 const mat3 MAT3YFLIP = mat3(
@@ -49,7 +50,8 @@ void main()
     
 	// Varyings ----------------------------------------------------------
     v_color = in_Color;
-    v_uv = in_Uv;
+    //v_uv = in_Uv;
+    v_uv = ( u_mattex*vec4(in_Uv, 1.0, 1.0) ).xy;
 	
 	// Shading Variables ----------------------------------------------
 	vec3 vertexpos_cs = (gm_Matrices[MATRIX_WORLD_VIEW] * vertexpos).xyz;

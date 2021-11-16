@@ -17,6 +17,7 @@ shader_set_uniform_f_array(u_shd_complete_light, obj_modeltest.lightdata);
 
 // Pose
 shader_set_uniform_matrix_array(u_shd_complete_matpose, matpose);
+shader_set_uniform_matrix_array(u_shd_complete_mattex, mattex);
 
 matrix_set(matrix_world, matrix_build(
 	obj_modeltest.modelposition[0], 
@@ -37,7 +38,7 @@ for (var i = 0; i < n; i++)
 		drawmatrix[3] = string_pos("skin", vbx.vbnames[i])? skinsss: sss;
 		shader_set_uniform_f_array(u_shd_complete_drawmatrix, drawmatrix);
 		
-		texture_set_stage(u_shd_complete_texnormal, meshnormalmap[i]);
+		texture_set_stage(u_shd_complete_texnormal, demo.usenormalmap? meshnormalmap[i]: -1);
 		
 		if demo.drawnormal {vertex_submit(vbx.vb[i], _primitivetype, meshnormalmap[i]);}
 		else if demo.usetextures {vertex_submit(vbx.vb[i], _primitivetype, meshtexture[i]);}

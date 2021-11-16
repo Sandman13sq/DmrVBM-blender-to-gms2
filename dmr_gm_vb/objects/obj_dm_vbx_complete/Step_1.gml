@@ -26,3 +26,9 @@ else
 		UpdateAnim();
 	}
 }
+
+var s = 0.01;
+mattex_x += LevKeyHeld(vk_numpad6, vk_numpad4)*s;
+mattex_y += LevKeyHeld(vk_numpad2, vk_numpad8)*s;
+
+mattex = Mat4Translate(mattex_x, mattex_y, 0);
