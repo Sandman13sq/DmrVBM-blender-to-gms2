@@ -10,7 +10,7 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
     bl_idname = "DMR_PT_EditModeVertexGroups"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = "Edit" # Name of sidebar
+    bl_category = "Dmr Edit" # Name of sidebar
     
     @classmethod 
     def poll(self, context):
@@ -23,6 +23,11 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
     
     def draw(self, context):
         active = context.active_object;
+        
+        group_select_mode = 'ALL';
+        if active \
+        and 'ARMATURE' in [m.type for m in active.modifiers]:
+            group_select_mode = 'BONE_DEFORM';
         
         layout = self.layout;
         layout.operator(
@@ -39,13 +44,17 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
         row.operator('dmr.add_missing_group', text = "Add Right");
         row.operator('dmr.remove_right_groups', text = "Remove Right");
         row = layout.row(align = 1);
-        op = row.operator('object.vertex_group_clean', text = "Clean");
-        op.group_select_mode = 'ALL';
-        op.limit = 0.001;
+        r = row.row(align=1);
+        r.scale_x = 0.8;
+        op = r.operator('object.vertex_group_clean', text = "Clean");
+        op.group_select_mode = group_select_mode;
+        op.limit = 0.025;
         op.keep_single = True;
-        op = row.operator('object.vertex_group_limit_total', text = "Limit");
-        op.group_select_mode = 'ALL';
-        op.limit = 4;
+        op = r.operator('object.vertex_group_limit_total', text = "Limit");
+        op.group_select_mode = group_select_mode;
+        op = row.operator('object.vertex_group_normalize_all', text = "Normalize All");
+        op.group_select_mode = group_select_mode;
+        op.lock_active = False;
         
         # Vertex Group Bar
         ob = context.object

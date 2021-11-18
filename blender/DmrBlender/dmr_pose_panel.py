@@ -33,6 +33,13 @@ class DmrToolsPanel_PoseNav(bpy.types.Panel): # ------------------------------
             section = layout.column();
             #section.prop(armature, "pose_position", expand=0)
             
+            # Toggle Pose
+            row = section.row();
+            if armature.data.pose_position == 'POSE':
+                row.operator('dmr.toggle_pose_parent', text='Rest Position', icon='POSE_HLT');
+            else:
+                row.operator('dmr.toggle_pose_parent', text='Pose Position', icon='ARMATURE_DATA');
+            
             poselib = armature.pose_library;
             if poselib != None:
                 if poselib.pose_markers != None:
@@ -40,12 +47,6 @@ class DmrToolsPanel_PoseNav(bpy.types.Panel): # ------------------------------
                     if poselib.fcurves and not poselib.pose_markers:
                         section.label(icon='ERROR', text="Error: Potentially corrupt library, run 'Sanitize' operator to fix")
                     
-                    # Toggle Pose
-                    row = section.row();
-                    if armature.data.pose_position == 'POSE':
-                        row.operator('dmr.toggle_pose_parent', text='Rest Position', icon='POSE_HLT');
-                    else:
-                        row.operator('dmr.toggle_pose_parent', text='Pose Position', icon='ARMATURE_DATA');
                     row = row.row();
                     row.scale_x = 0.7;
                     row.prop(poselib.pose_markers, "active_index", text="");

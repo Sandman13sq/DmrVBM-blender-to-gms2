@@ -144,7 +144,7 @@ class DMR_FIXRIGHTBONESNAMES(bpy.types.Operator):
                         print('Currbone = %s (%s)' % (b2.name, b2dist))
                 if currbone != None:
                     print('%s -> %s' % (b.name, currbone.name))
-                    b.name = currbone.name[:-2] + '_r';
+                    b.name = currbone.name[:-1] + 'r';
             bpy.ops.object.mode_set(mode = lastobjectmode);
                         
         return {'FINISHED'}
