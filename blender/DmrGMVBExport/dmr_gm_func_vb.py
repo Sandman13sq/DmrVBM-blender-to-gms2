@@ -198,7 +198,12 @@ def GetVBData(sourceobj, format = [], settings = {}):
             # Apply enabled modifiers
             if (m.name[0] != '!') and (m.type in MODLIST) \
             or (m.type == 'ARMATURE' and settings.get('applyarmature', 0)):
-                bpy.ops.object.modifier_apply(modifier = m.name);
+                try:
+                    # Data Transfer can crash if source object is not set
+                    bpy.ops.object.modifier_apply(modifier = m.name);
+                except:
+                    print('> Modifier "%s" unable to apply' % m.name);
+                    bpy.ops.object.modifier_remove(modifier = m.name);
             # Ignore Modifier
             elif m.type != 'ARMATURE':
                 bpy.ops.object.modifier_remove(modifier = m.name);

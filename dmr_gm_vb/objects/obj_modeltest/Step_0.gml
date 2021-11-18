@@ -28,6 +28,7 @@ if !camera.lock
 	modelzrot += LevKeyHeld(VKey.e, VKey.q)*spd;
 	
 	if mouse_check_button_pressed(mb_left)
+	&& !keyboard_check(vk_alt)
 	{
 		mouseanchor[0] = window_mouse_get_x();
 		mouseanchor[1] = window_mouse_get_y();

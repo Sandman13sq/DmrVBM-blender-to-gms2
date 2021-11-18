@@ -2,12 +2,14 @@
 
 function LayoutElement_Text(_root, _parent) : LayoutElement(_root, _parent) constructor
 {
+	textheight = common.cellmax;
+	
 	function UpdatePos(_x1, _y1, _x2, _y2)
 	{
 		x1 = _x1;
 		y1 = _y1;
 		x2 = _x2;
-		y2 = y1 + common.celltext;
+		y2 = y1 + textheight;
 		w = x2-x1;
 		h = y2-y1;
 		
@@ -26,9 +28,14 @@ function LayoutElement_Text(_root, _parent) : LayoutElement(_root, _parent) cons
 	{
 		if label != ""
 		{
+			textheight = string_height(label);
 			draw_set_halign(1);
 			draw_set_valign(0);
 			DrawTextYCenter(xc, label);
+		}
+		else
+		{
+			textheight = 0;	
 		}
 	}
 }

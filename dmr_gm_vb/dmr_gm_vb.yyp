@@ -15,6 +15,7 @@
     {"id":{"name":"obj_dm_simple","path":"objects/obj_dm_simple/obj_dm_simple.yy",},"order":1,},
     {"id":{"name":"tex_curly_skin_col","path":"sprites/tex_curly_skin_col/tex_curly_skin_col.yy",},"order":3,},
     {"id":{"name":"tex_curly_eyeiris_col","path":"sprites/tex_curly_eyeiris_col/tex_curly_eyeiris_col.yy",},"order":5,},
+    {"id":{"name":"scr_playbacktimeline","path":"scripts/scr_playbacktimeline/scr_playbacktimeline.yy",},"order":12,},
     {"id":{"name":"obj_main","path":"objects/obj_main/obj_main.yy",},"order":0,},
     {"id":{"name":"shd_rigged","path":"shaders/shd_rigged/shd_rigged.yy",},"order":3,},
     {"id":{"name":"obj_dm_vbx_rigged","path":"objects/obj_dm_vbx_rigged/obj_dm_vbx_rigged.yy",},"order":3,},

@@ -14,4 +14,5 @@ drawfext(16, 240,
 	"fps: %s", string(fps),
 	"fpsreal: %s", string(fps_real),
 	"zrot: %s", string(obj_modeltest.modelzrot),
+	"alt pressed: %s", string(keyboard_check(vk_alt)),
 	);

@@ -40,6 +40,8 @@ wireframe = 0;
 demo.usetextures = false;
 interpolationtype = AniTrack_Intrpl.linear;
 
+playbacktimeline = new PlaybackTimeline(self);
+
 // Control Variables ========================================================
 meshselect = 0;
 meshvisible = array_create(32, 1);

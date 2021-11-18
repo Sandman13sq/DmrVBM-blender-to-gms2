@@ -67,7 +67,7 @@ if !lock
 		
 			while (viewpitch < 0) {viewpitch += 360;}
 			viewpitch = viewpitch mod 360;
-		
+			
 			middlelock = 0;
 		}
 	}
