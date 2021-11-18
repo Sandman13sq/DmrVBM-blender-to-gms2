@@ -16,6 +16,18 @@ classlist.append(DMR_RESET3DCURSOR);
 
 # =============================================================================
 
+class DMR_RESET3DCURSORX(bpy.types.Operator):
+    bl_label = "Zero 3D Cursor X"
+    bl_idname = 'dmr.zero_3dcursor_x'
+    bl_description = 'Resets x coordinate of 3D Cursor';
+    
+    def execute(self, context):
+        context.scene.cursor.location[0] = 0.0;
+        return {'FINISHED'}
+classlist.append(DMR_RESET3DCURSORX);
+
+# =============================================================================
+
 class DMR_EDITMODEWEIGHTS(bpy.types.Operator):
     bl_label = "Toggle Edit Mode Weights"
     bl_idname = 'dmr.toggle_editmode_weights'

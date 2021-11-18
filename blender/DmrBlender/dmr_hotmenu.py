@@ -20,8 +20,15 @@ class Dmr_HotMenu(bpy.types.Panel): # ------------------------------
         row.column().operator(
             'dmr.toggle_editmode_weights', icon = 'MOD_VERTEX_WEIGHT', text = '', 
             emboss=active.mode=='EDIT' if active else 0);
-        row.column().operator('dmr.reset_3dcursor', icon = 'PIVOT_CURSOR', text = '');
+        
+        c = row.row(align = 1);
+        c.operator('dmr.reset_3dcursor', icon = 'PIVOT_CURSOR', text = '');
+        c = c.column(align = 1)
+        c.operator('dmr.zero_3dcursor_x', text = 'x');
+        c.scale_x = 0.05;
+        
         row.column().operator('dmr.toggle_pose', icon = 'ARMATURE_DATA', text = '');
+        
         row.column().operator('dmr.image_reload', icon = 'IMAGE_DATA', text = '');
         
         row = layout.row(align = 0);
