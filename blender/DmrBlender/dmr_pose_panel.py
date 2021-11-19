@@ -41,46 +41,47 @@ class DmrToolsPanel_PoseNav(bpy.types.Panel): # ------------------------------
                 row.operator('dmr.toggle_pose_parent', text='Pose Position', icon='ARMATURE_DATA');
             
             poselib = armature.pose_library;
-            if poselib != None:
-                if poselib.pose_markers != None:
-                    # warning about poselib being in an invalid state
-                    if poselib.fcurves and not poselib.pose_markers:
-                        section.label(icon='ERROR', text="Error: Potentially corrupt library, run 'Sanitize' operator to fix")
+            if poselib != None and poselib.pose_markers != None:
+                # warning about poselib being in an invalid state
+                if poselib.fcurves and not poselib.pose_markers:
+                    section.label(icon='ERROR', text="Error: Potentially corrupt library, run 'Sanitize' operator to fix")
+                
+                row = row.row();
+                row.scale_x = 0.7;
+                row.prop(poselib.pose_markers, "active_index", text="");
+                
+                # Action Data
+                section.template_ID(armature, "pose_library", new="poselib.new", unlink="poselib.unlink")
+                if poselib.pose_markers.active != None:
+                    poseindex = poselib.pose_markers.active_index;
+                    poseactive = poselib.pose_markers.active;
                     
-                    row = row.row();
-                    row.scale_x = 0.7;
-                    row.prop(poselib.pose_markers, "active_index", text="");
+                    # list of poses in pose library
+                    row = section.row()
+                    row.template_list("UI_UL_list", "pose_markers", poselib, "pose_markers",
+                                      poselib.pose_markers, "active_index", rows=5)
                     
-                    # Action Data
-                    section.template_ID(armature, "pose_library", new="poselib.new", unlink="poselib.unlink")
-                    if poselib.pose_markers.active != None:
-                        poseindex = poselib.pose_markers.active_index;
-                        poseactive = poselib.pose_markers.active;
-                        
-                        # list of poses in pose library
-                        row = section.row()
-                        row.template_list("UI_UL_list", "pose_markers", poselib, "pose_markers",
-                                          poselib.pose_markers, "active_index", rows=5)
-                        
-                        # Selected Bones
-                        #row = section.row();
-                        row = row.column(align = 1);
-                        row.operator("poselib.pose_add", icon='ADD', text="")
-                        if poseactive is not None:
-                            row.operator("poselib.pose_remove", icon='REMOVE', text="")
-                        
-                        row.operator("poselib.apply_pose", icon='ZOOM_SELECTED', text="").pose_index = poseindex;
-                        row.operator("dmr.pose_replace", icon='GREASEPENCIL', text="").allbones = 0;
-                        
-                        # All
-                        row = section.row(align=1);
-                        row.operator("dmr.pose_apply", icon='ZOOM_SELECTED', text="Apply To All")
-                        op = row.operator("dmr.pose_replace", icon='GREASEPENCIL', text="Write All").allbones = 1;
-                        
-                    else:
-                        row = section.row(align=1)
-                        row.operator("poselib.pose_add", icon='ADD', text='Add Pose');
-                        row.operator("poselib.action_sanitize", icon='HELP', text='Sanitize')
+                    # Selected Bones
+                    #row = section.row();
+                    row = row.column(align = 1);
+                    row.operator("poselib.pose_add", icon='ADD', text="")
+                    if poseactive is not None:
+                        row.operator("poselib.pose_remove", icon='REMOVE', text="")
+                    
+                    row.operator("poselib.apply_pose", icon='ZOOM_SELECTED', text="").pose_index = poseindex;
+                    row.operator("dmr.pose_replace", icon='GREASEPENCIL', text="").allbones = 0;
+                    
+                    # All
+                    row = section.row(align=1);
+                    row.operator("dmr.pose_apply", icon='ZOOM_SELECTED', text="Apply To All")
+                    op = row.operator("dmr.pose_replace", icon='GREASEPENCIL', text="Write All").allbones = 1;
+                    
+                else:
+                    row = section.row(align=1)
+                    row.operator("poselib.pose_add", icon='ADD', text='Add Pose');
+                    row.operator("poselib.action_sanitize", icon='HELP', text='Sanitize')
+            else:
+                layout.template_ID(active, "pose_library", new="poselib.new", unlink="poselib.unlink")
                 # Bone Groups
             
 classlist.append(DmrToolsPanel_PoseNav);
