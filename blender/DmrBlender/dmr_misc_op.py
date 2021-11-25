@@ -50,8 +50,14 @@ class DMR_TOGGLEPOSE(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        checked = [];
+        
         for o in context.scene.objects:
             if o.type == 'ARMATURE':
+                if o.data in checked:
+                    continue;
+                checked.append(o.data);
+                
                 armature = o.data;
                 if armature.pose_position == 'REST':
                     armature.pose_position = 'POSE';
@@ -117,50 +123,6 @@ class DMR_IMGRELOAD(bpy.types.Operator):
         
         return {'FINISHED'}
 classlist.append(DMR_IMGRELOAD);
-
-# =============================================================================
-
-class DMR_FIXRIGHTBONESNAMES(bpy.types.Operator):
-    """Tooltip"""
-    bl_label = "Fix Right Bone Names"
-    bl_idname = 'dmr.fix_right_bone_names'
-    bl_description = "Corrects newly created right side bones' names to their left counterpart";
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    @classmethod
-    def poll(cls, context):
-        return (context.object is not None and
-                context.object.type == 'ARMATURE' and
-                context.object.data.is_editmode)
-    
-    def execute(self, context):
-        active = bpy.context.view_layer.objects.active;
-        if active:
-            lastobjectmode = bpy.context.active_object.mode;
-            bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
-            
-            bones = active.data.bones;
-            thresh = 0.01;
-            leftbones = [b for b in bones if b.head_local[0] >= thresh];
-            rightbones = [b for b in bones if b.head_local[0] <= -thresh];
-            for b in rightbones:
-                loc = b.head_local.copy();
-                loc[0] *= -1;
-                currdist = 100;
-                currbone = None;
-                for b2 in leftbones:
-                    b2dist = (b2.head_local - loc).length;
-                    if b2dist < currdist:
-                        currbone = b2;
-                        currdist = b2dist;
-                        print('Currbone = %s (%s)' % (b2.name, b2dist))
-                if currbone != None:
-                    print('%s -> %s' % (b.name, currbone.name))
-                    b.name = currbone.name[:-1] + 'r';
-            bpy.ops.object.mode_set(mode = lastobjectmode);
-                        
-        return {'FINISHED'}
-classlist.append(DMR_FIXRIGHTBONESNAMES);
 
 # =============================================================================
 

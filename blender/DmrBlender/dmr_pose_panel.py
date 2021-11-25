@@ -1,8 +1,6 @@
 import bpy
 import sys
 
-
-
 classlist = [];
 
 class DmrToolsPanel_PoseNav(bpy.types.Panel): # ------------------------------
