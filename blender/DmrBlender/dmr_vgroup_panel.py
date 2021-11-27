@@ -17,8 +17,7 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
         active = context.active_object;
         if active:
             if active.type == 'MESH':
-                if active.mode == 'EDIT' or active.mode == 'WEIGHT_PAINT':
-                    return 1;
+                return 1;
         return None;
     
     def draw(self, context):
@@ -55,6 +54,9 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
         op = row.operator('object.vertex_group_normalize_all', text = "Normalize All");
         op.group_select_mode = group_select_mode;
         op.lock_active = False;
+        
+        if active.mode != 'EDIT' and active.mode != 'WEIGHT_PAINT':
+            return;
         
         # Vertex Group Bar
         ob = context.object

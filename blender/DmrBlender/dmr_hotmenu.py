@@ -31,6 +31,8 @@ class Dmr_HotMenu(bpy.types.Panel): # ------------------------------
         
         row.column().operator('dmr.image_reload', icon = 'IMAGE_DATA', text = '');
         
+        row.column().operator('dmr.toggle_mirror_modifier', icon = 'MOD_MIRROR', text = '');
+        
         row = layout.row(align = 0);
         row.scale_x = 2.0;
         row.scale_y = 1.0;

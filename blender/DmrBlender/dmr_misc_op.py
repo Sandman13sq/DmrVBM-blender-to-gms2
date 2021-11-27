@@ -175,6 +175,33 @@ classlist.append(DMR_PlaybackRangeFromAction);
 
 # =============================================================================
 
+class DMR_ToggleMirror(bpy.types.Operator):
+    """Tooltip"""
+    bl_label = "Toggle Mirror Modifier"
+    bl_idname = 'dmr.toggle_mirror_modifier'
+    bl_description = "Toggles all mirror modifiers";
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    @classmethod
+    def poll(cls, context):
+        return (context.object is not None)
+    
+    def execute(self, context):
+        for obj in bpy.data.objects:
+            if obj.hide_viewport:
+                continue;
+            if obj.type == 'MESH':
+                if obj.modifiers:
+                    for m in obj.modifiers:
+                        if m.type == 'MIRROR':
+                            m.show_viewport = not m.show_viewport;
+                    
+                        
+        return {'FINISHED'}
+classlist.append(DMR_ToggleMirror);
+
+# =============================================================================
+
 def register():
     for c in classlist:
         bpy.utils.register_class(c)
