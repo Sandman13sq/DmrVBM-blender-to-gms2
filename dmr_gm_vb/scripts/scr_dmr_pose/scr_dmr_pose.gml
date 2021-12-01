@@ -556,3 +556,9 @@ function CalculateAnimationPose(
 		array_copy(outposetransform, (i++)*16, m, 0, 16);
 	}
 }
+
+// Returns amount to move position in one frame
+function TrackData_GetTimeStep(trackdata, framespersecond)
+{
+	return (trackdata.framespersecond/framespersecond)/trackdata.length;
+}

@@ -24,8 +24,9 @@ posetransform = Mat4Array(DMRVBX_MATPOSEMAX, matrix_build_identity());
 // 1D flat array of matrices. Holds final transforms for bones
 matpose = Mat4ArrayFlat(DMRVBX_MATPOSEMAX, matrix_build_identity());
 
-trackpos = 0; // Position in animation
-trackposspeed = (trackdata_anim.framespersecond/game_get_speed(gamespeed_fps))/trackdata_anim.length;
+trackpos = 0.0; // Position in animation
+trackposspeed = TrackData_GetTimeStep(trackdata_anim, game_get_speed(gamespeed_fps));
+playbackspeed = 1.0;
 trackposlength = trackdata_anim.length;
 isplaying = false;
 
@@ -40,7 +41,7 @@ wireframe = 0;
 demo.usetextures = false;
 interpolationtype = AniTrack_Intrpl.linear;
 
-playbacktimeline = new PlaybackTimeline(self);
+playbacktimeline = new PlaybackTimeline(trackdata_anim);
 
 // Control Variables ========================================================
 meshselect = 0;
