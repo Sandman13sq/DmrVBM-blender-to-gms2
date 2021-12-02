@@ -110,6 +110,8 @@ class DMR_SELECTBYVERTEXCOLOR(bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(DMR_SELECTBYVERTEXCOLOR);
 
+# =============================================================================
+
 class DMR_SETVERTEXCOLOR(bpy.types.Operator):
     bl_label = "Set Vertex Color"
     bl_idname = 'dmr.set_vertex_color'
@@ -151,6 +153,58 @@ class DMR_SETVERTEXCOLOR(bpy.types.Operator):
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         return {'FINISHED'}
 classlist.append(DMR_SETVERTEXCOLOR);
+
+# =============================================================================
+
+class DMR_SETVERTEXCOLORCHANNEL(bpy.types.Operator):
+    bl_label = "Set Vertex Color Channel"
+    bl_idname = 'dmr.set_vertex_color_channel'
+    bl_description = 'Sets vertex color channel for selected vertices/faces';
+    bl_options = {'REGISTER', 'UNDO'};
+    
+    channelindex : bpy.props.IntProperty(
+        name="Channel Index",
+        soft_min=0,
+        soft_max=3,
+        default=0
+    );
+    
+    channelvalue : bpy.props.FloatProperty(
+        name="Channel Value",
+        soft_min=0.0,
+        soft_max=1.0,
+        default=1.0
+    );
+    
+    def execute(self, context):
+        lastobjectmode = bpy.context.active_object.mode;
+        bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
+        
+        for obj in [x for x in context.selected_objects] + [context.object]:
+            if obj.type != 'MESH': 
+                continue;
+            
+            mesh = obj.data;
+            if not mesh.vertex_colors:
+                mesh.vertex_colors.new();
+            vcolors = mesh.vertex_colors.active.data;
+            loops = mesh.loops;
+            
+            targetpolys = [poly for poly in mesh.polygons if poly.select];
+            if targetpolys:
+                targetloops = [l for p in targetpolys for l in loops[p.loop_start:p.loop_start + p.loop_total]]
+            else:
+                targetloops = [l for l in loops if mesh.vertices[l.vertex_index].select]
+            
+            for l in targetloops:
+                vcolors[l.index].color[self.channelindex] = self.channelvalue;
+        
+        bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
+        
+        return {'FINISHED'}
+classlist.append(DMR_SETVERTEXCOLORCHANNEL);
+
+# =============================================================================
 
 class DMR_VC_ClearAlpha(bpy.types.Operator):
     bl_label = "Clear Alpha"

@@ -21,8 +21,15 @@ else
 	var lev = LevKeyPressed(vk_right, vk_left);
 	if lev != 0
 	{
+		// Move by playback speed
 		if keyboard_check(vk_shift) {trackpos += lev*trackposspeed * playbackspeed;}
-		else {trackpos += lev*trackposspeed;}
+		// Move by frame
+		else
+		{
+			var _ll = 1/trackdata_anim.length;
+			if lev < 0 {trackpos = Quantize(trackpos+lev*_ll, _ll);}
+			else {trackpos = QuantizeCeil(trackpos+lev*_ll, _ll);}
+		}
 		posemode = 1;
 		UpdateAnim();
 	}
@@ -34,7 +41,15 @@ mattex_y += LevKeyHeld(vk_numpad2, vk_numpad8)*s;
 
 mattex = Mat4Translate(mattex_x, mattex_y, 0);
 
-if playbacktimeline.UpdateTimeline(trackpos)
+var _pos = playbacktimeline.UpdateTimeline(trackpos);
+if _pos != trackpos
+{
+	trackpos = _pos;
+	UpdateAnim();
+}
+
+if playbacktimeline.IsMouseOver()
+|| playbacktimeline.active
 {
 	camera.lock = true;	
 }

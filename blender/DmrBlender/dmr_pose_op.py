@@ -21,15 +21,24 @@ class DMR_PoseApply(Operator):
         bpy.ops.object.mode_set(mode = 'OBJECT');
         
         oldactive = context.active_object;
-        target = FetchArmature(context.active_object);
+        
+        findarmature = oldactive;
+        if findarmature and findarmature.type == 'ARMATURE': findarmature = findarmature;
+        elif findarmature.parent and findarmature.parent.type == 'ARMATURE': findarmature = findarmature.parent;
+        elif findarmature.data.modifiers and 'ARMATURE' in [x.type for x in findarmature.data.modifiers] and [x for x in findarmature.data.modifiers if x.type == 'ARMATURE'][0].object:
+            findarmature = [x for x in findarmature.data.modifiers if x.type == 'ARMATURE'][0].object;
+        else: findarmature = None;
+        
+        target = findarmature;
+        
         poselib = target.pose_library;
         poseindex = poselib.pose_markers.active_index;
         marker = poselib.pose_markers[poseindex];
         
-        for obj in context.selected_objects:
+        for obj in context.selected_objects[:] + [target]:
             if obj.type != 'ARMATURE':
                 continue;
-            
+            print(obj.name)
             targethidden = obj.hide_get();
             obj.hide_set(False);
             bpy.context.view_layer.objects.active = obj;
@@ -53,10 +62,11 @@ class DMR_PoseApply(Operator):
                 b.select = True;
             for b in hidden:
                 b.hide = True;
+            target.hide_set(targethidden);
         
         bpy.ops.object.mode_set(mode = lastmode);
         bpy.context.view_layer.objects.active = oldactive;
-        target.hide_set(targethidden);
+        
         self.report({'INFO'}, 'Pose read from "%s"' % marker.name);
         
         return {'FINISHED'}
@@ -180,8 +190,7 @@ class DMR_FIXRIGHTBONESNAMES(bpy.types.Operator):
     @classmethod
     def poll(cls, context):
         return (context.object is not None and
-                context.object.type == 'ARMATURE' and
-                context.object.data.is_editmode)
+                context.object.type == 'ARMATURE')
     
     def execute(self, context):
         active = bpy.context.view_layer.objects.active;
@@ -209,6 +218,104 @@ class DMR_FIXRIGHTBONESNAMES(bpy.types.Operator):
                         
         return {'FINISHED'}
 classlist.append(DMR_FIXRIGHTBONESNAMES);
+
+# =============================================================================
+
+class DMR_BoneNamesByLocation(bpy.types.Operator):
+    """Tooltip"""
+    bl_idname = "dmr.bone_names_by_location"
+    bl_label = "Bone Names by Location"
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    basename : bpy.props.StringProperty(
+        name="Format Name", default = 'link_%s'
+    );
+    
+    locationtype: bpy.props.EnumProperty(
+        name="Location Method",
+        description="Method to sort bone names",
+        items = (
+            ('armature', 'Default', 'Sort using armature hierarchy'),
+            ('x', 'X Location', 'Sort using X'),
+            ('y', 'Y Location', 'Sort using Y'),
+            ('z', 'Z Location', 'Sort using Z'),
+        ),
+        default='armature',
+    );
+    
+    bonesuffix: bpy.props.EnumProperty(
+        name="Bone Suffix",
+        description="String to append to the end of bone name",
+        items = (
+            ('upper', 'Uppercase', 'Suffix = "A", "B", "C", ...'),
+            ('lower', 'Lowercase', 'Suffix = "a", "b", "c", ...'),
+            ('zero', 'From 0', 'Suffix = "0", "1", "2", ...'),
+            ('one', 'From 1', 'Suffix = "1", "2", "3", ...'),
+        ),
+        default='zero',
+    );
+    
+    reversesort: bpy.props.BoolProperty(
+        name="Reverse Sort",
+        description="Reverse order of location method",
+        default=False,
+    );
+    
+    @classmethod
+    def poll(cls, context):
+        return (context.object is not None and
+                context.object.type == 'ARMATURE')
+    
+    def execute(self, context):
+        if '%s' not in self.basename:
+            return {'FINISHED'}
+        
+        object = context.object;
+        bones = object.data.bones;
+        
+        lastobjectmode = object.mode;
+        bpy.ops.object.mode_set(mode = 'OBJECT');
+        
+        targetbones = [b for b in bones if b.select];
+        
+        # Sort bones
+        ltype = self.locationtype;
+        if ltype == 'x':
+            targetbones.sort(key = lambda b: b.head_local[0]);
+        elif ltype == 'y':
+            targetbones.sort(key = lambda b: b.head_local[1]);
+        elif ltype == 'z':
+            targetbones.sort(key = lambda b: b.head_local[2]);
+        
+        if self.reversesort:
+            targetbones.reverse();
+        
+        # Generate suffixes
+        suffixmode = self.bonesuffix;
+        if suffixmode == 'upper':
+            suffixlist = list('ABCDEFG');
+        elif suffixmode == 'lower':
+            suffixlist = list('abcdefg');
+        elif suffixmode == 'zero':
+            suffixlist = range(0, 10);
+        elif suffixmode == 'one':
+            suffixlist = range(1, 10);
+        
+        oldnames = [b.name for b in targetbones];
+        newnames = [(self.basename % suffixlist[i]) for i in range(0, len(targetbones))];
+        
+        for i, b in enumerate(targetbones):
+            b.name = '__temp%s__' % i;
+        
+        for i, b in enumerate(targetbones):
+            print("%s -> %s" % (oldnames[i], newnames[i]));
+            b.name = newnames[i];
+        print();
+        
+        bpy.ops.object.mode_set(mode = lastobjectmode);
+        
+        return {'FINISHED'}
+classlist.append(DMR_BoneNamesByLocation);
 
 # =============================================================================
 

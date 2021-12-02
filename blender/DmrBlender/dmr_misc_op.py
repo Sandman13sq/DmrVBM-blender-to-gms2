@@ -202,6 +202,64 @@ classlist.append(DMR_ToggleMirror);
 
 # =============================================================================
 
+class DMR_RenameNodeInput(bpy.types.Operator):
+    bl_label = "Rename Node Input"
+    bl_idname = 'dmr.rename_node_input'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    ioindex : bpy.props.EnumProperty(
+        name="Target Input",
+        description="Name of input to rename",
+        items=lambda s, context: [
+            ( (str(i), '[%d]: %s' % (i, io.name), 'Rename input %d "%s"' % (i, io.name)) )
+            for i, io in enumerate(context.active_node.inputs)
+        ]);
+    
+    newname : bpy.props.StringProperty(
+        name="New Name", description="New name of input", default='New Name');
+    
+    def invoke(self, context, event):
+        if context.active_node == None:
+            self.report({'WARNING'}, 'No active node');
+            return {'FINISHED'}
+        return context.window_manager.invoke_props_dialog(self);
+    
+    def execute(self, context):
+        [x for x in context.active_node.inputs][int(self.ioindex)].name = self.newname;
+        return {'FINISHED'}
+classlist.append(DMR_RenameNodeInput);
+
+# =============================================================================
+
+class DMR_RenameNodeOutput(bpy.types.Operator):
+    bl_label = "Rename Node Output"
+    bl_idname = 'dmr.rename_node_output'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    ioindex : bpy.props.EnumProperty(
+        name="Target Output",
+        description="Name of output to rename",
+        items=lambda s, context: [
+            ( (str(i), '[%d]: %s' % (i, io.name), 'Rename output %d "%s"' % (i, io.name)) )
+            for i, io in enumerate(context.active_node.outputs)
+        ]);
+    
+    newname : bpy.props.StringProperty(
+        name="New Name", description="New name of output", default='New Name');
+    
+    def invoke(self, context, event):
+        if context.active_node == None:
+            self.report({'WARNING'}, 'No active node');
+            return {'FINISHED'}
+        return context.window_manager.invoke_props_dialog(self);
+    
+    def execute(self, context):
+        [x for x in context.active_node.outputs][int(self.ioindex)].name = self.newname;
+        return {'FINISHED'}
+classlist.append(DMR_RenameNodeOutput);
+
+# =============================================================================
+
 def register():
     for c in classlist:
         bpy.utils.register_class(c)

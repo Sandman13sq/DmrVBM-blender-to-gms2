@@ -306,8 +306,7 @@ class DMR_ADDMISSINGMIRROR(bpy.types.Operator):
                     continue;
                 
                 if newname != "":
-                    bpy.ops.object.vertex_group_add();
-                    obj.vertex_groups['Group'].name = newname;
+                    obj.vertex_groups.new(name=newname);
                     index += 1;
                     print("%s -> %s" % (vg.name, newname));
                     hits += 1;

@@ -42,6 +42,15 @@ class DmrToolsPanel_VertexColors(bpy.types.Panel): # ---------------------------
             row = layout.row(align = 1);
             row.operator("dmr.vc_clear_alpha", icon='MATSPHERE', text="Clear Alpha")
             
+            row = layout.row(align=1);
+            
+            r = row.row(align=1);
+            r.label(text='Set Channel: ')
+            row.operator('dmr.set_vertex_color_channel', text='', icon='COLOR_RED').channelindex = 0;
+            row.operator('dmr.set_vertex_color_channel', text='', icon='COLOR_GREEN').channelindex = 1;
+            row.operator('dmr.set_vertex_color_channel', text='', icon='COLOR_BLUE').channelindex = 2;
+            row.operator('dmr.set_vertex_color_channel', text='', icon='FONT_DATA').channelindex = 3;
+            
             row = layout.row(align = 1);
             row.label(text = '<%d, %d, %d>   A:%.2f' % (col255[0],col255[1],col255[2], col[3]) );
             #row.label(text = colhex );

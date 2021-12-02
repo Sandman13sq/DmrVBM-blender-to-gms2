@@ -177,6 +177,34 @@ classlist.append(DMR_QuickVertexGroupTransfer);
 
 # =============================================================================
 
+class DMR_MirrorAcrossCursor(bpy.types.Operator):
+    """Tooltip"""
+    bl_idname = "object.mirror_across_cursor"
+    bl_label = "Mirror Across Cursor"
+
+    @classmethod
+    def poll(cls, context):
+        active = context.active_object;
+        return active is not None and active.mode == 'EDIT';
+
+    def execute(self, context):
+        toolsettings = context.scene.tool_settings;
+        lastsetting = toolsettings.transform_pivot_point;
+        toolsettings.transform_pivot_point = 'CURSOR';
+        
+        bpy.ops.transform.mirror(orient_type='LOCAL', 
+            orient_matrix=((1, 0, 0), (0, 1, 0), (0, 0, 1)), 
+            orient_matrix_type='LOCAL', 
+            constraint_axis=(True, False, False)
+            );
+        bpy.ops.mesh.flip_normals();
+        
+        toolsettings.transform_pivot_point = lastsetting;
+        return {'FINISHED'}
+classlist.append(DMR_MirrorAcrossCursor);
+
+# =============================================================================
+
 def register():
     for c in classlist:
         bpy.utils.register_class(c)

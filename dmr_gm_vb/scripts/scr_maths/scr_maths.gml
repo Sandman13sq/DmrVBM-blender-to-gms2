@@ -52,6 +52,11 @@ function Modulo(x, y)
 	return x mod y;
 }
 
+// Returns floored step of value
+function Quantize(x, step) {return (step > 0)? (floor(x/step)*step) : (floor(x*step)/step);}
+function QuantizeRound(x, step) {return (step > 0)? (round(x/step)*step) : (round(x*step)/step);}
+function QuantizeCeil(x, step) {return (step > 0)? (ceil(x/step)*step) : (ceil(x*step)/step);}
+
 function Intrpl_Circ(x1, x2, amt)
 {
 	return lerp(x1, x2, 1-sqrt(1-amt*amt))	

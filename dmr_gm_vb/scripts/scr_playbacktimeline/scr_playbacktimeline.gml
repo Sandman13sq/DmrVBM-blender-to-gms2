@@ -13,21 +13,24 @@ function PlaybackTimeline(_trackdata) constructor
 	w = 0;
 	h = 0;
 	
-	trackysep = 16;
+	hsep = 14;
+	border = 4;
+	drawx = 128;
+	drawy = hsep;
 	drawwidth = 1024;
-	drawheight = trackysep*200;
+	drawheight = hsep*200;
 	pos = 0;
 	
 	frameindices = [];
 	points = [];
 	pointmap = ds_map_create();
 	
-	hsep = 14;
-	drawx = 128;
-	drawy = hsep;
-	border = 4;
+	
 	
 	surfyoffset = 0;
+	active = false;
+	middleactive = 0;
+	middleanchor = 0;
 	
 	function IsMouseOver()
 	{
@@ -46,13 +49,15 @@ function PlaybackTimeline(_trackdata) constructor
 		y2 = _y2;
 		w = x2-x1;
 		h = y2-y1;
+		
+		drawwidth = w-16;
+		
 		return self;
 	}
 	
 	function UpdateTimeline(_pos)
 	{
-		pos = _pos;
-		
+		var tracklength = trackdata.length;
 		var tracks = trackdata.tracks;
 		var transformtracks;
 		var numtracks = array_length(tracks);
@@ -60,6 +65,62 @@ function PlaybackTimeline(_trackdata) constructor
 		var numkeyframes;
 		points = array_create(numtracks);
 		
+		pos = _pos;
+		
+		if IsMouseOver()
+		{
+			if mouse_check_button_pressed(mb_left)
+			{
+				active = true;
+			}
+			else if mouse_check_button_pressed(mb_middle)
+			{
+				middleactive = true;
+				middleanchor = -(window_mouse_get_y() - (y1+border)) - surfyoffset;
+			}
+			
+			var _lev = mouse_wheel_down() - mouse_wheel_up();
+			if _lev != 0
+			{
+				surfyoffset = clamp(surfyoffset + _lev*hsep, 0, drawheight - h);
+			}
+			
+		}
+		
+		// Scroll playback
+		if active
+		{
+			if !mouse_check_button(mb_left) {active = false;}
+			else
+			{
+				var _mx = window_mouse_get_x() - (x1+border+drawx);
+				pos = round(tracklength * _mx / ((drawwidth-8)-drawx)) / tracklength;
+			}
+		}
+		
+		// Scroll vertically
+		if middleactive
+		{
+			if !mouse_check_button(mb_middle) {middleactive = false;}
+			else
+			{
+				var _my = -(window_mouse_get_y() - (y1+border));
+				surfyoffset = clamp(_my-middleanchor, 0, drawheight-h);
+				
+				if window_mouse_get_y() < y1 
+				{
+					window_mouse_set(window_mouse_get_x(), window_mouse_get_y() + h);
+					middleanchor -= h;
+				}
+				else if window_mouse_get_y() > y2 
+				{
+					window_mouse_set(window_mouse_get_x(), window_mouse_get_y() - h);
+					middleanchor += h;
+				}
+			}
+		}
+		
+		// Get keyframe points
 		for (var t = 0; t < numtracks; t++)
 		{
 			points[t] = [];
@@ -76,11 +137,8 @@ function PlaybackTimeline(_trackdata) constructor
 			}
 		}
 		
-		surfyoffset += 0.1;
-		
 		// Set up frame indices
 		frameindices = [];
-		var tracklength = trackdata.length;
 		
 		if tracklength <= 1.0
 		{
@@ -98,22 +156,23 @@ function PlaybackTimeline(_trackdata) constructor
 			
 		}
 		
-		if IsMouseOver()
-		{
-			return true;
-		}
-		
-		return false;
+		return pos;
 	}
 	
 	function Draw()
 	{
+		var _ww = 1 << ceil(log2(drawwidth)+1);
+		var _hh = 1 << ceil(log2(drawheight));
+		
 		if !surface_exists(surf)
 		{
-			surf = surface_create(
-				1 << ceil(log2(drawwidth)+1), 
-				1 << ceil(log2(drawheight))
-				);	
+			surf = surface_create(_ww, _hh);	
+		}
+		
+		if surface_get_width(surf) < _ww
+		|| surface_get_width(surf) < _hh
+		{
+			surface_resize(surf, _ww, _hh);
 		}
 		
 		// Draw on surface
@@ -174,16 +233,17 @@ function PlaybackTimeline(_trackdata) constructor
 			}
 			
 			// Marker Line
+			yy = surfyoffset-4;
+			draw_rectangle_color(0, yy, _x2+border, yy+hsep,
+				0, 0, 0, 0, 0);
+			
 			draw_line_width_color(
 				lerp(_x1, _x2, pos), 0, 
 				lerp(_x1, _x2, pos), drawheight, 
-				2, c_white, c_white);
+				2, c_aqua, c_aqua);
 			
 			// Draw Frames
 			var frameindexcount = array_length(frameindices);
-			yy = surfyoffset-4;
-			draw_rectangle_color(_x1-4, yy, _x2+4, yy+hsep,
-				0, 0, 0, 0, 0);
 			
 			draw_set_halign(1);
 			for (var f = 0; f < frameindexcount; f++)

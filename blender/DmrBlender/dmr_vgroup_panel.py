@@ -39,10 +39,11 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
                 rightexists = 1;
                 buttonname = 'Remove Right Groups'
                 break;
-        row = layout.row(align = 1);
+        sub = layout.column(align=1);
+        row = sub.row(align = 1);
         row.operator('dmr.add_missing_group', text = "Add Right");
         row.operator('dmr.remove_right_groups', text = "Remove Right");
-        row = layout.row(align = 1);
+        row = sub.row(align = 1);
         r = row.row(align=1);
         r.scale_x = 0.8;
         op = r.operator('object.vertex_group_clean', text = "Clean");
@@ -51,9 +52,11 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
         op.keep_single = True;
         op = r.operator('object.vertex_group_limit_total', text = "Limit");
         op.group_select_mode = group_select_mode;
-        op = row.operator('object.vertex_group_normalize_all', text = "Normalize All");
+        r = sub.row(align=1);
+        op = r.operator('object.vertex_group_normalize_all', text = "Normalize All");
         op.group_select_mode = group_select_mode;
         op.lock_active = False;
+        r.operator('dmr.remove_empty_groups', text='Remove Empty');
         
         if active.mode != 'EDIT' and active.mode != 'WEIGHT_PAINT':
             return;
@@ -104,6 +107,39 @@ class Dmr_EditModeVertexGroups(bpy.types.Panel): # -----------------------------
             sub.operator("object.vertex_group_remove_from", text="", icon='WORLD').use_all_groups=True
             
             layout.prop(context.tool_settings, "vertex_group_weight", text="Weight")
+            
+            sub = layout.column(align=1);
+            r = sub.row(align=1);
+            r.prop(context.tool_settings, 'vertex_group_subset', text = '');
+            r.prop(context.scene, "hiderightgroups", text='');
+            activevert = [x for x in ob.data.vertices if x.select];
+            if activevert:
+                activevert = activevert[0];
+                groups = activevert.groups[:];
+                vgroups = ob.vertex_groups;
+                toolsubset = context.tool_settings.vertex_group_subset;
+                
+                if context.scene.hiderightgroups:
+                    targetright = ['.r', '_r', '.R', '_R'];
+                    groups = [vge for vge in groups if vgroups[vge.group].name[-2:] not in targetright];
+                
+                m = [x for x in ob.modifiers if (x.type == 'ARMATURE' and x.object)];
+                if m:
+                    bonenames = [b.name for b in m[0].object.data.bones];
+                    
+                    if toolsubset == 'BONE_DEFORM':
+                        groups = [vge for vge in groups if vgroups[vge.group].name in bonenames];
+                    elif toolsubset == 'OTHER_DEFORM':
+                        groups = [vge for vge in groups if vgroups[vge.group].name not in bonenames];
+                    else:
+                        groups.sort(key = lambda vge: vgroups[vge.group].name not in bonenames);
+                
+                for vge in groups:
+                    r = sub.row(align=1);
+                    r.operator('object.vertex_weight_set_active', text=vgroups[vge.group].name).weight_group=vge.group;
+                    r.prop(vge, 'weight', text='');
+                    r.operator('object.vertex_weight_paste', text='', icon='PASTEDOWN').weight_group=vge.group;
+                    r.operator('object.vertex_weight_delete', text='', icon='X').weight_group=vge.group;
 
 classlist.append(Dmr_EditModeVertexGroups);
 
@@ -126,6 +162,13 @@ def menu_func(self, context):
 def register():
     for c in classlist:
         bpy.utils.register_class(c)
+    
+    bpy.types.Scene.hiderightgroups = bpy.props.BoolProperty(
+        name="Hide Right Vertex Groups",
+        description="Hides right vertex groups from displaying.",
+        default=False,
+    );
+    
     #bpy.types.VIEW3D_MT_edit_mesh_context_menu.prepend(menu_func);
 
 def unregister():
