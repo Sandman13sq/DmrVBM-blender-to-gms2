@@ -52,6 +52,7 @@ void main()
 	vec4 diffusecolor = mix(texture2D(gm_BaseTexture, v_uv), v_color, 
 		float(texture2D(gm_BaseTexture, vec2(0.0)) == vec4(1.0))
 		);
+	diffusecolor.a = 1.0;
 	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .01, .02), sss);
 	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb*mix(0.5, 0.7, sss), 0.7);
 	vec3 specularcolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));

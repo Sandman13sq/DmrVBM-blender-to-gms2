@@ -26,9 +26,14 @@ else
 		// Move by frame
 		else
 		{
-			var _ll = 1/trackdata_anim.length;
+			var tdata = trackdata_anim;
+			
+			var _ll = 1/tdata.length;
 			if lev < 0 {trackpos = Quantize(trackpos+lev*_ll, _ll);}
 			else {trackpos = QuantizeCeil(trackpos+lev*_ll, _ll);}
+			
+			if trackpos < tdata.positionrange[0] {trackpos = tdata.positionrange[1];}
+			else if trackpos > tdata.positionrange[1] {trackpos = tdata.positionrange[0];}
 		}
 		posemode = 1;
 		UpdateAnim();
