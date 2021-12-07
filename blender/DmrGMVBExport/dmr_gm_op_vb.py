@@ -86,6 +86,10 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
     # Vertex Attributes
     VbfProp = lambda i,key: bpy.props.EnumProperty(name="Attribute %d" % i, 
         description='Data to write for each vertex', items=VBFItems, default=key);
+    VClyrProp = lambda i: bpy.props.EnumProperty(name="Color Layer", 
+        description='Color layer to reference', items=GetVCLayers, default=0);
+    UVlyrProp = lambda i: bpy.props.EnumProperty(name="UV Layer", 
+        description='UV layer to reference', items=GetUVLayers, default=0);
     vbf0 : VbfProp(0, VBF_POS);
     vbf1 : VbfProp(1, VBF_NOR);
     vbf2 : VbfProp(2, VBF_CO2);
@@ -94,6 +98,24 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
     vbf5 : VbfProp(5, VBF_000);
     vbf6 : VbfProp(6, VBF_000);
     vbf7 : VbfProp(7, VBF_000);
+    
+    vclyr0 : VClyrProp(0);
+    vclyr1 : VClyrProp(1);
+    vclyr2 : VClyrProp(2);
+    vclyr3 : VClyrProp(3);
+    vclyr4 : VClyrProp(4);
+    vclyr5 : VClyrProp(5);
+    vclyr6 : VClyrProp(6);
+    vclyr7 : VClyrProp(7);
+    
+    uvlyr0 : UVlyrProp(0);
+    uvlyr1 : UVlyrProp(1);
+    uvlyr2 : UVlyrProp(2);
+    uvlyr3 : UVlyrProp(3);
+    uvlyr4 : UVlyrProp(4);
+    uvlyr5 : UVlyrProp(5);
+    uvlyr6 : UVlyrProp(6);
+    uvlyr7 : UVlyrProp(7);
     
     uvlayerpick: bpy.props.EnumProperty(
         name="Target UV Layer", 
@@ -132,20 +154,28 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         r = b.row();
         r.alignment = 'CENTER';
         r.label(text='Vertex Attributes');
-        b.prop(self, 'vbf0', text='Attrib0');
-        b.prop(self, 'vbf1', text='Attrib1');
-        b.prop(self, 'vbf2', text='Attrib2');
-        b.prop(self, 'vbf3', text='Attrib3');
-        b.prop(self, 'vbf4', text='Attrib4');
-        b.prop(self, 'vbf5', text='Attrib5');
-        b.prop(self, 'vbf6', text='Attrib6');
-        b.prop(self, 'vbf7', text='Attrib7');
+        
+        # Draw attributes
+        for i in range(0, 8):
+            b.prop(self, 'vbf%d' % i, text='Attrib%d' % i);
+            
+            vbfkey = getattr(self, 'vbf%d' % i);
+            
+            if vbfkey == VBF_000:
+                break;
+            
+            if vbfkey == VBF_COL or vbfkey == VBF_CO2:
+                r = b.row();
+                r.prop(self, 'vclyr%d' % i, text='vclyr%d' % i);
+            elif vbfkey == VBF_TEX:
+                r = b.row();
+                r.prop(self, 'uvlyr%d' % i, text='uvlyr%d' % i);
         
         rr = layout.row();
         c = rr.column(align=1);
         c.scale_x = 0.8;
-        c.label(text='UV Src:');
-        c.label(text='Color Src:');
+        c.label(text='UV Source:');
+        c.label(text='Color Source:');
         c.label(text='Modifier Src:');
         c = rr.column(align=1);
         c.prop(self, 'uvlayerpick', text='');
@@ -154,21 +184,20 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
 
     def execute(self, context):
         format = [];
-        for x in '01234567':
-            slot = getattr(self, 'vbf' + x);
+        vclayertarget = [];
+        uvlayertarget = [];
+        
+        for i in range(0, 8):
+            slot = getattr(self, 'vbf%d' % i);
+            vctarget = getattr(self, 'vclyr%d' % i);
+            uvtarget = getattr(self, 'uvlyr%d' % i);
+            
+            print('%d: %s' % (i, (vctarget, uvtarget)))
+            
             if slot != VBF_000:
                 format.append(slot);
-        
-        settings = {
-            'format' : format,
-            'edgesonly' : self.edgesonly,
-            'applyarmature' : 0,
-            'uvlayerpick': self.uvlayerpick == 'render',
-            'colorlayerpick': self.colorlayerpick == 'render',
-            'modifierpick': self.modifierpick,
-            #'maxsubdivisions': self.maxsubdivisions,
-            'yflip' : self.yflip,
-        };
+                vclayertarget.append(vctarget);
+                uvlayertarget.append(uvtarget);
         
         mattran = mathutils.Matrix();
         u = self.upaxis;
@@ -191,6 +220,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
             'yflip': self.yflip,
             'matrix': mattran,
             'maxsubdivisions': self.maxsubdivisions,
+            'fullalpha': self.fullalpha,
         };
         
         FCODE = 'f';
@@ -204,12 +234,14 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         
         path = self.filepath;
         
+        
         # Single file
         if self.batchexport == 'none':
             out = b'';
-            for obj in objects:
+            for i, obj in enumerate(objects):
                 print('> Composing data for \"%s\"...' % obj.name);
-                data = GetVBData(obj, format, settings);
+                data = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
+                
                 for d in data.values():
                     out += d;
             
@@ -229,9 +261,9 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
             rootpath = rootpath[:rootpath.rfind('.vb')];
             outgroups = {}; # {materialname: vertexdata}
             
-            for obj in objects:
+            for i, obj in enumerate(objects):
                 print('> Composing data for \"%s\"...' % obj.name);
-                d = GetVBData(obj, format, settings);
+                d = GetVBData(obj, format, settings, uvlayertarget[i], vclayertarget[i]);
                 
                 # By Object Name
                 if self.batchexport == 'obj':

@@ -348,6 +348,71 @@ classlist.append(DMR_OP_QUICKDIRTYCOLORS);
 
 # =============================================================================
 
+class DMR_MergeVertexColor(bpy.types.Operator):
+    bl_label = "Merge Vertex Color Layer"
+    bl_idname = 'dmr.merge_vertex_color'
+    bl_description = 'Sets vertex color of selected vertices/faces of active layer to those of another';
+    bl_options = {'REGISTER', 'UNDO'};
+    
+    def GetVCLayers(self, context):
+        return [
+            (lyr.name, lyr.name, 'Source from "%s"' % lyr.name)
+            for lyr in context.object.data.vertex_colors
+            ];
+    
+    sourcelayer : bpy.props.EnumProperty(
+        name="Source Layer",
+        description='Layer to take colors from',
+        items=GetVCLayers
+    );
+    
+    mixamount : bpy.props.FloatProperty(
+        name="Mix Amount",
+        soft_min=0.0,
+        soft_max=1.0,
+        default=1.0
+    );
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.type == 'MESH';
+    
+    def invoke(self, context, event):
+        if not context.object.data.vertex_colors:
+            self.report({'WARNING'}, 'No vertex color data found.');
+            return {'FINISHED'}
+        return self.execute(context);
+    
+    def execute(self, context):
+        lastobjectmode = bpy.context.active_object.mode;
+        bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
+        
+        mixamount = self.mixamount;
+        
+        obj = context.object;
+        mesh = obj.data;
+        vcolors = mesh.vertex_colors.active.data;
+        sourcecolors = mesh.vertex_colors[self.sourcelayer].data;
+        loops = mesh.loops;
+        
+        targetpolys = [poly for poly in mesh.polygons if poly.select];
+        if targetpolys:
+            targetloops = [l.index for p in targetpolys for l in loops[p.loop_start:p.loop_start + p.loop_total]]
+        else:
+            targetloops = [l.index for l in loops if mesh.vertices[l.vertex_index].select]
+        
+        amt = 1.0-mixamount;
+        
+        for l in targetloops:
+            vcolors[l].color = mathutils.Vector(sourcecolors[l].color).lerp(vcolors[l].color, amt);
+        
+        bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
+        return {'FINISHED'}
+classlist.append(DMR_MergeVertexColor);
+
+
+# =============================================================================
+
 def register():
     for c in classlist:
         bpy.utils.register_class(c)

@@ -3,6 +3,7 @@ import struct
 import zlib
 import sys
 import mathutils
+import time
 
 from bpy_extras.io_utils import ExportHelper
 from struct import pack as Pack
@@ -98,6 +99,52 @@ LayerChoiceItems = (
     ('active', 'Active Layer', 'Use the layer that is active (highlighted)', 'RESTRICT_SELECT_OFF', 1),
 );
 
+LYR_GLOBAL = '<__global__>';
+LYR_RENDER = '<__render__>';
+LYR_SELECT = '<__select__>';
+
+def GetUVLayers(self, context):
+    items = [];
+    items.append( (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" below') );
+    items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') );
+    items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') );
+    
+    objects = [x for x in context.selected_objects if (x and x.type == 'MESH')];
+    lyrnames = [];
+    
+    for obj in objects:
+        for lyr in obj.data.uv_layers:
+            lyrnames.append(lyr.name);
+    
+    lyrnames.sort(key=lambda x: lyrnames.count(x));
+    lyrnames = list(set(lyrnames));
+    
+    for name in lyrnames:
+        items.append( (name, name, 'Use "%s" layer for uv data' % name) );
+    
+    return items;
+
+def GetVCLayers(self, context):
+    items = [];
+    items.append( (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" below') );
+    items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') );
+    items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') );
+    
+    objects = [x for x in context.selected_objects if (x and x.type == 'MESH')];
+    lyrnames = [];
+    
+    for obj in objects:
+        for lyr in obj.data.vertex_colors:
+            lyrnames.append(lyr.name);
+    
+    lyrnames.sort(key=lambda x: lyrnames.count(x));
+    lyrnames = list(set(lyrnames));
+    
+    for name in lyrnames:
+        items.append( (name, name, 'Use "%s" layer for color data' % name) );
+    
+    return items;
+
 MTY_VIEW = 'V';
 MTY_RENDER = 'R';
 MTY_OR = 'OR';
@@ -130,7 +177,7 @@ ForwardAxisItems = (
     ('-z', '-Z Forward', 'Export model(s) with -Z Forward axis'),
 );
 
-def GetVBData(sourceobj, format = [], settings = {}):
+def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL]):
     context = bpy.context;
     
     armature = None;
@@ -255,17 +302,29 @@ def GetVBData(sourceobj, format = [], settings = {}):
         bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
         bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
     
-    uvloops = mesh.uv_layers.active.data if mesh.uv_layers else mesh.uv_layers.new().data;
-    if settings.get('uvlayerpick', 1):
-        for lyr in mesh.uv_layers: # if use render
-            if lyr.active_render: 
-                uvloops = lyr.data;
+    print('UVTarget: %s', uvtarget);
+    print('VCTarget: %s', vctarget);
     
-    vcolors = mesh.vertex_colors.active.data if mesh.vertex_colors else mesh.vertex_colors.new().data;
-    if settings.get('colorlayerpick', 1):
-        for lyr in mesh.vertex_colors: # if use render
-            if lyr.active_render: 
-                vcolors = lyr.data;
+    def FindLayers(layerlist, targetlist, targetpick):
+        if not layerlist:
+            targetlist = layerlist.new().name;
+        if not type(targetlist) == list:
+            uvtarget = [targetlist];
+        targetlist += [targetlist[-1]] * (len(format) - len(targetlist));
+        
+        attriblayers = [0] * len(targetlist);
+        for i, t in enumerate(targetlist):
+            if t in [y.name for y in layerlist]:
+                attriblayers[i] = layerlist[t].data;
+            elif targetpick or t == LYR_RENDER:
+                attriblayers[i] = [x for x in layerlist if x.active_render][0].data;
+        
+        return (layerlist, attriblayers);
+    
+    uvlayers, uvattriblayers = FindLayers(mesh.uv_layers, uvtarget, settings.get('uvlayerpick', 1));
+    vclayers, vcattriblayers = FindLayers(mesh.vertex_colors, vctarget, settings.get('colorlayerpick', 1));
+    
+    fullalpha = settings.get('fullalpha', 0);
     
     # Set up armature
     if armature:
@@ -291,9 +350,53 @@ def GetVBData(sourceobj, format = [], settings = {}):
     chunksize = 1024;
     
     vgesortfunc = lambda x: x.weight;
+    range2 = range(0, 2);
+    range3 = range(0, 3);
     
     # Triangles
     if usetris:
+        def fPOS(attribindex): materialgroup[-1] += PackVector(FCODE, v.co*yvec);
+        def fNOR(attribindex): materialgroup[-1] += PackVector(FCODE, p_normals[i]*yvec);
+        def fTAN(attribindex): materialgroup[-1] += PackVector(loops[l].tangent*yvec);
+        def fBTN(attribindex): materialgroup[-1] += PackVector(loops[l].bitangent*yvec);
+        def fTEX(attribindex): materialgroup[-1] += PackVector(FCODE, (uvattriblayers[attribindex][l].uv[0], 1-uvattriblayers[attribindex][l].uv[1]));
+        def fCOL(attribindex): materialgroup[-1] += PackVector(FCODE, vcattriblayers[attribindex][l].color);
+        def fCO2(attribindex): materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcattriblayers[attribindex][l].color]);
+        def fBON(attribindex):
+            vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc);
+            vertbones = [grouptobone[vge.group] for vge in vgelements];
+            vertbones += [0] * (4-len(vertbones));
+            materialgroup[-1] += PackVector(FCODE, vertbones[:4]);
+        def fBOI(attribindex):
+            vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc);
+            vertbones = [grouptobone[vge.group] for vge in vgelements];
+            vertbones += [0] * (4-len(vertbones));
+            materialgroup[-1] += PackVector('B', vertbones[:4]);
+        def fWEI(attribindex):
+            vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc);
+            vertweights = [vge.weight for vge in vgelements];
+            vertweights += [0] * (4-len(vertweights));
+            vertweights = vertweights[:4];
+            weightmagnitude = sum(vertweights);
+            if weightmagnitude != 0:
+                materialgroup[-1] += PackVector(FCODE, [x/weightmagnitude for x in vertweights[:4]]);
+            else:
+                materialgroup[-1] += PackVector(FCODE, [x for x in vertweights[:4]]);
+        
+        fFunc = {
+            VBF_POS : fPOS,
+            VBF_NOR : fNOR,
+            VBF_TAN : fTAN,
+            VBF_BTN : fBTN,
+            VBF_TEX : fTEX,
+            VBF_COL : fCOL,
+            VBF_CO2 : fCO2,
+            VBF_BON : fBON,
+            VBF_BOI : fBOI,
+            VBF_WEI : fWEI,
+        }
+        
+        tt = time.time();
         for p in mesh.loop_triangles[:]: # For all mesh's triangles...
             p_loops = p.loops;
             p_vertices = p.vertices;
@@ -309,61 +412,15 @@ def GetVBData(sourceobj, format = [], settings = {}):
             
             vertexcount += 3;
             
-            for i in range(0, 3): # For each vertex index...
+            for i in range3: # For each vertex index...
                 l = p_loops[i];
                 v = vertices[ p_vertices[i] ];
                 
-                for formatentry in format: # For each attribute in vertex format...
-                    if formatentry == VBF_POS: # Position
-                        #materialgroup.extend(v.co);
-                        materialgroup[-1] += PackVector(FCODE, v.co*yvec);
-                    
-                    elif formatentry == VBF_NOR: # Normal
-                        #materialgroup.extend(p_normals[i]);
-                        materialgroup[-1] += PackVector(FCODE, p_normals[i]*yvec);
-                    
-                    elif formatentry == VBF_TAN: # Tangent
-                        #materialgroup.extend(loops[l].tangent);
-                        materialgroup[-1] += PackVector(FCODE, loops[l].tangent*yvec);
-                    
-                    elif formatentry == VBF_BTN: # Bitangent
-                        #materialgroup.extend(loops[l].bitangent);
-                        materialgroup[-1] += PackVector(FCODE, loops[l].bitangent*yvec);
-                    
-                    elif formatentry == VBF_TEX: # Texture
-                        #materialgroup.extend((uvloops[l].uv[0], 1-uvloops[l].uv[1]));
-                        materialgroup[-1] += PackVector(FCODE, (uvloops[l].uv[0], 1-uvloops[l].uv[1]));
-                    
-                    elif formatentry == VBF_COL: # Color
-                        #materialgroup.extend(vcolors[l].color);
-                        materialgroup[-1] += PackVector(FCODE, vcolors[l].color);
-                    
-                    elif formatentry == VBF_CO2: # Color
-                        materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcolors[l].color]);
-                    
-                    elif formatentry == VBF_BON or formatentry == VBF_BOI: # Bone
-                        vgelements = [vge for vge in v.groups if vge.group in validvgroups];
-                        vgelements.sort(reverse=True, key=vgesortfunc);
-                        
-                        vertbones = [grouptobone[vge.group] for vge in vgelements];
-                        vertbones += [0] * (4-len(vertbones));
-                        if formatentry == VBF_BON:
-                            materialgroup[-1] += PackVector(FCODE, vertbones[:4]);
-                        else:
-                            materialgroup[-1] += PackVector('B', vertbones[:4]);
-                    
-                    elif formatentry == VBF_WEI: # Weight
-                        vgelements = [vge for vge in v.groups if vge.group in validvgroups];
-                        vgelements.sort(reverse=True, key=vgesortfunc);
-                        
-                        vertweights = [vge.weight for vge in vgelements];
-                        vertweights += [0] * (4-len(vertweights));
-                        vertweights = vertweights[:4];
-                        weightmagnitude = sum(vertweights);
-                        if weightmagnitude != 0:
-                            materialgroup[-1] += PackVector(FCODE, [x/weightmagnitude for x in vertweights[:4]]);
-                        else:
-                            materialgroup[-1] += PackVector(FCODE, [x for x in vertweights[:4]]);
+                [fFunc[formatentry](i) for i, formatentry in enumerate(format)];
+                
+                continue;
+            
+        print('Time: %s' % (time.time() - tt))
     # Edges
     else:
         for p in mesh.edges[:]: # For all mesh's edges...
@@ -375,7 +432,7 @@ def GetVBData(sourceobj, format = [], settings = {}):
             
             vertexcount += 2;
             
-            for i in range(0, 2): # For each vertex index...
+            for i in range2: # For each vertex index...
                 v = vertices[ p_vertices[i] ];
                 normal = v.normal;
                 
@@ -434,7 +491,9 @@ def RemoveTempObjects():
     objects = bpy.data.objects;
     selected = [x for x in bpy.context.selected_objects if '__temp' not in x.name];
     
-    if not bpy.context.active_object:
+    object = bpy.context.active_object if bpy.context.active_object else bpy.context.object
+    
+    if not object:
         selected[0].select_set(1);
         bpy.context.view_layer.objects.active = selected[0];
         lastactive = bpy.context.view_layer.objects.active;
@@ -442,6 +501,7 @@ def RemoveTempObjects():
     
     lastobjectmode = bpy.context.active_object.mode;
     lastactive = bpy.context.view_layer.objects.active;
+    lastname = lastactive.name;
     
     bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
     bpy.ops.object.select_all(action='DESELECT');
@@ -460,7 +520,10 @@ def RemoveTempObjects():
     for obj in selected:
         obj.select_set(1);
     if not lastactive:
-        bpy.context.view_layer.objects.active = selected[0];
+        if selected:
+            bpy.context.view_layer.objects.active = selected[0];
+        else:
+            bpy.context.view_layer.objects.active = objects[lastname[:-len('__temp')]];
     else:
         bpy.ops.object.mode_set(mode = lastobjectmode);
     
