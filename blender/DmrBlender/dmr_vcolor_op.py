@@ -3,9 +3,8 @@ import mathutils
 
 classlist = [];
 
-
-class DMR_SELECTBYVERTEXCOLOR(bpy.types.Operator):
-    bl_label = "Select by Vertex Color"
+class DMR_OP_SelectByVertexColor(bpy.types.Operator):
+    bl_label = "Select By Vertex Color"
     bl_idname = 'dmr.select_vertex_color'
     bl_description = 'Select similar vertices/faces by vertex color';
     bl_options = {'REGISTER', 'UNDO'};
@@ -108,11 +107,11 @@ class DMR_SELECTBYVERTEXCOLOR(bpy.types.Operator):
         
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         return {'FINISHED'}
-classlist.append(DMR_SELECTBYVERTEXCOLOR);
+classlist.append(DMR_OP_SelectByVertexColor);
 
 # =============================================================================
 
-class DMR_SETVERTEXCOLOR(bpy.types.Operator):
+class DMR_OP_SetVertexColor(bpy.types.Operator):
     bl_label = "Set Vertex Color"
     bl_idname = 'dmr.set_vertex_color'
     bl_description = 'Sets vertex color for selected vertices/faces';
@@ -152,11 +151,11 @@ class DMR_SETVERTEXCOLOR(bpy.types.Operator):
         
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         return {'FINISHED'}
-classlist.append(DMR_SETVERTEXCOLOR);
+classlist.append(DMR_OP_SetVertexColor);
 
 # =============================================================================
 
-class DMR_SETVERTEXCOLORCHANNEL(bpy.types.Operator):
+class DMR_OP_SetVertexColorChannel(bpy.types.Operator):
     bl_label = "Set Vertex Color Channel"
     bl_idname = 'dmr.set_vertex_color_channel'
     bl_description = 'Sets vertex color channel for selected vertices/faces';
@@ -176,11 +175,14 @@ class DMR_SETVERTEXCOLORCHANNEL(bpy.types.Operator):
         default=1.0
     );
     
+    def invoke(self, context, event):
+        return self.execute(context);
+    
     def execute(self, context):
         lastobjectmode = bpy.context.active_object.mode;
         bpy.ops.object.mode_set(mode = 'OBJECT'); # Update selected
         
-        for obj in [x for x in context.selected_objects] + [context.object]:
+        for obj in set([x for x in context.selected_objects] + [context.object]):
             if obj.type != 'MESH': 
                 continue;
             
@@ -202,11 +204,11 @@ class DMR_SETVERTEXCOLORCHANNEL(bpy.types.Operator):
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         
         return {'FINISHED'}
-classlist.append(DMR_SETVERTEXCOLORCHANNEL);
+classlist.append(DMR_OP_SetVertexColorChannel);
 
 # =============================================================================
 
-class DMR_VC_ClearAlpha(bpy.types.Operator):
+class DMR_OP_VertexColorClearAlpha(bpy.types.Operator):
     bl_label = "Clear Alpha"
     bl_idname = 'dmr.vc_clear_alpha'
     bl_description = 'Sets vertex color alpha for selected vertices/faces';
@@ -243,11 +245,11 @@ class DMR_VC_ClearAlpha(bpy.types.Operator):
         
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         return {'FINISHED'}
-classlist.append(DMR_VC_ClearAlpha);
+classlist.append(DMR_OP_VertexColorClearAlpha);
 
 # =============================================================================
 
-class DMR_PICKVERTEXCOLOR(bpy.types.Operator):
+class DMR_OP_PickVertexColor(bpy.types.Operator):
     bl_label = "Pick Vertex Color"
     bl_idname = 'dmr.pick_vertex_color'
     bl_description = 'Gets vertex color from selected vertices/faces';
@@ -292,11 +294,11 @@ class DMR_PICKVERTEXCOLOR(bpy.types.Operator):
         
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         return {'FINISHED'}
-classlist.append(DMR_PICKVERTEXCOLOR);
+classlist.append(DMR_OP_PickVertexColor);
 
 # =============================================================================
 
-class DMR_OP_QUICKDIRTYCOLORS(bpy.types.Operator):
+class DMR_OP_QuickDirtyColors(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "dmr.quick_n_dirty"
     bl_label = "Quick Dirty Vertex Colors"
@@ -344,11 +346,11 @@ class DMR_OP_QUICKDIRTYCOLORS(bpy.types.Operator):
         bpy.context.view_layer.objects.active = oldactive;
             
         return {'FINISHED'}
-classlist.append(DMR_OP_QUICKDIRTYCOLORS);
+classlist.append(DMR_OP_QuickDirtyColors);
 
 # =============================================================================
 
-class DMR_MergeVertexColor(bpy.types.Operator):
+class DMR_OP_MergeVertexColors(bpy.types.Operator):
     bl_label = "Merge Vertex Color Layer"
     bl_idname = 'dmr.merge_vertex_color'
     bl_description = 'Sets vertex color of selected vertices/faces of active layer to those of another';
@@ -408,8 +410,7 @@ class DMR_MergeVertexColor(bpy.types.Operator):
         
         bpy.ops.object.mode_set(mode = lastobjectmode); # Return to last mode
         return {'FINISHED'}
-classlist.append(DMR_MergeVertexColor);
-
+classlist.append(DMR_OP_MergeVertexColors);
 
 # =============================================================================
 

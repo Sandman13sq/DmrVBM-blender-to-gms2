@@ -24,7 +24,7 @@ classlist = [];
 
 # =============================================================================
 
-class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
+class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
     """Exports selected objects as one compressed vertex buffer"""
     bl_idname = "dmr.gm_export_vb";
     bl_label = "Export VB";
@@ -306,7 +306,7 @@ class DMR_GM_ExportVB(bpy.types.Operator, ExportHelper):
         bpy.context.view_layer.objects.active = active;
         
         return {'FINISHED'}
-classlist.append(DMR_GM_ExportVB);
+classlist.append(DMR_OP_ExportVB);
 
 # =============================================================================
 
@@ -587,7 +587,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         
         
         return {'FINISHED'};
-classlist.append(DMR_GM_ExportVBX);
+classlist.append(DMR_OP_ExportVBX);
 
 # =============================================================================
 
