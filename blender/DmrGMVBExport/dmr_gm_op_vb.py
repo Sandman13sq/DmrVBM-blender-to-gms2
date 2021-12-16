@@ -142,7 +142,8 @@ class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
         layout = self.layout;
         
         r = layout.column_flow(align=1);
-        #r.prop(self, 'exportarmature', text='Export Armature');
+        r.prop(self, 'applyarmature', text='Apply Armature');
+        r.prop(self, 'batchexport', text='Batch Export');
         r.prop(self, 'edgesonly', text='Edges Only');
         r.prop(self, 'yflip', text='Y Flip');
         r.prop(self, 'maxsubdivisions', text='Max Subdivisions');
@@ -220,7 +221,6 @@ class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
             'yflip': self.yflip,
             'matrix': mattran,
             'maxsubdivisions': self.maxsubdivisions,
-            'fullalpha': self.fullalpha,
         };
         
         FCODE = 'f';
@@ -259,11 +259,14 @@ class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
         else:
             rootpath = path;
             rootpath = rootpath[:rootpath.rfind('.vb')];
+            if rootpath[-1] != '/' and rootpath[-1] != '\\':
+                rootpath += '/';
+                
             outgroups = {}; # {materialname: vertexdata}
             
             for i, obj in enumerate(objects):
                 print('> Composing data for \"%s\"...' % obj.name);
-                d = GetVBData(obj, format, settings, uvlayertarget[i], vclayertarget[i]);
+                d = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
                 
                 # By Object Name
                 if self.batchexport == 'obj':
@@ -310,7 +313,7 @@ classlist.append(DMR_OP_ExportVB);
 
 # =============================================================================
 
-class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
+class DMR_OP_ExportVBX(bpy.types.Operator, ExportHelper):
     """Exports selected objects as vbx data"""
     bl_idname = "dmr.gm_export_vbx";
     bl_label = "Export VBX";
@@ -327,7 +330,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
             ('OBJ', "By Object", "Objects -> VBs"),
             ('MAT', "By Material", "Materials -> VBs"),
         ),
-        default='MAT',
+        default='OBJ',
     );
     
     applyarmature: bpy.props.BoolProperty(
@@ -367,14 +370,36 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
     # Vertex Attributes
     VbfProp = lambda i,key: bpy.props.EnumProperty(name="Attribute %d" % i, 
         description='Data to write for each vertex', items=VBFItems, default=key);
+    VClyrProp = lambda i: bpy.props.EnumProperty(name="Color Layer", 
+        description='Color layer to reference', items=GetVCLayers, default=0);
+    UVlyrProp = lambda i: bpy.props.EnumProperty(name="UV Layer", 
+        description='UV layer to reference', items=GetUVLayers, default=0);
     vbf0 : VbfProp(0, VBF_POS);
     vbf1 : VbfProp(1, VBF_NOR);
     vbf2 : VbfProp(2, VBF_CO2);
     vbf3 : VbfProp(3, VBF_TEX);
-    vbf4 : VbfProp(4, VBF_BON);
-    vbf5 : VbfProp(5, VBF_WEI);
+    vbf4 : VbfProp(4, VBF_000);
+    vbf5 : VbfProp(5, VBF_000);
     vbf6 : VbfProp(6, VBF_000);
     vbf7 : VbfProp(7, VBF_000);
+    
+    vclyr0 : VClyrProp(0);
+    vclyr1 : VClyrProp(1);
+    vclyr2 : VClyrProp(2);
+    vclyr3 : VClyrProp(3);
+    vclyr4 : VClyrProp(4);
+    vclyr5 : VClyrProp(5);
+    vclyr6 : VClyrProp(6);
+    vclyr7 : VClyrProp(7);
+    
+    uvlyr0 : UVlyrProp(0);
+    uvlyr1 : UVlyrProp(1);
+    uvlyr2 : UVlyrProp(2);
+    uvlyr3 : UVlyrProp(3);
+    uvlyr4 : UVlyrProp(4);
+    uvlyr5 : UVlyrProp(5);
+    uvlyr6 : UVlyrProp(6);
+    uvlyr7 : UVlyrProp(7);
     
     uvlayerpick: bpy.props.EnumProperty(
         name="Target UV Layer", 
@@ -408,23 +433,27 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         
         b = layout.box();
         b = b.column_flow(align=1);
-        r = b.row();
-        r.alignment = 'CENTER';
-        r.label(text='Vertex Attributes');
-        b.prop(self, 'vbf0', text='Attrib0');
-        b.prop(self, 'vbf1', text='Attrib1');
-        b.prop(self, 'vbf2', text='Attrib2');
-        b.prop(self, 'vbf3', text='Attrib3');
-        b.prop(self, 'vbf4', text='Attrib4');
-        b.prop(self, 'vbf5', text='Attrib5');
-        b.prop(self, 'vbf6', text='Attrib6');
-        b.prop(self, 'vbf7', text='Attrib7');
+        # Draw attributes
+        for i in range(0, 8):
+            b.prop(self, 'vbf%d' % i, text='Attrib%d' % i);
+            
+            vbfkey = getattr(self, 'vbf%d' % i);
+            
+            if vbfkey == VBF_000:
+                break;
+            
+            if vbfkey == VBF_COL or vbfkey == VBF_CO2:
+                r = b.row();
+                r.prop(self, 'vclyr%d' % i, text='vclyr%d' % i);
+            elif vbfkey == VBF_TEX:
+                r = b.row();
+                r.prop(self, 'uvlyr%d' % i, text='uvlyr%d' % i);
         
         rr = layout.row();
         c = rr.column(align=1);
         c.scale_x = 0.8;
-        c.label(text='UV Src:');
-        c.label(text='Color Src:');
+        c.label(text='UV Source:');
+        c.label(text='Color Source:');
         c.label(text='Modifier Src:');
         c = rr.column(align=1);
         c.prop(self, 'uvlayerpick', text='');
@@ -432,13 +461,21 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         c.prop(self, 'modifierpick', text='');
         
     def execute(self, context):
-        active = bpy.context.view_layer.objects.active;
-        activename = active.name;
         format = [];
-        for x in '01234567':
-            slot = getattr(self, 'vbf' + x);
+        vclayertarget = [];
+        uvlayertarget = [];
+        
+        for i in range(0, 8):
+            slot = getattr(self, 'vbf%d' % i);
+            vctarget = getattr(self, 'vclyr%d' % i);
+            uvtarget = getattr(self, 'uvlyr%d' % i);
+            
+            print('%d: %s' % (i, (vctarget, uvtarget)))
+            
             if slot != VBF_000:
                 format.append(slot);
+                vclayertarget.append(vctarget);
+                uvlayertarget.append(uvtarget);
         
         settings = {
             'format' : format,
@@ -450,6 +487,9 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
             'maxsubdivisions': self.maxsubdivisions,
             'yflip' : self.yflip,
         };
+        
+        active = bpy.context.view_layer.objects.active;
+        activename = active.name;
         
         path = self.filepath;
         FCODE = self.floattype;
@@ -475,8 +515,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
                             break;
         
         if not armature:
-            self.report({'WARNING'}, 'No armature found in object selection or modifiers. Aborting export.');
-            return {'FINISHED'}
+            self.report({'WARNING'}, 'No armature found in object selection or modifiers.');
         
         # Compose Vertex Buffer Data ================================================
         """
@@ -491,7 +530,7 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
         
         for obj in objects:
             print('> Composing data for \"%s\"...' % obj.name);
-            data = GetVBData(obj, format, settings);
+            data = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
             
             # Group by Object
             if self.grouping == 'OBJ':
@@ -538,16 +577,19 @@ class DMR_GM_ExportVBX(bpy.types.Operator, ExportHelper):
             inversemodelmatrices[bonecount] (16f each)
         """
         
-        bones = armature.data.bones[:];
-        out_bone = b'';
-        
-        out_bone += Pack('H', len(bones));
-        out_bone += b''.join( [PackString(b.name) for b in bones] );
-        out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] );
-        out_bone += b''.join( [PackMatrix('f',
-            (b.parent.matrix_local.inverted() @ b.matrix_local)
-            if b.parent else b.matrix_local) for b in bones] );
-        out_bone += b''.join( [PackMatrix('f', b.matrix_local.inverted()) for b in bones] );
+        if armature:
+            bones = armature.data.bones[:];
+            out_bone = b'';
+            
+            out_bone += Pack('H', len(bones));
+            out_bone += b''.join( [PackString(b.name) for b in bones] );
+            out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] );
+            out_bone += b''.join( [PackMatrix('f',
+                (b.parent.matrix_local.inverted() @ b.matrix_local)
+                if b.parent else b.matrix_local) for b in bones] );
+            out_bone += b''.join( [PackMatrix('f', b.matrix_local.inverted()) for b in bones] );
+        else:
+            out_bone = Pack('H', 0);
         
         # Header ============================================================
         
@@ -593,31 +635,6 @@ classlist.append(DMR_OP_ExportVBX);
 
 def register():
     print('='*80)
-    scene = bpy.context.scene;
-    if not scene.get('dmr_vbexport', None):
-        scene['dmr_vbexport'] = {
-            'vbattrib0' : VBF_POS,
-            'vbattrib1' : VBF_NOR,
-            'vbattrib2' : VBF_CO2,
-            'vbattrib3' : VBF_TEX,
-            'vbattrib4' : VBF_000,
-            'vbattrib5' : VBF_000,
-            'vbattrib6' : VBF_000,
-            'vbattrib7' : VBF_000,
-            
-            'vbxattrib0' : VBF_POS,
-            'vbxattrib1' : VBF_NOR,
-            'vbxattrib2' : VBF_TAN,
-            'vbxattrib3' : VBF_BTN,
-            'vbxattrib4' : VBF_CO2,
-            'vbxattrib5' : VBF_TEX,
-            'vbxattrib6' : VBF_BON,
-            'vbxattrib7' : VBF_WEI,
-            
-            'lastvb' : None,
-            'lastvbx' : None,
-        };
-    
     for c in classlist:
         bpy.utils.register_class(c)
 

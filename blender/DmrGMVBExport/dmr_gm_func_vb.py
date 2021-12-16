@@ -302,14 +302,14 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
         bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
     
-    print('UVTarget: %s', uvtarget);
-    print('VCTarget: %s', vctarget);
+    print('UVTarget: %s' % uvtarget);
+    print('VCTarget: %s' % vctarget);
     
     def FindLayers(layerlist, targetlist, targetpick):
         if not layerlist:
             targetlist = layerlist.new().name;
         if not type(targetlist) == list:
-            uvtarget = [targetlist];
+            targetlist = [targetlist];
         targetlist += [targetlist[-1]] * (len(format) - len(targetlist));
         
         attriblayers = [0] * len(targetlist);
