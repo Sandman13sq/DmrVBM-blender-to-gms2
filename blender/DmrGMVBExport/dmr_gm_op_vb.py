@@ -18,6 +18,42 @@ PackVector = lambda f, v: struct.pack(f*len(v), *(v[:]));
 PackMatrix = lambda f, m: b''.join( [struct.pack(f*4, *x) for x in m.copy().transposed()] );
 QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001];
 
+def CompressAndWrite(self, out, path):
+    outcompressed = zlib.compress(out);
+    outlen = (len(out), len(outcompressed));
+    
+    file = open(path, 'wb');
+    file.write(outcompressed);
+    file.close();
+    
+    print('outlen: %s', outlen)
+    print("Data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
+            (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], path) );
+    self.report({'INFO'}, 'VB data written to \"%s\"' % path);
+
+"""
+    'VBX' (3B)
+    VBX version (1B)
+    flags (1B)
+    
+    formatlength (1B)
+    formatentry[formatlength]
+        attributetype (1B)
+        attributefloatsize (1B)
+    
+    vbcount (2B)
+    vbnames[vbcount] ((1 + name length)B each)
+    vbdata[vbcount]
+        vbcompressedsize (4B)
+        vbcompresseddata (vbcompressedsize B)
+    
+    bonecount (2B)
+    bonenames[bonecount] ((1 + name length)B each)
+    parentindices[bonecount] (2B)
+    localmatrices[bonecount] (16f each)
+    inversemodelmatrices[bonecount] (16f each)
+"""
+
 # ------------------------------------------------------------------------------------------
 
 classlist = [];
@@ -142,8 +178,8 @@ class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
         layout = self.layout;
         
         r = layout.column_flow(align=1);
-        r.prop(self, 'applyarmature', text='Apply Armature');
         r.prop(self, 'batchexport', text='Batch Export');
+        r.prop(self, 'applyarmature', text='Apply Armature');
         r.prop(self, 'edgesonly', text='Edges Only');
         r.prop(self, 'yflip', text='Y Flip');
         r.prop(self, 'maxsubdivisions', text='Max Subdivisions');
@@ -199,6 +235,8 @@ class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
                 format.append(slot);
                 vclayertarget.append(vctarget);
                 uvlayertarget.append(uvtarget);
+            else:
+                break;
         
         mattran = mathutils.Matrix();
         u = self.upaxis;
@@ -240,52 +278,37 @@ class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
             out = b'';
             for i, obj in enumerate(objects):
                 print('> Composing data for \"%s\"...' % obj.name);
-                data = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
+                data = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)[0];
                 
                 for d in data.values():
                     out += d;
             
-            outcompressed = zlib.compress(out);
-            outlen = (len(out), len(outcompressed));
-            
-            file = open(path, 'wb');
-            file.write(outcompressed);
-            file.close();
-            
-            print("VB data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
-                    (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], path) );
+            CompressAndWrite(self, out, path);
             self.report({'INFO'}, 'VB data written to \"%s\"' % path);
         # Batch Export
         else:
-            rootpath = path;
-            rootpath = rootpath[:rootpath.rfind('.vb')];
-            if rootpath[-1] != '/' and rootpath[-1] != '\\':
-                rootpath += '/';
-                
-            outgroups = {}; # {materialname: vertexdata}
+            rootpath = path[:path.rfind('.vb')] if '.vb' in path else path;
+            outgroups = {}; # {groupname: vertexdata}
             
             for i, obj in enumerate(objects):
                 print('> Composing data for \"%s\"...' % obj.name);
-                d = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
+                vbdata = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)[0];
                 
                 # By Object Name
                 if self.batchexport == 'obj':
                     name = obj.name;
-                    if name not in outgroups.keys():
-                        outgroups[name] = b'';
-                    outgroups[name] += b''.join([x for x in d.values()]);
+                    outgroups[name] = outgroups.get(name, b'');
+                    outgroups[name] += b''.join([x for x in vbdata.values()]);
                 # By Mesh Name
                 elif self.batchexport == 'mesh':
                     name = obj.data.name;
-                    if name not in outgroups.keys():
-                        outgroups[name] = b'';
-                    outgroups[name] += b''.join([x for x in d.values()]);
+                    outgroups[name] = outgroups.get(name, b'');
+                    outgroups[name] += b''.join([x for x in vbdata.values()]);
                 # By Material Name
                 elif self.batchexport == 'mat':
-                    for name, d in data.items():
-                        if name not in outgroups.keys():
-                            outgroups[name] = b'';
-                        outgroups[name] += b''.join([x for x in d.values()]);
+                    for name, d in vbdata.items():
+                        outgroups[name] = outgroups.get(name, b'');
+                        outgroups[name] += d;
             
             # Export each data as individual files
             for name, data in outgroups.items():
@@ -293,12 +316,7 @@ class DMR_OP_ExportVB(bpy.types.Operator, ExportHelper):
                 outcompressed = zlib.compress(out);
                 outlen = (len(out), len(outcompressed));
                 
-                path = rootpath + name + self.filename_ext;
-                file = open(path, 'wb');
-                file.write(outcompressed);
-                file.close();
-                print("VB data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
-                    (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], path) );
+                CompressAndWrite(self, out, rootpath + name + self.filename_ext);
             self.report({'INFO'}, 'VB data written to \"%s\"' % rootpath);
         
         # Restore state
@@ -322,6 +340,20 @@ class DMR_OP_ExportVBX(bpy.types.Operator, ExportHelper):
     # ExportHelper mixin class uses this
     filename_ext = ".vbx"
     filter_glob : bpy.props.StringProperty(default='*'+filename_ext, options={'HIDDEN'}, maxlen=255);
+    
+    batchexport: bpy.props.EnumProperty(
+        name="Batch Export",
+        description="Export selected objects as separate files.",
+        items = (
+            ('none', 'No Batching', 'All objects will be written to a single file'),
+            ('obj', 'By Object Name', 'Objects will be written to "<filename><object_name>.vbx" by object'),
+            ('mesh', 'By Mesh Name', 'Objects will be written to "<filename><mesh_name>.vbx" by mesh'),
+            ('mat', 'By Material', 'Objects will be written to "<filename><material_name>.vbx" by material'),
+            ('armature', 'By Parent Armature', 'Objects will be written to "<filename><armature_name>.vbx" by parent armature'),
+            ('empty', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.vbx" by parent empty'),
+        ),
+        default='none',
+    );
     
     grouping : bpy.props.EnumProperty(
         name="Mesh Grouping",
@@ -422,6 +454,7 @@ class DMR_OP_ExportVBX(bpy.types.Operator, ExportHelper):
     
     def draw(self, context):
         layout = self.layout;
+        layout.prop(self, 'batchexport', text='Batch Export');
         layout.prop(self, 'grouping', text='Grouping');
         
         r = layout.column_flow(align=1);
@@ -470,12 +503,14 @@ class DMR_OP_ExportVBX(bpy.types.Operator, ExportHelper):
             vctarget = getattr(self, 'vclyr%d' % i);
             uvtarget = getattr(self, 'uvlyr%d' % i);
             
-            print('%d: %s' % (i, (vctarget, uvtarget)))
+            #print('%d: %s' % (i, (vctarget, uvtarget)))
             
             if slot != VBF_000:
                 format.append(slot);
                 vclayertarget.append(vctarget);
                 uvlayertarget.append(uvtarget);
+            else:
+                break;
         
         settings = {
             'format' : format,
@@ -497,9 +532,15 @@ class DMR_OP_ExportVBX(bpy.types.Operator, ExportHelper):
         RemoveTempObjects();
         
         # Get list of selected objects
-        objects = [x for x in context.selected_objects if x.type == 'MESH'];
-        if len(objects) == 0:
-            self.report({'WARNING'}, 'No valid objects selected');
+        objects = [x for x in bpy.context.selected_objects if x.type == 'MESH'];
+        armatures = [x for x in bpy.context.selected_objects if x.type == 'ARMATURE']
+        armatures += [x.parent for x in objects if (x.parent and x.parent.type == 'ARMATURE')]
+        armatures += [
+            m.object
+            for x in objects if x.type == 'MESH'
+            for m in x.modifiers if (m.type == 'ARMATURE' and m.object)
+        ]
+        armatures = list(set(armatures))
         
         # Find armature
         armature = None;
@@ -513,83 +554,6 @@ class DMR_OP_ExportVBX(bpy.types.Operator, ExportHelper):
                         if m.object:
                             armature = m.object;
                             break;
-        
-        if not armature:
-            self.report({'WARNING'}, 'No armature found in object selection or modifiers.');
-        
-        # Compose Vertex Buffer Data ================================================
-        """
-            vbcount (2B)
-            vbnames[vbcount] ((1 + name length)B each)
-            vbdata[vbcount]
-                vbcompressedsize (4B)
-                vbcompresseddata (vbcompressedsize B)
-        """
-        
-        vbgroups = {};
-        
-        for obj in objects:
-            print('> Composing data for \"%s\"...' % obj.name);
-            data = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
-            
-            # Group by Object
-            if self.grouping == 'OBJ':
-                # No data
-                if sum( [len(x) for x in data.values()] ) == 0:
-                    continue;
-                
-                if obj.name not in vbgroups.keys():
-                    vbgroups[obj.name] = b'';
-                for vbdata in data.values():
-                    vbgroups[obj.name] += vbdata;
-            # Group by Material
-            elif self.grouping == 'MAT':
-                for name, vbdata in data.items():
-                    if len(vbdata) == 0:
-                        continue;
-                    
-                    if name not in vbgroups.keys():
-                        vbgroups[name] = b'';
-                    vbgroups[name] += vbdata;
-        
-        out_vb = b'';
-        
-        # Number of groups
-        out_vb += Pack('H', len(vbgroups));
-        # Group Names
-        out_vb += b''.join( [PackString(name) for name in vbgroups.keys()] );
-        
-        # Write groups
-        for name, vb in vbgroups.items():
-            #chunk = struct.pack('<%s' % ('f' * len(vb)), *vb);
-            chunk = vb;
-            vbcompressed = zlib.compress(chunk);
-            print('%s compressed size: %d' % (name, len(vbcompressed)));
-            out_vb += Pack('L', len(vbcompressed));
-            out_vb += vbcompressed;
-        
-        # Compose Bone Data =========================================================
-        """
-            bonecount (2B)
-            bonenames[bonecount] ((1 + name length)B each)
-            parentindices[bonecount] (2B)
-            localmatrices[bonecount] (16f each)
-            inversemodelmatrices[bonecount] (16f each)
-        """
-        
-        if armature:
-            bones = armature.data.bones[:];
-            out_bone = b'';
-            
-            out_bone += Pack('H', len(bones));
-            out_bone += b''.join( [PackString(b.name) for b in bones] );
-            out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] );
-            out_bone += b''.join( [PackMatrix('f',
-                (b.parent.matrix_local.inverted() @ b.matrix_local)
-                if b.parent else b.matrix_local) for b in bones] );
-            out_bone += b''.join( [PackMatrix('f', b.matrix_local.inverted()) for b in bones] );
-        else:
-            out_bone = Pack('H', 0);
         
         # Header ============================================================
         
@@ -607,26 +571,163 @@ class DMR_OP_ExportVBX(bpy.types.Operator, ExportHelper):
             out_format += Pack('B', VBFType[f]); # Attribute Type
             out_format += Pack('B', VBFSize[f]); # Attribute Float Size
         
-        out = b'VBX' + Pack('B', VBXVERSION) + Pack('B', flag) + out_format + out_vb + out_bone;
-        outcompressed = zlib.compress(out);
-        outlen = (len(out), len(outcompressed));
+        out_header = b'VBX' + Pack('B', VBXVERSION);
+        out_header += Pack('B', flag);
+        out_header += out_format;
         
-        file = open(path, 'wb');
-        file.write(outcompressed);
-        file.close();
+        # Compose Bone Data =========================================================
+        """
+            bonecount (2B)
+            bonenames[bonecount] ((1 + name length)B each)
+            parentindices[bonecount] (2B)
+            localmatrices[bonecount] (16f each)
+            inversemodelmatrices[bonecount] (16f each)
+        """
+        
+        def ComposeBoneData(armature):
+            if armature and self.exportarmature:
+                bones = armature.data.bones[:];
+                out_bone = b'';
+                
+                out_bone += Pack('H', len(bones));
+                out_bone += b''.join( [PackString(b.name) for b in bones] );
+                out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] );
+                out_bone += b''.join( [PackMatrix('f',
+                    (b.parent.matrix_local.inverted() @ b.matrix_local)
+                    if b.parent else b.matrix_local) for b in bones] );
+                out_bone += b''.join( [PackMatrix('f', b.matrix_local.inverted()) for b in bones] );
+            else:
+                out_bone = Pack('H', 0);
+            return out_bone;
+        
+        out_bone = ComposeBoneData(armature);
+        
+        # Compose Vertex Buffer Data ================================================
+        """
+            vbcount (2B)
+            vbnames[vbcount] ((1 + name length)B each)
+            vbdata[vbcount]
+                vbsize (4B)
+                vbvertexcount (4B)
+                vbcompresseddata (vbsize B)
+        """
+        
+        def GetVBGroupSorted(objlist):
+            vbgroups = {};
+            vbnumber = {};
+            
+            for obj in objlist:
+                print('> Composing data for \"%s\"...' % obj.name);
+                datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
+                data = datapair[0];
+                vcounts = datapair[1];
+                
+                # Group by Object
+                if self.grouping == 'OBJ':
+                    if sum( [len(x) for x in data.values()] ) >= 0:
+                        vbgroups[obj.name] = vbgroups.get(obj.name, b'');
+                        vbnumber[obj.name] = vbnumber.get(obj.name, 0);
+                        for vbdata in data.values():
+                            vbgroups[obj.name] += vbdata;
+                        vbnumber[obj.name] += sum(vcounts.values());
+                # Group by Material
+                elif self.grouping == 'MAT':
+                    for name, vbdata in data.items():
+                        if len(vbdata) > 0:
+                            vbgroups[name] = vbgroups.get(name, b'');
+                            vbnumber[name] = vbnumber.get(name, 0);
+                            vbgroups[name] += vbdata;
+                            vbnumber[name] += vbnumber[name];
+            return (vbgroups, vbnumber);
+        
+        def FinishVBX(vbgroups, vbnumbers, path=self.filepath):
+            out_vb = b'';
+            out_vb += Pack('H', len(vbgroups)); # Number of groups
+            out_vb += b''.join( [PackString(name) for name in vbgroups.keys()] ); # Group Names
+            
+            # Write groups
+            for name, vb in vbgroups.items():
+                out_vb += Pack('L', len(vb)); # Size of buffer
+                out_vb += Pack('L', vbnumbers[name]); # Number of vertices
+                out_vb += vb; # Vertex Buffer
+            
+            # Output to file
+            out = out_header + out_vb + out_bone;
+            CompressAndWrite(self, out, path);
+        
+        # No Batching
+        if self.batchexport == 'none':
+            vbgroups = {};
+            vertexcount = 0;
+            
+            vbgroups, vertexcount = GetVBGroupSorted(objects);
+            FinishVBX(vbgroups, vertexcount);
+        else:
+            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path;
+            outgroups = {}; # {groupname: vertexdata}
+            dooutexport = True;
+            
+            # By Object Name
+            if self.batchexport == 'obj':
+                for obj in objects:
+                    name = obj.name;
+                    datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
+                    data = datapair[0];
+                    vertexcount = sum(datapair[1].values());
+                    vbgroups = {name: b''.join([x for x in data.values()])};
+                    outgroups[name] = (vbgroups, {name: vertexcount});
+            # By Mesh Name
+            elif self.batchexport == 'mesh':
+                for obj in objects:
+                    name = obj.data.name;
+                    datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
+                    data = datapair[0];
+                    vertexcount = sum(datapair[1].values());
+                    vbgroups = {name: b''.join([x for x in data.values()])};
+                    outgroups[name] = (vbgroups, {name: vertexcount});
+            # By Material Name
+            elif self.batchexport == 'mat':
+                for obj in objects:
+                    datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget);
+                    data = datapair[0];
+                    
+                    for matname, d in data.items():
+                        vertexcount = datapair[1][matname];
+                        vbgroups = {matname: b''.join([x for x in data.values()])};
+                        if matname not in outgroups.keys():
+                            outgroups[matname] = [vbgroups, [vertexcount]];
+                        else:
+                            for g in outgroups[matname][0].values():
+                                g += d;
+            # By Armature
+            elif self.batchexport == 'armature':
+                arms = [x for x in armatures if len(x.children) > 0];
+                dooutexport = True;
+                print('> Arms: %s' % armatures)
+                
+                for armobj in arms:
+                    print('> %s: %s' % (armobj.name, [x.name for x in armobj.children]) )
+                    out_bone = ComposeBoneData(armobj);
+                    vbgroups, vbnumbers = GetVBGroupSorted([x for x in armobj.children]);
+                    if sum(vbnumbers.values()) > 0:
+                        FinishVBX(vbgroups, vbnumbers, rootpath + armobj.name + self.filename_ext);
+                outgroups = {};
+            
+            # Export each data as individual files
+            if dooutexport:
+                for name, outgroup in outgroups.items():
+                    FinishVBX(outgroup[0], outgroup[1], rootpath + name + self.filename_ext);
+        
+        # Restore State --------------------------------------------------------
         
         RemoveTempObjects();
+        for obj in objects: 
+            obj.select_set(1);
+        
         if activename in [x.name for x in bpy.context.selected_objects]:
             bpy.context.view_layer.objects.active = bpy.data.objects[activename];
         
-        for obj in objects: obj.select_set(1);
-        
-        print('FCODE: %s' % FCODE);
-        
-        print("VB data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
-                (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], path) );
-        self.report({'INFO'}, 'VBX data written to \"%s\"' % path);
-        
+        self.report({'INFO'}, 'VBX export complete');
         
         return {'FINISHED'};
 classlist.append(DMR_OP_ExportVBX);

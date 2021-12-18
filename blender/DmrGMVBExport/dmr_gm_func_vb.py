@@ -298,12 +298,14 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     vgroups = obj.vertex_groups;
     
     if armature and vgroups:
-        group_select_mode = 'BONE_DEFORM' if armature else 'ALL';
-        bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
-        bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
-    
-    print('UVTarget: %s' % uvtarget);
-    print('VCTarget: %s' % vctarget);
+        group_select_mode = 'BONE_DEFORM';
+        try:
+            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
+            bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
+        except:
+            group_select_mode = 'ALL';
+            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True);
+            bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4);
     
     def FindLayers(layerlist, targetlist, targetpick):
         if not layerlist:
@@ -346,7 +348,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     for k in format:
         stride += VBFSize[k];
     
-    vertexcount = 0;
+    vertexcounts = {k: 0 for k in out.keys()};
     chunksize = 1024;
     
     vgesortfunc = lambda x: x.weight;
@@ -410,7 +412,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             if len(materialgroup[-1]) >= chunksize:
                 materialgroup.append(b'');
             
-            vertexcount += 3;
+            vertexcounts[groupkey] += 3;
             
             for i in range3: # For each vertex index...
                 l = p_loops[i];
@@ -430,7 +432,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             if len(materialgroup[-1]) >= chunksize:
                 materialgroup.append(b'');
             
-            vertexcount += 2;
+            vertexcounts[materialnames[0]] += 2;
             
             for i in range2: # For each vertex index...
                 v = vertices[ p_vertices[i] ];
@@ -474,7 +476,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     
     for k in out.keys():
         out[k] = b''.join(out[k]);
-    
+    print('vcounts: %s' % [vertexcounts])
     if 0:
         for name, data in out.items():
             print("\"%s\" (%d): " % (name, len(data) / stride));
@@ -485,7 +487,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     bpy.context.view_layer.objects.active = sourceobj;
     sourceobj.select_set(1);
     
-    return out;
+    return (out, vertexcounts);
 
 def RemoveTempObjects():
     objects = bpy.data.objects;
@@ -527,3 +529,21 @@ def RemoveTempObjects():
     else:
         bpy.ops.object.mode_set(mode = lastobjectmode);
     
+def ComposeOutFlag(self):
+    flag = 0;
+    if self.floattype == 'd':
+        flag |= 1 << 0;
+    elif self.floattype == 'e':
+        flag |= 1 << 1;
+    return Pack('B', flag);
+
+def ComposeOutFormat(self, format = -1):
+    if format == -1:
+        format = self.format;
+    
+    out_format = b'';
+    out_format += Pack('B', len(format)); # Format length
+    for f in format:
+        out_format += Pack('B', VBFType[f]); # Attribute Type
+        out_format += Pack('B', VBFSize[f]); # Attribute Float Size
+    return Pack('B', out_format);
