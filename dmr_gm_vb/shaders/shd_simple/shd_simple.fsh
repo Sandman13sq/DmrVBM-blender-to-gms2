@@ -28,6 +28,7 @@ void main()
 	vec3 outcolor = diffusecolor.rgb;
 	
 	// Emission
+	emission += (1.0-v_color.a);
 	outcolor = mix(outcolor, diffusecolor.rgb, emission);
 	// Blend Color
 	outcolor = mix(outcolor, colorblend.rgb*outcolor.rgb, colorblend.a);
@@ -35,7 +36,7 @@ void main()
 	outcolor = mix(outcolor, colorfill.rgb, colorfill.a);
 	
 	// Alpha
-    gl_FragColor = vec4(outcolor, alpha*diffusecolor.a);
+    gl_FragColor = vec4(outcolor, alpha);
 	
 	if (gl_FragColor.a <= 0.0) {discard;}
 }

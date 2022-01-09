@@ -10,7 +10,7 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf = vertex_format_end();
 
-vbx = LoadVBX("curly.vbx", vbf);
+vbx = OpenVBX("curly.vbx", vbf);
 
 // Control Variables
 meshvisible = array_create(32, 1);

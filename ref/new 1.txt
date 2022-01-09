@@ -1,9 +1,0 @@
-Curly Single - One VB with vertex colors
-Curly VBX - VBX with no rigging
-Curly Normal - VB with Normal Mapping
-Curly Rigged - VBX with rigging
-Curly Full - VX with textures and texture-controlled lighting
-	- dp texture
-	- specular texture
-	- rim texture
-	- normal map texture

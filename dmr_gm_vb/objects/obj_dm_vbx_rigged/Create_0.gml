@@ -12,7 +12,7 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Ind
 vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Weights
 vbf = vertex_format_end();
 
-vbx = LoadVBX("curly_rigged.vbx", vbf);
+vbx = OpenVBX("curly_rigged.vbx", vbf);
 trackdata_anim = LoadAniTrack("curly_anim.trk");	// Animation
 trackdata_poses = LoadAniTrack("curly_poses.trk");	// Poses with markers
 

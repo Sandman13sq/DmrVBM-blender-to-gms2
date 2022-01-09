@@ -10,7 +10,7 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf = vertex_format_end();
 
-vb = LoadVertexBuffer("curly_normal.vb", vbf);
+vb = OpenVertexBuffer("curly_normal.vb", vbf);
 
 drawmatrix = BuildDrawMatrix();
 

@@ -43,7 +43,7 @@
     {"id":{"name":"scr_vbdemo","path":"scripts/scr_vbdemo/scr_vbdemo.yy",},"order":9,},
     {"id":{"name":"spr_layoutbox","path":"sprites/spr_layoutbox/spr_layoutbox.yy",},"order":0,},
     {"id":{"name":"shd_simple","path":"shaders/shd_simple/shd_simple.yy",},"order":5,},
-    {"id":{"name":"scr_dmr_pose","path":"scripts/scr_dmr_pose/scr_dmr_pose.yy",},"order":0,},
+    {"id":{"name":"scr_dmr_anitrack","path":"scripts/scr_dmr_anitrack/scr_dmr_anitrack.yy",},"order":0,},
     {"id":{"name":"rm_init","path":"rooms/rm_init/rm_init.yy",},"order":0,},
   ],
   "Options": [
@@ -74,7 +74,6 @@
     {"folderPath":"folders/Objects.yy","order":9,"resourceVersion":"1.0","name":"Objects","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Rooms.yy","order":10,"resourceVersion":"1.0","name":"Rooms","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Notes.yy","order":13,"resourceVersion":"1.0","name":"Notes","tags":[],"resourceType":"GMFolder",},
-    {"folderPath":"folders/Scripts/dmr.yy","order":5,"resourceVersion":"1.0","name":"dmr","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/DmrVB.yy","order":14,"resourceVersion":"1.0","name":"DmrVB","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Scripts/Maths.yy","order":7,"resourceVersion":"1.0","name":"Maths","tags":[],"resourceType":"GMFolder",},
     {"folderPath":"folders/Sprites/Curly Textures.yy","order":2,"resourceVersion":"1.0","name":"Curly Textures","tags":[],"resourceType":"GMFolder",},

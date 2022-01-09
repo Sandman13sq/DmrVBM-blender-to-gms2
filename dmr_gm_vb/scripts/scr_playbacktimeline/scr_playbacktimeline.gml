@@ -212,26 +212,6 @@ function PlaybackTimeline(_trackdata) constructor
 					0x333333, 0x333333);	
 			}
 			
-			// For each track (bone)
-			yy = drawy;
-			for (var t = 0; t < numtracks; t++)
-			{
-				keyframes = points[t];
-				numkeyframes = array_length(keyframes);
-				
-				// For each keyframe
-				for (var f = 0; f < numkeyframes; f++)
-				{
-					draw_circle_color(
-						lerp(_x1, _x2, keyframes[f]),
-						yy+hsep/2, 4, c_blue, c_white, 0
-						);
-				}
-				
-				draw_text(2, yy, trackdata.tracknames[t]);
-				yy += hsep;
-			}
-			
 			// Marker Line
 			yy = surfyoffset-4;
 			draw_rectangle_color(0, yy, _x2+border, yy+hsep,

@@ -3,7 +3,7 @@
 // Inherit the parent event
 event_inherited();
 
-layout.Label("Normal VB");
+layout.Label("Normal VB (shd_model)");
 
 CommonLayout(false, false, false);
 

@@ -3,7 +3,7 @@
 // Inherit the parent event
 event_inherited();
 
-layout.Label("Rigged VB");
+layout.Label("Rigged VB (shd_rigged)");
 
 // Mesh
 var b = layout.Box("Meshes");

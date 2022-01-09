@@ -62,17 +62,3 @@ function Structor_VBFormat()
 		vertex_format_delete(vbf.normal);
 	}
 }
-
-function ReloadPoses()
-{
-	var pth;
-	
-	printf(working_directory);
-	printf(temp_directory);
-	printf(program_directory);
-	
-	pth = "D:/GitHub/dmr_gm_vb/dmr_gm_vb/datafiles/curly.trk";
-	if file_exists(pth) {trackdata = LoadAniTrack(pth);}
-	
-	trackposspeed = (trackdata.framespersecond/game_get_speed(gamespeed_fps))/trackdata.length;
-}

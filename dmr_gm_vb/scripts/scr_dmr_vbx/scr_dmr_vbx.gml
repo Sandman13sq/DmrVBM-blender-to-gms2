@@ -1,4 +1,6 @@
 /*
+	VBX class definition and functions.
+	By Dreamer13sq
 */
 
 #macro DMRVBX_MATPOSEMAX 200
@@ -13,6 +15,8 @@ for (var i = 0; i < DMRVBX_MATPOSEMAX; i++)
 	array_copy(DMRVBX_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
 	DMRVBX_MAT4ARRAY2D[i] = matrix_build_identity();
 }
+
+#macro VBXHEADERCODE 0x00584256
 
 enum VBX_AttributeType
 {
@@ -31,7 +35,7 @@ enum VBX_AttributeType
 }
 
 /*
-	GM mat ref:
+	GM mat index ref:
 	[
 		 0,  4,  8, 12,	| (x)
 		 1,  5,  9, 13,	| (y)
@@ -57,7 +61,7 @@ function VBXData() constructor
 	bonenames = [];
 	bonecount = 0;
 	
-	vbformat = -1;	// Vertex Buffer Format created in LoadVBX() (Don't touch!)
+	vbformat = -1;	// Vertex Buffer Format created in OpenVBX() (Don't touch!)
 	
 	// Returns vertex buffer with given name. -1 if not found
 	static FindVB = function(_name)
@@ -94,8 +98,49 @@ function VBXData() constructor
 		var i = variable_struct_get(bonemap, _name);
 		return is_undefined(i)? -1: i;
 	}
+	
+	// Submits vertex buffer using index
+	static SubmitVBIndex = function(vbindex, prim=pr_trianglelist, texture=-1)
+	{
+		if (vbcount > 0)
+		{
+			// Positive number, normal index
+			if (vbindex >= 0 && vbindex < vbcount)
+			{
+				vertex_submit(vb[vbindex], prim, texture);
+			}
+			// Negative number, start from end of list
+			else if (vbindex < 0 && (vbcount+vbindex) < vbcount)
+			{
+				vertex_submit(vb[vbcount+vbindex], prim, texture);
+			}
+		}
+	}
+	
+	// Submits vertex buffer using name
+	static SubmitVBKey = function(vbname, prim=pr_trianglelist, texture=-1)
+	{
+		if (vbcount > 0)
+		{
+			// Name exists
+			if ( variable_struct_exists(vbmap, vbname) )
+			{
+				vertex_submit(vbmap[$ vbname], prim, texture);
+			}
+		}
+	}
+	
+	static AddVB = function(vb, vbname)
+	{
+		vb[vbcount] = vb;
+		vbmap[$ vbname] = vb;
+		vbnames[vbcount] = vbname;
+		vbnamemap[$ vbname] = vbcount;
+		vbcount += 1;	
+	}
 }
 
+// Removes allocated memory from vbx
 function VBXFree(vbx)
 {
 	var n = vbx.vbcount;
@@ -112,14 +157,14 @@ function VBXFree(vbx)
 }
 
 // Returns vertex buffer from file (.vb)
-function LoadVertexBuffer(path, format, freeze=true)
+function OpenVertexBuffer(path, format, freeze=true)
 {
 	var bzipped = buffer_load(path);
 	
 	// error reading file
 	if bzipped < 0
 	{
-		show_debug_message("LoadVertexBuffer(): Error loading vertex buffer from \"" + path + "\"");
+		show_debug_message("OpenVertexBuffer(): Error loading vertex buffer from \"" + path + "\"");
 		return -1;
 	}
 	
@@ -134,13 +179,18 @@ function LoadVertexBuffer(path, format, freeze=true)
 }
 
 // Returns vbx struct from file (.vbx)
-function LoadVBX(path, format=-1, freeze=true)
+function OpenVBX(path, format=-1, freeze=true)
 {
+	if filename_ext(path) == ""
+	{
+		path = filename_change_ext(path, ".vbx");	
+	}
+	
 	var bzipped = buffer_load(path);
 	
 	if bzipped < 0
 	{
-		show_debug_message("LoadVBX(): Error loading vbx data from \"" + path + "\"");
+		show_debug_message("OpenVBX(): Error loading vbx data from \"" + path + "\"");
 		return -1;
 	}
 	
@@ -149,6 +199,7 @@ function LoadVBX(path, format=-1, freeze=true)
 	
 	var vbx = new VBXData();
 	
+	var header;
 	var flag;
 	var floattype;
 	var bonecount;
@@ -165,7 +216,31 @@ function LoadVBX(path, format=-1, freeze=true)
 	var noformatgiven = format < 0;
 	
 	// Header
-	buffer_read(b, buffer_u32);
+	header = buffer_read(b, buffer_u32);
+	
+	// Not a vbx file
+	if ( (header & 0x00FFFFFF) != VBXHEADERCODE )
+	{
+		// Maybe it's a vertex buffer?
+		if ( !noformatgiven )
+		{
+			vb = vertex_create_buffer_from_buffer(b, format);
+			if ( vb < 0 )
+			{
+				show_debug_message("OpenVBX(): vbx data is invalid (vb) \"" + path + "\"");
+				return -1;
+			}
+			
+			name = filename_name(path);
+			vbx.AddVB(vb, name);
+			
+			return vbx;
+		}
+		
+		show_debug_message("OpenVBX(): vbx data is invalid \"" + path + "\"");
+		return vbx;
+	}
+	
 	flag = buffer_read(b, buffer_u8);
 	
 	// Float Type
@@ -178,55 +253,12 @@ function LoadVBX(path, format=-1, freeze=true)
 	}
 	
 	// Vertex Format
-	var numattributes = buffer_read(b, buffer_u8);
-	printf("Attribute Count: %s", numattributes);
-	
 	if noformatgiven
 	{
-		vertex_format_begin();
-		
-		var attributetype;
-		var attributesize;
-		
-		repeat(numattributes)
-		{
-			attributetype = buffer_read(b, buffer_u8);
-			attributesize = buffer_read(b, buffer_u8);
-			
-			printf("AttribType: %s %s", attributetype, attributesize);
-			
-			switch(attributetype)
-			{
-				// Native types
-				case(VBX_AttributeType.position3d):
-					vertex_format_add_position_3d(); break;
-				case(VBX_AttributeType.uv):
-					vertex_format_add_texcoord(); break;
-				case(VBX_AttributeType.normal):
-					vertex_format_add_normal(); break;
-				case(VBX_AttributeType.colorbytes):
-					vertex_format_add_color(); break;
-				
-				// Non native types
-				default:
-					switch(attributesize)
-					{
-						case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
-						case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
-						case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
-						case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
-					}
-					break;
-			}
-		}
-		
-		format = vertex_format_end();
-	}
-	else
-	{
-		buffer_seek(b, buffer_seek_relative, numattributes*2);	
+		format = GetVBXFormat(b, buffer_tell(b));
 	}
 	
+	buffer_seek(b, buffer_seek_relative, buffer_read(b, buffer_u8)*2);
 	
 	#region // Vertex Buffers ==============================================
 	
@@ -248,41 +280,18 @@ function LoadVBX(path, format=-1, freeze=true)
 	
 	for (var i = 0; i < vbcount; i++) // VB Data
 	{
-		compressedsize = buffer_read(b, buffer_u32);
-		vbcompressed = buffer_create(compressedsize, buffer_grow, 1);
-		buffer_copy(b, buffer_tell(b), compressedsize, vbcompressed, 0);
-		vbbuffer = buffer_decompress(vbcompressed);
-		
-		if vbbuffer >= 0 // Was Compressed
-		{
-			buffer_delete(vbcompressed);
-		}
-		
-		// Convert to 32 bit float
-		if floattype != buffer_f32
-		{
-			var floatsize = (floattype == buffer_f16)? 2: 8;
-			var numfloats = buffer_get_size(vbbuffer) / floatsize;
-			var convertedbuffer = buffer_create( numfloats * 4, buffer_fixed, 4);
-			
-			for (var f = 0; f < numfloats; f++)
-			{
-				buffer_write(convertedbuffer, buffer_f32, buffer_read(vbbuffer, floattype));
-			}
-			buffer_delete(vbbuffer);
-			vbbuffer = convertedbuffer;
-		}
+		var vbuffersize = buffer_read(b, buffer_u32);
+		var numvertices = buffer_read(b, buffer_u32);
 		
 		// Create vb
-		vb = vertex_create_buffer_from_buffer(vbbuffer, format);
-		buffer_delete(vbbuffer);
+		vb = vertex_create_buffer_from_buffer_ext(b, format, buffer_tell(b), numvertices);
 		
 		if freeze {vertex_freeze(vb);}
 		vbx.vb[i] = vb;
 		vbx.vbmap[$ vbx.vbnames[i]] = vb;
 		
 		// move to next compressed vb
-		buffer_seek(b, buffer_seek_relative, compressedsize);
+		buffer_seek(b, buffer_seek_relative, vbuffersize);
 	}
 	
 	#endregion -------------------------------------------------------------
@@ -307,6 +316,7 @@ function LoadVBX(path, format=-1, freeze=true)
 		}
 		vbx.bonenames[i] = name;
 		vbx.bonemap[$ name] = i;
+		//printf("[%s] %s", i, name)
 	}
 	
 	// Parent Indices
@@ -356,44 +366,68 @@ function LoadVBX(path, format=-1, freeze=true)
 	return vbx;
 }
 
-// Loads flattened matrix array
-function LoadPoses(path, outarray, offset=0)
+// Returns true if buffer contains vbx header
+function BufferIsVBX(b, offset=0)
 {
-	var bzipped = buffer_load(path);
-	
-	if bzipped < 0
+	if ( buffer_get_size(b) >= offset+4 )
 	{
-		show_debug_message("LoadPoses(): Error loading pose data from \"" + path + "\"");
-		return -1;
+		var header = "";
+		for (var i = 0; i < 3; i++)
+		{
+			header += chr( buffer_peek(b, offset+i, buffer_u8) );
+		}
+		if header == "VBX" {return true;}
 	}
 	
-	var b = buffer_decompress(bzipped);
-	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	return false;
+}
+
+// Returns vbx format from buffer
+function GetVBXFormat(b, offset)
+{
+	var numattributes = buffer_peek(b, offset, buffer_u8);
+	offset += 1;
 	
-	var bonecount = buffer_read(b, buffer_u32);
-	var posecount = buffer_read(b, buffer_u32);
-	var matrixcount = bonecount*16;
-	var pindex, mindex;
+	//printf("Attribute Count: %s", numattributes);
 	
-	var posedata = array_create(posecount);
-	var matrixdata;
+	vertex_format_begin();
 	
-	// For each pose
-	pindex = 0; repeat(posecount)
+	var attributetype;
+	var attributesize;
+	
+	repeat(numattributes)
 	{
-		matrixdata = array_create(matrixcount);
-		posedata[@ pindex++] = matrixdata;
-		
-		// For each bone
-		mindex = 0; repeat(matrixcount)
+		attributetype = buffer_peek(b, offset, buffer_u8);
+		offset += 1;
+		attributesize = buffer_peek(b, offset, buffer_u8);
+		offset += 1;
+			
+		//printf("AttribType: %s %s", attributetype, attributesize);
+			
+		switch(attributetype)
 		{
-			matrixdata[@ mindex++] = buffer_read(b, buffer_f32);
+			// Native types
+			case(VBX_AttributeType.position3d):
+				vertex_format_add_position_3d(); break;
+			case(VBX_AttributeType.uv):
+				vertex_format_add_texcoord(); break;
+			case(VBX_AttributeType.normal):
+				vertex_format_add_normal(); break;
+			case(VBX_AttributeType.colorbytes):
+				vertex_format_add_color(); break;
+				
+			// Non native types
+			default:
+				switch(attributesize)
+				{
+					case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
+					case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
+					case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
+					case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
+				}
+				break;
 		}
 	}
-	
-	buffer_delete(b);
-	
-	array_copy(outarray, offset, posedata, 0, posecount);
-	
-	return posedata;
+		
+	return vertex_format_end();
 }

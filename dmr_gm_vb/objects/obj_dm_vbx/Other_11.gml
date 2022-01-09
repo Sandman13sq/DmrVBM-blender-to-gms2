@@ -3,7 +3,7 @@
 // Inherit the parent event
 event_inherited();
 
-layout.Label("VBX");
+layout.Label("VBX (shd_model)");
 
 var l = layout.Dropdown("Meshes");
 l.active = true;

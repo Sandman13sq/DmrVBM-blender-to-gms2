@@ -3,7 +3,7 @@
 // Inherit the parent event
 event_inherited();
 
-layout.Label("Complete VB");
+layout.Label("Complete VB (shd_complete)");
 
 // Mesh
 var b = layout.Box("Meshes");
