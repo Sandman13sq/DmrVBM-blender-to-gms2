@@ -23,20 +23,6 @@ def PrintStatus(msg, clear=1, buffersize=40):
 VBXVERSION = 1
 FCODE = 'f'
 
-MODLIST = [
-    'MIRROR', 
-    'SUBSURF', 
-    'NORMAL_EDIT', 
-    'SOLIDIFY',
-    'WELD',
-    'EDGE_SPLIT',
-    'TRIANGULATE',
-    'DATA_TRANSFER',
-    'SHRINKWRAP',
-    'MASK',
-    'ARRAY'
-]
-
 # This is more for loading files outside of GMS
 # If you don't mind longer load times for converting numbers to floats,
 # get some more accuracy with doubles or save some space with binary16s
@@ -125,16 +111,16 @@ ModChoiceItems = (
 UpAxisItems = (
     ('+x', '+X Up', 'Export model(s) with +X Up axis'),
     ('+y', '+Y Up', 'Export model(s) with +Y Up axis'),
-    ('+z', '+Z Up (Blender)', 'Export model(s) with +Z Up axis'),
+    ('+z', '+Z Up', 'Export model(s) with +Z Up axis'),
     ('-x', '-X Up', 'Export model(s) with -X Up axis'),
-    ('-y', '-Y Up (GM)', 'Export model(s) with -Y Up axis'),
+    ('-y', '-Y Up', 'Export model(s) with -Y Up axis'),
     ('-z', '-Z Up', 'Export model(s) with -Z Up axis'),
 )
 
 ForwardAxisItems = (
     ('+x', '+X Forward', 'Export model(s) with +X Forward axis'),
-    ('+y', '+Y Forward (Blender)', 'Export model(s) with +Y Forward axis'),
-    ('+z', '+Z Forward (GM)', 'Export model(s) with +Z Forward axis'),
+    ('+y', '+Y Forward', 'Export model(s) with +Y Forward axis'),
+    ('+z', '+Z Forward', 'Export model(s) with +Z Forward axis'),
     ('-x', '-X Forward', 'Export model(s) with -X Forward axis'),
     ('-y', '-Y Forward', 'Export model(s) with -Y Forward axis'),
     ('-z', '-Z Forward', 'Export model(s) with -Z Forward axis'),
@@ -163,7 +149,7 @@ def GetUVLayers(self, context):
     
     return items
 
-# ==================================================================================================
+# --------------------------------------------------------------------------------------------------
 
 def GetVCLayers(self, context):
     items = []
@@ -185,6 +171,19 @@ def GetVCLayers(self, context):
         items.append( (name, name, 'Use "%s" layer for color data' % name) )
     
     return items
+
+# --------------------------------------------------------------------------------------------------
+
+def GetCollectionItems(self, context):
+    out = [('<selected>', '(Selected Objects)', 'Export selected objects', 'RESTRICT_SELECT_OFF', 0)]
+    
+    def ColLoop(c, out, depth=0):
+        out += [(c.name, '^ '*depth+ c.name, 'Export all objects in collection "%s"' % c.name, 'OUTLINER_COLLECTION', len(out))]
+        
+        for cc in c.children:
+            ColLoop(cc, out, depth+1)
+    ColLoop(context.scene.collection, out)
+    return out
 
 # ==================================================================================================
 
@@ -233,22 +232,16 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         modifiers = workingobj.modifiers
         for i, m in enumerate(modifiers):
             # Modifier requirements
-            if modreq == MTY_VIEW:
-                if not m.show_viewport:
-                    bpy.ops.object.modifier_remove(modifier = m.name)
-                    continue
-            elif modreq == MTY_RENDER:
-                if not m.show_render:
-                    bpy.ops.object.modifier_remove(modifier = m.name)
-                    continue
-            elif modreq == MTY_OR:
-                if not (m.show_viewport or m.show_render):
-                    bpy.ops.object.modifier_remove(modifier = m.name)
-                    continue
-            elif modreq == MTY_AND:
-                if not (m.show_viewport and m.show_render):
-                    bpy.ops.object.modifier_remove(modifier = m.name)
-                    continue
+            vshow = m.show_viewport
+            rshow = m.show_render
+            if (
+                (modreq == MTY_VIEW and not vport) or 
+                (modreq == MTY_RENDER and not rport) or 
+                (modreq == MTY_OR and not (vshow or rshow)) or 
+                (modreq == MTY_AND and not (vshow and rshow))
+                ):
+                bpy.ops.object.modifier_remove(modifier = m.name)
+                continue
             
             # Subdivision maximum
             if m.type == 'SUBSURF':
@@ -261,18 +254,18 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 continue
             
             # Apply enabled modifiers
-            if m.type in MODLIST or (m.type == 'ARMATURE' and applyarmature):
+            if m.type == 'ARMATURE':
+                if not applyarmature:
+                    bpy.ops.object.modifier_move_to_index(modifier=m.name, index=len(modifiers)-1)
+                else:
+                    bpy.ops.object.modifier_remove(modifier = m.name)
+            else:
                 try:
                     # Data Transfer can crash if source object is not set
                     bpy.ops.object.modifier_apply(modifier = m.name)
                 except:
                     print('> Modifier "%s" unable to apply' % m.name)
                     bpy.ops.object.modifier_remove(modifier = m.name)
-            elif m.type == 'ARMATURE':
-                bpy.ops.object.modifier_move_to_index(modifier=m.name, index=len(modifiers)-1)
-            # Ignore Modifier
-            else:
-                bpy.ops.object.modifier_remove(modifier = m.name)
         
         # Force Quads (For Tangents and bitangents)
         minquads = modifiers.new('MinQuads', 'TRIANGULATE')
@@ -346,8 +339,6 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     uvlayers, uvattriblayers = FindLayers(workingmesh.uv_layers, uvtarget, settings.get('uvlayerpick', 1))
     vclayers, vcattriblayers = FindLayers(workingmesh.vertex_colors, vctarget, settings.get('colorlayerpick', 1))
     
-    fullalpha = settings.get('fullalpha', 0)
-    
     # Set up armature
     if armature:
         bones = armature.data.bones
@@ -382,6 +373,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     
     normalsign = -1.0 if settings.get('reversewinding', False) else 1.0
     scale = settings.get('scale', (1.0, 1.0, 1.0))
+    flipuvs = settings.get('flipuvs', True)
     
     # Triangles ----------------------------------------------------------------------------
     if usetris:
@@ -391,9 +383,10 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         def fNOR(attribindex): materialgroup[-1] += PackVector(FCODE, p_normals[i]*normalsign)
         def fTAN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].tangent*normalsign)
         def fBTN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].bitangent*normalsign)
-        def fTEX(attribindex): materialgroup[-1] += PackVector(FCODE, (uvattriblayers[attribindex][l].uv[0], 1-uvattriblayers[attribindex][l].uv[1]))
+        def fTEX(attribindex): materialgroup[-1] += PackVector(FCODE, (
+            uvattriblayers[attribindex][l].uv[0], (1.0-uvattriblayers[attribindex][l].uv[1])) if flipuvs else uvattriblayers[attribindex][l].uv[1])
         def fCOL(attribindex): materialgroup[-1] += PackVector(FCODE, vcattriblayers[attribindex][l].color)
-        def fCO2(attribindex): materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcattriblayers[attribindex][l].color])
+        def fRGB(attribindex): materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcattriblayers[attribindex][l].color])
         def fBON(attribindex):
             vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc)
             materialgroup[-1] += PackVector(FCODE, ([grouptobone[vge.group] for vge in vgelements]+[0,0,0,0])[:4])
@@ -411,7 +404,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             VBF_BTN : fBTN,
             VBF_TEX : fTEX,
             VBF_COL : fCOL,
-            VBF_RGB : fCO2,
+            VBF_RGB : fRGB,
             VBF_BON : fBON,
             VBF_BOI : fBOI,
             VBF_WEI : fWEI,
@@ -441,10 +434,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             for i in range3: # For each vertex index...
                 l = p_loops[i]
                 v = vertices[ p_vertices[i] ]
-                
                 [fFunc[formatentry](i) for i, formatentry in enumerate(format)]
-                
-                continue
         
         PrintStatus(' Writing Vertices %s / %s' % (pindex, num))
         

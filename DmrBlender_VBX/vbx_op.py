@@ -68,6 +68,16 @@ classlist = []
 class ExportVBSuper(bpy.types.Operator, ExportHelper):
     bl_options = {'PRESET'}
     
+    moreoptions: bpy.props.BoolProperty(
+        name="More Options", default=False,
+        description="Show more export options",
+    )
+    
+    collectionname: bpy.props.EnumProperty(
+        name='Collection', default=0, items=GetCollectionItems,
+        description='Collection to export objects from',
+    )
+    
     applyarmature: bpy.props.BoolProperty(
         name="Apply Armature",
         description="Apply armature to meshes",
@@ -81,9 +91,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     )
     
     reversewinding: bpy.props.BoolProperty(
-        name="Flip Normals",
+        name="Flip Normals", default=False,
         description="Flips normals of exported meshes",
-        default=False,
     )
     
     maxsubdivisions : bpy.props.IntProperty(
@@ -109,6 +118,11 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         name="Data Scale",
         description="Scale to Apply to Export",
         default=(1.0, 1.0, 1.0),
+    )
+    
+    flipuvs: bpy.props.BoolProperty(
+        name='Flip UVs', default=True,
+        description='Flips Y Coordinate of UVs so that 0.0 is the top of the image and 1.0 is the bottom',
     )
     
     # Vertex Attributes
@@ -165,14 +179,9 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     )
     
     delimiter: bpy.props.StringProperty(
-        name="Delimiter Char", 
-        description="Grouping will ignore parts of names past this character",
-        default='~',
+        name="Delimiter Char", default='.',
+        description='Grouping will ignore parts of names past this character. \nEx: if delimiter = ".", "model_body.head" -> "model_body"',
     )
-    
-    @classmethod
-    def poll(self, context):
-        return context.selected_objects
 
 # ---------------------------------------------------------------------------------------
 
@@ -181,14 +190,37 @@ def DrawCommonProps(self, context):
     
     c = layout.column_flow(align=1)
     c.prop(self, 'applyarmature', text='Apply Armature')
-    c.prop(self, 'edgesonly', text='Edges Only')
-    c.prop(self, 'reversewinding', text='Flip Normals')
-    c.prop(self, 'upaxis', text='Up Axis')
-    c.prop(self, 'forwardaxis', text='Fwd Axis')
     
-    r = c.row()
-    r.prop(self, 'scale', text='Scale')
-    c.prop(self, 'maxsubdivisions', text='Max Subdivisions')
+    b = c.box()
+    r = b.row(align=1)
+    r.alignment = 'CENTER'
+    r.prop(self, 'moreoptions', text='== More Options ==')
+    
+    if self.moreoptions:
+        c = b.column_flow(align=1)
+        
+        c.prop(self, 'edgesonly', text='Edges Only')
+        c.prop(self, 'reversewinding', text='Flip Normals')
+        c.prop(self, 'flipuvs', text='Flip UVs')
+        
+        r = c.row(align=1)
+        r.prop(self, 'upaxis', text='')
+        r.prop(self, 'forwardaxis', text='')
+        
+        r = c.row()
+        r.prop(self, 'scale', text='Scale')
+        c.prop(self, 'maxsubdivisions', text='Max Subdivisions')
+        
+        rr = c.row()
+        c = rr.column(align=1)
+        c.scale_x = 0.8
+        c.label(text='Color Source:')
+        c.label(text='UV Source:')
+        c.label(text='Modifier Src:')
+        c = rr.column(align=1)
+        c.prop(self, 'colorlayerpick', text='')
+        c.prop(self, 'uvlayerpick', text='')
+        c.prop(self, 'modifierpick', text='')
 
 # ---------------------------------------------------------------------------------------
 
@@ -197,7 +229,7 @@ def DrawAttributes(self, context):
     
     b = layout.box()
     b = b.column_flow(align=1)
-    r = b.row()
+    r = b.row(align=1)
     r.alignment = 'CENTER'
     r.label(text='Vertex Attributes')
     
@@ -222,17 +254,6 @@ def DrawAttributes(self, context):
             split = c.split(factor=0.25)
             split.label(text='')
             split.prop(self, 'uvlyr%d' % i, text='Layer')
-    
-    rr = layout.row()
-    c = rr.column(align=1)
-    c.scale_x = 0.8
-    c.label(text='UV Source:')
-    c.label(text='Color Source:')
-    c.label(text='Modifier Src:')
-    c = rr.column(align=1)
-    c.prop(self, 'uvlayerpick', text='')
-    c.prop(self, 'colorlayerpick', text='')
-    c.prop(self, 'modifierpick', text='')
 
 # ---------------------------------------------------------------------------------------
 
@@ -274,6 +295,19 @@ def GetCorrectiveMatrix(self, context):
 
 # ---------------------------------------------------------------------------------------
 
+def CollectionToObjectList(self, context):
+    name = self.collectionname
+    print('> Collection = %s' % name)
+    
+    if name == context.scene.collection.name:
+        return [x for x in context.scene.collection.all_objects]
+    if name in [x.name for x in bpy.data.collections]:
+        return [x for x in bpy.data.collections[name].all_objects]
+    else:
+        return [x for x in context.selected_objects]
+
+# ---------------------------------------------------------------------------------------
+
 def FixName(name, delimiter):
     if delimiter in name:
         return name[:name.find(delimiter)]
@@ -306,9 +340,10 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
     def draw(self, context):
         layout = self.layout
         
-        r = layout.column_flow(align=1)
-        r.prop(self, 'batchexport', text='Batch Export')
-        r.prop(self, 'delimiter', text='Delimiter')
+        c = layout.column_flow(align=1)
+        c.prop(self, 'collectionname', text='Collection')
+        c.prop(self, 'batchexport', text='Batching')
+        c.prop(self, 'delimiter', text='Delimiter')
         
         DrawCommonProps(self, context)
         DrawAttributes(self, context)
@@ -322,9 +357,6 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
         mattran = GetCorrectiveMatrix(self, context)
         
-        arealast = context.area.type
-        context.area.type = "VIEW_3D"
-        
         settings = {
             'format' : format,
             'edgesonly' : self.edgesonly,
@@ -335,22 +367,30 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             'maxsubdivisions': self.maxsubdivisions,
             'reversewinding': self.reversewinding,
             'scale': self.scale,
+            'flipuvs': self.flipuvs,
         }
         
         RemoveTempObjects()
-        active = bpy.context.view_layer.objects.active
-        # Get list of selected objects
-        objects = [x for x in context.selected_objects if x.type == 'MESH']
-        if len(objects) == 0:
-            self.report({'WARNING'}, 'No valid objects selected')
         
-        bpy.context.view_layer.objects.active = objects[0]
+        # Get list of selected objects
+        objects = CollectionToObjectList(self, context)
+        targetobjects = [x for x in objects if x.type == 'MESH']
+        if len(targetobjects) == 0:
+            self.report({'WARNING'}, 'No valid objects selected')
+            return {'FINISHED'}
+        
+        arealast = context.area.type
+        context.area.type = "VIEW_3D"
+        active = bpy.context.view_layer.objects.active
+        activename = active.name if active else ''
+        
+        context.view_layer.objects.active = [x for x in bpy.data.objects if (x.visible_get())][0]
         bpy.ops.object.mode_set(mode = 'OBJECT')
         
         # Single file
         if self.batchexport == 'none':
             out = b''
-            for i, obj in enumerate(objects):
+            for i, obj in enumerate(targetobjects):
                 data = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)[0]
                 
                 for d in data.values():
@@ -363,7 +403,7 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             rootpath = path[:path.rfind('.vb')] if '.vb' in path else path
             outgroups = {} # {groupname: vertexdata}
             
-            for i, obj in enumerate(objects):
+            for i, obj in enumerate(targetobjects):
                 vbdata = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)[0]
                 
                 # By Object Name
@@ -394,12 +434,13 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
                 CompressAndWrite(self, out, rootpath + name + self.filename_ext)
             self.report({'INFO'}, 'VB data written to \"%s\"' % rootpath)
         
-        # Restore state
+        # Restore State --------------------------------------------------------
         RemoveTempObjects()
         for obj in objects: 
             obj.select_set(1)
         
-        bpy.context.view_layer.objects.active = active
+        if activename in [x.name for x in bpy.context.selected_objects]:
+            context.view_layer.objects.active = bpy.data.objects[activename]
         
         context.area.type = arealast
         
@@ -462,7 +503,8 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         layout = self.layout
         
         c = layout.column(align=1)
-        c.prop(self, 'batchexport', text='Batch Export')
+        c.prop(self, 'collectionname', text='Collection')
+        c.prop(self, 'batchexport', text='Batching')
         c.prop(self, 'grouping', text='Grouping')
         c.prop(self, 'delimiter', text='Delimiter')
         
@@ -495,25 +537,29 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             'matrix': mattran,
             'reversewinding': self.reversewinding,
             'scale': self.scale,
+            'flipuvs': self.flipuvs,
         }
+        
+        # Get list of selected objects
+        objects = CollectionToObjectList(self, context)
+        targetobjects = [x for x in objects if x.type == 'MESH']
+        if len(targetobjects) == 0:
+            self.report({'WARNING'}, 'No valid objects selected')
+            return {'FINISHED'}
         
         arealast = context.area.type
         context.area.type = "VIEW_3D"
-        
         active = bpy.context.view_layer.objects.active
-        activename = active.name if active else None
+        activename = active.name if active else ''
+        
+        context.view_layer.objects.active = [x for x in bpy.data.objects if (x.visible_get())][0]
+        bpy.ops.object.mode_set(mode = 'OBJECT')
         
         RemoveTempObjects()
         
-        # Get list of selected objects
-        objects = [x for x in bpy.context.selected_objects if x.type == 'MESH']
-        armatures = [x for x in bpy.context.selected_objects if x.type == 'ARMATURE']
+        armatures = [x for x in objects if x.type == 'ARMATURE']
         armatures += [x.parent for x in objects if (x.parent and x.parent.type == 'ARMATURE')]
-        armatures += [
-            m.object
-            for x in objects if x.type == 'MESH'
-            for m in x.modifiers if (m.type == 'ARMATURE' and m.object)
-        ]
+        armatures += [x.find_armature() for x in objects if x.find_armature()]
         armatures = list(set(armatures))
         
         # Find armature
@@ -526,9 +572,6 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 armature = obj.find_armature()
                 if armature:
                     break
-        
-        bpy.context.view_layer.objects.active = objects[0]
-        bpy.ops.object.mode_set(mode = 'OBJECT')
         
         # Header ============================================================
         
@@ -658,7 +701,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             vbgroups = {}
             vertexcount = 0
             
-            vbgroups, vertexcount = GetVBGroupSorted(objects)
+            vbgroups, vertexcount = GetVBGroupSorted(targetobjects)
             FinishVBX(vbgroups, vertexcount)
         else:
             rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path
@@ -667,7 +710,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             
             # By Object Name
             if self.batchexport == 'obj':
-                for obj in objects:
+                for obj in targetobjects:
                     name = obj.name
                     name = FixName(name, self.delimiter)
                     datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)
@@ -677,7 +720,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                     outgroups[name] = (vbgroups, {name: vertexcount})
             # By Mesh Name
             elif self.batchexport == 'mesh':
-                for obj in objects:
+                for obj in targetobjects:
                     name = obj.data.name
                     name = FixName(name, self.delimiter)
                     datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)
@@ -687,7 +730,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                     outgroups[name] = (vbgroups, {name: vertexcount})
             # By Material Name
             elif self.batchexport == 'mat':
-                for obj in objects:
+                for obj in targetobjects:
                     datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)
                     data = datapair[0]
                     
@@ -722,13 +765,12 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                     FinishVBX(outgroup[0], outgroup[1], rootpath + name + self.filename_ext)
         
         # Restore State --------------------------------------------------------
-        
         RemoveTempObjects()
         for obj in objects: 
             obj.select_set(1)
         
         if activename in [x.name for x in bpy.context.selected_objects]:
-            bpy.context.view_layer.objects.active = bpy.data.objects[activename]
+            context.view_layer.objects.active = bpy.data.objects[activename]
         
         context.area.type = arealast
         
