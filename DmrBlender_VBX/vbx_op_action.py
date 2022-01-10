@@ -128,6 +128,12 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         default=False,
     )
     
+    deformbonesonly: BoolProperty(
+        name="Deform Bones Only",
+        description='Only export bones with the "Deform" box checked',
+        default=True,
+    )
+    
     lastsimplify = -1
     
     @classmethod
@@ -142,7 +148,10 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         try:
             self.actionname = [x for x in context.selected_objects if x.type=='ARMATURE'][0].animation_data.action.name
         except:
-            ''
+            try:
+                self.actionname = [x for x in context.selected_objects if x.type=='ARMATURE'][0].pose_library.name
+            except:
+                ''
         
         return {'RUNNING_MODAL'}
     
@@ -219,11 +228,6 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             object.animation_data.action = lastaction
             
             print('> Animation ready')
-        else:
-            if object.animation_data and object.animation_data.action:
-                action = object.animation_data.action
-            else:
-                action = object.pose_library
         
         fcurves = action.fcurves
         framerange = action.frame_range
@@ -329,7 +333,9 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         makestartframe = self.makestartframe
         makeendframe = self.makeendframe
         
-        for b in bones: # For each bone (track)
+        targetbones = [posebones[b.name] for b in bones if (b.use_deform or not self.deformbonesonly)]
+        
+        for b in targetbones: # For each bone (track)
             outchunk = b''
             transcurves = bonecurvemap[b.name]
             posebone = object.pose.bones[b.name]

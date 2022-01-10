@@ -29,10 +29,14 @@ def CompressAndWrite(self, out, path):
     file.write(outcompressed)
     file.close()
     
-    print('outlen: %s', outlen)
     print("Data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
             (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], path) )
     self.report({'INFO'}, 'VB data written to \"%s\"' % path)
+
+def PrintStatus(msg, clear=1, buffersize=40):
+    msg = msg + (' '*buffersize*clear)
+    sys.stdout.write(msg + (chr(8) * len(msg) * clear))
+    sys.stdout.flush()
 
 """
     'VBX' (3B)
@@ -76,9 +80,9 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         default=False,
     )
     
-    yflip: bpy.props.BoolProperty(
-        name="Flip Y Axis",
-        description="Flip mesh on Y Axis",
+    reversewinding: bpy.props.BoolProperty(
+        name="Flip Normals",
+        description="Flips normals of exported meshes",
         default=False,
     )
     
@@ -99,6 +103,12 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         description="Forward Axis to use when Exporting",
         items = ForwardAxisItems, 
         default='+y',
+    )
+    
+    scale: bpy.props.FloatVectorProperty(
+        name="Data Scale",
+        description="Scale to Apply to Export",
+        default=(1.0, 1.0, 1.0),
     )
     
     # Vertex Attributes
@@ -159,6 +169,26 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         description="Grouping will ignore parts of names past this character",
         default='~',
     )
+    
+    @classmethod
+    def poll(self, context):
+        return context.selected_objects
+
+# ---------------------------------------------------------------------------------------
+
+def DrawCommonProps(self, context):
+    layout = self.layout
+    
+    c = layout.column_flow(align=1)
+    c.prop(self, 'applyarmature', text='Apply Armature')
+    c.prop(self, 'edgesonly', text='Edges Only')
+    c.prop(self, 'reversewinding', text='Flip Normals')
+    c.prop(self, 'upaxis', text='Up Axis')
+    c.prop(self, 'forwardaxis', text='Fwd Axis')
+    
+    r = c.row()
+    r.prop(self, 'scale', text='Scale')
+    c.prop(self, 'maxsubdivisions', text='Max Subdivisions')
 
 # ---------------------------------------------------------------------------------------
 
@@ -185,9 +215,13 @@ def DrawAttributes(self, context):
         vbfkey = getattr(self, 'vbf%d' % i)
         
         if vbfkey == VBF_COL or vbfkey == VBF_RGB:
-            c.prop(self, 'vclyr%d' % i, text='Layer')
+            split = c.split(factor=0.25)
+            split.label(text='')
+            split.prop(self, 'vclyr%d' % i, text='Layer')
         elif vbfkey == VBF_TEX:
-            c.prop(self, 'uvlyr%d' % i, text='Layer')
+            split = c.split(factor=0.25)
+            split.label(text='')
+            split.prop(self, 'uvlyr%d' % i, text='Layer')
     
     rr = layout.row()
     c = rr.column(align=1)
@@ -234,6 +268,8 @@ def GetCorrectiveMatrix(self, context):
     mattran[1][0:3] = fvec
     mattran[2][0:3] = uvec
     
+    mattran = mathutils.Matrix.LocRotScale(None, None, self.scale) @ mattran
+    
     return mattran
 
 # ---------------------------------------------------------------------------------------
@@ -273,18 +309,21 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         r = layout.column_flow(align=1)
         r.prop(self, 'batchexport', text='Batch Export')
         r.prop(self, 'delimiter', text='Delimiter')
-        r.prop(self, 'applyarmature', text='Apply Armature')
-        r.prop(self, 'edgesonly', text='Edges Only')
-        r.prop(self, 'yflip', text='Y Flip')
-        r.prop(self, 'maxsubdivisions', text='Max Subdivisions')
-        r.prop(self, 'upaxis', text='Up Axis')
-        r.prop(self, 'forwardaxis', text='Forward Axis')
         
+        DrawCommonProps(self, context)
         DrawAttributes(self, context)
 
     def execute(self, context):
+        path = self.filepath
+        
+        print('='*80)
+        print('> Beginning ExportVB to rootpath: "%s"' % path)
+        
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
         mattran = GetCorrectiveMatrix(self, context)
+        
+        arealast = context.area.type
+        context.area.type = "VIEW_3D"
         
         settings = {
             'format' : format,
@@ -292,12 +331,11 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             'applyarmature' : self.applyarmature,
             'uvlayerpick': self.uvlayerpick == 'render',
             'colorlayerpick': self.colorlayerpick == 'render',
-            'yflip': self.yflip,
             'matrix': mattran,
             'maxsubdivisions': self.maxsubdivisions,
+            'reversewinding': self.reversewinding,
+            'scale': self.scale,
         }
-        
-        FCODE = 'f'
         
         RemoveTempObjects()
         active = bpy.context.view_layer.objects.active
@@ -306,14 +344,13 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         if len(objects) == 0:
             self.report({'WARNING'}, 'No valid objects selected')
         
-        path = self.filepath
-        
+        bpy.context.view_layer.objects.active = objects[0]
+        bpy.ops.object.mode_set(mode = 'OBJECT')
         
         # Single file
         if self.batchexport == 'none':
             out = b''
             for i, obj in enumerate(objects):
-                print('> Composing data for \"%s\"...' % obj.name)
                 data = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)[0]
                 
                 for d in data.values():
@@ -327,7 +364,6 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             outgroups = {} # {groupname: vertexdata}
             
             for i, obj in enumerate(objects):
-                print('> Composing data for \"%s\"...' % obj.name)
                 vbdata = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)[0]
                 
                 # By Object Name
@@ -364,6 +400,8 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             obj.select_set(1)
         
         bpy.context.view_layer.objects.active = active
+        
+        context.area.type = arealast
         
         return {'FINISHED'}
 classlist.append(DMR_OP_ExportVB)
@@ -422,22 +460,28 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
     
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, 'batchexport', text='Batch Export')
-        layout.prop(self, 'grouping', text='Grouping')
-        layout.prop(self, 'delimiter', text='Delimiter')
+        
+        c = layout.column(align=1)
+        c.prop(self, 'batchexport', text='Batch Export')
+        c.prop(self, 'grouping', text='Grouping')
+        c.prop(self, 'delimiter', text='Delimiter')
         
         r = layout.column_flow(align=1)
-        r.prop(self, 'applyarmature', text='Apply Armature')
         r.prop(self, 'exportarmature', text='Export Armature')
         r.prop(self, 'deformbonesonly', text='Deform Bones Only')
-        r.prop(self, 'edgesonly', text='Edges Only')
-        r.prop(self, 'yflip', text='Y Flip')
-        r.prop(self, 'maxsubdivisions', text='Max Subdivisions')
         
+        DrawCommonProps(self, context)
         DrawAttributes(self, context)
         
     def execute(self, context):
+        path = self.filepath
+        FCODE = self.floattype
+        
+        print('='*80)
+        print('> Beginning ExportVBX to rootpath: "%s"' % path)
+        
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
+        mattran = GetCorrectiveMatrix(self, context)
         
         settings = {
             'format' : format,
@@ -447,15 +491,17 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             'colorlayerpick': self.colorlayerpick == 'render',
             'modifierpick': self.modifierpick,
             'maxsubdivisions': self.maxsubdivisions,
-            'yflip' : self.yflip,
             'deformonly' : self.deformbonesonly,
+            'matrix': mattran,
+            'reversewinding': self.reversewinding,
+            'scale': self.scale,
         }
         
-        active = bpy.context.view_layer.objects.active
-        activename = active.name
+        arealast = context.area.type
+        context.area.type = "VIEW_3D"
         
-        path = self.filepath
-        FCODE = self.floattype
+        active = bpy.context.view_layer.objects.active
+        activename = active.name if active else None
         
         RemoveTempObjects()
         
@@ -477,11 +523,12 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 armature = obj
                 break
             elif obj.type == 'MESH':
-                for m in obj.modifiers:
-                    if m.type == 'ARMATURE':
-                        if m.object:
-                            armature = m.object
-                            break
+                armature = obj.find_armature()
+                if armature:
+                    break
+        
+        bpy.context.view_layer.objects.active = objects[0]
+        bpy.ops.object.mode_set(mode = 'OBJECT')
         
         # Header ============================================================
         
@@ -514,10 +561,23 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         
         def ComposeBoneData(armature):
             if armature and self.exportarmature:
-                bones = armature.data.bones[:]
-                if settings.get('deformonly', False):
-                    bones = [b for b in armature.data.bones if b.use_deform]
+                print('> Composing armature data...')
                 
+                workingarmature = armature.data.copy()
+                workingobj = bpy.data.objects.new(armature.name+'__temp', workingarmature)
+                
+                # Apply matrix
+                bpy.context.view_layer.active_layer_collection.collection.objects.link(workingobj)
+                workingobj.select_set(True)
+                bpy.context.view_layer.objects.active = workingobj
+                workingobj.matrix_world = settings.get('matrix', mathutils.Matrix())
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+                
+                bones = workingarmature.bones[:]
+                if settings.get('deformonly', False):
+                    bones = [b for b in workingarmature.bones if b.use_deform]
+                
+                # Write Data
                 out_bone = b''
                 
                 out_bone += Pack('H', len(bones))
@@ -526,7 +586,12 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 out_bone += b''.join( [PackMatrix('f',
                     (b.parent.matrix_local.inverted() @ b.matrix_local)
                     if b.parent else b.matrix_local) for b in bones] )
-                out_bone += b''.join( [PackMatrix('f', b.matrix_local.inverted()) for b in bones] )
+                out_bone += b''.join( [PackMatrix('f', mattran @ b.matrix_local.inverted()) for b in bones] )
+                
+                # Delete Temporary
+                bpy.data.objects.remove(workingobj)
+                bpy.data.armatures.remove(workingarmature)
+                
             else:
                 out_bone = Pack('H', 0)
             return out_bone
@@ -548,7 +613,6 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             vbnumber = {}
             
             for obj in objlist:
-                print('> Composing data for \"%s\"...' % obj.name)
                 datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)
                 data = datapair[0]
                 vcounts = datapair[1]
@@ -665,6 +729,8 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         
         if activename in [x.name for x in bpy.context.selected_objects]:
             bpy.context.view_layer.objects.active = bpy.data.objects[activename]
+        
+        context.area.type = arealast
         
         self.report({'INFO'}, 'VBX export complete')
         

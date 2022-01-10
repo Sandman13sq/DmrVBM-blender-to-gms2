@@ -13,6 +13,11 @@ PackVector = lambda f, v: struct.pack(f*len(v), *(v[:]))
 PackMatrix = lambda f, m: b''.join( [struct.pack(f*4, *x) for x in m.copy().transposed()] )
 QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
 
+def PrintStatus(msg, clear=1, buffersize=40):
+    msg = msg + (' '*buffersize*clear)
+    sys.stdout.write(msg + (chr(8) * len(msg) * clear))
+    sys.stdout.flush()
+
 # ================================================================================
 
 VBXVERSION = 1
@@ -186,51 +191,46 @@ def GetVCLayers(self, context):
 def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL]):
     context = bpy.context
     
+    PrintStatus('> Composing data for \"%s\":' % sourceobj.name, 0)
+    
     armature = None
     formatneedsbones = VBF_BON in format or VBF_WEI in format
     formatneedsbones = formatneedsbones and not settings.get('applyarmature', 0)
     
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-    
-    # Set source as active
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.view_layer.objects.active = sourceobj
-    sourceobj.select_set(True)
     # Duplicate source
-    bpy.ops.object.duplicate(linked = 0, mode = 'TRANSLATION')
-    obj = bpy.context.view_layer.objects.active
-    sourceobj.select_set(False)
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    obj.name = sourceobj.name + '__temp'
+    workingmesh = sourceobj.data.copy()
+    workingobj = sourceobj.copy()
+    workingobj.name += '__temp'
+    workingmesh.name += '__temp'
+    workingobj.data = workingmesh
+    
+    bpy.context.view_layer.active_layer_collection.collection.objects.link(workingobj)
+    workingobj.select_set(True)
+    bpy.context.view_layer.objects.active = workingobj
     
     # Find armature
-    for m in obj.modifiers:
-        if m.type == 'ARMATURE':
-            if m.object:
-                armature = m.object
-                bpy.ops.object.modifier_move_to_index(modifier=m.name, index=len(obj.modifiers)-1)
+    armature = workingobj.find_armature()
     
     # Apply shape keys
-    if obj.data.shape_keys:
-        print("> Removing shape keys...")
-        arealast = context.area.type
-        context.area.type = "VIEW_3D"
+    if workingmesh.shape_keys:
+        PrintStatus(' Applying shape keys...')
         
         bpy.ops.object.shape_key_add(from_mix = True)
-        shape_keys = obj.data.shape_keys.key_blocks
+        shape_keys = workingmesh.shape_keys.key_blocks
         count = len(shape_keys)
         for i in range(0, count):
-            obj.active_shape_key_index = 0
+            workingobj.active_shape_key_index = 0
             bpy.ops.object.shape_key_remove(all=False)
-        
-        context.area.type = arealast
     
     # Apply modifiers
     maxsubdivisions = settings.get('maxsubdivisions', -1)
     modreq = settings.get('modifierpick', MTY_OR)
-    if obj.modifiers != None:
-        modifiers = obj.modifiers
+    applyarmature = settings.get('applyarmature', 0)
+    
+    if workingobj.modifiers != None:
+        PrintStatus(' Applying Modifiers...')
+        
+        modifiers = workingobj.modifiers
         for i, m in enumerate(modifiers):
             # Modifier requirements
             if modreq == MTY_VIEW:
@@ -255,70 +255,78 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 if maxsubdivisions >= 0:
                     m.levels = min(m.levels, maxsubdivisions)
             
+            # Skip Bang Modifiers
+            if (m.name[0] == '!'):
+                bpy.ops.object.modifier_remove(modifier = m.name)
+                continue
+            
             # Apply enabled modifiers
-            if (m.name[0] != '!') and (m.type in MODLIST) \
-            or (m.type == 'ARMATURE' and settings.get('applyarmature', 0)):
+            if m.type in MODLIST or (m.type == 'ARMATURE' and applyarmature):
                 try:
                     # Data Transfer can crash if source object is not set
                     bpy.ops.object.modifier_apply(modifier = m.name)
                 except:
                     print('> Modifier "%s" unable to apply' % m.name)
                     bpy.ops.object.modifier_remove(modifier = m.name)
+            elif m.type == 'ARMATURE':
+                bpy.ops.object.modifier_move_to_index(modifier=m.name, index=len(modifiers)-1)
             # Ignore Modifier
-            elif m.type != 'ARMATURE':
+            else:
                 bpy.ops.object.modifier_remove(modifier = m.name)
         
+        # Force Quads (For Tangents and bitangents)
         minquads = modifiers.new('MinQuads', 'TRIANGULATE')
+        bpy.ops.object.modifier_move_to_index(modifier='MinQuads', index=0)
         minquads.min_vertices = 5
         bpy.ops.object.modifier_apply(modifier = 'MinQuads')
     
     if not formatneedsbones:
         armature = None
     
+    PrintStatus(' Setting up vertex data...')
+    
     # Apply Transforms
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     bpy.ops.object.visual_transform_apply()
     
-    for c in obj.constraints:
-        obj.constraints.remove(c)
+    for c in workingobj.constraints:
+        workingobj.constraints.remove(c)
     
-    yvec = mathutils.Vector((1.0, 1.0, 1.0))
-    
-    if settings.get('yflip', 0):
-        yvec[1] *= -1.0
-    #bpy.ops.object.convert(target='MESH')
-    
-    obj.matrix_world = settings.get('matrix', mathutils.Matrix())
+    workingobj.matrix_world = settings.get('matrix', mathutils.Matrix())
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     
     # Calc data
-    mesh = obj.data
-    mesh.calc_loop_triangles()
-    usetris = (len(mesh.loop_triangles) > 0) and (not settings.get('edgesonly', False))
+    workingmesh.calc_loop_triangles()
+    usetris = (len(workingmesh.loop_triangles) > 0) and (not settings.get('edgesonly', False))
     if usetris:
-        mesh.calc_normals_split()
-        if mesh.uv_layers:
-            mesh.calc_tangents()
-    mesh.update()
+        workingmesh.calc_normals_split()
+        if workingmesh.uv_layers:
+            workingmesh.calc_tangents()
+    
+    workingmesh.update()
     
     # Setup Object Data
-    vertices = mesh.vertices
-    loops = mesh.loops
+    vertices = workingmesh.vertices
+    loops = workingmesh.loops
     
     # Find active group for layer if exists, else create new and use it
-    if not obj.vertex_groups:
-        obj.vertex_groups.new()
-    vgroups = obj.vertex_groups
+    vgroupsexist = len(workingobj.vertex_groups) > 0
+    if not vgroupsexist:
+        workingobj.vertex_groups.new()
+    vgroups = workingobj.vertex_groups
     
-    if armature and vgroups:
+    # Correct vertex groups
+    if armature and vgroupsexist:
         group_select_mode = 'BONE_DEFORM'
         try:
-            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True)
+            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0.0001, keep_single=True)
             bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4)
+            bpy.ops.object.vertex_group_normalize_all(group_select_mode=group_select_mode, lock_active=False)
         except:
             group_select_mode = 'ALL'
-            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0, keep_single=True)
+            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0.0001, keep_single=True)
             bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4)
+            bpy.ops.object.vertex_group_normalize_all(group_select_mode=group_select_mode, lock_active=False)
     
     def FindLayers(layerlist, targetlist, targetpick):
         if not layerlist:
@@ -333,11 +341,10 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 attriblayers[i] = layerlist[t].data
             elif targetpick or t == LYR_RENDER:
                 attriblayers[i] = [x for x in layerlist if x.active_render][0].data
-        
         return (layerlist, attriblayers)
     
-    uvlayers, uvattriblayers = FindLayers(mesh.uv_layers, uvtarget, settings.get('uvlayerpick', 1))
-    vclayers, vcattriblayers = FindLayers(mesh.vertex_colors, vctarget, settings.get('colorlayerpick', 1))
+    uvlayers, uvattriblayers = FindLayers(workingmesh.uv_layers, uvtarget, settings.get('uvlayerpick', 1))
+    vclayers, vcattriblayers = FindLayers(workingmesh.vertex_colors, vctarget, settings.get('colorlayerpick', 1))
     
     fullalpha = settings.get('fullalpha', 0)
     
@@ -356,10 +363,10 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         validvgroups = grouptobone.values()
     
     # Compose data
-    out = { (m.name if m else '__null'): [b''] for m in obj.data.materials} # {materialname: vertexdata[]}
+    out = { (m.name if m else '__null'): [b''] for m in workingmesh.materials} # {materialname: vertexdata[]}
     if not out:
         out = {'0': [b'']}
-    materialnames = [m.name for m in obj.data.materials] if obj.data.materials else ['0']
+    materialnames = [m.name for m in workingmesh.materials] if workingmesh.materials else ['0']
     materialcount = len(materialnames)
     
     stride = 0
@@ -373,35 +380,29 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     range2 = range(0, 2)
     range3 = range(0, 3)
     
-    # Triangles
+    normalsign = -1.0 if settings.get('reversewinding', False) else 1.0
+    scale = settings.get('scale', (1.0, 1.0, 1.0))
+    
+    # Triangles ----------------------------------------------------------------------------
     if usetris:
-        def fPOS(attribindex): materialgroup[-1] += PackVector(FCODE, v.co*yvec)
-        def fNOR(attribindex): materialgroup[-1] += PackVector(FCODE, p_normals[i]*yvec)
-        def fTAN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].tangent*yvec)
-        def fBTN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].bitangent*yvec)
+        PrintStatus(' Writing Triangles...')
+        
+        def fPOS(attribindex): materialgroup[-1] += PackVector(FCODE, v.co)
+        def fNOR(attribindex): materialgroup[-1] += PackVector(FCODE, p_normals[i]*normalsign)
+        def fTAN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].tangent*normalsign)
+        def fBTN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].bitangent*normalsign)
         def fTEX(attribindex): materialgroup[-1] += PackVector(FCODE, (uvattriblayers[attribindex][l].uv[0], 1-uvattriblayers[attribindex][l].uv[1]))
         def fCOL(attribindex): materialgroup[-1] += PackVector(FCODE, vcattriblayers[attribindex][l].color)
         def fCO2(attribindex): materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcattriblayers[attribindex][l].color])
         def fBON(attribindex):
             vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc)
-            vertbones = [grouptobone[vge.group] for vge in vgelements]
-            vertbones += [0] * (4-len(vertbones))
-            materialgroup[-1] += PackVector(FCODE, vertbones[:4])
+            materialgroup[-1] += PackVector(FCODE, ([grouptobone[vge.group] for vge in vgelements]+[0,0,0,0])[:4])
         def fBOI(attribindex):
             vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc)
-            vertbones = [grouptobone[vge.group] for vge in vgelements]
-            vertbones += [0] * (4-len(vertbones))
-            materialgroup[-1] += PackVector('B', vertbones[:4])
+            materialgroup[-1] += PackVector('B', ([grouptobone[vge.group] for vge in vgelements]+[0,0,0,0])[:4])
         def fWEI(attribindex):
             vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc)
-            vertweights = [vge.weight for vge in vgelements]
-            vertweights += [0] * (4-len(vertweights))
-            vertweights = vertweights[:4]
-            weightmagnitude = sum(vertweights)
-            if weightmagnitude != 0:
-                materialgroup[-1] += PackVector(FCODE, [x/weightmagnitude for x in vertweights[:4]])
-            else:
-                materialgroup[-1] += PackVector(FCODE, [x for x in vertweights[:4]])
+            materialgroup[-1] += PackVector(FCODE, ([vge.weight for vge in vgelements]+[0,0,0,0])[:4])
         
         fFunc = {
             VBF_POS : fPOS,
@@ -417,7 +418,12 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         }
         
         #tt = time.time()
-        for p in mesh.loop_triangles[:]: # For all mesh's triangles...
+        num = len(workingmesh.loop_triangles) * 3
+        pindex = 0
+        for p in workingmesh.loop_triangles[:]: # For all mesh's triangles...
+            PrintStatus(' Writing Vertices %s / %s' % (pindex, num))
+            pindex += 3
+            
             p_loops = p.loops
             p_vertices = p.vertices
             p_normals = [
@@ -439,11 +445,15 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 [fFunc[formatentry](i) for i, formatentry in enumerate(format)]
                 
                 continue
-            
+        
+        PrintStatus(' Writing Vertices %s / %s' % (pindex, num))
+        
         #print('Time: %s' % (time.time() - tt))
-    # Edges
+    # Edges ----------------------------------------------------------------------------
     else:
-        for p in mesh.edges[:]: # For all mesh's edges...
+        PrintStatus(' Writing Edges...')
+        
+        for p in workingmesh.edges[:]: # For all mesh's edges...
             p_vertices = p.vertices
             
             materialgroup = out[materialnames[0]]
@@ -502,50 +512,32 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 s = "".join(["%.2f, " % x for x in data[i:i+stride]])
                 print("< %s>" % s)
     
+    # Restore State
+    bpy.data.objects.remove(workingobj)
+    bpy.data.meshes.remove(workingmesh)
+    
     bpy.context.view_layer.objects.active = sourceobj
     sourceobj.select_set(1)
+    
+    PrintStatus('\n')
     
     return (out, vertexcounts)
 
 def RemoveTempObjects():
-    objects = bpy.data.objects
-    selected = [x for x in bpy.context.selected_objects if '__temp' not in x.name]
+    blendobjects = bpy.data.objects
+    for obj in blendobjects:
+        if '__temp' in obj.name:
+            blendobjects.remove(obj)
     
-    object = bpy.context.active_object if bpy.context.active_object else bpy.context.object
+    blendmeshes = bpy.data.meshes
+    for me in blendmeshes:
+        if '__temp' in me.name:
+            blendmeshes.remove(me)
     
-    if not object:
-        selected[0].select_set(1)
-        bpy.context.view_layer.objects.active = selected[0]
-        lastactive = bpy.context.view_layer.objects.active
-        print(bpy.context.active_object.name)
-    
-    lastobjectmode = bpy.context.active_object.mode
-    lastactive = bpy.context.view_layer.objects.active
-    lastname = lastactive.name
-    
-    bpy.ops.object.mode_set(mode = 'OBJECT') # Update selected
-    bpy.ops.object.select_all(action='DESELECT')
-    
-    targets = [x for x in objects if '__temp' in x.name]
-    if lastactive in targets:
-        lastactive = None
-    
-    for x in targets:
-        x.select_set(1)
-    
-    bpy.ops.object.delete(use_global=False, confirm=False)
-    
-    # Restore State
-    bpy.context.view_layer.objects.active = lastactive
-    for obj in selected:
-        obj.select_set(1)
-    if not lastactive:
-        if selected:
-            bpy.context.view_layer.objects.active = selected[0]
-        else:
-            bpy.context.view_layer.objects.active = objects[lastname[:-len('__temp')]]
-    else:
-        bpy.ops.object.mode_set(mode = lastobjectmode)
+    blendarmatures = bpy.data.armatures
+    for arm in blendmeshes:
+        if '__temp' in arm.name:
+            blendarmatures.remove(arm)
     
 def ComposeOutFlag(self):
     flag = 0
@@ -565,3 +557,5 @@ def ComposeOutFormat(self, format = -1):
         out_format += Pack('B', VBFType[f]) # Attribute Type
         out_format += Pack('B', VBFSize[f]) # Attribute Float Size
     return Pack('B', out_format)
+
+
