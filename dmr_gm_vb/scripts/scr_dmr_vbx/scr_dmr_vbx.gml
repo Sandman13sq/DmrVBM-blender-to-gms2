@@ -92,7 +92,7 @@ function VBXData() constructor
 		return -1;
 	}
 	
-	// Returns VBXBone struct with given name. -1 if not found
+	// Returns bone index from given name. -1 if not found
 	static FindBone = function(_name)
 	{
 		var i = variable_struct_get(bonemap, _name);
@@ -181,6 +181,8 @@ function OpenVertexBuffer(path, format, freeze=true)
 // Returns vbx struct from file (.vbx)
 function OpenVBX(path, format=-1, freeze=true)
 {
+	path = "D:/GitHub/dmr_gm_vb/dmr_gm_vb/datafiles/" + path
+	
 	if filename_ext(path) == ""
 	{
 		path = filename_change_ext(path, ".vbx");	
