@@ -12,13 +12,13 @@ viewup = [0,0,1];
 zfar = 1000;
 znear = 1;
 fieldofview = 50;
-	
+
 matproj = matrix_build_identity();
 matview = matrix_build_identity();
 
-viewdistance = 21;
-viewdirection = 91;	// X Rotation
-viewpitch = 7;	// Y Rotation
+viewdistance = 0;
+viewdirection = 0;	// X Rotation
+viewpitch = 0;	// Y Rotation
 
 mouseanchor = [0, 0];
 cameraanchor = [0,0,0];

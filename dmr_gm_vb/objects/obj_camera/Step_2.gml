@@ -41,7 +41,7 @@ if !lock
 			u = (window_mouse_get_y() - mouseanchor[1])*d/20;
 			
 			viewlocation[0] = cameraanchor[0] + (viewright[0]*r) + (viewup[0]*u);
-			viewlocation[1] = cameraanchor[1] - (viewright[1]*r) - (viewup[1]*u);
+			viewlocation[1] = cameraanchor[1] + (viewright[1]*r) + (viewup[1]*u);
 			viewlocation[2] = cameraanchor[2] + (viewright[2]*r) + (viewup[2]*u);
 		}
 		

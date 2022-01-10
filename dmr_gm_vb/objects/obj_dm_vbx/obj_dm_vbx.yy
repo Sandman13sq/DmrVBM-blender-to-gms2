@@ -30,8 +30,8 @@
   "properties": [],
   "overriddenProperties": [],
   "parent": {
-    "name": "Demo Models",
-    "path": "folders/Objects/Demo Models.yy",
+    "name": "VBX",
+    "path": "folders/Objects/Demo Models/VBX.yy",
   },
   "resourceVersion": "1.0",
   "name": "obj_dm_vbx",

@@ -88,7 +88,6 @@ function LoadDiffuseTextures()
 		if string_pos("def", vbx.vbnames[i]) {meshtexture[i] = _tex_def;}
 		if string_pos("skin", vbx.vbnames[i]) {meshtexture[i] = _tex_skin;}
 		if string_pos("hair", vbx.vbnames[i]) {meshtexture[i] = _tex_hair;}
-		if string_pos("brow", vbx.vbnames[i]) {meshtexture[i] = _tex_hair;}
 	}
 }
 

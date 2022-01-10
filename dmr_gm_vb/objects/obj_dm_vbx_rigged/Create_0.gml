@@ -53,4 +53,6 @@ u_shd_rigged_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
 u_shd_rigged_light = shader_get_uniform(_shd, "u_light");
 u_shd_rigged_matpose = shader_get_uniform(_shd, "u_matpose");
 
+lastangles = [0,0,0]
+
 event_user(1);

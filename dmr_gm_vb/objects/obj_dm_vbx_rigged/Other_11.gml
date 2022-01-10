@@ -25,6 +25,13 @@ layout.Real("Pos")
 	.SetBounds(0, 1, 0.02)
 	.Description("Toggle animation playback")
 	.operator_on_change = true;
+layout.Real("Animation Speed")
+	.DefineControl(self, "playbackspeed")
+	.SetBounds(-100, 100, 0.02)
+	.SetDefault(1.0)
+	.Description("Set playback speed");
+layout.Button("Bind Pose").Operator(OP_BindPose);
+layout.Button("Camera Position To Bone").Operator(OP_CameraToBone);
 
 // Pose
 var l = layout.Dropdown("Poses").List().Operator(OP_PoseMarkerJump);

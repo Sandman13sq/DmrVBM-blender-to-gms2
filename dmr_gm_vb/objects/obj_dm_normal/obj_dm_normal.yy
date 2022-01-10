@@ -29,8 +29,8 @@
   "properties": [],
   "overriddenProperties": [],
   "parent": {
-    "name": "Demo Models",
-    "path": "folders/Objects/Demo Models.yy",
+    "name": "VB",
+    "path": "folders/Objects/Demo Models/VB.yy",
   },
   "resourceVersion": "1.0",
   "name": "obj_dm_normal",
