@@ -20,6 +20,9 @@ void main()
 	// Attributes
     vec4 vertexpos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
 	
+	// Correct Y Flip
+	vertexpos.y *= -1.0;
+	
 	// Set draw position
 	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
     

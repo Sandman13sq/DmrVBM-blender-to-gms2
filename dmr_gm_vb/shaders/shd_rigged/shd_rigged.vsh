@@ -38,12 +38,11 @@ void main()
 	vertexpos = m * vertexpos;
 	normal = m * normal;
 	
-	// Set draw position -------------------------------------------------
-	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
-    
+	// Correct Y Flip
+	vertexpos.y *= -1.0;
+	normal.y *= -1.0;
+	
 	// Varyings ----------------------------------------------------------
-	//v_pos = (gm_Matrices[MATRIX_WORLD] * vertexpos).xyz;
-	//v_normal = normalize(gm_Matrices[MATRIX_WORLD] * normal).xyz;
     v_color = in_Color;
     v_uv = in_Uv;
 	
@@ -55,4 +54,8 @@ void main()
 	v_dirtolight_cs = lightpos_cs + v_dirtocamera_cs;
 	
 	v_normal_cs = normalize( (gm_Matrices[MATRIX_WORLD_VIEW] * normal).xyz);
+	
+	// Set draw position -------------------------------------------------
+	
+	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
 }

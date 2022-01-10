@@ -22,7 +22,7 @@ void main()
 	vec3 texturenormal = texture2D(u_texnormal, v_uv).xyz;
 	// Use default normal if texture is completely white (no texture given)
 	texturenormal = mix(texturenormal, DEFAULT_NORMAL, 
-		float(texturenormal == vec3(1.0, 1.0, 1.0)));
+		float(texturenormal == DEFAULT_NORMAL));
 	texturenormal.z = 1.0;
 	
 	// Uniforms -------------------------------------------------------

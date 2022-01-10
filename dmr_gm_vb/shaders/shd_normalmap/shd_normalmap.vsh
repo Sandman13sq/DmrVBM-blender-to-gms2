@@ -28,6 +28,10 @@ void main()
     vec4 vertexpos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
 	vec4 normal = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 0.0);
 	
+	// Correct Y Flip
+	vertexpos.y *= -1.0;
+	normal.y *= -1.0;
+	
 	// Set draw position -------------------------------------------------
 	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
     
@@ -48,11 +52,7 @@ void main()
 	vec3 tangent_camspace = matmodelview * normalize(in_Tangent);
 	vec3 bitangent_camspace = matmodelview * normalize(in_Bitangent);
 	
-	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace) * mat3(
-		1.0, 0.0, 0.0,
-		0.0, -1.0, 0.0,
-		0.0, 0.0, 1.0
-		);
+	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace);
 	
 	tbn = mat3(
 		tbn[0][0], tbn[1][0], tbn[2][0],
