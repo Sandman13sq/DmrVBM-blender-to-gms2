@@ -7,12 +7,14 @@ except:
     from vbx_func import *
 
 attribpresets = {
-    'Pos-Col-UV': [VBF_POS, VBF_RGB, VBF_TEX],
-    'Pos-Nor-Col-UV': [VBF_POS, VBF_NOR, VBF_RGB, VBF_TEX],
-    'Pos-Nor-Tan-Btn-Col-UV': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_TEX],
-    'Pos-Nor-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_RGB, VBF_TEX, VBF_BON, VBF_WEI],
-    'Pos-Nor-Tan-Btn-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_TEX, VBF_BON, VBF_WEI],
+    '_Pos-Col-UV': [VBF_POS, VBF_RGB, VBF_TEX],
+    '_Pos-Nor-Col-UV': [VBF_POS, VBF_NOR, VBF_RGB, VBF_TEX],
+    '_Pos-Nor-Tan-Btn-Col-UV': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_TEX],
+    '_Pos-Nor-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_RGB, VBF_TEX, VBF_BON, VBF_WEI],
+    '_Pos-Nor-Tan-Btn-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_TEX, VBF_BON, VBF_WEI],
 }
+
+presetheader = 'import bpy\nop = bpy.context.active_operator\n\n'
 
 def PresetPanic():
     print('> Generating presets...')
@@ -32,14 +34,22 @@ def PresetPanic():
             except:
                 ''
             
-            for name, format in attribpresets.items():
-                format += [VBF_000] * (8-len(format))
-                out = ''
-                out += 'import bpy\n'
-                out += 'op = bpy.context.active_operator\n\n'
-                out += ''.join(['op.vbf%d = "%s"\n' % (i, k) for i, k in enumerate(format)])
-                f = open(dir+name+'.py', 'w')
+            rootpath = dir+'%s.py'
+            def OutputToFile(out, fname):
+                f = open(rootpath % fname, 'w')
                 f.write(out)
                 f.close()
+            
+            # Format Presets
+            for name, format in attribpresets.items():
+                format += [VBF_000] * (8-len(format))
+                out = presetheader
+                out += ''.join(['op.vbf%d = "%s"\n' % (i, k) for i, k in enumerate(format)])
+                OutputToFile(out, name)
+            
+            # Y Flip
+            out = presetheader
+            out += 'op.forwardaxis = "-y"\n'
+            OutputToFile(out, '_YFlip')
 
 PresetPanic()
