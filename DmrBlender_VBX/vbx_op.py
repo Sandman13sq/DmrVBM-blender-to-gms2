@@ -79,15 +79,18 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     )
     
     applyarmature: bpy.props.BoolProperty(
-        name="Apply Armature",
+        name="Apply Armature", default=True,
         description="Apply armature to meshes",
-        default=True,
     )
     
     edgesonly: bpy.props.BoolProperty(
-        name="Edges Only",
+        name="Edges Only", default=False,
         description="Export mesh edges only (without triangulation).",
-        default=False,
+    )
+    
+    exporthidden: bpy.props.BoolProperty(
+        name="Export Hidden", default=False,
+        description="Export hidden objects",
     )
     
     reversewinding: bpy.props.BoolProperty(
@@ -125,6 +128,30 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         description='Flips Y Coordinate of UVs so that 0.0 is the top of the image and 1.0 is the bottom',
     )
     
+    uvlayerpick: bpy.props.EnumProperty(
+        name="Target UV Layer", 
+        description="UV Layer to reference when exporting.",
+        items = LayerChoiceItems, default='render',
+    )
+    
+    colorlayerpick: bpy.props.EnumProperty(
+        name="Target Color Layer", 
+        description="Color Layer to reference when exporting.",
+        items = LayerChoiceItems, default='render',
+    )
+    
+    modifierpick: bpy.props.EnumProperty(
+        name="Target Modifiers", 
+        description="Requirements for modifers when exporting.",
+        items = ModChoiceItems, 
+        default='OR',
+    )
+    
+    delimiter: bpy.props.StringProperty(
+        name="Delimiter Char", default='.',
+        description='Grouping will ignore parts of names past this character. \nEx: if delimiter = ".", "model_body.head" -> "model_body"',
+    )
+    
     # Vertex Attributes
     VbfProp = lambda i,key: bpy.props.EnumProperty(name="Attribute %d" % i, 
         description='Data to write for each vertex', items=VBFItems, default=key)
@@ -158,30 +185,6 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     uvlyr5 : UVlyrProp(5)
     uvlyr6 : UVlyrProp(6)
     uvlyr7 : UVlyrProp(7)
-    
-    uvlayerpick: bpy.props.EnumProperty(
-        name="Target UV Layer", 
-        description="UV Layer to reference when exporting.",
-        items = LayerChoiceItems, default='render',
-    )
-    
-    colorlayerpick: bpy.props.EnumProperty(
-        name="Target Color Layer", 
-        description="Color Layer to reference when exporting.",
-        items = LayerChoiceItems, default='render',
-    )
-    
-    modifierpick: bpy.props.EnumProperty(
-        name="Target Modifiers", 
-        description="Requirements for modifers when exporting.",
-        items = ModChoiceItems, 
-        default='OR',
-    )
-    
-    delimiter: bpy.props.StringProperty(
-        name="Delimiter Char", default='.',
-        description='Grouping will ignore parts of names past this character. \nEx: if delimiter = ".", "model_body.head" -> "model_body"',
-    )
 
 # ---------------------------------------------------------------------------------------
 
@@ -199,6 +202,7 @@ def DrawCommonProps(self, context):
     if self.moreoptions:
         c = b.column_flow(align=1)
         
+        c.prop(self, 'exporthidden', text='Export Hidden')
         c.prop(self, 'edgesonly', text='Edges Only')
         c.prop(self, 'reversewinding', text='Flip Normals')
         c.prop(self, 'flipuvs', text='Flip UVs')
@@ -299,12 +303,19 @@ def CollectionToObjectList(self, context):
     name = self.collectionname
     print('> Collection = %s' % name)
     
+    objs = []
+    
     if name == context.scene.collection.name:
-        return [x for x in context.scene.collection.all_objects]
+        objs = [x for x in context.scene.collection.all_objects]
     if name in [x.name for x in bpy.data.collections]:
-        return [x for x in bpy.data.collections[name].all_objects]
+        objs = [x for x in bpy.data.collections[name].all_objects]
     else:
-        return [x for x in context.selected_objects]
+        objs = [x for x in context.selected_objects]
+    
+    if not self.exporthidden:
+        objs = [x for x in objs if not x.hide_get()]
+    
+    return objs
 
 # ---------------------------------------------------------------------------------------
 
@@ -679,15 +690,20 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                             vbnumber[name] = vbnumber.get(name, 0)
                             vbgroups[name] += vbdata
                             vbnumber[name] += vbnumber[name]
+            
             return (vbgroups, vbnumber)
         
         def FinishVBX(vbgroups, vbnumbers, path=self.filepath):
+            groupkeys = [k for k in vbgroups.keys()]
+            groupkeys.sort()
+            
             out_vb = b''
             out_vb += Pack('H', len(vbgroups)) # Number of groups
-            out_vb += b''.join( [PackString(name) for name in vbgroups.keys()] ) # Group Names
+            out_vb += b''.join( [PackString(name) for name in groupkeys] ) # Group Names
             
             # Write groups
-            for name, vb in vbgroups.items():
+            for name in groupkeys:
+                vb = vbgroups[name]
                 out_vb += Pack('L', len(vb)) # Size of buffer
                 out_vb += Pack('L', vbnumbers[name]) # Number of vertices
                 out_vb += vb # Vertex Buffer
