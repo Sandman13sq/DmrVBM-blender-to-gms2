@@ -12,6 +12,8 @@ try:
 except:
     from vbx_func import *
 
+EXPORTLISTHEADER = '<exportlist>'
+
 # Float type to use for Packing
 # 'f' = float (32bit), 'd' = double (64bit), 'e' = binary16 (16bit)
 FCODE = 'f'
@@ -61,7 +63,178 @@ def PrintStatus(msg, clear=1, buffersize=40):
     inversemodelmatrices[bonecount] (16f each)
 """
 
-# ------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------
+
+def DrawCommonProps(self, context):
+    layout = self.layout
+    
+    c = layout.column_flow(align=1)
+    c.prop(self, 'applyarmature', text='Apply Armature')
+    
+    b = c.box()
+    r = b.row(align=1)
+    r.alignment = 'CENTER'
+    r.prop(self, 'moreoptions', text='== More Options ==')
+    
+    if self.moreoptions:
+        c = b.column_flow(align=1)
+        
+        c.prop(self, 'exporthidden', text='Export Hidden')
+        c.prop(self, 'edgesonly', text='Edges Only')
+        c.prop(self, 'reversewinding', text='Flip Normals')
+        c.prop(self, 'flipuvs', text='Flip UVs')
+        
+        r = c.row(align=1)
+        r.prop(self, 'upaxis', text='')
+        r.prop(self, 'forwardaxis', text='')
+        
+        r = c.row()
+        r.prop(self, 'scale', text='Scale')
+        c.prop(self, 'maxsubdivisions', text='Max Subdivisions')
+        
+        rr = c.row()
+        c = rr.column(align=1)
+        c.scale_x = 0.8
+        c.label(text='Color Source:')
+        c.label(text='UV Source:')
+        c.label(text='Modifier Src:')
+        c = rr.column(align=1)
+        c.prop(self, 'colorlayerpick', text='')
+        c.prop(self, 'uvlayerpick', text='')
+        c.prop(self, 'modifierpick', text='')
+
+# ---------------------------------------------------------------------------------------
+
+def DrawAttributes(self, context):
+    layout = self.layout
+    
+    b = layout.box()
+    b = b.column_flow(align=1)
+    r = b.row(align=1)
+    r.alignment = 'CENTER'
+    r.label(text='Vertex Attributes')
+    
+    # Draw attributes
+    l = 0
+    for i in range(0, 8):
+        if getattr(self, 'vbf%d' % i) != VBF_000:
+            l = i+2;
+        
+    for i in range(0, min(l, 8)):
+        c = b.row().column(align=1)
+        
+        c.prop(self, 'vbf%d' % i, text='Attrib%d' % i)
+        
+        vbfkey = getattr(self, 'vbf%d' % i)
+        
+        if vbfkey == VBF_COL or vbfkey == VBF_RGB:
+            split = c.split(factor=0.25)
+            split.label(text='')
+            split.prop(self, 'vclyr%d' % i, text='Layer')
+        elif vbfkey == VBF_TEX:
+            split = c.split(factor=0.25)
+            split.label(text='')
+            split.prop(self, 'uvlyr%d' % i, text='Layer')
+
+# ---------------------------------------------------------------------------------------
+
+def ParseAttribFormat(self, context):
+    format = []
+    vclayertarget = []
+    uvlayertarget = []
+    
+    for i in range(0, 8):
+        slot = getattr(self, 'vbf%d' % i)
+        vctarget = getattr(self, 'vclyr%d' % i)
+        uvtarget = getattr(self, 'uvlyr%d' % i)
+        
+        if slot != VBF_000:
+            format.append(slot)
+            vclayertarget.append(vctarget)
+            uvlayertarget.append(uvtarget)
+    
+    return (format, vclayertarget, uvlayertarget)
+
+# ---------------------------------------------------------------------------------------
+
+def GetCorrectiveMatrix(self, context):
+    mattran = mathutils.Matrix()
+    u = self.upaxis
+    f = self.forwardaxis
+    uvec = mathutils.Vector( ((u=='+x')-(u=='-x'), (u=='+y')-(u=='-y'), (u=='+z')-(u=='-z')) )
+    fvec = mathutils.Vector( ((f=='+x')-(f=='-x'), (f=='+y')-(f=='-y'), (f=='+z')-(f=='-z')) )
+    rvec = fvec.cross(uvec)
+    
+    # Create rotation
+    mattran = mathutils.Matrix()
+    mattran[0][0:3] = rvec
+    mattran[1][0:3] = fvec
+    mattran[2][0:3] = uvec
+    
+    # Create and apply scale
+    mattran = mathutils.Matrix.LocRotScale(None, None, self.scale) @ mattran
+    
+    return mattran
+
+# --------------------------------------------------------------------------------------------------
+
+def GetCollectionItems(self, context):
+    out = [('<selected>', '(Selected Objects)', 'Export selected objects', 'RESTRICT_SELECT_OFF', 0)]
+    
+    # Export Lists
+    for i, x in enumerate(context.scene.vbx_exportlists):
+        out += [(EXPORTLISTHEADER+'%s' % x.name, x.name, 'Export from export list "%s"' % x.name, 'PRESET', len(out))]
+    
+    # Iterate through scene collections
+    def ColLoop(c, out, depth=0):
+        out += [(c.name, '. '*depth+c.name, 'Export all objects in collection "%s"' % c.name, 'OUTLINER_COLLECTION', len(out))]
+        
+        for cc in c.children:
+            ColLoop(cc, out, depth+1)
+    ColLoop(context.scene.collection, out)
+    return out
+
+# ---------------------------------------------------------------------------------------
+
+def CollectionToObjectList(self, context):
+    name = self.collectionname
+    print('> Collection = %s' % name.replace(EXPORTLISTHEADER, ''))
+    
+    objs = []
+    alphasort = lambda x: x.name
+    
+    # Scene Collection
+    if name == context.scene.collection.name:
+        objs = sorted([x for x in context.scene.collection.all_objects], key=alphasort)
+    # Export List
+    elif name[:len(EXPORTLISTHEADER)] == EXPORTLISTHEADER:
+        exportlistname = name[len(EXPORTLISTHEADER):]
+        exportlists = list(context.scene.vbx_exportlists)
+        listnames = [x.name for x in exportlists]
+        if exportlistname in listnames:
+            blendobjects = bpy.data.objects
+            exportlist = exportlists[listnames.index(exportlistname)]
+            objs = [blendobjects[x.objname] for x in exportlist.entries if x.objname in blendobjects.keys()]
+    # Collections
+    if name in [x.name for x in bpy.data.collections]:
+        objs = sorted([x for x in bpy.data.collections[name].all_objects], key=alphasort)
+    # Selected Objects
+    else:
+        objs = sorted([x for x in context.selected_objects], key=alphasort)
+    
+    if not self.exporthidden:
+        objs = [x for x in objs if not x.hide_get()]
+    
+    return objs
+
+# ---------------------------------------------------------------------------------------
+
+def FixName(name, delimiter):
+    if delimiter in name:
+        return name[:name.find(delimiter)]
+    return name
+
+# =============================================================================
 
 classlist = []
 
@@ -185,144 +358,6 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     uvlyr5 : UVlyrProp(5)
     uvlyr6 : UVlyrProp(6)
     uvlyr7 : UVlyrProp(7)
-
-# ---------------------------------------------------------------------------------------
-
-def DrawCommonProps(self, context):
-    layout = self.layout
-    
-    c = layout.column_flow(align=1)
-    c.prop(self, 'applyarmature', text='Apply Armature')
-    
-    b = c.box()
-    r = b.row(align=1)
-    r.alignment = 'CENTER'
-    r.prop(self, 'moreoptions', text='== More Options ==')
-    
-    if self.moreoptions:
-        c = b.column_flow(align=1)
-        
-        c.prop(self, 'exporthidden', text='Export Hidden')
-        c.prop(self, 'edgesonly', text='Edges Only')
-        c.prop(self, 'reversewinding', text='Flip Normals')
-        c.prop(self, 'flipuvs', text='Flip UVs')
-        
-        r = c.row(align=1)
-        r.prop(self, 'upaxis', text='')
-        r.prop(self, 'forwardaxis', text='')
-        
-        r = c.row()
-        r.prop(self, 'scale', text='Scale')
-        c.prop(self, 'maxsubdivisions', text='Max Subdivisions')
-        
-        rr = c.row()
-        c = rr.column(align=1)
-        c.scale_x = 0.8
-        c.label(text='Color Source:')
-        c.label(text='UV Source:')
-        c.label(text='Modifier Src:')
-        c = rr.column(align=1)
-        c.prop(self, 'colorlayerpick', text='')
-        c.prop(self, 'uvlayerpick', text='')
-        c.prop(self, 'modifierpick', text='')
-
-# ---------------------------------------------------------------------------------------
-
-def DrawAttributes(self, context):
-    layout = self.layout
-    
-    b = layout.box()
-    b = b.column_flow(align=1)
-    r = b.row(align=1)
-    r.alignment = 'CENTER'
-    r.label(text='Vertex Attributes')
-    
-    # Draw attributes
-    l = 0
-    for i in range(0, 8):
-        if getattr(self, 'vbf%d' % i) != VBF_000:
-            l = i+2;
-        
-    for i in range(0, min(l, 8)):
-        c = b.row().column(align=1)
-        
-        c.prop(self, 'vbf%d' % i, text='Attrib%d' % i)
-        
-        vbfkey = getattr(self, 'vbf%d' % i)
-        
-        if vbfkey == VBF_COL or vbfkey == VBF_RGB:
-            split = c.split(factor=0.25)
-            split.label(text='')
-            split.prop(self, 'vclyr%d' % i, text='Layer')
-        elif vbfkey == VBF_TEX:
-            split = c.split(factor=0.25)
-            split.label(text='')
-            split.prop(self, 'uvlyr%d' % i, text='Layer')
-
-# ---------------------------------------------------------------------------------------
-
-def ParseAttribFormat(self, context):
-    format = []
-    vclayertarget = []
-    uvlayertarget = []
-    
-    for i in range(0, 8):
-        slot = getattr(self, 'vbf%d' % i)
-        vctarget = getattr(self, 'vclyr%d' % i)
-        uvtarget = getattr(self, 'uvlyr%d' % i)
-        
-        if slot != VBF_000:
-            format.append(slot)
-            vclayertarget.append(vctarget)
-            uvlayertarget.append(uvtarget)
-    
-    return (format, vclayertarget, uvlayertarget)
-
-# ---------------------------------------------------------------------------------------
-
-def GetCorrectiveMatrix(self, context):
-    mattran = mathutils.Matrix()
-    u = self.upaxis
-    f = self.forwardaxis
-    uvec = mathutils.Vector( ((u=='+x')-(u=='-x'), (u=='+y')-(u=='-y'), (u=='+z')-(u=='-z')) )
-    fvec = mathutils.Vector( ((f=='+x')-(f=='-x'), (f=='+y')-(f=='-y'), (f=='+z')-(f=='-z')) )
-    rvec = fvec.cross(uvec)
-    
-    mattran = mathutils.Matrix()
-    mattran[0][0:3] = rvec
-    mattran[1][0:3] = fvec
-    mattran[2][0:3] = uvec
-    
-    mattran = mathutils.Matrix.LocRotScale(None, None, self.scale) @ mattran
-    
-    return mattran
-
-# ---------------------------------------------------------------------------------------
-
-def CollectionToObjectList(self, context):
-    name = self.collectionname
-    print('> Collection = %s' % name)
-    
-    objs = []
-    
-    if name == context.scene.collection.name:
-        objs = [x for x in context.scene.collection.all_objects]
-    if name in [x.name for x in bpy.data.collections]:
-        objs = [x for x in bpy.data.collections[name].all_objects]
-    else:
-        objs = [x for x in context.selected_objects]
-    
-    if not self.exporthidden:
-        objs = [x for x in objs if not x.hide_get()]
-    
-    return objs
-
-# ---------------------------------------------------------------------------------------
-
-def FixName(name, delimiter):
-    if delimiter in name:
-        return name[:name.find(delimiter)]
-    return name
 
 # =============================================================================
 
@@ -664,6 +699,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         
         def GetVBGroupSorted(objlist):
             vbgroups = {}
+            vbkeys = []
             vbnumber = {}
             
             for obj in objlist:
@@ -675,6 +711,8 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 if self.grouping == 'OBJ':
                     name = obj.name
                     name = FixName(name, self.delimiter)
+                    if name not in vbkeys:
+                        vbkeys.append(name)
                     if sum( [len(x) for x in data.values()] ) >= 0:
                         vbgroups[name] = vbgroups.get(name, b'')
                         vbnumber[name] = vbnumber.get(name, 0)
@@ -685,18 +723,17 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 elif self.grouping == 'MAT':
                     for name, vbdata in data.items():
                         name = FixName(name, self.delimiter)
+                        if name not in vbkeys:
+                            vbkeys.append(name)
                         if len(vbdata) > 0:
                             vbgroups[name] = vbgroups.get(name, b'')
                             vbnumber[name] = vbnumber.get(name, 0)
                             vbgroups[name] += vbdata
                             vbnumber[name] += vbnumber[name]
             
-            return (vbgroups, vbnumber)
+            return (vbgroups, vbnumber, vbkeys)
         
-        def FinishVBX(vbgroups, vbnumbers, path=self.filepath):
-            groupkeys = [k for k in vbgroups.keys()]
-            groupkeys.sort()
-            
+        def FinishVBX(vbgroups, vbnumbers, groupkeys, path=self.filepath):
             out_vb = b''
             out_vb += Pack('H', len(vbgroups)) # Number of groups
             out_vb += b''.join( [PackString(name) for name in groupkeys] ) # Group Names
@@ -715,10 +752,11 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         # No Batching
         if self.batchexport == 'none':
             vbgroups = {}
+            vbkeys = []
             vertexcount = 0
             
-            vbgroups, vertexcount = GetVBGroupSorted(targetobjects)
-            FinishVBX(vbgroups, vertexcount)
+            vbgroups, vertexcount, vbkeys = GetVBGroupSorted(targetobjects)
+            FinishVBX(vbgroups, vertexcount, vbkeys)
         else:
             rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path
             outgroups = {} # {groupname: vertexdata}
@@ -729,6 +767,8 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 for obj in targetobjects:
                     name = obj.name
                     name = FixName(name, self.delimiter)
+                    if name not in vbkeys:
+                        vbkeys.append(name)
                     datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)
                     data = datapair[0]
                     vertexcount = sum(datapair[1].values())
@@ -739,6 +779,8 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 for obj in targetobjects:
                     name = obj.data.name
                     name = FixName(name, self.delimiter)
+                    if name not in vbkeys:
+                        vbkeys.append(name)
                     datapair = GetVBData(obj, format, settings, uvlayertarget, vclayertarget)
                     data = datapair[0]
                     vertexcount = sum(datapair[1].values())
@@ -752,6 +794,8 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                     
                     for name, d in data.items():
                         name = FixName(name, self.delimiter)
+                        if name not in vbkeys:
+                            vbkeys.append(name)
                         vertexcount = datapair[1][name]
                         vbgroups = {name: b''.join([x for x in data.values()])}
                         if name not in outgroups.keys():
@@ -768,11 +812,13 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 for armobj in arms:
                     name = armobj.name
                     name = FixName(name, self.delimiter)
+                    if name not in vbkeys:
+                        vbkeys.append(name)
                     print('> %s: %s' % (armobj.name, [x.name for x in armobj.children]) )
                     out_bone = ComposeBoneData(armobj)
                     vbgroups, vbnumbers = GetVBGroupSorted([x for x in armobj.children])
                     if sum(vbnumbers.values()) > 0:
-                        FinishVBX(vbgroups, vbnumbers, rootpath + name + self.filename_ext)
+                        FinishVBX(vbgroups, vbnumbers, vbkeys, rootpath + name + self.filename_ext)
                 outgroups = {}
             
             # Export each data as individual files

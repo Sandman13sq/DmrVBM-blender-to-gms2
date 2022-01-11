@@ -17,10 +17,6 @@ def DrawVBXPanel(self, context):
     #section.operator("dmr.gm_export_poselib", text='Export PoseLib', icon='POSE_HLT')
     section.operator("dmr.gm_export_action", text='Export Action', icon='RENDER_ANIMATION')
     section.operator("dmr.gm_export_posematrix", text='Export Pose Matrices', icon='LIGHTPROBE_GRID')
-    
-    section = layout.box()
-    section.column().label(text='-- Anim Exportables --')
-    scene = context.scene
 '''
 class DMR_PT_ExportVBPanel(bpy.types.Panel):
     bl_label = 'Vertex Buffer Export'

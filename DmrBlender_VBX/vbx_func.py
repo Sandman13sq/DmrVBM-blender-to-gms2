@@ -172,19 +172,6 @@ def GetVCLayers(self, context):
     
     return items
 
-# --------------------------------------------------------------------------------------------------
-
-def GetCollectionItems(self, context):
-    out = [('<selected>', '(Selected Objects)', 'Export selected objects', 'RESTRICT_SELECT_OFF', 0)]
-    
-    def ColLoop(c, out, depth=0):
-        out += [(c.name, '^ '*depth+ c.name, 'Export all objects in collection "%s"' % c.name, 'OUTLINER_COLLECTION', len(out))]
-        
-        for cc in c.children:
-            ColLoop(cc, out, depth+1)
-    ColLoop(context.scene.collection, out)
-    return out
-
 # ==================================================================================================
 
 def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL]):

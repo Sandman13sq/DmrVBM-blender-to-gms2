@@ -12,6 +12,7 @@ modulesNames = [
     'vbx_op',
     'vbx_op_action',
     'vbx_panel',
+    'vbx_exportlist',
     ]
  
 import sys
