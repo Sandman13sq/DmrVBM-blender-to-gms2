@@ -181,7 +181,7 @@ function OpenVertexBuffer(path, format, freeze=true)
 // Returns vbx struct from file (.vbx)
 function OpenVBX(path, format=-1, freeze=true)
 {
-	path = "D:/GitHub/dmr_gm_vb/dmr_gm_vb/datafiles/" + path
+	path = "D:/GitHub/DmrVBX/vbx_demo/datafiles/" + path
 	
 	if filename_ext(path) == ""
 	{
