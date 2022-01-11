@@ -1,4 +1,5 @@
 import bpy
+import os
 import struct
 import zlib
 import sys
@@ -397,6 +398,10 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
     def execute(self, context):
         path = self.filepath
         
+        if not os.path.exists(os.path.dirname(path)):
+            self.info({'WARNING'}, 'Invalid path specified: "%s"' % path)
+            return {'FINISHED'}
+        
         print('='*80)
         print('> Beginning ExportVB to rootpath: "%s"' % path)
         
@@ -564,6 +569,10 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
     def execute(self, context):
         path = self.filepath
         FCODE = self.floattype
+        
+        if not os.path.exists(os.path.dirname(path)):
+            self.info({'WARNING'}, 'Invalid path specified: "%s"' % path)
+            return {'FINISHED'}
         
         print('='*80)
         print('> Beginning ExportVBX to rootpath: "%s"' % path)

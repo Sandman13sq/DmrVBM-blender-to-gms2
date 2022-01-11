@@ -126,6 +126,46 @@ ForwardAxisItems = (
     ('-z', '-Z Forward', 'Export model(s) with -Z Forward axis'),
 )
 
+# ---------------------------------------------------------------------------------------
+
+def InstancerRun(self, context, sourceobj, destobj):
+    scene = context.scene
+    vl = context.view_layer
+    
+    hidden = [x for x in scene.objects if x.hide_get()]
+    [x.hide_set(False) for x in hidden]
+    
+    bpy.ops.object.select_all(action='DESELECT')
+    sourceobj.select_set(True)
+    vl.objects.active = sourceobj
+    
+    lastinstancedata = (sourceobj.instance_type)
+    
+    obs = set(scene.objects)
+    bpy.ops.object.duplicates_make_real()
+    new_obs = list(set(scene.objects) - obs)
+    
+    sourceobj.instance_type = lastinstancedata
+    
+    out = destobj
+    
+    if new_obs:
+        if not sourceobj.show_instancer_for_viewport:
+            destobj.data.clear_geometry()
+        
+        for o in new_obs:
+            o.select_set(True)
+        destobj.select_set(True)
+        
+        vl.objects.active = destobj
+        out = vl.objects.active
+        
+        bpy.ops.object.join()
+    
+    [x.hide_set(True) for x in hidden if x]
+    
+    return out
+
 # ==================================================================================================
 
 def GetUVLayers(self, context):
@@ -188,9 +228,16 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     workingobj = sourceobj.copy()
     workingobj.name += '__temp'
     workingmesh.name += '__temp'
+    context.scene.collection.objects.link(workingobj)
     workingobj.data = workingmesh
+    workingmesh.update()
     
-    bpy.context.view_layer.active_layer_collection.collection.objects.link(workingobj)
+    # Check for instancing
+    if sourceobj.is_instancer and sourceobj.children:
+        InstancerRun(-1, context, sourceobj, workingobj)
+        #workingmesh = workingobj.data.copy()
+        #workingobj.data = workingmesh
+    
     workingobj.select_set(True)
     bpy.context.view_layer.objects.active = workingobj
     
@@ -218,6 +265,11 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         
         modifiers = workingobj.modifiers
         for i, m in enumerate(modifiers):
+            # Skip Bang Modifiers
+            if (m.name[0] == '!'):
+                bpy.ops.object.modifier_remove(modifier = m.name)
+                continue
+            
             # Modifier requirements
             vshow = m.show_viewport
             rshow = m.show_render
@@ -235,14 +287,9 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 if maxsubdivisions >= 0:
                     m.levels = min(m.levels, maxsubdivisions)
             
-            # Skip Bang Modifiers
-            if (m.name[0] == '!'):
-                bpy.ops.object.modifier_remove(modifier = m.name)
-                continue
-            
             # Apply enabled modifiers
             if m.type == 'ARMATURE':
-                if not applyarmature:
+                if applyarmature:
                     bpy.ops.object.modifier_move_to_index(modifier=m.name, index=len(modifiers)-1)
                 else:
                     bpy.ops.object.modifier_remove(modifier = m.name)
@@ -253,6 +300,11 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 except:
                     print('> Modifier "%s" unable to apply' % m.name)
                     bpy.ops.object.modifier_remove(modifier = m.name)
+        
+        # Apply modifier if leftover
+        for m in workingobj.modifiers:
+            if m.type == 'ARMATURE' and applyarmature:
+                bpy.ops.object.modifier_apply(modifier = m.name)
         
         # Force Quads (For Tangents and bitangents)
         minquads = modifiers.new('MinQuads', 'TRIANGULATE')
@@ -266,14 +318,19 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     PrintStatus(' Setting up vertex data...')
     
     # Apply Transforms
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    bpy.ops.object.visual_transform_apply()
+    #for c in workingobj.constraints:
+    #    workingobj.constraints.remove(c)
     
-    for c in workingobj.constraints:
-        workingobj.constraints.remove(c)
+    # "Fine. I'll do it myself."
+    worldmat = settings.get('matrix', mathutils.Matrix()) @ workingobj.matrix_world
+    loc, rot, scale = worldmat.decompose()
+    workingobj.matrix_world = mathutils.Matrix()
+    workingmesh = workingobj.to_mesh()
+    for v in workingmesh.vertices:
+        v.co.rotate(rot)
+        v.co *= scale
+        v.co += loc
     
-    workingobj.matrix_world = settings.get('matrix', mathutils.Matrix())
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     
     # Calc data
     workingmesh.calc_loop_triangles()
@@ -406,10 +463,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             
             p_loops = p.loops
             p_vertices = p.vertices
-            p_normals = [
-                mathutils.Vector((x[0], x[1], x[2]))
-                for x in p.split_normals
-                ]
+            p_normals = [mathutils.Vector(x) for x in p.split_normals]
             
             groupkey = materialnames[min(p.material_index, max(0, materialcount-1))]
             materialgroup = out[ groupkey ]
@@ -490,8 +544,9 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 print("< %s>" % s)
     
     # Restore State
+    workingobj.to_mesh_clear()
     bpy.data.objects.remove(workingobj)
-    bpy.data.meshes.remove(workingmesh)
+    #bpy.data.meshes.remove(workingmesh)
     
     bpy.context.view_layer.objects.active = sourceobj
     sourceobj.select_set(1)
