@@ -13,7 +13,34 @@ try:
 except:
     from vbx_func import *
 
-# VBX Format:
+EXPORTLISTHEADER = '<exportlist>'
+
+# Float type to use for Packing
+# 'f' = float (32bit), 'd' = double (64bit), 'e' = binary16 (16bit)
+FCODE = 'f'
+
+PackString = lambda x: b'%c%s' % (len(x), str.encode(x))
+PackVector = lambda f, v: struct.pack(f*len(v), *(v[:]))
+PackMatrix = lambda f, m: b''.join( [struct.pack(f*4, *x) for x in m.copy().transposed()] )
+QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
+
+def CompressAndWrite(self, out, path):
+    outcompressed = zlib.compress(out)
+    outlen = (len(out), len(outcompressed))
+    
+    file = open(path, 'wb')
+    file.write(outcompressed)
+    file.close()
+    
+    print("Data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
+            (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], path) )
+    self.report({'INFO'}, 'VB data written to \"%s\"' % path)
+
+def PrintStatus(msg, clear=1, buffersize=40):
+    msg = msg + (' '*buffersize*clear)
+    sys.stdout.write(msg + (chr(8) * len(msg) * clear))
+    sys.stdout.flush()
+
 """
     'VBX' (3B)
     VBX version (1B)
@@ -37,35 +64,6 @@ except:
     inversemodelmatrices[bonecount] (16f each)
 """
 
-
-EXPORTLISTHEADER = '<exportlist>'
-
-# Float type to use for Packing
-# 'f' = float (32bit), 'd' = double (64bit), 'e' = binary16 (16bit)
-FCODE = 'f'
-
-PackString = lambda x: b'%c%s' % (len(x), str.encode(x))
-PackVector = lambda f, v: struct.pack(f*len(v), *(v[:]))
-PackMatrix = lambda f, m: b''.join( [struct.pack(f*4, *x) for x in m.copy().transposed()] )
-QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
-
-def CompressAndWrite(self, out, path):
-    outcompressed = zlib.compress(out, level=self.compressionlevel)
-    outlen = (len(out), len(outcompressed))
-    
-    file = open(path, 'wb')
-    file.write(outcompressed)
-    file.close()
-    
-    print("Data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
-            (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], path) )
-    #self.report({'INFO'}, 'VB data written to \"%s\"' % path)
-
-def PrintStatus(msg, clear=1, buffersize=40):
-    msg = msg + (' '*buffersize*clear)
-    sys.stdout.write(msg + (chr(8) * len(msg) * clear))
-    sys.stdout.flush()
-
 # ---------------------------------------------------------------------------------------
 
 def DrawCommonProps(self, context):
@@ -77,7 +75,7 @@ def DrawCommonProps(self, context):
     b = c.box()
     r = b.row(align=1)
     r.alignment = 'CENTER'
-    r.prop(self, 'moreoptions', text='== Show More Options ==')
+    r.prop(self, 'moreoptions', text='== More Options ==')
     
     if self.moreoptions:
         c = b.column_flow(align=1)
@@ -91,21 +89,20 @@ def DrawCommonProps(self, context):
         r.prop(self, 'upaxis', text='')
         r.prop(self, 'forwardaxis', text='')
         
-        rr = c.row()
-        cc = rr.column(align=1)
-        cc.scale_x = 0.8
-        cc.label(text='Color Source:')
-        cc.label(text='UV Source:')
-        cc.label(text='Modifier Src:')
-        cc = rr.column(align=1)
-        cc.prop(self, 'colorlayerpick', text='')
-        cc.prop(self, 'uvlayerpick', text='')
-        cc.prop(self, 'modifierpick', text='')
-        
         r = c.row()
         r.prop(self, 'scale', text='Scale')
         c.prop(self, 'maxsubdivisions', text='Max Subdivisions')
-        c.prop(self, 'compressionlevel', text='Compression')
+        
+        rr = c.row()
+        c = rr.column(align=1)
+        c.scale_x = 0.8
+        c.label(text='Color Source:')
+        c.label(text='UV Source:')
+        c.label(text='Modifier Src:')
+        c = rr.column(align=1)
+        c.prop(self, 'colorlayerpick', text='')
+        c.prop(self, 'uvlayerpick', text='')
+        c.prop(self, 'modifierpick', text='')
 
 # ---------------------------------------------------------------------------------------
 
@@ -202,7 +199,6 @@ def GetCollectionItems(self, context):
 
 def CollectionToObjectList(self, context):
     name = self.collectionname
-    
     print('> Collection = %s' % name.replace(EXPORTLISTHEADER, ''))
     
     objs = []
@@ -221,12 +217,11 @@ def CollectionToObjectList(self, context):
             exportlist = exportlists[listnames.index(exportlistname)]
             objs = [blendobjects[x.objname] for x in exportlist.entries if x.objname in blendobjects.keys()]
     # Collections
-    if not objs:
-        if name in [x.name for x in bpy.data.collections]:
-            objs = sorted([x for x in bpy.data.collections[name].all_objects], key=alphasort)
-        # Selected Objects
-        else:
-            objs = sorted([x for x in context.selected_objects], key=alphasort)
+    if name in [x.name for x in bpy.data.collections]:
+        objs = sorted([x for x in bpy.data.collections[name].all_objects], key=alphasort)
+    # Selected Objects
+    else:
+        objs = sorted([x for x in context.selected_objects], key=alphasort)
     
     if not self.exporthidden:
         objs = [x for x in objs if not x.hide_get()]
@@ -275,11 +270,6 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     reversewinding: bpy.props.BoolProperty(
         name="Flip Normals", default=False,
         description="Flips normals of exported meshes",
-    )
-    
-    compressionlevel: bpy.props.IntProperty(
-        name="Compression Level", default=-1, min=-1, max=9,
-        description="Level of zlib compression to apply to export.\n0 for no compression. -1 for zlib default compression",
     )
     
     maxsubdivisions : bpy.props.IntProperty(
