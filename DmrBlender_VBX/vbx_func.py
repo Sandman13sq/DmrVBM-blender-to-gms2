@@ -238,6 +238,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         #workingmesh = workingobj.data.copy()
         #workingobj.data = workingmesh
     
+    bpy.ops.object.select_all(action='DESELECT')
     workingobj.select_set(True)
     bpy.context.view_layer.objects.active = workingobj
     
