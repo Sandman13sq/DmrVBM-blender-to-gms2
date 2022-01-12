@@ -27,9 +27,9 @@ uniform vec4 u_light;	// [x, y, z, strength]
 
 void main()
 {
-	// Attributes
-    vec4 vertexpos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
-	vec4 normal = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 0.0);
+	// Attributes --------------------------------------------------------
+    vec4 vertexpos = vec4( in_Position, 1.0);
+	vec4 normal = vec4( in_Normal, 0.0);
 	
 	// Correct Y Flip
 	vertexpos.y *= -1.0;
