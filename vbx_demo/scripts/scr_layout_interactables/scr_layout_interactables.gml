@@ -569,6 +569,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		draw_set_halign(0);
 		draw_set_valign(0);
 		
+		//DrawText(x + 4, y, "[" + string(index) + "]: " + string(value), _color);
 		DrawText(x + 4, y, string(value), textcolor);
 	}
 	drawitem_function = drawitem_default;
@@ -808,6 +809,8 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 				extendactive = false;	
 			}
 		}
+		
+		label = [itemindex, itemhighlight];
 	}
 	
 	function Draw()
