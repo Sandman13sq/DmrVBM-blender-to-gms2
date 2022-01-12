@@ -2,6 +2,8 @@
 
 event_user(0);
 
+DIRPATH = "D:/GitHub/DmrVBX/vbx_demo/datafiles/"
+
 Structor_VBFormat(1);
 
 enum ModelType
@@ -46,8 +48,8 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf_model = vertex_format_end();
 
-vb_world = OpenVertexBuffer("world.vb", vbf_model);
-vb_ball = OpenVertexBuffer("ball.vb", vbf_basic);
+vb_world = OpenVertexBuffer(DIRPATH+"world.vb", vbf_model);
+vb_ball = OpenVertexBuffer(DIRPATH+"ball.vb", vbf_basic);
 vb_grid = CreateGridVB(128, 1);
 
 drawworld = true;

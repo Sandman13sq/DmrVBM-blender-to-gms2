@@ -12,7 +12,7 @@ if keyboard_check_pressed(vk_space)
 // Progress Animation
 if isplaying
 {
-	trackpos = Modulo(trackpos + trackposspeed*playbackspeed, 1);
+	trackpos = Modulo(trackpos + tracktimestep*playbackspeed, 1);
 	UpdateAnim();
 }
 else
@@ -22,7 +22,7 @@ else
 	if lev != 0
 	{
 		// Move by playback speed
-		if keyboard_check(vk_shift) {trackpos += lev*trackposspeed * playbackspeed;}
+		if keyboard_check(vk_shift) {trackpos += lev*tracktimestep * playbackspeed;}
 		// Move by frame
 		else
 		{

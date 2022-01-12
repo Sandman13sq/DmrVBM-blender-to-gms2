@@ -87,7 +87,7 @@ function OP_PoseMarkerJump(value, btn)
 	posemode = 0;
 	isplaying = false;
 	UpdatePose();
-	OP_CameraToBone();
+	//OP_CameraToBone();
 }
 
 function OP_SetInterpolation(value, btn)
@@ -111,13 +111,13 @@ function OP_CameraToBone(value, btn)
 		xangle = darcsin(-m[6]);
 		if (dcos(xangle) >= 0.0001)
 		{
-			yangle = darctan2(m[2], m[10]);
-			zangle = darctan2(m[4], m[5]);
+			yangle = darctan2(-m[2], m[10]);
+			zangle = darctan2(-m[4], m[5]);
 		}
 		else
 		{
 			yangle = 0.0;
-			zangle = darctan2(-m[1], m[5]);
+			zangle = darctan2(m[1], m[5]);
 		}
 		
 		// Location
@@ -131,7 +131,6 @@ function OP_CameraToBone(value, btn)
 		obj_camera.UpdateMatView();
 		
 		lastangles = [xangle, yangle, zangle]
-		
 		
 	}
 }
