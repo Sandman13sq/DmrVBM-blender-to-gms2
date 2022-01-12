@@ -81,6 +81,7 @@ function LoadDiffuseTextures()
 	var _tex_skin = sprite_get_texture(tex_curly_skin_col, 0);
 	var _tex_def = sprite_get_texture(tex_curly_def_col, 0);
 	var _tex_hair = sprite_get_texture(tex_curly_hair_col, 0);
+	var _tex_gun = sprite_get_texture(tex_curly_gun_col, 0);
 	var i;
 	
 	for (var i = 0; i < vbx.vbcount; i++)
@@ -89,16 +90,24 @@ function LoadDiffuseTextures()
 		if string_pos("skin", vbx.vbnames[i]) {meshtexture[i] = _tex_skin;}
 		if string_pos("eye", vbx.vbnames[i]) {meshtexture[i] = _tex_skin;}
 		if string_pos("hair", vbx.vbnames[i]) {meshtexture[i] = _tex_hair;}
+		if string_pos("gun", vbx.vbnames[i]) {meshtexture[i] = _tex_gun;}
 	}
 }
 
 function LoadNormalTextures()
 {
-	var _tex_def_nor = sprite_get_texture(tex_curly_def_nor, 0);
+	var _tex_skin = sprite_get_texture(tex_curly_skin_nor, 0);
+	var _tex_def = sprite_get_texture(tex_curly_def_nor, 0);
+	var _tex_hair = sprite_get_texture(tex_curly_hair_nor, 0);
+	var _tex_gun = sprite_get_texture(tex_curly_gun_col, 0);
 	var i;
 	
 	for (var i = 0; i < vbx.vbcount; i++)
 	{
-		if string_pos("def", vbx.vbnames[i]) {meshnormalmap[i] = _tex_def_nor;}
+		if string_pos("def", vbx.vbnames[i]) {meshnormalmap[i] = _tex_def;}
+		if string_pos("skin", vbx.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
+		if string_pos("eye", vbx.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
+		if string_pos("hair", vbx.vbnames[i]) {meshnormalmap[i] = _tex_hair;}
+		if string_pos("gun", vbx.vbnames[i]) {meshnormalmap[i] = _tex_gun;}
 	}
 }
