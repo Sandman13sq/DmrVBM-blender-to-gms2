@@ -41,7 +41,10 @@ interpolationtype = AniTrack_Intrpl.linear;
 // Control Variables ========================================================
 meshselect = 0;
 meshvisible = array_create(32, 1);
+meshflash = array_create(32, 0);
 meshtexture = array_create(32, -1);
+
+skinsss = 0.0;
 
 LoadDiffuseTextures();
 

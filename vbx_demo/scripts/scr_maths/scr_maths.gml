@@ -27,10 +27,10 @@ function Polarize(value)
 	return value? 1: -1;
 }
 
-// Returns 0 or 1 based on value's position in interval
+// Returns true when value is in an odd interval
 function BoolStep(value, step)
 {
-	return value mod (2*step);
+	return (value mod (step * 2)) div step;
 }
 
 // Returns -1, 0, or 1 based on given values

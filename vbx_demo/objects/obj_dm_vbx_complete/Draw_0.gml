@@ -28,23 +28,45 @@ matrix_set(matrix_world, matrix_build(
 // Draw Meshes
 var n = vbx.vbcount;
 var _primitivetype = demo.wireframe? pr_linelist: pr_trianglelist;
-var _dm;
-var _name;
 
 for (var i = 0; i < n; i++)
 {
-	if meshvisible[i]
+	if ( meshvisible[i] )
 	{
 		drawmatrix[3] = string_pos("skin", vbx.vbnames[i])? skinsss: sss;
 		shader_set_uniform_f_array(u_shd_complete_drawmatrix, drawmatrix);
 		
 		texture_set_stage(u_shd_complete_texnormal, demo.usenormalmap? meshnormalmap[i]: -1);
 		
-		if demo.drawnormal {vertex_submit(vbx.vb[i], _primitivetype, meshnormalmap[i]);}
-		else if demo.usetextures {vertex_submit(vbx.vb[i], _primitivetype, meshtexture[i]);}
-		else {vertex_submit(vbx.vb[i], _primitivetype, -1);}
+		if ( demo.drawnormal )
+		{
+			vbx.SubmitVBIndex(i, _primitivetype, meshnormalmap[i]);
+		}
+		else if ( demo.usetextures )
+		{
+			vbx.SubmitVBIndex(i, _primitivetype, meshtexture[i]);
+		}
+		else 
+		{
+			vbx.SubmitVBIndex(i, _primitivetype, -1);
+		}
 	}
 }
+
+// Mesh Flash
+var zfunc = gpu_get_zfunc();
+gpu_set_zfunc(cmpfunc_always);
+shader_set_uniform_f_array(u_shd_complete_drawmatrix, 
+	BuildDrawMatrix(1, 1, 1, 0, 0, 0, c_white, 1));
+for (var i = 0; i < n; i++)
+{
+	if ( meshvisible[i] && BoolStep(meshflash[i], 4) )
+	{
+		vbx.SubmitVBIndex(i, _primitivetype, -1);
+	}
+}
+gpu_set_zfunc(zfunc);
+
 
 // Restore State
 shader_reset();

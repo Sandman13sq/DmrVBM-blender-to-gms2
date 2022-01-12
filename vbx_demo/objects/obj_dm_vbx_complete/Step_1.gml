@@ -1,7 +1,14 @@
-/// @desc
+/// @desc Update Animation
 
 // Inherit the parent event
 event_inherited();
+
+// Mesh Select Flash
+var n = array_length(meshflash);
+for (var i = 0; i < n; i++)
+{
+	meshflash[i] = max(0, meshflash[i]-1);
+}
 
 // Toggle playback
 if keyboard_check_pressed(vk_space)
@@ -58,3 +65,4 @@ if playbacktimeline.IsMouseOver()
 {
 	camera.lock = true;	
 }
+

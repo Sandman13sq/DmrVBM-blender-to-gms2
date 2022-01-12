@@ -15,7 +15,9 @@ vbf = vertex_format_end();
 vbx = OpenVBX("curly_tanbitan.vbx", vbf);
 
 // Control Variables
+meshselect = 0;
 meshvisible = array_create(32, 1);
+meshflash = array_create(32, -1);
 meshnormalmap = array_create(32, -1);
 meshtexture = array_create(32, -1);
 

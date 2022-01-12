@@ -33,6 +33,10 @@ mouselock = 0;
 
 lightdata = [-16, 128, 64, 1];
 
+controlsstring = @"== Controls ==
+WASD - 
+"
+
 // Models =============================================================
 
 vertex_format_begin();
@@ -58,6 +62,8 @@ drawgrid = true;
 
 u_shd_model_light = shader_get_uniform(shd_model, "u_light");
 u_shd_model_drawmatrix = shader_get_uniform(shd_model, "u_drawmatrix");
+
+flashtime = 15;
 
 // Demos ==============================================================
 

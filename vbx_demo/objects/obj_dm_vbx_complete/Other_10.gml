@@ -65,6 +65,22 @@ function OP_MeshSelect(value, btn)
 {
 	meshselect = value;
 	layout.FindElement("meshvisible").DefineControl(self, "meshvisible", value);
+	meshflash[meshselect] = demo.flashtime;
+}
+
+function OP_ToggleAllVisibility(value, btn)
+{
+	var n = array_length(meshvisible);
+	for (var i = 0; i < n; i++)
+	{
+		if meshvisible[i]
+		{
+			ArrayClear(meshvisible, 0);
+			return;
+		}
+	}
+	
+	ArrayClear(meshvisible, 1);
 }
 
 function OP_TogglePlayback(value, btn)
@@ -93,19 +109,4 @@ function OP_SetInterpolation(value, btn)
 {
 	interpolationtype = value;
 	UpdateAnim();
-}
-
-function OP_ToggleAllVisibility(value, btn)
-{
-	var n = array_length(meshvisible);
-	for (var i = 0; i < n; i++)
-	{
-		if meshvisible[i]
-		{
-			ArrayClear(meshvisible, 0);
-			return;
-		}
-	}
-	
-	ArrayClear(meshvisible, 1);
 }
