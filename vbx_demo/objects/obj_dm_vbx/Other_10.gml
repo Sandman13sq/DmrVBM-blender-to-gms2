@@ -1,10 +1,26 @@
-/// @desc
+/// @desc Methods + Operators
 
 // Inherit the parent event
 event_inherited();
 
-function OP_MeshVisibility(value, btn) 
+function OP_MeshSelect(value, btn)
 {
-	if value {obj_curly.meshvisible |= (1 << btn.meshindex);}
-	else {obj_curly.meshvisible &= ~(1 << btn.meshindex);}
+	meshselect = value;
+	layout.FindElement("meshvisible").DefineControl(self, "meshvisible", value);
+	meshflash[meshselect] = demo.flashtime;
+}
+
+function OP_ToggleAllVisibility(value, btn)
+{
+	var n = array_length(meshvisible);
+	for (var i = 0; i < n; i++)
+	{
+		if meshvisible[i]
+		{
+			ArrayClear(meshvisible, 0);
+			return;
+		}
+	}
+	
+	ArrayClear(meshvisible, 1);
 }
