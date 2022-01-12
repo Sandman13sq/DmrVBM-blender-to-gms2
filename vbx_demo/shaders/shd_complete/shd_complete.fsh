@@ -1,6 +1,10 @@
 /*
-	Renders vbs with skeletal animation and normalmap shading.
+	Renders vbs with normal map.
 */
+
+const float DP_EXP = 1.0;
+const float SPE_EXP = 16.0;
+const float RIM_EXP = 3.0;
 
 // Passed from Vertex Shader
 varying vec2 v_uv;
@@ -33,27 +37,26 @@ void main()
 	vec4 colorfill = u_drawmatrix[2];
 	
 	// Varyings -------------------------------------------------------
-	vec3 n = normalize((texturenormal * 2.0) - 1.0);	// Vertex Normal
-	vec3 l = normalize(v_dirtolight_ts);	// Light Direction
-	vec3 e = normalize(v_dirtocamera_ts);	// Camera Direction
+	vec3 n = normalize((texturenormal * 2.0) - 1.0);
+	vec3 l = normalize(v_dirtolight_ts);
+	vec3 e = normalize(v_dirtocamera_ts);
 	vec3 r = reflect(-l, n);				// Reflect Angle
-	//e.y *= -1.0;
 	
 	// Vars -------------------------------------------------------------
 	float dp = clamp(dot(n, l), 0.0, 1.0);	// Dot Product
 	float rim = 1.0-clamp(dot(n, e), 0.0, 1.0);	// Fake Fresnel
 	float spe = clamp( dot(e, r), 0.0, 1.0);	// Specular
 	
-	spe = pow(spe, 128.0 * specular + 0.00001);
-	rim = pow(rim, 3.0);
+	dp = pow(dp, DP_EXP);
+	spe = pow(spe, SPE_EXP * specular + 0.00001);
+	rim = pow(rim, RIM_EXP);
 	
 	// Colors ----------------------------------------------------------------
 	// Use v_color if bottom left pixel is completely white (no texture given)
 	vec4 diffusecolor = mix(texture2D(gm_BaseTexture, v_uv), v_color, 
 		float(texture2D(gm_BaseTexture, vec2(0.0)) == vec4(1.0))
 		);
-	diffusecolor.a = 1.0;
-	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.5, .01, .02), sss);
+	vec3 shadowtint = mix(vec3(0.1, 0.0, 0.5), vec3(.7, .0, .2), sss);
 	vec3 shadowcolor = mix(diffusecolor.rgb * shadowtint, diffusecolor.rgb*mix(0.5, 0.7, sss), 0.7);
 	vec3 specularcolor = diffusecolor.rgb * vec3(1.0-(length(diffusecolor.rgb)*0.65));
 	

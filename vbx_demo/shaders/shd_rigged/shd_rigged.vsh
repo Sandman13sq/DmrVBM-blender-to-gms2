@@ -27,8 +27,8 @@ uniform vec4 u_light;	// [x, y, z, strength]
 void main()
 {
 	// Attributes --------------------------------------------------------
-    vec4 vertexpos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
-	vec4 normal = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 0.0);
+    vec4 vertexpos = vec4( in_Position, 1.0);
+	vec4 normal = vec4( in_Normal, 0.0);
 	
 	// Weight & Bones ----------------------------------------------------
 	mat4 m = mat4(0.0);
@@ -56,6 +56,5 @@ void main()
 	v_normal_cs = normalize( (gm_Matrices[MATRIX_WORLD_VIEW] * normal).xyz);
 	
 	// Set draw position -------------------------------------------------
-	
 	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
 }

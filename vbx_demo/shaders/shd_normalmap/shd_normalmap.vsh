@@ -2,6 +2,8 @@
 	Renders vbs with normal map
 */
 
+const vec3 VEC3YFLIP = vec3(1.0, -1.0, 1.0);
+
 attribute vec3 in_Position;	// (x,y,z)
 attribute vec3 in_Normal;	// (nx,ny,nz)
 attribute vec3 in_Tangent;	// (nx,ny,nz)
@@ -25,16 +27,13 @@ uniform vec4 u_light;	// [x, y, z, strength]
 void main()
 {
 	// Attributes --------------------------------------------------------
-    vec4 vertexpos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
-	vec4 normal = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 0.0);
+    vec4 vertexpos = vec4( in_Position, 1.0);
+	vec4 normal = vec4( in_Normal, 0.0);
 	
 	// Correct Y Flip
 	vertexpos.y *= -1.0;
 	normal.y *= -1.0;
 	
-	// Set draw position -------------------------------------------------
-	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
-    
 	// Varyings ----------------------------------------------------------
     v_color = in_Color;
     v_uv = in_Uv;
@@ -48,9 +47,10 @@ void main()
 	
 	// Normal Map Variables ----------------------------------------------
 	mat3 matmodelview = mat3(gm_Matrices[MATRIX_WORLD_VIEW]);
+	matmodelview = matmodelview;
 	vec3 normal_camspace = matmodelview * normalize(normal.xyz);
-	vec3 tangent_camspace = matmodelview * normalize(in_Tangent);
-	vec3 bitangent_camspace = matmodelview * normalize(in_Bitangent);
+	vec3 tangent_camspace = matmodelview * normalize(in_Tangent * VEC3YFLIP);
+	vec3 bitangent_camspace = matmodelview * normalize(in_Bitangent * VEC3YFLIP);
 	
 	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace);
 	
@@ -62,6 +62,9 @@ void main()
 	
 	v_dirtolight_ts = tbn * v_dirtolight_cs;
 	v_dirtocamera_ts = tbn * v_dirtocamera_cs;
+	
+	// Set draw position -------------------------------------------------
+	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
 	
 	// I barely understand this stuff.
 	// Check out tutorial 13 on the opengl tutorial website if you want to try to:
