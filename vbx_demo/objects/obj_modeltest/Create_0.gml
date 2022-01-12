@@ -33,9 +33,16 @@ mouselock = 0;
 
 lightdata = [-16, 128, 64, 1];
 
-controlsstring = @"== Controls ==
-WASD - 
-"
+// Input =============================================================
+
+ini = ini_open("settings.ini");
+key_cameraright = ord(ini_read_string("input", "Camera Right", "D"))
+key_cameraleft = ord(ini_read_string("input", "Camera Left", "A"))
+key_cameraup = ord(ini_read_string("input", "Camera Up", "W"))
+key_cameradown = ord(ini_read_string("input", "Camera Down", "S"))
+ini_close();
+
+controlsstring = "";
 
 // Models =============================================================
 

@@ -24,13 +24,13 @@ if !camera.lock
 	}
 	
 	spd = delta_time/60000;
-	lev = LevKeyHeld(VKey.d, VKey.a)*spd;
+	lev = LevKeyHeld(key_cameraright, key_cameraleft)*spd;
 	if (lev != 0)
 	{
 		modelposition[0] -= r[0]*lev;
 		modelposition[1] -= r[1]*lev;
 	}
-	lev = LevKeyHeld(VKey.w, VKey.s)*spd;
+	lev = LevKeyHeld(key_cameraup, key_cameradown)*spd;
 	if (lev != 0)
 	{
 		modelposition[0] += f[0]*lev;

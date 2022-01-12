@@ -3,6 +3,7 @@
 draw_set_halign(0);
 draw_set_valign(0);
 
+/*
 drawfext(16, 240,
 	"middlelock: %s", middlelock,
 	"cameralocation: %s", [viewlocation],
@@ -16,3 +17,4 @@ drawfext(16, 240,
 	"zrot: %s", string(obj_modeltest.modelzrot),
 	"alt pressed: %s", string(keyboard_check(vk_alt)),
 	);
+*/
