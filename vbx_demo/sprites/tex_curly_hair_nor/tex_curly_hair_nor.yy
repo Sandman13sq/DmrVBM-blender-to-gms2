@@ -24,9 +24,9 @@
   "gridX": 0,
   "gridY": 0,
   "frames": [
-    {"compositeImage":{"FrameId":{"name":"ff0a3092-7b83-4d8b-aaea-8939f432726c","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"LayerId":null,"resourceVersion":"1.0","name":"","tags":[],"resourceType":"GMSpriteBitmap",},"images":[
-        {"FrameId":{"name":"ff0a3092-7b83-4d8b-aaea-8939f432726c","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"LayerId":{"name":"9a55c0ee-201f-46d4-b279-528254a6f157","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"resourceVersion":"1.0","name":"","tags":[],"resourceType":"GMSpriteBitmap",},
-      ],"parent":{"name":"tex_curly_hair_nor","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"resourceVersion":"1.0","name":"ff0a3092-7b83-4d8b-aaea-8939f432726c","tags":[],"resourceType":"GMSpriteFrame",},
+    {"compositeImage":{"FrameId":{"name":"fdd53a75-6835-4f2b-9dcc-5e8d05bae876","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"LayerId":null,"resourceVersion":"1.0","name":"","tags":[],"resourceType":"GMSpriteBitmap",},"images":[
+        {"FrameId":{"name":"fdd53a75-6835-4f2b-9dcc-5e8d05bae876","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"LayerId":{"name":"4302a3a4-b36f-469a-ab3f-da479611e67c","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"resourceVersion":"1.0","name":"","tags":[],"resourceType":"GMSpriteBitmap",},
+      ],"parent":{"name":"tex_curly_hair_nor","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"resourceVersion":"1.0","name":"fdd53a75-6835-4f2b-9dcc-5e8d05bae876","tags":[],"resourceType":"GMSpriteFrame",},
   ],
   "sequence": {
     "spriteId": {"name":"tex_curly_hair_nor","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},
@@ -41,7 +41,7 @@
     "moments": {"Keyframes":[],"resourceVersion":"1.0","resourceType":"KeyframeStore<MomentsEventKeyframe>",},
     "tracks": [
       {"name":"frames","spriteId":null,"keyframes":{"Keyframes":[
-            {"id":"90a82cc4-1d96-482c-b66c-2a01a8b5a16d","Key":0.0,"Length":1.0,"Stretch":false,"Disabled":false,"IsCreationKey":false,"Channels":{"0":{"Id":{"name":"ff0a3092-7b83-4d8b-aaea-8939f432726c","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"resourceVersion":"1.0","resourceType":"SpriteFrameKeyframe",},},"resourceVersion":"1.0","resourceType":"Keyframe<SpriteFrameKeyframe>",},
+            {"id":"39446fa9-820d-4e62-a438-efc278fe0356","Key":0.0,"Length":1.0,"Stretch":false,"Disabled":false,"IsCreationKey":false,"Channels":{"0":{"Id":{"name":"fdd53a75-6835-4f2b-9dcc-5e8d05bae876","path":"sprites/tex_curly_hair_nor/tex_curly_hair_nor.yy",},"resourceVersion":"1.0","resourceType":"SpriteFrameKeyframe",},},"resourceVersion":"1.0","resourceType":"Keyframe<SpriteFrameKeyframe>",},
           ],"resourceVersion":"1.0","resourceType":"KeyframeStore<SpriteFrameKeyframe>",},"trackColour":0,"inheritsTrackColour":true,"builtinName":0,"traits":0,"interpolation":1,"tracks":[],"events":[],"isCreationTrack":false,"resourceVersion":"1.0","tags":[],"resourceType":"GMSpriteFramesTrack","modifiers":[],},
     ],
     "visibleRange": null,
@@ -65,7 +65,7 @@
     "resourceType": "GMSequence",
   },
   "layers": [
-    {"visible":true,"isLocked":false,"blendMode":0,"opacity":100.0,"displayName":"default","resourceVersion":"1.0","name":"9a55c0ee-201f-46d4-b279-528254a6f157","tags":[],"resourceType":"GMImageLayer",},
+    {"visible":true,"isLocked":false,"blendMode":0,"opacity":100.0,"displayName":"default","resourceVersion":"1.0","name":"4302a3a4-b36f-469a-ab3f-da479611e67c","tags":[],"resourceType":"GMImageLayer",},
   ],
   "nineSlice": null,
   "parent": {
