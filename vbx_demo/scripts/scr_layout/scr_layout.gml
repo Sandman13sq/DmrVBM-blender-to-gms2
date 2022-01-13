@@ -336,13 +336,17 @@ function __LayoutSuper() constructor
 	{
 		if interactable
 		{
-			draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_white, alpha);
-			draw_sprite_stretched_ext(spr_layoutbox, 1, x, y, w, h, color, alpha);
+			draw_rectangle_color(x, y, x+w, y+h, c_white, c_white, c_white, c_white, 0);
+			draw_rectangle_color(x+1, y+1, x+w-1, y+h-1, color, color, color, color, 0);
+			//draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_white, alpha);
+			//draw_sprite_stretched_ext(spr_layoutbox, 1, x, y, w, h, color, alpha);
 		}
 		else
 		{
-			draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_gray, alpha);
-			draw_sprite_stretched_ext(spr_layoutbox, 1, x, y, w, h, c_dkgray, alpha);
+			draw_rectangle_color(x, y, x+w, y+h, c_gray, c_gray, c_gray, c_gray, 0);
+			draw_rectangle_color(x+1, y+1, x+w-1, y+h-1, c_dkgray, c_dkgray, c_dkgray, c_dkgray, 0);
+			//draw_sprite_stretched_ext(spr_layoutbox, 0, x, y, w, h, c_gray, alpha);
+			//draw_sprite_stretched_ext(spr_layoutbox, 1, x, y, w, h, c_dkgray, alpha);
 		}
 	}
 	
@@ -479,6 +483,8 @@ function Layout() : __LayoutSuper() constructor
 	};
 	
 	elementmap = {};
+	
+	shrink_to_content = true;
 	
 	// Setup ======================================
 	
@@ -703,7 +709,14 @@ function Layout() : __LayoutSuper() constructor
 		surface_reset_target();
 		// Surface End -----------------------------------------------------
 		
-		DrawRectWH(x1, y1, w, h, 0);
+		if (shrink_to_content)
+		{
+			DrawRectWH(x1, y1, w, contentheight+b, 0);
+		}
+		else
+		{
+			DrawRectWH(x1, y1, w, h, 0);
+		}
 		
 		// Draw Label
 		if label != ""

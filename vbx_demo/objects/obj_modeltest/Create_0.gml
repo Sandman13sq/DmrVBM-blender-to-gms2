@@ -12,6 +12,7 @@ enum ModelType
 }
 
 camera = instance_create_depth(0, 0, 0, obj_camera);
+show_debug_overlay(1);
 
 // Vars ==============================================================
 
@@ -33,16 +34,15 @@ mouselock = 0;
 
 lightdata = [-16, 128, 64, 1];
 
+showgui = true;
+cursortimeout = 0;
+cursortimeouttime = 1.0;
+mouselastx = 0;
+mouselasty = 0;
+
 // Input =============================================================
 
-ini = ini_open("settings.ini");
-key_cameraright = ord(ini_read_string("input", "Camera Right", "D"))
-key_cameraleft = ord(ini_read_string("input", "Camera Left", "A"))
-key_cameraup = ord(ini_read_string("input", "Camera Up", "W"))
-key_cameradown = ord(ini_read_string("input", "Camera Down", "S"))
-ini_close();
-
-controlsstring = "";
+LoadSettings("settings.ini");
 
 // Models =============================================================
 
@@ -81,7 +81,7 @@ modelobj[ModelType.vbx]	= instance_create_depth(0,0,0, obj_dm_vbx);
 modelobj[ModelType.normalmap]	= instance_create_depth(0,0,0, obj_dm_vbx_normalmap);
 modelobj[ModelType.rigged]	= instance_create_depth(0,0,0, obj_dm_vbx_rigged);
 modelobj[ModelType.complete]	= instance_create_depth(0,0,0, obj_dm_vbx_complete);
-modelmode = ModelType.rigged;
+modelmode = ModelType.normal;
 
 instance_deactivate_object(obj_demomodel);
 instance_activate_object(modelobj[modelmode]);

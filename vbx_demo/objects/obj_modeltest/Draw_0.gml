@@ -35,7 +35,7 @@ if drawcamerapos
 	gpu_set_zfunc(cmpfunc_always); // Always draw on top
 	matrix_set(matrix_world, matrix_build(
 		camera.viewlocation[0], 
-		-camera.viewlocation[1], 
+		camera.viewlocation[1], 
 		camera.viewlocation[2], 
 		0,0,0, 1,1,1));
 	vertex_submit(vb_ball, pr_trianglelist, -1);

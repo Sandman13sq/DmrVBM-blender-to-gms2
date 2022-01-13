@@ -59,6 +59,90 @@ function ResetModelPosition()
 	modelzrot = 0;
 }
 
+function ParseIniInput(inikey, _default)
+{
+	var s = string_upper(ini_read_string("input", inikey, _default));
+	
+	if string_pos("RIGHT", s) {return vk_right;}
+	if string_pos("UP", s) {return vk_up;}
+	if string_pos("LEFT", s) {return vk_left;}
+	if string_pos("DOWN", s) {return vk_down;}
+	if string_pos("SPACE", s) {return vk_space;}
+	
+	if string_pos("F1", s) {return vk_f1;}
+	if string_pos("F2", s) {return vk_f2;}
+	if string_pos("F3", s) {return vk_f3;}
+	if string_pos("F4", s) {return vk_f4;}
+	if string_pos("F5", s) {return vk_f5;}
+	if string_pos("F6", s) {return vk_f6;}
+	if string_pos("F7", s) {return vk_f7;}
+	if string_pos("F8", s) {return vk_f8;}
+	if string_pos("F9", s) {return vk_f9;}
+	if string_pos("F10", s) {return vk_f10;}
+	if string_pos("F11", s) {return vk_f11;}
+	if string_pos("F12", s) {return vk_f12;}
+	
+	return ord(s);
+}
+
+function LoadSettings()
+{
+	ini = ini_open("settings.ini");
+	key_right = ParseIniInput("right", "D");
+	key_left = ParseIniInput("left", "A");
+	key_up = ParseIniInput("up", "W");
+	key_down = ParseIniInput("down", "S");
+	key_rotateright = ParseIniInput("turnright", "E");
+	key_rotateleft = ParseIniInput("turnleft", "Q");
+	key_playback = ParseIniInput("playback", "space");
+	key_posenext = ParseIniInput("posenext", "X");
+	key_poseprev = ParseIniInput("poseprev", "Z");
+	key_fullscreen = ParseIniInput("fullscreen", "f4");
+	key_gui = ParseIniInput("display", "H");
+	
+	ini_close();
+	
+	var wasdstring = (
+		key_right == ord("D") &&
+		key_left == ord("A") &&
+		key_up == ord("W") &&
+		key_down == ord("S")
+	)? "WASD": "<User Defined>";
+	
+	var camerarotatestring = (
+		key_rotateright == ord("E") &&
+		key_rotateleft == ord("Q")
+	)? "Q E": "<User Defined>";
+	
+	var playbackstring = key_playback == vk_space? "Space": "<User Defined>";
+	var posenextstring = key_posenext == ord("X")? "X": "<User Defined>";
+	var poseprevstring = key_poseprev == ord("Z")? "Z": "<User Defined>";
+	
+	var fullscreenstring = key_fullscreen == vk_f4? "F4": "<User Defined>";
+	var guistring = key_gui == ord("H")? "H": "<User Defined>";
+	
+	controlsstring = (
+		"== Controls ==" +"\n"+
+		"*Hold Alt to simulate MMB*" + "\n\n" +
+		"Rotate Model = LMB Drag" +"\n"+
+		"Rotate Camera = MMB Drag" +"\n"+
+		"Move Camera = Shift + MMB Drag" +"\n"+
+		"\n"+
+		wasdstring + "/Arrow Keys = Move Camera" +"\n"+
+		"Shift + " + wasdstring + "/Arrow Keys = Move Model" +"\n"+
+		camerarotatestring + " = Rotate Camera" +"\n"+
+		"Shift + " + camerarotatestring + " = Rotate Model" +"\n"+
+		"\n"+
+		posenextstring + " = Next Pose" +"\n"+
+		poseprevstring + " = Previous Pose" +"\n"+
+		playbackstring + " = Toggle Animation Playback" +"\n"+
+		"\n"+
+		fullscreenstring + " = Toggle Fullscreen" +"\n"+
+		guistring + " = Toggle GUI" +"\n"+
+		""
+	);
+}
+
 // Operators =================================================
 
 function OP_ModelMode(value, btn)

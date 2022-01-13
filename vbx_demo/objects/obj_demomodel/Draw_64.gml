@@ -6,4 +6,7 @@ if reactivated
 	reactivated = false;
 }
 
-layout.Draw();
+if (demo.showgui)
+{
+	layout.Draw();
+}

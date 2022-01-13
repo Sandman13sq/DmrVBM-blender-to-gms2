@@ -1,3 +1,6 @@
 /// @desc Layout Update
 
-if layout.Update() {camera.lock = true;}
+if (demo.showgui)
+{
+	if (layout.Update()) {camera.lock = true;}
+}
