@@ -21,6 +21,8 @@ meshflash = array_create(32, -1);
 meshnormalmap = array_create(32, -1);
 meshtexture = array_create(32, -1);
 
+skinsss = 0.0;
+
 drawmatrix = BuildDrawMatrix();
 
 LoadDiffuseTextures();

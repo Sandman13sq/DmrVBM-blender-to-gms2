@@ -10,6 +10,16 @@ for (var i = 0; i < n; i++)
 	meshflash[i] = max(0, meshflash[i]-1);
 }
 
+// Pose Navigation
+if (keyboard_check_pressed(demo.key_posenext))
+{
+	OP_PoseMarkerJump(Modulo(poseindex+1, posecount));
+}
+if (keyboard_check_pressed(demo.key_poseprev))
+{
+	OP_PoseMarkerJump(Modulo(poseindex-1, posecount));
+}
+
 // Toggle playback
 if keyboard_check_pressed(vk_space)
 {
@@ -47,11 +57,6 @@ else
 	}
 }
 
-var s = 0.01;
-mattex_x += LevKeyHeld(vk_numpad6, vk_numpad4)*s;
-mattex_y += LevKeyHeld(vk_numpad2, vk_numpad8)*s;
-
-mattex = Mat4Translate(mattex_x, mattex_y, 0);
 
 var _pos = playbacktimeline.UpdateTimeline(trackpos);
 if _pos != trackpos

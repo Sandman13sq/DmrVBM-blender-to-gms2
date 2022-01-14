@@ -17,7 +17,6 @@ shader_set_uniform_f_array(u_shd_complete_light, obj_modeltest.lightdata);
 
 // Pose
 shader_set_uniform_matrix_array(u_shd_complete_matpose, matpose);
-shader_set_uniform_matrix_array(u_shd_complete_mattex, mattex);
 
 matrix_set(matrix_world, matrix_build(
 	obj_modeltest.modelposition[0], 
@@ -33,7 +32,7 @@ for (var i = 0; i < n; i++)
 {
 	if ( meshvisible[i] )
 	{
-		drawmatrix[3] = string_pos("skin", vbx.vbnames[i])? skinsss: sss;
+		drawmatrix[3] = string_pos("skin", vbx.vbnames[i])? skinsss: rimstrength;
 		shader_set_uniform_f_array(u_shd_complete_drawmatrix, drawmatrix);
 		
 		texture_set_stage(u_shd_complete_texnormal, demo.usenormalmap? meshnormalmap[i]: -1);
@@ -54,19 +53,7 @@ for (var i = 0; i < n; i++)
 }
 
 // Mesh Flash
-var zfunc = gpu_get_zfunc();
-gpu_set_zfunc(cmpfunc_always);
-shader_set_uniform_f_array(u_shd_complete_drawmatrix, 
-	BuildDrawMatrix(1, 1, 1, 0, 0, 0, c_white, 1));
-for (var i = 0; i < n; i++)
-{
-	if ( meshvisible[i] && BoolStep(meshflash[i], 4) )
-	{
-		vbx.SubmitVBIndex(i, _primitivetype, -1);
-	}
-}
-gpu_set_zfunc(zfunc);
-
+DrawMeshFlash(u_shd_complete_drawmatrix);
 
 // Restore State
 shader_reset();

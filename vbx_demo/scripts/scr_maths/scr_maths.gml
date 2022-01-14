@@ -122,10 +122,10 @@ function ArrayClear(_array, value)
 	return _array;
 }
 
-function BuildDrawMatrix(alpha=1, emission=0, shine=1, sss=0, blendcol=0, blendamt=0, fillcol=0, fillamt=0)
+function BuildDrawMatrix(alpha=1, emission=0, roughness=0.5, rimstrength=0, blendcol=0, blendamt=0, fillcol=0, fillamt=0)
 {
 	return [
-		alpha, emission, shine, sss, 
+		alpha, emission, roughness, rimstrength, 
 		color_get_red(blendcol)*0.004, color_get_green(blendcol)*0.004, color_get_blue(blendcol)*0.004, blendamt,
 		color_get_red(fillcol)*0.004, color_get_green(fillcol)*0.004, color_get_blue(fillcol)*0.004, fillamt,
 		0,0,0,0

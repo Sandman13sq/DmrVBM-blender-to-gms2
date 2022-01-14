@@ -30,6 +30,7 @@ isplaying = false;
 
 posemode = 0; // 0 = Poses, 1 = Animation
 poseindex = 0; // Index of pose in trackdata_poses
+posecount = trackdata_poses.markercount;
 UpdatePose();
 
 keymode = 0;

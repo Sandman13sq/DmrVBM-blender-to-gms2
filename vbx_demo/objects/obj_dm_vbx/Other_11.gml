@@ -5,12 +5,7 @@ event_inherited();
 
 layout.Label("VBX (shd_model)");
 
-var l = layout.Dropdown("Meshes");
-l.active = true;
-for (var i = 0; i < vbx.vbcount; i++)
-{
-	l.Bool(vbx.vbnames[i]).DefineControl(self, "meshvisible", i);
-}
+Panel_MeshSelect(layout);
 
-CommonLayout(false, false, false);
+CommonLayout(true, false, false);
 

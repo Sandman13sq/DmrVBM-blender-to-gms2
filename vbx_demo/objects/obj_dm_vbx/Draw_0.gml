@@ -29,7 +29,7 @@ for (var i = 0; i < n; i++)
 {
 	if ( meshvisible[i] )
 	{
-		drawmatrix[3] = string_pos("skin", vbx.vbnames[i])? skinsss: sss;
+		drawmatrix[3] = string_pos("skin", vbx.vbnames[i])? skinsss: rimstrength;
 		shader_set_uniform_f_array(u_shd_model_drawmatrix, drawmatrix);
 		
 		if ( demo.usetextures )
@@ -44,18 +44,7 @@ for (var i = 0; i < n; i++)
 }
 
 // Mesh Flash
-var zfunc = gpu_get_zfunc();
-gpu_set_zfunc(cmpfunc_always);
-shader_set_uniform_f_array(u_shd_model_drawmatrix, 
-	BuildDrawMatrix(1, 1, 1, 0, 0, 0, c_white, 1));
-for (var i = 0; i < n; i++)
-{
-	if ( meshvisible[i] && BoolStep(meshflash[i], 4) )
-	{
-		vbx.SubmitVBIndex(i, _primitivetype, -1);
-	}
-}
-gpu_set_zfunc(zfunc);
+DrawMeshFlash(u_shd_model_drawmatrix);
 
 // Restore State
 shader_reset();

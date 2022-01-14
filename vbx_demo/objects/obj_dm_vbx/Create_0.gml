@@ -13,12 +13,16 @@ vbf = vertex_format_end();
 vbx = OpenVBX("curly.vbx", vbf);
 
 // Control Variables
+meshselect = 0;
 meshvisible = array_create(32, 1);
 meshflash = array_create(32, 0);
+meshtexture = array_create(32, -1);
 
 skinsss = 0.0;
 
 drawmatrix = BuildDrawMatrix();
+
+LoadDiffuseTextures();
 
 // Uniforms
 var _shd;

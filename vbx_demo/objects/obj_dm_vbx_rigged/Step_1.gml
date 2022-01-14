@@ -10,6 +10,16 @@ for (var i = 0; i < n; i++)
 	meshflash[i] = max(0, meshflash[i]-1);
 }
 
+// Pose Navigation
+if (keyboard_check_pressed(demo.key_posenext))
+{
+	OP_PoseMarkerJump(Modulo(poseindex+1, posecount));
+}
+if (keyboard_check_pressed(demo.key_poseprev))
+{
+	OP_PoseMarkerJump(Modulo(poseindex-1, posecount));
+}
+
 // Toggle playback
 if keyboard_check_pressed(vk_space)
 {

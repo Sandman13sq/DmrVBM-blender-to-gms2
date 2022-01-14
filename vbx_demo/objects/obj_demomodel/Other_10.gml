@@ -3,7 +3,7 @@
 function FetchDrawMatrix()
 {
 	return BuildDrawMatrix(
-		alpha, emission, shine, sss,
+		alpha, emission, roughness, rimstrength,
 		ArrayToRGB(demo.colorblend), demo.colorblend[3],
 		ArrayToRGB(demo.colorfill), demo.colorfill[3],
 		);
@@ -11,25 +11,25 @@ function FetchDrawMatrix()
 
 function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 {
-	var c = layout.Column("Display");
+	var b = layout.Box("Display");
 	
-	c.Bool("Wireframe").DefineControl(demo, "wireframe")
+	b.Bool("Wireframe").DefineControl(demo, "wireframe")
 		.Description("Change primitive type to wireframe.");
 	
 	if (_hastextures)
 	{
-		c.Bool("Use Textures").DefineControl(demo, "usetextures")
+		b.Bool("Use Textures").DefineControl(demo, "usetextures")
 			.Description("Use textures instead of vertex colors.");
 	}
 	if (_hasnormals)
 	{
-		c.Bool("Use Normal Maps").DefineControl(demo, "usenormalmap")
+		b.Bool("Use Normal Maps").DefineControl(demo, "usenormalmap")
 			.Description("Use normal maps on objects that have them.");
-		c.Bool("Draw Normal Maps").DefineControl(demo, "drawnormal")
+		b.Bool("Draw Normal Maps").DefineControl(demo, "drawnormal")
 			.Description("Display normal maps on objects that have them.");
 	}
 	
-	c.Enum("Cullmode").DefineControl(demo, "cullmode").DefineListItems([
+	b.Enum("Cullmode").DefineControl(demo, "cullmode").DefineListItems([
 		[cull_noculling, "No Culling", "Draw all triangles"],
 		[cull_clockwise, "Cull Clockwise", "Skip triangles facing away from screen"],
 		[cull_counterclockwise, "Cull Counter", "Skip triangles facing towards the screen"],
@@ -37,43 +37,38 @@ function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 		Description("Set which triangles to NOT draw.\nGood for speeding up draw time");
 	
 	// Draw Matrix
-	if ( !_nodrawmatrix )
-	{
-		layout.Real("Skin SSS").DefineControl(self, "skinsss").SetBounds(0, 1).operator_on_change = true;
-	}
-	
-	c = layout.Dropdown("Draw Matrix").SetIDName("drawmatrix")
+	var d = b.Dropdown("Draw Matrix").SetIDName("drawmatrix")
 		.Description("Show variables sent in for draw matrix uniform");
 	
 	if ( _nodrawmatrix )
 	{
-		c.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
+		d.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
 	}
 	else
 	{
-		c.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
-		c.Real("Emission").DefineControl(self, "emission").SetBounds(0, 1)
+		d.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
+		d.Real("Emission").DefineControl(self, "emission").SetBounds(0, 1)
 			.Description("Amount that the natural color shows over the shading.")
 			.valueprecision=3;
-		c.Real("Specular").DefineControl(self, "shine").SetBounds(0, 1)
-			.Description("Amount of \"shine\"")
+		d.Real("Roughness").DefineControl(self, "roughness").SetBounds(0, 1)
+			.Description("Size of reflected light")
 			.valueprecision=3;
-		c.Real("SSS").DefineControl(self, "sss").SetBounds(0, 1)
-			.Description("Amount of red tint to shadows.\n(Not real Subsurface Scattering)")
+		d.Real("Rim Strength").DefineControl(self, "rimstrength").SetBounds(0, 1)
+			.Description("")
 			.valueprecision=3;
 	}
 	
 	var r;
-
-	c.Text("Blend Color (R,G,B,amt)");
-	r = c.Row();
+	
+	d.Text("Blend Color (R,G,B,amt)");
+	r = d.Row();
 	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 0).draw_increments = false; 
 	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 1).draw_increments = false; 
 	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 2).draw_increments = false;
 	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 3).draw_increments = false;
 
-	c.Text("Fill Color (R,G,B,amt)");
-	r = c.Row();
+	d.Text("Fill Color (R,G,B,amt)");
+	r = d.Row();
 	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 0).draw_increments = false; 
 	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 1).draw_increments = false; 
 	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 2).draw_increments = false;
@@ -104,31 +99,33 @@ function Panel_MeshSelect(layout)
 function Panel_Playback(layout)
 {
 	// Playback
-	layout.Bool("Play Animation").DefineControl(self, "isplaying").Operator(OP_TogglePlayback);
-	layout.Real("Pos")
+	var b = layout.Box("Playback");
+	b.Bool("Play Animation").DefineControl(self, "isplaying").Operator(OP_TogglePlayback);
+	b.Real("Pos")
 		.Operator(OP_ChangeTrackPos)
 		.DefineControl(self, "trackpos")
 		.SetBounds(0, 1, 0.02)
 		.Description("Toggle animation playback")
 		.operator_on_change = true;
-	layout.Real("Animation Speed")
+	b.Real("Animation Speed")
 		.DefineControl(self, "playbackspeed")
 		.SetBounds(-100, 100, 0.02)
 		.SetDefault(1.0)
 		.Description("Set playback speed");
-	layout.Button("Bind Pose").Operator(OP_BindPose);
+	b.Button("Bind Pose").Operator(OP_BindPose);
 }
 
 function Panel_Pose(layout)
 {
 	// Pose
-	var l = layout.Dropdown("Poses").List().Operator(OP_PoseMarkerJump);
+	var b = layout.Box("Poses");
+	var l = b.Dropdown("Select a Pose").List().Operator(OP_PoseMarkerJump);
 	for (var i = 0; i < trackdata_poses.markercount; i++)
 	{
 		l.DefineListItem(i, trackdata_poses.markernames[i]);
 	}
 
-	var e = layout.Enum("Interpolation")
+	var e = b.Enum("Interpolation")
 		.Operator(OP_SetInterpolation)
 		.DefineControl(self, "interpolationtype")
 		.DefineListItems([
@@ -137,6 +134,24 @@ function Panel_Pose(layout)
 			[AniTrack_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
 			])
 		.Description("Method of blending together transforms when evaluating animation.");
+}
+
+function DrawMeshFlash(uniform)
+{
+	var n = vbx.vbcount;
+	var zfunc = gpu_get_zfunc();
+	
+	gpu_set_zfunc(cmpfunc_always);
+	shader_set_uniform_f_array(uniform, 
+		BuildDrawMatrix(1, 1, 1, 0, 0, 0, c_white, 0.5));
+	for (var i = 0; i < n; i++)
+	{
+		if ( meshvisible[i] && BoolStep(meshflash[i], 4) )
+		{
+			vbx.SubmitVBIndex(i, pr_trianglelist, -1);
+		}
+	}
+	gpu_set_zfunc(zfunc);
 }
 
 function LoadDiffuseTextures()

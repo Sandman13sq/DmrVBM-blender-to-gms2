@@ -5,9 +5,9 @@ layout = new Layout();
 reactivated = true;
 demo = obj_modeltest;
 
-alpha = 1;
-emission = 0;
-shine = 1;
-sss = 0;
+alpha = 1.0;
+emission = 0.0;
+roughness = 0.8;
+rimstrength = 1.0;
 
 event_user(0);

@@ -11,8 +11,6 @@ attribute vec4 in_Bone;		// (b0,b1,b2,b3)
 attribute vec4 in_Weight;	// (w0,w1,w2,w3)
 
 // Sent to Fragment Shader
-//varying vec3 v_pos;
-//varying vec3 v_normal;
 varying vec2 v_uv;
 varying vec4 v_color;
 

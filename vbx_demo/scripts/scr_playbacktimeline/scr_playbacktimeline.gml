@@ -98,45 +98,6 @@ function PlaybackTimeline(_trackdata) constructor
 			}
 		}
 		
-		// Scroll vertically
-		if middleactive
-		{
-			if !mouse_check_button(mb_middle) {middleactive = false;}
-			else
-			{
-				var _my = -(window_mouse_get_y() - (y1+border));
-				surfyoffset = clamp(_my-middleanchor, 0, drawheight-h);
-				
-				if window_mouse_get_y() < y1 
-				{
-					window_mouse_set(window_mouse_get_x(), window_mouse_get_y() + h);
-					middleanchor -= h;
-				}
-				else if window_mouse_get_y() > y2 
-				{
-					window_mouse_set(window_mouse_get_x(), window_mouse_get_y() - h);
-					middleanchor += h;
-				}
-			}
-		}
-		
-		// Get keyframe points
-		for (var t = 0; t < numtracks; t++)
-		{
-			points[t] = [];
-			
-			for (var tt = 0; tt < 3; tt++)
-			{
-				keyframes = tracks[t][tt].frames;	
-				numkeyframes = array_length(keyframes);
-				
-				for (var k = 0; k < numkeyframes; k++)
-				{
-					array_push(points[t], keyframes[k]);	
-				}
-			}
-		}
-		
 		// Set up frame indices
 		frameindices = [];
 		
@@ -180,58 +141,7 @@ function PlaybackTimeline(_trackdata) constructor
 		{
 			draw_clear(0);
 			
-			var yy;
-			var keyframes;
-			var numtracks = array_length(points);
-			var numkeyframes;
-			var _x1 = drawx, _x2 = drawwidth-8;
-			var tracklength = trackdata.length;
 			
-			draw_line_color(_x2, 0, _x2, drawheight, 0x222222, 0x222222);
-			
-			draw_set_halign(0);
-			draw_set_valign(0);
-			
-			// For each track (bone)
-			yy = drawy;
-			for (var t = 0; t < numtracks; t++)
-			{
-				draw_rectangle_color(
-					_x1, yy+2, _x2, yy+hsep-2,
-					0x222222, 0x222222, 0x222222, 0x222222, 0
-					);
-				yy += hsep;
-			}
-			
-			// Draw frame lines
-			for (var f = 0; f <= tracklength; f++)
-			{
-				draw_line_color(
-					lerp(_x1, _x2, f/tracklength), 0, 
-					lerp(_x1, _x2, f/tracklength), drawheight, 
-					0x333333, 0x333333);	
-			}
-			
-			// Marker Line
-			yy = surfyoffset-4;
-			draw_rectangle_color(0, yy, _x2+border, yy+hsep,
-				0, 0, 0, 0, 0);
-			
-			draw_line_width_color(
-				lerp(_x1, _x2, pos), 0, 
-				lerp(_x1, _x2, pos), drawheight, 
-				2, c_aqua, c_aqua);
-			
-			// Draw Frames
-			var frameindexcount = array_length(frameindices);
-			
-			draw_set_halign(1);
-			for (var f = 0; f < frameindexcount; f++)
-			{
-				draw_text(
-					lerp(_x1, _x2, frameindices[f]/tracklength), 
-					yy, frameindices[f]);	
-			}
 		}
 		surface_reset_target();
 		

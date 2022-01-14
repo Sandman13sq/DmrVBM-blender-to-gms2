@@ -47,9 +47,6 @@ function UpdateMatView()
 		loc[0], loc[1], loc[2], 
 		up[0], up[1], up[2]);
 	
-	// Correct Yflip
-	//matview = matrix_multiply(matrix_build(0,0,0,0,0,0,1,-1,1), matview);
-	
 	matrix_set(matrix_projection, matproj);
 	matrix_set(matrix_view, matview);
 }

@@ -15,13 +15,10 @@ attribute vec2 in_Uv;		// (u,v)
 varying vec2 v_uv;
 varying vec4 v_color;
 
-varying vec3 v_dirtolight_cs;	// Used for basic shading
-varying vec3 v_dirtocamera_cs;	// ^
 varying vec3 v_dirtolight_ts;	// Used for normal mapping
 varying vec3 v_dirtocamera_ts;	// ^
 
 // Uniforms passed in before draw call
-uniform mat4 u_matpose[200];
 uniform vec4 u_light;	// [x, y, z, strength]
 
 void main()
@@ -40,14 +37,13 @@ void main()
 	
 	// Shading Variables ----------------------------------------------
 	vec3 vertexpos_cs = (gm_Matrices[MATRIX_WORLD_VIEW] * vertexpos).xyz;
-	v_dirtocamera_cs = vec3(0.0) - vertexpos_cs;
+	vec3 v_dirtocamera_cs = vec3(0.0) - vertexpos_cs;
 	
 	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(u_light.xyz, 1.0)).xyz;
-	v_dirtolight_cs = lightpos_cs + v_dirtocamera_cs;
+	vec3 v_dirtolight_cs = lightpos_cs + v_dirtocamera_cs;
 	
 	// Normal Map Variables ----------------------------------------------
 	mat3 matmodelview = mat3(gm_Matrices[MATRIX_WORLD_VIEW]);
-	matmodelview = matmodelview;
 	vec3 normal_camspace = matmodelview * normalize(normal.xyz);
 	vec3 tangent_camspace = matmodelview * normalize(in_Tangent * VEC3YFLIP);
 	vec3 bitangent_camspace = matmodelview * normalize(in_Bitangent * VEC3YFLIP);
