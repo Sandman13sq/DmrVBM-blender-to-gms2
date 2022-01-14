@@ -5,6 +5,9 @@ import sys
 import mathutils
 import time
 
+import bmesh
+import numpy
+
 from bpy_extras.io_utils import ExportHelper
 from struct import pack as Pack
 
@@ -94,8 +97,8 @@ LYR_GLOBAL = '<__global__>'
 LYR_RENDER = '<__render__>'
 LYR_SELECT = '<__select__>'
 
-MTY_VIEW = 'V'
-MTY_RENDER = 'R'
+MTY_VIEW = 'VIEWPORT'
+MTY_RENDER = 'RENDER'
 MTY_OR = 'OR'
 MTY_AND = 'AND'
 MTY_ALL = 'ALL'
@@ -214,6 +217,115 @@ def GetVCLayers(self, context):
 
 # ==================================================================================================
 
+# Returns dict of {materialname: vertexdata[]}
+def GetVBData_bmesg(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL]):
+    PrintStatus('> Composing data for \"%s\":' % sourceobj.name, 0)
+    
+    context = bpy.context
+    
+    workingobj = sourceobj.copy()
+    workingobj.name = sourceobj.name + '__temp'
+    armature = sourceobj.find_armature()
+    
+    workingobj.modifiers.new(type='TRIANGULATE', name='Bmesh Triangulate')
+    dg = context.evaluated_depsgraph_get()
+    
+    bm = bmesh.new()
+    bm.from_object(workingobj, dg, face_normals=False)
+    bm.normal_update()
+    
+    #splitnormals = {l.index}
+    vgroups = workingobj.vertex_groups
+    layers = bm.loops.layers
+    
+    targetuvlayer = 'normal'
+    targetvclayer = 'color alt'
+    
+    # Layer accessors
+    uvlyr = layers.uv.get(targetuvlayer, layers.uv.verify())
+    vclyr = layers.color.get(targetvclayer, layers.color.verify())
+    deformlyr = bm.verts.layers.deform.verify()
+    splitnormals = {}
+    
+    # Omit non armature layers
+    validvgindices = tuple([vg.index for vg in vgroups])
+    if armature:
+        bonenames = tuple([b.name for b in armature.data.bones])
+        boneindexmap = {vg.index: bonenames.index(vg.name) if vg.name in bonenames else 0 for vg in vgroups}
+        boneindexmap[-1] = 0
+        validvgindices = tuple([vg.index for vg in vgroups if vg.name in bonenames])
+    
+    normalsign = -1.0 if settings.get('reversewinding', False) else 1.0
+    uvyflip = mathutils.Vector((0.0, 1.0))
+    
+    outdata = {} # {materialname: vertexbytedata}
+    outvcounts = {}
+    num = 3*len(bm.faces)
+    
+    outblocksize = 1024
+    
+    pindex = 0
+    for p in bm.faces:
+        pindex += 3
+        PrintStatus(' Writing Vertices %s / %s' % (pindex, num))
+        
+        matindex = p.material_index
+        if matindex not in outdata:
+            outdata[matindex] = b''
+            outvcounts[matindex] = 0
+        outvcounts[matindex] += 3
+        
+        outblock = b''
+        for l in p.loops:
+            v = l.vert
+            n = v.normal
+            t = l.calc_tangent()
+            bt = numpy.cross(n, t)
+            uv = l[uvlyr].uv
+            vc = l[vclyr]
+            b = (0,0,0,0)
+            w = (0,0,0,0)
+            
+            if armature:
+                vdeform = v[deformlyr]
+                b = tuple([x for x in vdeform.keys() if x in validvgindices])+(-1,-1,-1,-1)[:4]
+                w = tuple([vdeform[x] for x in b if x >= 0]+[0,0,0,0])[:4]
+                wsum = sum(w)
+                if wsum > 0.0:
+                    w = (x/wsum for x in w)
+            
+            for k in format:
+                if k == VBF_POS:
+                    outblock += Pack('fff', *(v.co[:]))
+                elif k == VBF_NOR:
+                    outblock += Pack('fff', *(n[:]))
+                elif k == VBF_TAN:
+                    outblock += Pack('fff', *(t[:]))
+                elif k == VBF_BTN:
+                    outblock += Pack('fff', *(bt[:]))
+                elif k == VBF_COL:
+                    outblock += Pack('ffff', *(vc[:]))
+                elif k == VBF_RGB:
+                    outblock += Pack('BBBB', *(tuple(int(x*255.0) for x in vc)[:]))
+                elif k == VBF_TEX:
+                    if uvyflip:
+                        outblock += Pack('ff', *(tuple((uv[0], 1.0-uv[1]))[:]))
+                    else:
+                        outblock += Pack('ff', *(uv[:]))
+                elif k == VBF_BON:
+                    outblock += Pack('ffff', *(tuple(boneindexmap[x] for x in b)[:4]))
+                elif k == VBF_WEI:
+                    outblock += Pack('ffff', *(w[:]))
+        
+        outdata[matindex] += outblock
+    
+    bm.free()
+    bpy.data.objects.remove(workingobj)
+    
+    PrintStatus('\n')
+    
+    return (outdata, outvcounts)    
+
 def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL]):
     context = bpy.context
     
@@ -291,6 +403,8 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             # Apply enabled modifiers
             if m.type == 'ARMATURE':
                 if applyarmature:
+                    bpy.ops.object.modifier_apply(modifier = m.name)
+                elif formatneedsbones:
                     bpy.ops.object.modifier_move_to_index(modifier=m.name, index=len(modifiers)-1)
                 else:
                     bpy.ops.object.modifier_remove(modifier = m.name)
@@ -301,11 +415,6 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 except:
                     print('> Modifier "%s" unable to apply' % m.name)
                     bpy.ops.object.modifier_remove(modifier = m.name)
-        
-        # Apply modifier if leftover
-        for m in workingobj.modifiers:
-            if m.type == 'ARMATURE' and applyarmature:
-                bpy.ops.object.modifier_apply(modifier = m.name)
         
         # Force Quads (For Tangents and bitangents)
         minquads = modifiers.new('MinQuads', 'TRIANGULATE')
@@ -366,9 +475,11 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4)
             bpy.ops.object.vertex_group_normalize_all(group_select_mode=group_select_mode, lock_active=False)
     
+    # Handle Layers -----------------------------------------------------
     def FindLayers(layerlist, targetlist, targetpick):
         if not layerlist:
             targetlist = layerlist.new().name
+        
         if not type(targetlist) == list:
             targetlist = [targetlist]
         targetlist += [targetlist[-1]] * (len(format) - len(targetlist))
