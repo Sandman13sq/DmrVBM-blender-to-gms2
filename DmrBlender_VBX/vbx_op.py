@@ -605,6 +605,8 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             'flipuvs': self.flipuvs,
         }
         
+        RemoveTempObjects()
+        
         # Get list of selected objects
         objects = CollectionToObjectList(self, context)
         targetobjects = [x for x in objects if x.type == 'MESH']
@@ -619,8 +621,6 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         
         context.view_layer.objects.active = [x for x in bpy.data.objects if (x.visible_get())][0]
         bpy.ops.object.mode_set(mode = 'OBJECT')
-        
-        RemoveTempObjects()
         
         armatures = [x for x in objects if x.type == 'ARMATURE']
         armatures += [x.parent for x in objects if (x.parent and x.parent.type == 'ARMATURE')]
