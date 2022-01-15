@@ -153,6 +153,11 @@ def ParseAttribFormat(self, context):
         uvtarget = getattr(self, 'uvlyr%d' % i)
         
         if slot != VBF_000:
+            if vctarget == LYR_GLOBAL:
+                vctarget = LYR_RENDER if self.colorlayerpick == 'render' else LYR_SELECT
+            if uvtarget == LYR_GLOBAL:
+                uvtarget = LYR_RENDER if self.uvlayerpick == 'render' else LYR_SELECT
+            
             format.append(slot)
             vclayertarget.append(vctarget)
             uvlayertarget.append(uvtarget)
@@ -440,8 +445,6 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             self.report({'WARNING'}, 'No valid objects selected')
             return {'FINISHED'}
         
-        arealast = context.area.type
-        context.area.type = "VIEW_3D"
         active = bpy.context.view_layer.objects.active
         activename = active.name if active else ''
         
@@ -502,8 +505,6 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         
         if activename in [x.name for x in bpy.context.selected_objects]:
             context.view_layer.objects.active = bpy.data.objects[activename]
-        
-        context.area.type = arealast
         
         return {'FINISHED'}
 classlist.append(DMR_OP_ExportVB)
@@ -594,8 +595,6 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             'format' : format,
             'edgesonly' : self.edgesonly,
             'applyarmature' : self.applyarmature,
-            'uvlayerpick': self.uvlayerpick == 'render',
-            'colorlayerpick': self.colorlayerpick == 'render',
             'modifierpick': self.modifierpick,
             'maxsubdivisions': self.maxsubdivisions,
             'deformonly' : self.deformbonesonly,
@@ -614,8 +613,6 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             self.report({'WARNING'}, 'No valid objects selected')
             return {'FINISHED'}
         
-        arealast = context.area.type
-        context.area.type = "VIEW_3D"
         active = bpy.context.view_layer.objects.active
         activename = active.name if active else ''
         
@@ -675,6 +672,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                 workingobj = bpy.data.objects.new(armature.name+'__temp', workingarmature)
                 
                 # Apply matrix
+                bpy.ops.object.select_all(action='DESELECT')
                 bpy.context.view_layer.active_layer_collection.collection.objects.link(workingobj)
                 workingobj.select_set(True)
                 bpy.context.view_layer.objects.active = workingobj
@@ -852,8 +850,6 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         
         if activename in [x.name for x in bpy.context.selected_objects]:
             context.view_layer.objects.active = bpy.data.objects[activename]
-        
-        context.area.type = arealast
         
         self.report({'INFO'}, 'VBX export complete')
         

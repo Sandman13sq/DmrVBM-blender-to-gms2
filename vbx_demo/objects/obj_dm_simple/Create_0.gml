@@ -9,7 +9,7 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf = vertex_format_end();
 
-vb = OpenVertexBuffer("curly_simple.vb", vbf);
+vb = OpenVertexBuffer(demo.DIRPATH + "curly_simple.vb", vbf);
 
 // Control Variables
 alpha = 1;

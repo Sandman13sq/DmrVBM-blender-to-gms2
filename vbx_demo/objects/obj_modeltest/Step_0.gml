@@ -100,7 +100,7 @@ if !camera.lock
 			camera.viewlocation[1] += f[1]*ylev * movespeed;
 		}
 		
-		camera.viewdirection += rotspeed * -rotlev;
+		camera.viewdirection += rotspeed * rotlev;
 	}
 	// Move Model
 	else
@@ -117,7 +117,7 @@ if !camera.lock
 			modelposition[1] += f[1]*ylev * movespeed;
 		}
 		
-		modelzrot += rotspeed * -rotlev;
+		modelzrot += rotspeed * rotlev;
 	}
 	
 	if mouse_check_button_pressed(mb_left)

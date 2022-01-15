@@ -4,7 +4,6 @@ import zlib
 import sys
 
 from bpy_extras.io_utils import ExportHelper
-from bpy.props import StringProperty, BoolProperty, EnumProperty, IntProperty
 from struct import pack as Pack
 
 PackString = lambda x: b'%c%s' % (len(x), str.encode(x))
@@ -48,9 +47,12 @@ ANIVERSION = 1
 
 def GetActions(self, context):
     return [
-        (a.name, a.name, 'Export "%s"' % a.name)
+        (a.name, a.name, 'Export "%s"' % a.name, 'ACTION', 0)
         for a in bpy.data.actions
     ]
+
+def ChooseAction(self, context):
+    action = bpy.data.actions[self.actionname]
 
 classlist = []
 
@@ -62,7 +64,7 @@ class DMR_GM_ExportPose(bpy.types.Operator, ExportHelper):
     bl_label = "Export Pose"
     
     filename_ext = ".pse"
-    filter_glob: StringProperty(default="*.pse", options={'HIDDEN'}, maxlen=255)
+    filter_glob: bpy.props.StringProperty(default="*.pse", options={'HIDDEN'}, maxlen=255)
     
     def execute(self, context):
         active = bpy.context.view_layer.objects.active
@@ -84,54 +86,52 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
     bl_options = {'PRESET'}
     
     filename_ext = ".trk"
-    filter_glob: StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
+    filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
     
-    actionname: EnumProperty(
-        name='Action',
+    actionname: bpy.props.EnumProperty(
+        name='Action', items=GetActions, default=0,
         description='Action to export',
-        items=GetActions, default=0
     )
     
-    bakesamples: IntProperty(
+    framerange: bpy.props.IntVectorProperty(
+        name='Frame Range', size=2, default=(1, 250),
+        description='Range of keyframes to export',
+    )
+    
+    bakesamples: bpy.props.IntProperty(
         name="Bake Steps",
         description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking",
         default=5, min=-1
     )
     
-    startfromzero: BoolProperty(
-        name="Trim Empty Leading",
+    startfromzero: bpy.props.BoolProperty(
+        name="Trim Empty Leading", default=True,
         description='Start writing from first keyframe instead of from "Frame Start"',
-        default=True,
     )
     
-    writemarkernames: BoolProperty(
-        name="Write Marker Names",
+    writemarkernames: bpy.props.BoolProperty(
+        name="Write Marker Names", default=True,
         description="Write names of markers before track data",
-        default=True,
     )
     
-    normalizeframes: BoolProperty(
-        name="Normalize Frames",
+    normalizeframes: bpy.props.BoolProperty(
+        name="Normalize Frames", default=True,
         description="Convert Frames to [0-1] range",
-        default=True,
     )
     
-    makestartframe: BoolProperty(
-        name="Starting Keyframe",
+    makestartframe: bpy.props.BoolProperty(
+        name="Starting Keyframe", default=True,
         description="Insert a keyframe at the start of the animation",
-        default=True,
     )
     
-    makeendframe: BoolProperty(
-        name="Ending Keyframe",
+    makeendframe: bpy.props.BoolProperty(
+        name="Ending Keyframe", default=False,
         description="Insert a keyframe at the end of the animation",
-        default=False,
     )
     
-    deformbonesonly: BoolProperty(
-        name="Deform Bones Only",
+    deformbonesonly: bpy.props.BoolProperty(
+        name="Deform Bones Only", default=True,
         description='Only export bones with the "Deform" box checked',
-        default=True,
     )
     
     lastsimplify = -1
@@ -142,16 +142,19 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
     
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
-        self.lastsimplify = context.scene.render.use_simplify
-        context.scene.render.use_simplify = True
         
-        try:
-            self.actionname = [x for x in context.selected_objects if x.type=='ARMATURE'][0].animation_data.action.name
-        except:
-            try:
-                self.actionname = [x for x in context.selected_objects if x.type=='ARMATURE'][0].pose_library.name
-            except:
-                ''
+        sc = context.scene
+        self.lastsimplify = sc.render.use_simplify
+        sc.render.use_simplify = True
+        
+        self.framerange = (sc.frame_start, sc.frame_end)
+        
+        actions = [x.animation_data.action for x in context.selected_objects if x.animation_data]
+        actions += [x.pose_library for x in context.selected_objects if x.pose_library]
+        
+        if actions:
+            action = actions[0]
+            self.actionname = action.name
         
         return {'RUNNING_MODAL'}
     
@@ -161,6 +164,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, 'actionname')
+        layout.prop(self, 'framerange')
         layout.prop(self, 'bakesamples')
         layout.prop(self, 'startfromzero')
         layout.prop(self, 'writemarkernames')
@@ -201,7 +205,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
         object.animation_data.action = action
         
         # Get sampled action
-        if self.bakesamples > 0 and 0:
+        if self.bakesamples > 0:
             print('> Baking animation...')
             
             contexttype = bpy.context.area.type
@@ -366,7 +370,7 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
                 
                 # Manual Sampling
                 #"""
-                if samples > 0 and len(trackframes) > 1:
+                if 0 and samples > 0 and len(trackframes) > 1:
                     newpts = []
                     for i in range(0, len(trackframes)-1):
                         p1 = trackframes[i]
@@ -462,7 +466,7 @@ class DMR_GM_ExportPoseMatrix(bpy.types.Operator, ExportHelper):
     bl_label = "Export Action"
     
     filename_ext = ".pse"
-    filter_glob: StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
+    filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
     
     def execute(self, context):
         # Find Armature ----------------------------------------------------
