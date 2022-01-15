@@ -7,11 +7,11 @@ except:
     from vbx_func import *
 
 attribpresets = {
-    '_Pos-Col-UV': [VBF_POS, VBF_RGB, VBF_TEX],
-    '_Pos-Nor-Col-UV': [VBF_POS, VBF_NOR, VBF_RGB, VBF_TEX],
-    '_Pos-Nor-Tan-Btn-Col-UV': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_TEX],
-    '_Pos-Nor-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_RGB, VBF_TEX, VBF_BON, VBF_WEI],
-    '_Pos-Nor-Tan-Btn-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_TEX, VBF_BON, VBF_WEI],
+    '_Pos-Col-UV': [VBF_POS, VBF_RGB, VBF_UVS],
+    '_Pos-Nor-Col-UV': [VBF_POS, VBF_NOR, VBF_RGB, VBF_UVS],
+    '_Pos-Nor-Tan-Btn-Col-UV': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_UVS],
+    '_Pos-Nor-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_RGB, VBF_UVS, VBF_BON, VBF_WEI],
+    '_Pos-Nor-Tan-Btn-Col-UV-Bon-Wei': [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_RGB, VBF_UVS, VBF_BON, VBF_WEI],
 }
 
 presetheader = 'import bpy\nop = bpy.context.active_operator\n\n'
@@ -27,7 +27,7 @@ def PresetPanic():
             break
         
     if p:
-        for opname in ['dmr.gm_export_vb', 'dmr.gm_export_vbx']:
+        for opname in ['dmr.vbx_export_vb', 'dmr.vbx_export_vbx']:
             dir = p+opname+'/'
             try:
                 os.mkdir(dir)
@@ -49,7 +49,7 @@ def PresetPanic():
             
             # Y Flip
             out = presetheader
-            out += 'op.forwardaxis = "-y"\n'
+            out += 'op.forward_axis = "-y"\n'
             OutputToFile(out, '_YFlip')
 
 PresetPanic()

@@ -8,8 +8,8 @@ def DrawVBXPanel(self, context):
     section = layout.box().column()
     section.column().label(text='-- Vertex Buffer --')
     section = section.row()
-    section.operator("dmr.gm_export_vb", text='Export VB', icon='OBJECT_DATA')
-    section.operator("dmr.gm_export_vbx", text='Export VBX', icon='MOD_ARRAY')
+    section.operator("dmr.vbx_export_vb", text='Export VB', icon='OBJECT_DATA')
+    section.operator("dmr.vbx_export_vbx", text='Export VBX', icon='MOD_ARRAY')
     
     section = layout.box().column()
     section.column().label(text='-- Animations --')

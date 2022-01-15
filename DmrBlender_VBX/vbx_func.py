@@ -29,28 +29,28 @@ FCODE = 'f'
 # This is more for loading files outside of GMS
 # If you don't mind longer load times for converting numbers to floats,
 # get some more accuracy with doubles or save some space with binary16s
-FloatChoiceItems = (
+Items_FloatChoice = (
     ('f', 'Float (32bit) *GMS*', 'Write floating point data using floats (32 bits)\n***Use for Game Maker Studio***'),
     ('d', 'Double (64bit)', 'Write floating point data using doubles (64 bits)'),
     ('e', 'Binary16 (16bit)', 'Write floating point data using binary16 (16 bits)'),
 )
 
-VBF_000 = '000'
-VBF_POS = 'POS'
-VBF_TEX = 'TEX'
-VBF_NOR = 'NOR'
-VBF_TAN = 'TAN'
-VBF_BTN = 'BTN'
-VBF_COL = 'COL'
-VBF_RGB = 'CO2'
-VBF_WEI = 'WEI'
-VBF_BON = 'BON'
-VBF_BOI = 'BOI'
+VBF_000 = '0'
+VBF_POS = 'POSITION'
+VBF_UVS = 'UV'
+VBF_NOR = 'NORMAL'
+VBF_TAN = 'TANGENT'
+VBF_BTN = 'BITANGENT'
+VBF_COL = 'COLOR'
+VBF_RGB = 'COLORBYTES'
+VBF_BON = 'BONE'
+VBF_BOI = 'BONEBYTES'
+VBF_WEI = 'WEIGHT'
 
 VBFSize = {
     VBF_000: 0,
     VBF_POS: 3, 
-    VBF_TEX: 2, 
+    VBF_UVS: 2, 
     VBF_NOR: 3, 
     VBF_TAN: 3,
     VBF_BTN: 3,
@@ -61,24 +61,24 @@ VBFSize = {
     VBF_BOI: 1,
     }
 
-VBFItems = (
-    (VBF_000, '---', 'No Data'),
-    (VBF_POS, 'Position', '3 Floats'),
-    (VBF_TEX, 'UVs', '2 Floats'),
-    (VBF_NOR, 'Normal', '3 Floats'),
-    (VBF_TAN, 'Tangents', '3 Floats'),
-    (VBF_BTN, 'Bitangents', '3 Floats'),
-    (VBF_COL, 'Color (RGBA)', '4 Floats'),
-    (VBF_RGB, 'Color Bytes (RGBA)', '4 Bytes = Size of 1 Float in format 0xRRGGBBAA'),
-    (VBF_BON, 'Bone Indices', '4 Floats (Use with Weights)'),
-    (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYZZ'),
-    (VBF_WEI, 'Weights', '4 Floats'),
+Items_VBF = (
+    (VBF_000, '---', 'No Data', 'BLANK1', 0),
+    (VBF_POS, 'Position', '3 Floats', 'VERTEXSEL', 1),
+    (VBF_UVS, 'UVs', '2 Floats', 'UV', 2),
+    (VBF_NOR, 'Normal', '3 Floats', 'NORMALS_VERTEX', 3),
+    (VBF_TAN, 'Tangents', '3 Floats', 'NORMALS_VERTEX_FACE', 4),
+    (VBF_BTN, 'Bitangents', '3 Floats', 'NORMALS_VERTEX_FACE', 5),
+    (VBF_COL, 'Color (RGBA)', '4 Floats', 'COLOR', 6),
+    (VBF_RGB, 'Color Bytes (RGBA)', '4 Bytes = Size of 1 Float in format 0xRRGGBBAA', 'RESTRICT_COLOR_OFF', 7),
+    (VBF_BON, 'Bone Indices', '4 Floats (Use with Weights)', 'BONE_DATA', 8),
+    (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYZZ', 'BONE_DATA', 9),
+    (VBF_WEI, 'Weights', '4 Floats', 'MOD_VERTEX_WEIGHT', 10),
 )
 
 VBFType = {x[1]: x[0] for x in enumerate([
     VBF_000,
     VBF_POS,
-    VBF_TEX,
+    VBF_UVS,
     VBF_NOR,
     VBF_COL,
     VBF_RGB,
@@ -88,7 +88,7 @@ VBFType = {x[1]: x[0] for x in enumerate([
     VBF_BTN,
     ])}
 
-LayerChoiceItems = (
+Items_LayerChoice = (
     ('render', 'Render Layer', 'Use the layer that will be rendered (camera icon is on)', 'RESTRICT_RENDER_OFF', 0),
     ('active', 'Active Layer', 'Use the layer that is active (highlighted)', 'RESTRICT_SELECT_OFF', 1),
 )
@@ -103,7 +103,7 @@ MTY_OR = 'OR'
 MTY_AND = 'AND'
 MTY_ALL = 'ALL'
 
-ModChoiceItems = (
+Items_ModChoice = (
     (MTY_VIEW, 'Viewport Only', 'Only export modifiers visible in viewports'), 
     (MTY_RENDER, 'Render Only', 'Only export modifiers visible in renders'), 
     (MTY_OR, 'Viewport or Render', 'Export modifiers if they are visible in viewport or renders'), 
@@ -111,7 +111,7 @@ ModChoiceItems = (
     (MTY_ALL, 'All', 'Export all supported modifiers')
 )
 
-UpAxisItems = (
+Items_UpAxis = (
     ('+x', '+X Up', 'Export model(s) with +X Up axis'),
     ('+y', '+Y Up', 'Export model(s) with +Y Up axis'),
     ('+z', '+Z Up', 'Export model(s) with +Z Up axis'),
@@ -120,7 +120,7 @@ UpAxisItems = (
     ('-z', '-Z Up', 'Export model(s) with -Z Up axis'),
 )
 
-ForwardAxisItems = (
+Items_ForwardAxis = (
     ('+x', '+X Forward', 'Export model(s) with +X Forward axis'),
     ('+y', '+Y Forward', 'Export model(s) with +Y Forward axis'),
     ('+z', '+Z Forward', 'Export model(s) with +Z Forward axis'),
@@ -131,47 +131,7 @@ ForwardAxisItems = (
 
 # ---------------------------------------------------------------------------------------
 
-def InstancerRun(self, context, sourceobj, destobj):
-    scene = context.scene
-    vl = context.view_layer
-    
-    hidden = [x for x in scene.objects if x.hide_get()]
-    [x.hide_set(False) for x in hidden]
-    
-    bpy.ops.object.select_all(action='DESELECT')
-    sourceobj.select_set(True)
-    vl.objects.active = sourceobj
-    
-    lastinstancedata = (sourceobj.instance_type)
-    
-    obs = set(scene.objects)
-    bpy.ops.object.duplicates_make_real()
-    new_obs = list(set(scene.objects) - obs)
-    
-    sourceobj.instance_type = lastinstancedata
-    
-    out = destobj
-    
-    if new_obs:
-        if not sourceobj.show_instancer_for_viewport:
-            destobj.data.clear_geometry()
-        
-        for o in new_obs:
-            o.select_set(True)
-        destobj.select_set(True)
-        
-        vl.objects.active = destobj
-        out = vl.objects.active
-        
-        bpy.ops.object.join()
-    
-    [x.hide_set(True) for x in hidden if x]
-    
-    return out
-
-# ==================================================================================================
-
-def GetUVLayers(self, context):
+def Items_UVLayers(self, context):
     items = []
     items.append( (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" below') )
     items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
@@ -187,14 +147,14 @@ def GetUVLayers(self, context):
     lyrnames.sort(key=lambda x: lyrnames.count(x))
     lyrnames = list(set(lyrnames))
     
-    for name in lyrnames:
-        items.append( (name, name, 'Use "%s" layer for uv data' % name) )
+    for i,name in enumerate(lyrnames):
+        items.append( (name, name, 'Use "%s" layer for uv data' % name, 'GROUP_UVS', i+3) )
     
     return items
 
 # --------------------------------------------------------------------------------------------------
 
-def GetVCLayers(self, context):
+def Items_VCLayers(self, context):
     items = []
     items.append( (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" below') )
     items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
@@ -210,24 +170,60 @@ def GetVCLayers(self, context):
     lyrnames.sort(key=lambda x: lyrnames.count(x))
     lyrnames = list(set(lyrnames))
     
-    for name in lyrnames:
-        items.append( (name, name, 'Use "%s" layer for color data' % name) )
+    for i,name in enumerate(lyrnames):
+        items.append( (name, name, 'Use "%s" layer for color data' % name, 'GROUP_VCOL', i+3) )
     
     return items
 
 # ==================================================================================================
 
-def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL], instancerun=False):
+def RemoveTempObjects():
+    def RmvTmp(data):
+        for obj in data:
+            if '__temp' in obj.name:
+                data.remove(obj)
+    RmvTmp(bpy.data.objects)
+    RmvTmp(bpy.data.meshes)
+    RmvTmp(bpy.data.armatures)
+    
+def ComposeOutFlag(self):
+    flag = 0
+    if self.floattype == 'd':
+        flag |= 1 << 0
+    elif self.floattype == 'e':
+        flag |= 1 << 1
+    return Pack('B', flag)
+
+def ComposeOutFormat(self, format = -1):
+    if format == -1:
+        format = self.format
+    
+    out_format = b''
+    out_format += Pack('B', len(format)) # Format length
+    for f in format:
+        out_format += Pack('B', VBFType[f]) # Attribute Type
+        out_format += Pack('B', VBFSize[f]) # Attribute Float Size
+    return Pack('B', out_format)
+
+# ==================================================================================================
+
+# Returns tuple of (outbytes, outcounts)
+# materialvbytes = {materialname: vertexbytedata}
+# materialvcounts = {materialname: vertexcount}
+def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL], instancerun=False):
     format = tuple(format)
     formatsize = len(format)
-    context = bpy.context
     
     flipuvs = settings.get('flipuvs', True)
     maxsubdivisions = settings.get('maxsubdivisions', -1)
     modreq = settings.get('modifierpick', MTY_OR)
     applyarmature = settings.get('applyarmature', False)
+    deformonly = settings.get('deformonly', False)
     edgesonly = settings.get('edgesonly', False)
-    reversewinding = settings.get('reversewinding', False) # Yes I know this is different than flipping normals
+    flipnormals = settings.get('flipnormals', False)
+    reversewinding = settings.get('reversewinding', False)
+    settingsmatrix = settings.get('matrix', mathutils.Matrix())
+    FCODE = settings.get('floattype', 'f')
     
     if not instancerun:
         PrintStatus('> Composing data for \"%s\":' % sourceobj.name, 0)
@@ -297,13 +293,17 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             instancemats = [workingobj.matrix_world.copy()]
     
     # Data Preparation ===========================================================
-    outdata = {}
-    outcounts = {}
+    materialvbytes = {}
+    materialvcounts = {}
     
     if instancemats:
-        PrintStatus(' Setting up vertex data...')
+        PrintStatus(' Setting up data...')
         
         matnames = tuple(x.name for x in workingobj.data.materials)
+        
+        if flipuvs:
+            for uv in (uv for lyr in workingmesh.uv_layers for uv in lyr.data):
+                uv.uv[1] = 1.0-uv.uv[1]
         
         def GetAttribLayers(layers, targets):
             targets = targets[:]
@@ -331,20 +331,22 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         voffset = 0
         loffset = 0
         
-        vertexmeta = []
-        loopmeta = []
-        targetpolys = []
+        vertexmeta = ()
+        loopmeta = ()
+        targetpolys = ()
+        
         vertcooriginal = {v: v.co for v in workingmesh.vertices}
+        normalsign = -1.0 if flipnormals else 1.0
         
-        normalsign = -1.0 if reversewinding else 1.0
+        loopnormaloriginal = {l: l.normal*normalsign for l in workingmesh.loops}
         
-        if flipuvs:
-            for uv in (uv for lyr in workingmesh.uv_layers for uv in lyr.data):
-                uv.uv[1] = 1.0-uv.uv[1]
-        
-        # Matrix Loop
+        # Matrix Loop -----------------------------------------------------------------------------------
+        instanceindex = 0
         for matrix in instancemats:
+            statusheader = ' ' if instanceindex == 0 else ' [%d]' % instanceindex
+            
             # Vertices ------------------------------------------------------------------------
+            PrintStatus(statusheader+'Setting up vertex data...')
             
             voffset = len(vertexmeta)
             for v in workingmesh.vertices:
@@ -355,52 +357,56 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             vgremap = {vg.index: vg.index for vg in vgroups}
             
             if armature:
-                bonenames = tuple([b.name for b in armature.data.bones if b.use_deform])
+                bonenames = tuple([b.name for b in armature.data.bones if ((deformonly and b.use_deform) or not deformonly)])
                 validvgroups = tuple([vg.index for vg in vgroups if vg.name in bonenames])
                 vgremap = {vg.index: (bonenames.index(vg.name) if vg.name in bonenames else -1) for vg in vgroups}
             
             weightsortkey = lambda x: x.weight
             
             # "Fine. I'll do it myself."
-            worldmat = settings.get('matrix', mathutils.Matrix()) @ matrix
-            loc, rot, scale = worldmat.decompose()
+            worldmat = settingsmatrix @ matrix
+            loc, rot, sca = worldmat.decompose()
             
             def VEntry(v):
                 validvges = [vge for vge in v.groups if vge.group in validvgroups]
-                validvges.sort(key=weightsortkey)
+                validvges.sort(key=weightsortkey, reverse=True)
+                validvges = validvges[:4]
                 
-                boneindices = [vgremap[vge.group] for vge in validvges]
-                weights = [vge.weight for vge in validvges]
+                boneindices = tuple(vgremap[vge.group] for vge in validvges)
+                weights = tuple(vge.weight for vge in validvges)
                 wlength = sum(weights)
                 
                 if wlength > 0.0:
-                    weights = [x/wlength for x in boneindices]
-                
-                extravalues = [0]*(4-len(weights))
+                    weights = tuple(x/wlength for x in weights)
                 
                 co = v.co.copy()
                 co.rotate(rot)
-                co *= scale
+                co *= sca
                 co += loc
                 
                 return (
-                    tuple(co), 
-                    tuple(boneindices+extravalues), 
-                    tuple(weights+extravalues)
+                    tuple(co)[:4], 
+                    tuple(boneindices+(0,0,0,0))[:4], 
+                    tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
+                    tuple(weights+(0,0,0,0))[:4]
                     )
                 
             vertices = {v.index:v for v in workingmesh.vertices}
-            vertexmeta += [
-                VEntry(v)
+            vertexmeta += tuple(
+                tuple(VEntry(v))
                 for v in workingmesh.vertices
-            ]
-            
-            PrintStatus(' Setting up loop data...')
+            )
             
             # Loops ------------------------------------------------------------------------------
+            PrintStatus(statusheader+'Setting up loop data...')
             
             workingmesh.calc_loop_triangles()
             workingmesh.calc_normals_split()
+            
+            [l.normal.rotate(rot) for l in workingmesh.loops]
+            for l in workingmesh.loops:
+                l.normal *= sca
+            
             if not edgesonly and workingmesh.polygons:
                 workingmesh.calc_tangents()
             workingmesh.update()
@@ -411,9 +417,9 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
             vclayers_enumerated = tuple(enumerate(vclayers))
             uvlayers_enumerated = tuple(enumerate(uvlayers))
             
-            loopmeta += [
+            loopmeta += tuple(
                 (
-                    tuple(l.normal*normalsign),
+                    tuple(l.normal),
                     tuple(l.tangent),
                     tuple(l.bitangent),
                     tuple( tuple(lyr.data[l.index].uv) for lyr in uvlayers),
@@ -421,22 +427,31 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                     tuple( [int(x*255.0) for x in lyr.data[l.index].color] for lyr in vclayers),
                 )
                 for l in workingmesh.loops
-            ]
+            )
             
             # Poly data -----------------------------------------------------------------------------------------
+            #PrintStatus(statusheader+'Setting up poly data...')
+            
             if workingmesh.polygons:
-                if not edgesonly:
-                    targetpolys += [
+                if not edgesonly: # Triangles
+                    invertpoly = reversewinding
+                    for x in sca:
+                        if x < 0.0:
+                            invertpoly ^= 1
+                    
+                    looporder = (2, 1, 0) if invertpoly else (0, 1, 2)
+                    
+                    targetpolys += tuple(
                         (
                             3,
-                            (0, 1, 2),
+                            looporder,
                             p.material_index,
                             tuple(x+voffset for x in p.vertices),
                             tuple(x+loffset for x in p.loops)
                         )
                         for p in workingmesh.loop_triangles
-                    ]
-                else:
+                    )
+                else: # Any N-gons
                     def LoopRepeat(p):
                         out = []
                         loopindices = p.loop_indices
@@ -445,7 +460,7 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                             out.append(i)
                             out.append((i+1) % count)
                         return tuple(out)
-                    targetpolys += [
+                    targetpolys += tuple(
                         (
                             p.loop_total*2,
                             LoopRepeat(p),
@@ -454,9 +469,9 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                             tuple(x+loffset for x in p.loop_indices)
                         )
                         for p in workingmesh.polygons
-                    ]
-            else:
-                targetpolys += [
+                    )
+            else: # Only edges are present
+                targetpolys += tuple(
                     (
                         0,
                         (0, 1),
@@ -465,10 +480,13 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                         tuple(x+voffset for x in p.vertices),
                     )
                     for p in workingmesh.edges
-                ]
-        
+                )
+            
+            instanceindex += 1
+            
+        # End of matrix loop --------------------------------------------------
         if not loopmeta:
-            loopmeta = [
+            loopmeta = tuple(
                 (
                     tuple(v.normal*normalsign),
                     (0,0,0),
@@ -478,11 +496,10 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                     tuple( (1,1,1,1) for lyr in vclayers),
                 )
                 for v in workingmesh.vertices
-            ]
+            )
         
         vertexmeta = {i: x for i,x in enumerate(vertexmeta)}
         loopmeta = {i: x for i,x in enumerate(loopmeta)}
-        #targetpolys = tuple(targetpolys)
         
         # Iterate through data ------------------------------------------------------------------------------
         # Optimized to  h e l l
@@ -490,20 +507,21 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         PrintStatus(' Creating byte data...')
         
         # Triangles
-        def out_pos(out, attribindex): out.append(Pack('fff', *vmeta[0][:3]));
-        def out_nor(out, attribindex): out.append(Pack('fff', *lmeta[0][:3]));
-        def out_tan(out, attribindex): out.append(Pack('fff', *lmeta[1][:3]));
-        def out_btn(out, attribindex): out.append(Pack('fff', *lmeta[2][:3]));
-        def out_tex(out, attribindex): out.append(Pack('ff', *lmeta[3][uvattriblyr[attribindex]]));
-        def out_col(out, attribindex): out.append(Pack('ffff', *lmeta[4][vcattriblyr[attribindex]]));
+        def out_pos(out, attribindex): out.append(Pack(3*FCODE, *vmeta[0][:3]));
+        def out_nor(out, attribindex): out.append(Pack(3*FCODE, *lmeta[0][:3]));
+        def out_tan(out, attribindex): out.append(Pack(3*FCODE, *lmeta[1][:3]));
+        def out_btn(out, attribindex): out.append(Pack(3*FCODE, *lmeta[2][:3]));
+        def out_tex(out, attribindex): out.append(Pack(2*FCODE, *lmeta[3][uvattriblyr[attribindex]]));
+        def out_col(out, attribindex): out.append(Pack(4*FCODE, *lmeta[4][vcattriblyr[attribindex]]));
         def out_rgb(out, attribindex): out.append(Pack('4B', *lmeta[5][vcattriblyr[attribindex]]));
-        def out_bon(out, attribindex): out.append(Pack('ffff', *vmeta[1][:4]));
-        def out_wei(out, attribindex): out.append(Pack('ffff', *vmeta[2][:4]));
+        def out_bon(out, attribindex): out.append(Pack(4*FCODE, *vmeta[1][:4]));
+        def out_boi(out, attribindex): out.append(Pack('4B', *vmeta[2]));
+        def out_wei(out, attribindex): out.append(Pack(4*FCODE, *vmeta[3][:4]));
         
         outwritemap = {
             VBF_POS: out_pos, VBF_NOR: out_nor, VBF_TAN: out_tan, VBF_BTN: out_btn,
-            VBF_TEX: out_tex, VBF_COL: out_col, VBF_RGB: out_rgb, 
-            VBF_BON: out_bon, VBF_WEI: out_wei
+            VBF_UVS: out_tex, VBF_COL: out_col, VBF_RGB: out_rgb, 
+            VBF_BON: out_bon, VBF_BOI: out_boi, VBF_WEI: out_wei
         }
         
         format_enumerated = tuple(enumerate(format))
@@ -512,10 +530,10 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
         
         for p in targetpolys:
             matkey = p[2]
-            if matkey not in outdata.keys():
-                outdata[matkey] = []
-                outcounts[matkey] = 0
-            outcounts[matkey] += p[0]
+            if matkey not in materialvbytes.keys():
+                materialvbytes[matkey] = []
+                materialvcounts[matkey] = 0
+            materialvcounts[matkey] += p[0]
             outblock = []
             
             for li in p[1]:
@@ -523,14 +541,14 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 lmeta = loopmeta[p[4][li]]
                 
                 [outwritemap[attribkey](outblock, attribindex) for attribindex, attribkey in format_enumerated]
-            outdata[matkey] += outblock
+            materialvbytes[matkey] += outblock
         
         # Join byte blocksobj.data.materials
-        outdata = {matnames[k] if x in range(0, len(matnames)) else '__': b''.join(x) for k,x in outdata.items()}
-        outcounts = {matnames[k] if x in range(0, len(matnames)) else '__': x for k,x in outcounts.items()}
+        materialvbytes = {matnames[k] if x in range(0, len(matnames)) else '__': b''.join(x) for k,x in materialvbytes.items()}
+        materialvcounts = {matnames[k] if x in range(0, len(matnames)) else '__': x for k,x in materialvcounts.items()}
         
         t = time.time()-t
-        PrintStatus(' Complete (%s Vertices, Byte Exec time: %.6f sec)' % (sum(outcounts.values()), t) )
+        PrintStatus(' Complete (%s Vertices, Byte Exec time: %.6f sec)' % (sum(materialvcounts.values()), t) )
         PrintStatus('\n')
     else:
         PrintStatus(' Object is instancer and hidden. Moving to instances.')
@@ -541,11 +559,10 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
     bpy.data.objects.remove(dupobj)
     
     # Instancing
-    #print(sourceobj.instance_type)
-    #print([x.object.parent.name for x in dg.object_instances if x.parent])
     if sourceobj.instance_type != 'NONE':
         for inst in set([x.object.original for x in dg.object_instances if (x.parent and x.parent.original == sourceobj)]):
-            moreoutdata, moreoutcounts = GetVBData(
+            instvbytes, instvcounts = GetVBData(
+                context=context,
                 sourceobj=inst, 
                 format=format, 
                 settings=settings, 
@@ -553,387 +570,15 @@ def GetVBData(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vc
                 vctarget=vctarget, 
                 instancerun=True
                 )
-            for k in moreoutdata.keys():
-                if k not in outdata:
-                    outdata[k] = moreoutdata[k]
-                    outcounts[k] = moreoutcounts[k]
+            for k in instvbytes.keys():
+                if k not in materialvbytes:
+                    materialvbytes[k] = instvbytes[k]
+                    materialvcounts[k] = instvcounts[k]
                 else:
-                    outdata[k] += moreoutdata[k]
-                    outcounts[k] += moreoutcounts[k]
+                    materialvbytes[k] += instvbytes[k]
+                    materialvcounts[k] += instvcounts[k]
     
-    return (outdata, outcounts)
+    return (materialvbytes, materialvcounts)
 
-def GetVBData_old(sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL]):
-    context = bpy.context
-    
-    PrintStatus('> Composing data for \"%s\":' % sourceobj.name, 0)
-    
-    armature = None
-    formatneedsbones = VBF_BON in format or VBF_WEI in format
-    formatneedsbones = formatneedsbones and not settings.get('applyarmature', 0)
-    
-    # Duplicate source
-    workingmesh = sourceobj.data.copy()
-    workingobj = sourceobj.copy()
-    workingobj.name += '__temp'
-    workingmesh.name += '__temp'
-    context.scene.collection.objects.link(workingobj)
-    workingobj.data = workingmesh
-    workingmesh.update()
-    
-    # Check for instancing
-    if sourceobj.is_instancer and sourceobj.children:
-        InstancerRun(-1, context, sourceobj, workingobj)
-        #workingmesh = workingobj.data.copy()
-        #workingobj.data = workingmesh
-    
-    bpy.ops.object.select_all(action='DESELECT')
-    workingobj.select_set(True)
-    bpy.context.view_layer.objects.active = workingobj
-    
-    # Find armature
-    armature = workingobj.find_armature()
-    
-    # Apply shape keys
-    if workingmesh.shape_keys:
-        PrintStatus(' Applying shape keys...')
-        
-        bpy.ops.object.shape_key_add(from_mix = True)
-        shape_keys = workingmesh.shape_keys.key_blocks
-        count = len(shape_keys)
-        for i in range(0, count):
-            workingobj.active_shape_key_index = 0
-            bpy.ops.object.shape_key_remove(all=False)
-    
-    # Apply modifiers
-    maxsubdivisions = settings.get('maxsubdivisions', -1)
-    modreq = settings.get('modifierpick', MTY_OR)
-    applyarmature = settings.get('applyarmature', 0)
-    
-    if workingobj.modifiers != None:
-        PrintStatus(' Applying Modifiers...')
-        
-        modifiers = workingobj.modifiers
-        for i, m in enumerate(modifiers):
-            # Skip Bang Modifiers
-            if (m.name[0] == '!'):
-                bpy.ops.object.modifier_remove(modifier = m.name)
-                continue
-            
-            # Modifier requirements
-            vshow = m.show_viewport
-            rshow = m.show_render
-            if (
-                (modreq == MTY_VIEW and not vport) or 
-                (modreq == MTY_RENDER and not rport) or 
-                (modreq == MTY_OR and not (vshow or rshow)) or 
-                (modreq == MTY_AND and not (vshow and rshow))
-                ):
-                bpy.ops.object.modifier_remove(modifier = m.name)
-                continue
-            
-            # Subdivision maximum
-            if m.type == 'SUBSURF':
-                if maxsubdivisions >= 0:
-                    m.levels = min(m.levels, maxsubdivisions)
-            
-            # Apply enabled modifiers
-            if m.type == 'ARMATURE':
-                if applyarmature:
-                    bpy.ops.object.modifier_apply(modifier = m.name)
-                elif formatneedsbones:
-                    bpy.ops.object.modifier_move_to_index(modifier=m.name, index=len(modifiers)-1)
-                else:
-                    bpy.ops.object.modifier_remove(modifier = m.name)
-            else:
-                try:
-                    # Data Transfer can crash if source object is not set
-                    bpy.ops.object.modifier_apply(modifier = m.name)
-                except:
-                    print('> Modifier "%s" unable to apply' % m.name)
-                    bpy.ops.object.modifier_remove(modifier = m.name)
-        
-        # Force Quads (For Tangents and bitangents)
-        minquads = modifiers.new('MinQuads', 'TRIANGULATE')
-        bpy.ops.object.modifier_move_to_index(modifier='MinQuads', index=0)
-        minquads.min_vertices = 5
-        bpy.ops.object.modifier_apply(modifier = 'MinQuads')
-    
-    if not formatneedsbones:
-        armature = None
-    
-    PrintStatus(' Setting up vertex data...')
-    
-    # Apply Transforms
-    #for c in workingobj.constraints:
-    #    workingobj.constraints.remove(c)
-    
-    # "Fine. I'll do it myself."
-    worldmat = settings.get('matrix', mathutils.Matrix()) @ workingobj.matrix_world
-    loc, rot, scale = worldmat.decompose()
-    workingobj.matrix_world = mathutils.Matrix()
-    workingmesh = workingobj.to_mesh()
-    for v in workingmesh.vertices:
-        v.co.rotate(rot)
-        v.co *= scale
-        v.co += loc
-    
-    
-    # Calc data
-    workingmesh.calc_loop_triangles()
-    usetris = (len(workingmesh.loop_triangles) > 0) and (not settings.get('edgesonly', False))
-    if usetris:
-        workingmesh.calc_normals_split()
-        if workingmesh.uv_layers:
-            workingmesh.calc_tangents()
-    
-    workingmesh.update()
-    
-    # Setup Object Data
-    vertices = workingmesh.vertices
-    loops = workingmesh.loops
-    
-    # Find active group for layer if exists, else create new and use it
-    vgroupsexist = len(workingobj.vertex_groups) > 0
-    if not vgroupsexist:
-        workingobj.vertex_groups.new()
-    vgroups = workingobj.vertex_groups
-    
-    # Correct vertex groups
-    if armature and vgroupsexist:
-        group_select_mode = 'BONE_DEFORM'
-        try:
-            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0.0001, keep_single=True)
-            bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4)
-            bpy.ops.object.vertex_group_normalize_all(group_select_mode=group_select_mode, lock_active=False)
-        except:
-            group_select_mode = 'ALL'
-            bpy.ops.object.vertex_group_clean(group_select_mode=group_select_mode, limit=0.0001, keep_single=True)
-            bpy.ops.object.vertex_group_limit_total(group_select_mode=group_select_mode, limit=4)
-            bpy.ops.object.vertex_group_normalize_all(group_select_mode=group_select_mode, lock_active=False)
-    
-    # Handle Layers -----------------------------------------------------
-    def FindLayers(layerlist, targetlist, targetpick):
-        if not layerlist:
-            targetlist = layerlist.new().name
-        
-        if not type(targetlist) == list:
-            targetlist = [targetlist]
-        targetlist += [targetlist[-1]] * (len(format) - len(targetlist))
-        
-        attriblayers = [0] * len(targetlist)
-        for i, t in enumerate(targetlist):
-            if t in [y.name for y in layerlist]:
-                attriblayers[i] = layerlist[t].data
-            elif targetpick or t == LYR_RENDER:
-                attriblayers[i] = [x for x in layerlist if x.active_render][0].data
-        return (layerlist, attriblayers)
-    
-    uvlayers, uvattriblayers = FindLayers(workingmesh.uv_layers, uvtarget, settings.get('uvlayerpick', 1))
-    vclayers, vcattriblayers = FindLayers(workingmesh.vertex_colors, vctarget, settings.get('colorlayerpick', 1))
-    
-    # Set up armature
-    if armature:
-        bones = armature.data.bones
-        
-        if settings.get('deformonly', False):
-            bones = [b for b in armature.data.bones if b.use_deform]
-        
-        bonenames = [b.name for b in bones]
-        grouptobone = {vg.index: bonenames.index(vg.name) for vg in vgroups if vg.name in bonenames}
-        validvgroups = [vg.index for vg in vgroups if vg.name in bonenames]
-    else:
-        grouptobone = {vg.index: vg.index for vg in vgroups}
-        validvgroups = grouptobone.values()
-    
-    # Compose data
-    out = { (m.name if m else '__null'): [b''] for m in workingmesh.materials} # {materialname: vertexdata[]}
-    if not out:
-        out = {'0': [b'']}
-    materialnames = [m.name for m in workingmesh.materials] if workingmesh.materials else ['0']
-    materialcount = len(materialnames)
-    
-    stride = 0
-    for k in format:
-        stride += VBFSize[k]
-    
-    vertexcounts = {k: 0 for k in out.keys()}
-    chunksize = 1024
-    
-    vgesortfunc = lambda x: x.weight
-    range2 = range(0, 2)
-    range3 = range(0, 3)
-    
-    normalsign = -1.0 if settings.get('reversewinding', False) else 1.0
-    scale = settings.get('scale', (1.0, 1.0, 1.0))
-    flipuvs = settings.get('flipuvs', True)
-    
-    # Triangles ----------------------------------------------------------------------------
-    if usetris:
-        PrintStatus(' Writing Triangles...')
-        
-        def fPOS(attribindex): materialgroup[-1] += PackVector(FCODE, v.co)
-        def fNOR(attribindex): materialgroup[-1] += PackVector(FCODE, p_normals[i]*normalsign)
-        def fTAN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].tangent*normalsign)
-        def fBTN(attribindex): materialgroup[-1] += PackVector(FCODE, loops[l].bitangent*normalsign)
-        def fTEX(attribindex): materialgroup[-1] += PackVector(FCODE, (
-            uvattriblayers[attribindex][l].uv[0], (1.0-uvattriblayers[attribindex][l].uv[1])) if flipuvs else uvattriblayers[attribindex][l].uv[1])
-        def fCOL(attribindex): materialgroup[-1] += PackVector(FCODE, vcattriblayers[attribindex][l].color)
-        def fRGB(attribindex): materialgroup[-1] += PackVector('B', [ int(x*255.0) for x in vcattriblayers[attribindex][l].color])
-        def fBON(attribindex):
-            vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc)
-            materialgroup[-1] += PackVector(FCODE, ([grouptobone[vge.group] for vge in vgelements]+[0,0,0,0])[:4])
-        def fBOI(attribindex):
-            vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc)
-            materialgroup[-1] += PackVector('B', ([grouptobone[vge.group] for vge in vgelements]+[0,0,0,0])[:4])
-        def fWEI(attribindex):
-            vgelements = sorted([vge for vge in v.groups if vge.group in validvgroups], reverse=True, key=vgesortfunc)
-            materialgroup[-1] += PackVector(FCODE, ([vge.weight for vge in vgelements]+[0,0,0,0])[:4])
-        
-        fFunc = {
-            VBF_POS : fPOS,
-            VBF_NOR : fNOR,
-            VBF_TAN : fTAN,
-            VBF_BTN : fBTN,
-            VBF_TEX : fTEX,
-            VBF_COL : fCOL,
-            VBF_RGB : fRGB,
-            VBF_BON : fBON,
-            VBF_BOI : fBOI,
-            VBF_WEI : fWEI,
-        }
-        
-        #tt = time.time()
-        num = len(workingmesh.loop_triangles) * 3
-        pindex = 0
-        t = time.time()
-        for p in workingmesh.loop_triangles[:]: # For all mesh's triangles...
-            p_loops = p.loops
-            p_vertices = p.vertices
-            p_normals = [mathutils.Vector(x) for x in p.split_normals]
-            
-            groupkey = materialnames[min(p.material_index, max(0, materialcount-1))]
-            materialgroup = out[ groupkey ]
-            if len(materialgroup[-1]) >= chunksize:
-                materialgroup.append(b'')
-            
-            vertexcounts[groupkey] += 3
-            
-            for i in range3: # For each vertex index...
-                l = p_loops[i]
-                v = vertices[ p_vertices[i] ]
-                [fFunc[formatentry](i) for i, formatentry in enumerate(format)]
-        
-        PrintStatus(' Writing Vertices %.4fs' % (time.time()-t))
-        #print('Time: %s' % (time.time() - tt))
-    # Edges ----------------------------------------------------------------------------
-    else:
-        PrintStatus(' Writing Edges...')
-        
-        for p in workingmesh.edges[:]: # For all mesh's edges...
-            p_vertices = p.vertices
-            
-            materialgroup = out[materialnames[0]]
-            if len(materialgroup[-1]) >= chunksize:
-                materialgroup.append(b'')
-            
-            vertexcounts[materialnames[0]] += 2
-            
-            for i in range2: # For each vertex index...
-                v = vertices[ p_vertices[i] ]
-                normal = v.normal
-                
-                for formatentry in format: # For each attribute in vertex format...
-                    if formatentry == VBF_POS: # Position
-                        materialgroup[-1] += PackVector(FCODE, v.co)
-                    
-                    elif formatentry == VBF_NOR: # Normal
-                        materialgroup[-1] += PackVector(FCODE, normal)
-                    
-                    elif formatentry == VBF_TAN: # Tangent
-                        materialgroup[-1] += PackVector(FCODE, normal)
-                    
-                    elif formatentry == VBF_BTN: # Bitangent
-                        materialgroup[-1] += PackVector(FCODE, normal)
-                    
-                    elif formatentry == VBF_TEX: # Texture
-                        materialgroup[-1] += PackVector(FCODE, (i, v.index/len(vertices)))
-                    
-                    elif formatentry == VBF_COL: # Color
-                        materialgroup[-1] += PackVector(FCODE, [1.0]*4)
-                    
-                    elif formatentry == VBF_RGB: # Color
-                        materialgroup[-1] += PackVector('B', [255]*4)
-                    
-                    elif formatentry == VBF_BON: # Bone
-                        vertbones = [grouptobone[vge.group] for vge in v.groups if vge.group in validvgroups]
-                        vertbones += [0] * (4-len(vertbones))
-                        materialgroup[-1] += PackVector(FCODE, vertbones[:4])
-                    
-                    elif formatentry == VBF_WEI: # Weight
-                        vertweights = [vge.weight for vge in v.groups if vge.group in validvgroups]
-                        vertweights += [0] * (4-len(vertweights))
-                        weightmagnitude = sum(vertweights)
-                        if weightmagnitude != 0:
-                            materialgroup[-1] += PackVector(FCODE, [x/weightmagnitude for x in vertweights[:4]])
-                        else:
-                            materialgroup[-1] += PackVector(FCODE, [x for x in vertweights[:4]])
-    
-    for k in out.keys():
-        out[k] = b''.join(out[k])
-    #print('vcounts: %s' % [vertexcounts])
-    if 0:
-        for name, data in out.items():
-            print("\"%s\" (%d): " % (name, len(data) / stride))
-            for i in range(0, len(data[:40]), stride):
-                s = "".join(["%.2f, " % x for x in data[i:i+stride]])
-                print("< %s>" % s)
-    
-    # Restore State
-    workingobj.to_mesh_clear()
-    bpy.data.objects.remove(workingobj)
-    #bpy.data.meshes.remove(workingmesh)
-    
-    bpy.context.view_layer.objects.active = sourceobj
-    sourceobj.select_set(1)
-    
-    PrintStatus('\n')
-    
-    return (out, vertexcounts)
-
-def RemoveTempObjects():
-    blendobjects = bpy.data.objects
-    for obj in blendobjects:
-        if '__temp' in obj.name:
-            blendobjects.remove(obj)
-    
-    blendmeshes = bpy.data.meshes
-    for me in blendmeshes:
-        if '__temp' in me.name:
-            blendmeshes.remove(me)
-    
-    blendarmatures = bpy.data.armatures
-    for arm in blendmeshes:
-        if '__temp' in arm.name:
-            blendarmatures.remove(arm)
-    
-def ComposeOutFlag(self):
-    flag = 0
-    if self.floattype == 'd':
-        flag |= 1 << 0
-    elif self.floattype == 'e':
-        flag |= 1 << 1
-    return Pack('B', flag)
-
-def ComposeOutFormat(self, format = -1):
-    if format == -1:
-        format = self.format
-    
-    out_format = b''
-    out_format += Pack('B', len(format)) # Format length
-    for f in format:
-        out_format += Pack('B', VBFType[f]) # Attribute Type
-        out_format += Pack('B', VBFSize[f]) # Attribute Float Size
-    return Pack('B', out_format)
 
 
