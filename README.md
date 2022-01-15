@@ -1,4 +1,5 @@
 # DmrVBX by Dreamer13sq
+###### (Name is subject to change since someone's already using "vbx" for a similar project)
 ### Import/Export tools for loading .vb and .vbx vertex buffer data out of Blender and in to Game Maker Studio 2.3
 
 #### NOTE: If cloned straight from GitHub not all features are guranteed to work correctly.  
