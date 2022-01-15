@@ -10,7 +10,7 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf = vertex_format_end();
 
-vb = OpenVertexBuffer("curly_normal.vb", vbf);
+vb = OpenVertexBuffer(DIRPATH + "curly_normal.vb", vbf);
 
 drawmatrix = BuildDrawMatrix();
 
@@ -21,3 +21,4 @@ u_shd_model_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
 u_shd_model_light = shader_get_uniform(_shd, "u_light");
 
 event_user(1);
+

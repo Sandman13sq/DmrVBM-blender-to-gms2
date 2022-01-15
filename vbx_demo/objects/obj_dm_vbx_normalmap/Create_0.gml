@@ -12,7 +12,7 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf = vertex_format_end();
 
-vbx = OpenVBX("curly_tangent.vbx", vbf);
+vbx = OpenVBX(DIRPATH + "curly_tangent.vbx", vbf);
 
 // Control Variables
 meshselect = 0;

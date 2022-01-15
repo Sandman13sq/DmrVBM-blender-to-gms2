@@ -40,7 +40,7 @@ function LoadAniTrack(_path)
 	var bcompressed = buffer_load(_path);
 	if bcompressed == -1
 	{
-		printf("LoadAniTrack(): Error loading file \"%s\"", _path);
+		show_debug_message("LoadAniTrack(): Error loading file \""+ _path + "\"");
 		return 0;
 	}
 	var b = buffer_decompress(bcompressed);
@@ -89,7 +89,7 @@ function LoadAniTrack(_path)
 	var numtracks = buffer_read(b, buffer_u16);
 	out.trackcount = numtracks;
 	
-	printf(numtracks);
+	show_debug_message(numtracks);
 	
 	array_resize(out.tracks, numtracks);
 	array_resize(out.tracknames, numtracks);
@@ -183,7 +183,7 @@ function LoadAniTrack(_path)
 		
 	buffer_delete(b);
 		
-	printf("Returning Animation...");
+	show_debug_message("Returning Animation...");
 	
 	return out;
 }

@@ -2,8 +2,6 @@
 
 event_user(0);
 
-DIRPATH = "D:/GitHub/DmrVBX/vbx_demo/datafiles/"
-
 Structor_VBFormat(1);
 
 enum ModelType
