@@ -13,8 +13,8 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Wei
 vbf = vertex_format_end();
 
 vbx = OpenVBX(demo.DIRPATH + "curly_rigged.vbx", vbf);
-trackdata_anim = LoadAniTrack("curly_anim.trk");	// Animation
-trackdata_poses = LoadAniTrack("curly_poses.trk");	// Poses with markers
+trackdata_anim = LoadAniTrack(demo.DIRPATH + "curly_anim.trk");	// Animation
+trackdata_poses = LoadAniTrack(demo.DIRPATH + "curly_poses.trk");	// Poses with markers
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones
@@ -50,6 +50,9 @@ skinsss = 0.0;
 LoadDiffuseTextures();
 
 drawmatrix = BuildDrawMatrix();
+
+if vbx.FindVBIndex("curly_gun_mod") != -1
+	{meshvisible[vbx.FindVBIndex("curly_gun_mod")] = 0;}
 
 // Uniforms ========================================================
 var _shd;

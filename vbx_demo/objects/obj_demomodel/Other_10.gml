@@ -142,13 +142,15 @@ function DrawMeshFlash(uniform)
 	var zfunc = gpu_get_zfunc();
 	
 	gpu_set_zfunc(cmpfunc_always);
-	shader_set_uniform_f_array(uniform, 
-		BuildDrawMatrix(1, 1, 1, 0, 0, 0, c_white, 0.5));
 	for (var i = 0; i < n; i++)
 	{
-		if ( meshvisible[i] && BoolStep(meshflash[i], 4) )
+		if ( meshvisible[i] && meshflash[i] > 0 )
 		{
-			vbx.SubmitVBIndex(i, pr_trianglelist, -1);
+			shader_set_uniform_f_array(uniform, 
+				BuildDrawMatrix(1, 1, 1, 0, 0, 0, c_white, 
+					power(dsin(180*meshflash[i]/demo.flashtime), 2.0)
+					));
+			vbx.SubmitVBIndex(i, pr_trianglelist, demo.usetextures? meshtexture[i]: -1);
 		}
 	}
 	gpu_set_zfunc(zfunc);
@@ -177,7 +179,7 @@ function LoadNormalTextures()
 	var _tex_skin = sprite_get_texture(tex_curly_skin_nor, 0);
 	var _tex_def = sprite_get_texture(tex_curly_def_nor, 0);
 	var _tex_hair = sprite_get_texture(tex_curly_hair_nor, 0);
-	var _tex_gun = sprite_get_texture(tex_curly_gun_col, 0);
+	//var _tex_gun = sprite_get_texture(tex_curly_gun_nor, 0);
 	var i;
 	
 	for (var i = 0; i < vbx.vbcount; i++)
@@ -186,6 +188,6 @@ function LoadNormalTextures()
 		if string_pos("skin", vbx.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
 		if string_pos("eye", vbx.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
 		if string_pos("hair", vbx.vbnames[i]) {meshnormalmap[i] = _tex_hair;}
-		if string_pos("gun", vbx.vbnames[i]) {meshnormalmap[i] = _tex_gun;}
+		//if string_pos("gun", vbx.vbnames[i]) {meshnormalmap[i] = _tex_gun;}
 	}
 }
