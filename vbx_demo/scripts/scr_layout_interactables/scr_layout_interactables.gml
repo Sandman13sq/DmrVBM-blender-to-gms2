@@ -252,6 +252,11 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 	
 	function Update()
 	{
+		if (active || typing)
+		{
+			common.active = self;
+		}
+		
 		color[0] = common.c_base;
 		color[1] = common.c_base;
 		color[2] = common.c_base;
@@ -270,7 +275,6 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			{
 				common.cursorsprite = cr_none;
 				color[1] = common.c_active;
-				common.active = self;
 				
 				//var d = window_mouse_get_x()-window_get_width()/2;
 				//window_mouse_set(window_get_width()/2, window_get_height()/2);
@@ -484,6 +488,11 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 				valueanchor = value;
 				active = false;
 			}	
+		}
+		
+		if (active || typing)
+		{
+			common.active = self;
 		}
 	}
 	

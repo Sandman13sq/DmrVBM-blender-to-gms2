@@ -1,16 +1,18 @@
 /*
 */
 
-enum AniTrack_Intrpl
+#macro TRKHEADERCODE 0x004b5254
+
+enum TRK_Intrpl
 {
 	constant = 0,
 	linear = 1,
 	smooth = 2,
 }
 
-function AniTrackData() constructor
+function TRKData() constructor
 {
-	tracks = []; // array of AniTrackData_Track
+	tracks = []; // array of TRKData_Track
 	tracknames = [];	// (bone) names for each track
 	trackmap = {}; // {trackname: track} for each track
 	trackcount = 0;
@@ -27,37 +29,90 @@ function AniTrackData() constructor
 	flag = 0;
 }
 
-function AniTrackData_Track() constructor
+function TRKData_Track() constructor
 {
 	frames = [];
 	vectors = [];
 	count = 0;
 }
 
-// Returns animation struct from file (.ani)
-function LoadAniTrack(_path)
+// Returns animation struct from file (.trk)
+function OpenTRK(path)
 {
-	var bcompressed = buffer_load(_path);
-	if bcompressed == -1
+	if filename_ext(path) == ""
 	{
-		show_debug_message("LoadAniTrack(): Error loading file \""+ _path + "\"");
-		return 0;
+		path = filename_change_ext(path, ".trk");	
 	}
-	var b = buffer_decompress(bcompressed);
-	buffer_delete(bcompressed);
+	
+	var bzipped = buffer_load(path);
+	
+	if bzipped < 0
+	{
+		show_debug_message("OpenTRK(): Error loading track data from \"" + path + "\"");
+		return -1;
+	}
+	
+	var b = buffer_decompress(bzipped);
+	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	
+	var header;
+	
+	// Header
+	header = buffer_peek(b, 0, buffer_u32);
+	
+	// Not a trk file
+	if ( (header & 0x00FFFFFF) != TRKHEADERCODE )
+	{
+		show_debug_message("OpenTRK(): header is invalid \"" + path + "\"");
+		return new VBXData();
+	}
+	
+	switch(header & 0xFF)
+	{
+		default:
 		
-	/*
-		bonecount
-		maxframe
-		tracks[bonecount]
-			trackname
-			transforms[10]
-				pair[2]
-					frame
-					value
+		// Version 1
+		case(1): 
+			return __TRKOpen_v1(b);
+	}
+	
+	return -1;
+}
+
+function __TRKOpen_v1(b)
+{
+	/* File spec:
+		'TRK' (3B)
+	    TRK Version (1B)
+    
+	    flags (1B)
+	    fps (1f)
+	    animationlength (1f)
+    
+	    numtracks (4B)
+	    tracknames[numtracks]
+	        namelength (1B)
+	        namechars[namelength]
+	            chr (1B)
+    
+	    trackdata[numtracks]
+	        numframes (4B)
+	        framepositions[numframes]
+	            position (1f)
+	        framevectors[numframes]
+	            vector[3]
+	                value (1f)
+    
+	    nummarkers (4B)
+	    markernames[nummarkers]
+	        namelength (1B)
+	        namechars[namelength]
+	            char (1B)
+	    markerpositions[nummarkers]
+	        position (1f)
 	*/
-		
-	var out = new AniTrackData();
+	
+	var out = new TRKData();
 	var flag;
 	
 	var namelength;
@@ -71,7 +126,9 @@ function LoadAniTrack(_path)
 	// Animation Original FPS
 	out.framespersecond = buffer_read(b, buffer_f32);
 	// Animation Length
-	out.length = buffer_read(b, buffer_u16);
+	out.length = buffer_read(b, buffer_f32);
+	
+	show_debug_message([flag, out.framespersecond, out.length])
 	
 	// Transforms -------------------------------------------------
 	
@@ -86,10 +143,10 @@ function LoadAniTrack(_path)
 	
 	var v, f;
 	
-	var numtracks = buffer_read(b, buffer_u16);
+	var numtracks = buffer_read(b, buffer_u32);
 	out.trackcount = numtracks;
 	
-	show_debug_message(numtracks);
+	show_debug_message(["numtracks", numtracks]);
 	
 	array_resize(out.tracks, numtracks);
 	array_resize(out.tracknames, numtracks);
@@ -108,7 +165,8 @@ function LoadAniTrack(_path)
 		
 	// Read tracks
 	for (var trackindex = 0; trackindex < numtracks; trackindex++)
-	{		
+	{
+		show_debug_message([trackindex, out.tracknames[trackindex]])
 		transformtracks = array_create(3); // [location<3>, quaternion<4>, scale<3>]
 		
 		// For each transform vector [location<3>, quaternion<4>, scale<3>]
@@ -116,9 +174,11 @@ function LoadAniTrack(_path)
 		{
 			vectorsize = (transformindex == 1)? 4:3; // 4 for quats, 3 for location and scale
 			
-			numframes = buffer_read(b, buffer_u16); // Frame Count
+			numframes = buffer_read(b, buffer_u32); // Frame Count
 			
-			track = new AniTrackData_Track();
+			show_debug_message([transformindex, "numframes", numframes])
+			
+			track = new TRKData_Track();
 			trackframes = array_create(numframes);
 			trackvectors = array_create(numframes);
 			
@@ -127,6 +187,8 @@ function LoadAniTrack(_path)
 			{
 				trackframes[f] = buffer_read(b, buffer_f32);
 			}
+			
+			show_debug_message(trackframes)
 			
 			if numframes > 0
 			{
@@ -145,6 +207,7 @@ function LoadAniTrack(_path)
 				}
 				
 				trackvectors[f] = vector; // Vector
+				show_debug_message(vector)
 			}
 			
 			track.count = numframes;
@@ -158,7 +221,7 @@ function LoadAniTrack(_path)
 	}
 	
 	// Markers -----------------------------------------------------
-	var nummarkers = buffer_read(b, buffer_u16);
+	var nummarkers = buffer_read(b, buffer_u32);
 	out.markercount = nummarkers;
 	
 	array_resize(out.markerpositions, nummarkers);
@@ -257,14 +320,11 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 		outposematrix = outpose[@ t]; // Target Bone Matrix
 		t++;
 		
-		//array_copy(outposematrix, 0, mat4identity, 0, 16);
-		
 		// For each transform (location, scale, rotation)
 		// Performs in this order: Translation, Rotation, Scale
 		for (ttype = 0; ttype < 3; ttype++)
-		//for (ttype = 2; ttype >= 0; ttype--)
 		{
-			track = transformtracks[ttype]; // AniTrackData_Track
+			track = transformtracks[ttype]; // TRKData_Track
 			trackframes = track.frames;
 			trackvectors = track.vectors;
 			findexmax = track.count - 1;
@@ -358,9 +418,9 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				// Apply Interpolation
 				switch(interpolationtype)
 				{
-					case(AniTrack_Intrpl.constant): blendamt = blendamt >= 0.99; break;
-					//case(AniTrack_Intrpl.linear): blendamt = blendamt; break;
-					case(AniTrack_Intrpl.smooth): blendamt = 0.5*(1-cos(pi*blendamt)); break;
+					case(TRK_Intrpl.constant): blendamt = blendamt >= 0.99; break;
+					//case(TRK_Intrpl.linear): blendamt = blendamt; break;
+					case(TRK_Intrpl.smooth): blendamt = 0.5*(1-cos(pi*blendamt)); break;
 				}
 				
 				// Apply Transform
@@ -491,20 +551,6 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 						}
 						
 						break;
-				}
-				
-				continue;
-				
-				if bonekeys != 0
-				if t < 120
-				if bonekeys[t] == "hand_r" && ttype == 2
-				{
-					execinfo = "";
-					execinfo += stringf("Current Pos: %F", pos) + "\n";
-					execinfo += stringf("Pos: [%F, %F]", poscurr, posnext) + "\n";
-					execinfo += stringf("Frame: [%d, %d]", findexcurr, findexnext) + "\n";
-					execinfo += stringf("Blend Amount: %F", blendamt) + "\n";
-					execinfo += stringf("Quat: %s", quat) + "\n";
 				}
 			}
 		}

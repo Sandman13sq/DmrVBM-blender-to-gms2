@@ -15,8 +15,8 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Wei
 vbf = vertex_format_end();
 
 vbx = OpenVBX(DIRPATH + "curly_complete.vbx", vbf);
-trackdata_anim = LoadAniTrack(DIRPATH + "curly_anim.trk");	// Animation
-trackdata_poses = LoadAniTrack(DIRPATH + "curly_poses.trk");	// Poses with markers
+trackdata_anim = OpenTRK(DIRPATH + "curly_anim.trk");	// Animation
+trackdata_poses = OpenTRK(DIRPATH + "curly_poses.trk");	// Poses with markers
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones
@@ -40,7 +40,7 @@ vbmode = 1;
 
 wireframe = 0;
 demo.usetextures = false;
-interpolationtype = AniTrack_Intrpl.linear;
+interpolationtype = TRK_Intrpl.linear;
 
 playbacktimeline = new PlaybackTimeline(trackdata_anim);
 

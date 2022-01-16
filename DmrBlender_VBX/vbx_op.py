@@ -356,6 +356,12 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         description="Level of zlib compression to apply to export.\n0 for no compression. -1 for zlib default compression",
     )
     
+    float_type : bpy.props.EnumProperty(
+        name="Float Type", 
+        description='Data type to export floats in for vertex attributes and bone matrices', 
+        items=Items_FloatChoice, default='f'
+    )
+    
     # Vertex Attributes
     VbfProp = lambda i,key: bpy.props.EnumProperty(name="Attribute %d" % i, 
         description='Data to write for each vertex', items=Items_VBF, default=key)
@@ -563,12 +569,6 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
     export_armature : bpy.props.BoolProperty(
         name="Export Armature", default = True,
         description="Include any selected or related armature on export",
-    )
-    
-    float_type : bpy.props.EnumProperty(
-        name="Float Type", 
-        description='Data type to export floats in for vertex attributes and bone matrices', 
-        items=Items_FloatChoice, default='f'
     )
     
     def draw(self, context):

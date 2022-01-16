@@ -24,12 +24,13 @@ void main()
 	// Uniforms -------------------------------------------------------
 	float alpha = u_drawmatrix[0][0];
 	float emission = u_drawmatrix[0][1];
-	float roughness = 1.0-u_drawmatrix[0][2];
+	float roughness = u_drawmatrix[0][2];
 	float rim = u_drawmatrix[0][3];
 	vec4 colorblend = u_drawmatrix[1];
 	vec4 colorfill = u_drawmatrix[2];
 	
 	// Varyings -------------------------------------------------------
+	// There's some error when normalizing in vertex shader. Looks smoother here
 	vec3 n = normalize(v_normal_cs);		// Vertex Normal
 	vec3 l = normalize(v_dirtolight_cs);	// Light Direction
 	vec3 e = normalize(v_dirtocamera_cs);	// Camera Direction
@@ -38,10 +39,10 @@ void main()
 	// Vars -------------------------------------------------------------
 	float dp = clamp(dot(n, l), 0.0, 1.0);	// Dot Product
 	float fresnel = 1.0-clamp(dot(n, e), 0.0, 1.0);	// Fake Fresnel
-	float shine = clamp( dot(e, r), 0.0, 1.0);	// Specular
+	float shine = dot(e, r);	// Specular
 	
 	dp = pow(dp, DP_EXP);
-	shine = pow(shine, max(EULERNUMBER, shine) * SPE_EXP * roughness + 0.00001 );
+	shine = pow( sqrt((shine+1.0)*0.5), pow(1.0/(roughness+0.001), 4.0) ) * 1.0 * (1.0-roughness);
 	fresnel = pow(fresnel, RIM_EXP)*rim;
 		
 	// Colors ----------------------------------------------------------------
@@ -55,10 +56,10 @@ void main()
 	// Output ----------------------------------------------------------------
 	vec3 outcolor = diffusecolor.rgb * (dp+1.0) / 2.0;	// Shadow
 	outcolor += vec3(0.01, 0.0, 0.05) * (1.0-dp);	// Ambient
-	outcolor += diffusecolor.rgb * shine * roughness;	// Specular
+	outcolor += (diffusecolor.rgb + (pow(1.0-roughness, 8.0))) * shine*shine;	// Specular
 	outcolor += vec3(0.5) * fresnel;	// Rim
 	
-	outcolor = mix(outcolor, diffusecolor.rgb, emission+(1.0-v_color.a)); // Emission
+	outcolor = mix(outcolor, diffusecolor.rgb, emission+(1.0-v_color.a-(1.0-v_color.a)*emission)); // Emission
 	outcolor = mix(outcolor, colorblend.rgb*outcolor.rgb, colorblend.a); // Blend Color
 	outcolor = mix(outcolor, colorfill.rgb, colorfill.a); // Fill Color
 	

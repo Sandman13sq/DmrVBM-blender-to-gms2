@@ -13,42 +13,51 @@ QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
 
 ANIVERSION = 1
 
-"""
-    header = 'ANI<version>'
+# TRK format
+'''
+    'TRK' (3B)
+    TRK Version (1B)
     
-    flag
-        1<<0 = Frames are normalized
-    maxframe
-    trackcount
-    tracknames[trackcount]
-    trackdata[trackcount]
-        location_framecount
-        location_framepositions[location_framecount]
-        location_vectors[location_framecount]
+    flags (1B)
+    fps (1f)
+    animationlength (1f)
+    
+    numtracks (4B)
+    tracknames[numtracks]
+        namelength (1B)
+        namechars[namelength]
+            char (1B)
+    
+    trackdata[numtracks]
+        numframes (4B)
+        framepositions[numframes]
+            position (1f)
+        framevectors[numframes]
             vector[3]
-        
-        quaternion_framecount
-        quaternion_framepositions[quaternion_framecount]
-        quaternion_vectors[quaternion_framecount]
-            vector[4]
-        
-        scale_framecount
-        scale_framepositions[scale_framecount]
-        scale_vectors[scale_framecount]
-            vector[3]
+                value (1f)
     
-    markercount
-    markernames[markercount]
-    markerframepositions[markercount]
+    nummarkers (4B)
+    markernames[nummarkers]
+        namelength (1B)
+        namechars[namelength]
+            char (1B)
+    markerpositions[nummarkers]
+        position (1f)
     
-"""
+'''
 
 # =============================================================================
 
-def GetActions(self, context):
+def Items_GetActions(self, context):
     return [
-        (a.name, a.name, 'Export "%s"' % a.name, 'ACTION', 0)
-        for a in bpy.data.actions
+        (a.name, a.name, 'Export "%s"' % a.name, 'ACTION', i)
+        for i, a in enumerate(bpy.data.actions)
+    ]
+
+def Items_GetArmatureObjects(self, context):
+    return [
+        (a.name, a.name, '%s' % a.name, 'ARMATURE_DATA', i)
+        for i, a in enumerate(bpy.data.objects) if a.type == 'ARMATURE'
     ]
 
 def ChooseAction(self, context):
@@ -58,7 +67,7 @@ classlist = []
 
 # =============================================================================
 
-class DMR_GM_ExportPose(bpy.types.Operator, ExportHelper):
+class DMR_OP_VBX_ExportPoses(bpy.types.Operator, ExportHelper):
     """Exports current armature pose"""
     bl_idname = "dmr.gm_export_pose"
     bl_label = "Export Pose"
@@ -75,377 +84,288 @@ class DMR_GM_ExportPose(bpy.types.Operator, ExportHelper):
         bpy.context.view_layer.objects.active = active
         self.report({'INFO'}, 'Data written to "%s"' % self.filepath)
         return {'FINISHED'}
-classlist.append(DMR_GM_ExportPose)
+classlist.append(DMR_OP_VBX_ExportPoses)
 
 # =============================================================================
 
-class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
+class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
     """Exports all poses in active object's Action/Pose Library"""
-    bl_idname = "dmr.gm_export_action"
-    bl_label = "Export Action"
+    bl_idname = "dmr.vbx_export_action_armature"
+    bl_label = "Export Armature Action"
     bl_options = {'PRESET'}
     
     filename_ext = ".trk"
     filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
     
-    actionname: bpy.props.EnumProperty(
-        name='Action', items=GetActions, default=0,
+    armature_object: bpy.props.EnumProperty(
+        name='Armature Object', items=Items_GetArmatureObjects, default=0,
+        description='Armature object to use for pose matrices'
+    )
+    
+    action_name: bpy.props.EnumProperty(
+        name='Action', items=Items_GetActions, default=0,
         description='Action to export',
     )
     
-    framerange: bpy.props.IntVectorProperty(
+    define_frame_range: bpy.props.BoolProperty(
+        name='Define Frame Range', default=False,
+        description='Override frame range of action',
+    )
+    
+    frame_range: bpy.props.IntVectorProperty(
         name='Frame Range', size=2, default=(1, 250),
         description='Range of keyframes to export',
     )
     
-    bakesamples: bpy.props.IntProperty(
+    bake_samples: bpy.props.IntProperty(
         name="Bake Steps",
         description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking",
         default=5, min=-1
     )
     
-    startfromzero: bpy.props.BoolProperty(
+    start_from_zero: bpy.props.BoolProperty(
         name="Trim Empty Leading", default=True,
         description='Start writing from first keyframe instead of from "Frame Start"',
     )
     
-    writemarkernames: bpy.props.BoolProperty(
+    write_marker_names: bpy.props.BoolProperty(
         name="Write Marker Names", default=True,
         description="Write names of markers before track data",
     )
     
-    normalizeframes: bpy.props.BoolProperty(
+    normalize_frames: bpy.props.BoolProperty(
         name="Normalize Frames", default=True,
         description="Convert Frames to [0-1] range",
     )
     
-    makestartframe: bpy.props.BoolProperty(
+    make_start_frame: bpy.props.BoolProperty(
         name="Starting Keyframe", default=True,
         description="Insert a keyframe at the start of the animation",
     )
     
-    makeendframe: bpy.props.BoolProperty(
+    make_end_frame: bpy.props.BoolProperty(
         name="Ending Keyframe", default=False,
         description="Insert a keyframe at the end of the animation",
     )
     
-    deformbonesonly: bpy.props.BoolProperty(
+    deform_only: bpy.props.BoolProperty(
         name="Deform Bones Only", default=True,
         description='Only export bones with the "Deform" box checked',
     )
     
+    compression_level: bpy.props.IntProperty(
+        name="Compression Level", default=-1, min=-1, max=9,
+        description="Level of zlib compression to apply to export.\n0 for no compression. -1 for zlib default compression",
+    )
+    
     lastsimplify = -1
+    lastsimplifylevels = -1
     
     @classmethod
     def poll(self, context):
-        return 'ARMATURE' in [x.type for x in context.selected_objects]
+        return bpy.data.actions
     
     def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-        
         sc = context.scene
         self.lastsimplify = sc.render.use_simplify
+        self.lastsimplify = sc.render.simplify_subdivision
         sc.render.use_simplify = True
+        sc.render.simplify_subdivision = 0
         
-        self.framerange = (sc.frame_start, sc.frame_end)
+        # Clear temporary data
+        [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
+        [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
+        [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
         
-        actions = [x.animation_data.action for x in context.selected_objects if x.animation_data]
-        actions += [x.pose_library for x in context.selected_objects if x.pose_library]
-        
-        if actions:
-            action = actions[0]
-            self.actionname = action.name
+        # Pre-set armature and action
+        objs = [x for x in context.selected_objects if x.type == 'ARMATURE']
+        objs += [x.find_armature() for x in context.selected_objects if x and x.find_armature()]
+        if objs:
+            for o in objs:
+                if o.animation_data and o.animation_data.action:
+                    self.armature_object = o.name
+                    self.action_name = o.animation_data.action.name
+                    break
+                elif o.pose_library:
+                    self.armature_object = o.name
+                    self.action_name = o.pose_library.name
+            
+        context.window_manager.fileselect_add(self)
         
         return {'RUNNING_MODAL'}
     
     def cancel(self, context):
         context.scene.render.use_simplify = self.lastsimplify
+        context.scene.render.simplify_subdivision = self.lastsimplifylevels
     
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, 'actionname')
-        layout.prop(self, 'framerange')
-        layout.prop(self, 'bakesamples')
-        layout.prop(self, 'startfromzero')
-        layout.prop(self, 'writemarkernames')
-        layout.prop(self, 'normalizeframes')
-        layout.prop(self, 'makestartframe')
-        layout.prop(self, 'makeendframe')
+        
+        c = layout.column()
+        c.prop(self, 'armature_object')
+        c.prop(self, 'action_name')
+        c.prop(self, 'define_frame_range')
+        r = c.row()
+        r.active=self.define_frame_range
+        r.prop(self, 'frame_range')
+        c.prop(self, 'bake_samples')
+        c.prop(self, 'start_from_zero')
+        c.prop(self, 'write_marker_names')
+        c.prop(self, 'normalize_frames')
+        c.prop(self, 'make_start_frame')
+        c.prop(self, 'make_end_frame')
         
     def execute(self, context):
-        # Find Armature
-        object = [x for x in context.selected_objects if x.type=='ARMATURE'][0]
-        if not object:
-            self.report({'WARNING'}, 'No object selected')
+        # Settings
+        normalize_frames = self.normalize_frames
+        deform_only = self.deform_only
+        write_marker_names = self.write_marker_names
+        
+        # Clear temporary data
+        [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
+        [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
+        [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
+        
+        vl = context.view_layer
+        sc = context.scene
+        rd = sc.render
+        
+        # Validation
+        sourceobj = [x for x in bpy.data.objects if x.name == self.armature_object]
+        if not sourceobj:
+            self.info({'WARNING', 'No object with name "{}" found'.format(self.armature_object)})
+            rd.use_simplify = self.lastsimplify
+            rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
-        if object.type != 'ARMATURE':
-            self.report({'WARNING'}, 'Active object "%s" is not an armature' % object.name)
-            return {'FINISHED'}
-            
-        arealast = context.area.type
-        context.area.type = "VIEW_3D"
-        
-        # Find Last Action
-        poselibonly = 0
-        if not (object.animation_data and object.animation_data.action):
-            lastaction = None
-            poselibonly = 1
-        else:
-            lastaction = object.animation_data.action
-        if not lastaction:
-            lastaction = object.pose_library
-        if not lastaction:
-            self.report({'WARNING'}, '"%s" has no active Action' % object.name)
-            context.scene.render.use_simplify = self.lastsimplify
+        sourceobj = sourceobj[0]
+        if sourceobj.type != 'ARMATURE':
+            self.info({'WARNING'}, '"{}" is not armature'.format(self.armature_object))
+            rd.use_simplify = self.lastsimplify
+            rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
         
-        bones = object.data.bones
-        prepose = [b.matrix_basis.copy() for b in object.pose.bones]
-        action = bpy.data.actions[self.actionname]
-        object.animation_data.action = action
+        action = [x for x in bpy.data.actions if x.name == self.action_name]
+        if not action:
+            self.info({'WARNING', 'No action with name "{}" found'.format(self.action_name)})
+            rd.use_simplify = self.lastsimplify
+            rd.simplify_subdivision = self.lastsimplifylevels
+            return {'FINISHED'}
+        action = action[0]
         
-        # Get sampled action
-        if self.bakesamples > 0:
-            print('> Baking animation...')
-            
-            contexttype = bpy.context.area.type
-            bpy.context.area.type = "DOPESHEET_EDITOR"
-            
-            bpy.ops.nla.bake(
-                frame_start=action.frame_range[0], frame_end=action.frame_range[1], 
-                step=self.bakesamples,
-                only_selected=False, 
-                visual_keying=False, 
-                clear_constraints=False, 
-                clear_parents=False, 
-                use_current_action=False, 
-                clean_curves=True, 
-                bake_types={'POSE'}
-                )
-            
-            #bpy.ops.action.clean(channels=True) # Remove untouched channels
-            #bpy.ops.action.clean(channels=False) # Simplify Animation
-            
-            bpy.context.area.type = contexttype
-            action = object.animation_data.action
-            action.name = lastaction.name + '__temp'
-            object.animation_data.action = lastaction
-            
-            print('> Animation ready')
+        # Create working data
+        workingarmature = sourceobj.data.copy()
+        workingobj = sourceobj.copy()
         
+        workingobj.data = workingarmature
+        workingobj.name = sourceobj.name + '__temp'
+        workingarmature.name = sourceobj.data.name + '__temp'
+        sc.collection.objects.link(workingobj)
+        
+        workingobj.animation_data.action = action
+        
+        print(action)
         fcurves = action.fcurves
-        framerange = action.frame_range
-        frameoffset = -framerange[0] if self.startfromzero else 0
-        framemax = framerange[1] + frameoffset
         
-        transformnames = ['location', 'rotation_quaternion', 'scale']
-        entryoffset = {'location': 0, 'rotation_quaternion': 3, 'scale': 7}
-        bonecurvemap = { b.name: [None] * 10 for b in bones }
+        bones = workingobj.data.bones
+        pbones = workingobj.pose.bones
+        if deform_only:
+            pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
+        bonenames = [x for x in pbones.keys()]
+        bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
         
-        # Grab all curves and sort by bone name
-        for c in fcurves:
-            pth = c.data_path
-            bonename = pth[pth.find('"')+1 : pth.rfind('"')]
-            if bonename in bonecurvemap.keys():
-                transformname = pth[pth.rfind('.')+1:]
-                if transformname in entryoffset.keys():
-                    bonecurvemap[bonename][entryoffset[transformname] + c.array_index] = c
+        netframes = ()
         
-        # Make a snapshot of pose bones for every frame
-        posebones = object.pose.bones
-        posesnap = {}
+        duration = action.frame_range[1]-action.frame_range[0]
+        pmod = 1.0/duration if normalize_frames else 1.0
         
-        SnapPose = lambda : {
-            #pb.name: (pb.location[:], pb.rotation_quaternion[:], pb.scale[:])
-            pb.name: object.convert_space(
-                pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL').decompose()
-                for pb in posebones
-            }
-        
-        if not poselibonly:
-            for f in range(int(framerange[0]), int(framerange[1])):
-                context.scene.frame_set(f)
-                bpy.context.view_layer.update()
-                posesnap[f] = SnapPose()
-        else:
-            lastobjectmode = bpy.context.active_object.mode
-            bpy.ops.object.mode_set(mode = 'POSE') # Update selected
+        # Parse curves
+        for fc in fcurves:
+            dp = fc.data_path
+            bonename = dp[dp.find('"')+1:dp.rfind('"')]
             
-            selected = [b for b in bones if b.select]
-            hidden = [b for b in bones if b.hide]
-            for b in hidden:
-                b.hide = False
-            
-            markers = action.pose_markers
-            bpy.ops.pose.select_all(action='SELECT')
-            for m in markers:
-                print(m.name)
-                bpy.ops.poselib.apply_pose(pose_index=m.frame)
-                posesnap[m.frame] = SnapPose()
-            bpy.ops.pose.select_all(action='DESELECT')
-            
-            for b in hidden:
-                b.hide = True
-            for b in selected:
-                b.select = True
-            
-            bpy.ops.object.mode_set(mode = lastobjectmode)
-            
+            if bonename in bonenames:
+                transformstring = dp[dp.rfind('.')+1:]
+                transformtype = -1
+                
+                if transformstring == 'location':
+                    transformtype = 0
+                elif transformstring == 'rotation_quaternion':
+                    transformtype = 1
+                elif transformstring == 'scale':
+                    transformtype = 2
+                
+                if transformtype >= 0:
+                    vecvalueindex = fc.array_index
+                    keyframes = tuple(
+                        [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points]
+                        )
+                    bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
+                    netframes += tuple(x[0] for x in keyframes)
         
-        # Compose data ------------------------------------------------------
-        print('> Composing data...')
+        netframes = list(set(netframes))
+        netframes.sort()
+        print(netframes)
         
+        print('----------')
         out = b''
         
-        out += b'TRK' + Pack('B', ANIVERSION)
+        # Header
+        out += b'TRK' + Pack('B', 0)    # Signature
+        out += Pack('B', 1)     # Flags
+        out += Pack('f', rd.fps)     # fps
+        out += Pack('f', max(netframes)-min(netframes) ) # Frame Count
         
-        # Flag
-        flag = 0
-        if self.normalizeframes:
-            flag |= 1<<0
-        out += Pack('B', flag)
+        out += Pack('I', len(pbones) ) # Num tracks
+        out += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Names
         
-        render = context.scene.render
-        view_layer = bpy.context.view_layer
-        view_layer.update()
-        scene = context.scene
+        posesnap = {}
         
-        for obj in scene.objects:
-            if obj.type == 'MESH':
-                obj.data.update()
-        
-        out += Pack('f', render.fps) # Animation Framerate
-        out += Pack('H', int(framemax) ) # Max animation frame
-        out += Pack('H', len(bones)) # Bone Count
-        
-        # Write Track Names
-        out += b''.join( [PackString(b.name) for b in bones] )
-        
-        # Track Data
-        if poselibonly:
-            print("> Pose library only")
-        print('Action = "%s", Range: %s' % (action.name, framerange))
-        print('> Writing Tracks...')
-        
-        frame_map_old = render.frame_map_old
-        #render.frame_map_old = render.frame_map_new / 10
-        
-        # Settings
-        samples = self.bakesamples
-        if samples < 0:
-            samples = framerange[1]-framerange[0]
-        makestartframe = self.makestartframe
-        makeendframe = self.makeendframe
-        
-        targetbones = [posebones[b.name] for b in bones if (b.use_deform or not self.deformbonesonly)]
-        
-        for b in targetbones: # For each bone (track)
+        # Bone loop
+        for pb in pbones.values():
+            thisbonecurves = bonecurves[pb]
+            
             outchunk = b''
-            transcurves = bonecurvemap[b.name]
-            posebone = object.pose.bones[b.name]
-            #print(b.name)
             
-            transformtype = 0
-            
-            # For each transform (location[3], quat[4], scale[3])
-            for vectorindices in [ [0,1,2], [3,4,5,6], [7,8,9] ]:
-                # Grab transform curves using trackindices
-                curveset = transcurves[vectorindices[0]:vectorindices[-1]+1]
+            # Transform components
+            for tindex in (0, 1, 2):
+                targetvecs = thisbonecurves[tindex]
+                veckeyframes = list(set(k for v in targetvecs for k in v))
+                vecpositions = list(set(x[0] for x in veckeyframes))
+                vecpositions.sort(key=lambda x: x)
+                vecpositions = tuple(vecpositions)
                 
-                # Merge keyframe positions for each track in transform
-                # [location[0].frames + location[1].frames + location[2].frames]
-                trackframes = set([
-                    k.co[0]
-                    for curve in curveset
-                    for k in (curve.keyframe_points if curve else [])
-                ])
+                outchunk += Pack('I', len(vecpositions)) # Num Frames
+                outchunk += b''.join([Pack('f', x) for x in vecpositions]) # Frame Positions 
                 
-                if makestartframe:
-                    trackframes.add(framerange[0])
-                if makeendframe:
-                    trackframes.add(framerange[1])
-                    
-                trackframes = list(trackframes)
-                trackframes.sort()
-                
-                # Manual Sampling
-                #"""
-                if 0 and samples > 0 and len(trackframes) > 1:
-                    newpts = []
-                    for i in range(0, len(trackframes)-1):
-                        p1 = trackframes[i]
-                        p2 = trackframes[i+1]
-                        step = (p2-p1) / samples
-                        while p1 < p2:
-                            newpts.append(p1)
-                            p1 += step
-                        newpts.append(p2)
-                    newpts = list(set([round(x) for x in newpts]))
-                    newpts.sort()
-                    trackframes = newpts
-                #"""
-                outchunk += Pack('H', len(trackframes)) # Frame count
-                
-                # Write Frame Positions
-                if self.normalizeframes: # Frame Positions are [0-1] range
-                    outchunk += b''.join( Pack('f', (frame+frameoffset)/framemax) for frame in trackframes )
-                else: # Frame positions are unchanged
-                    outchunk += b''.join( Pack('f', frame+frameoffset) for frame in trackframes )
-                
-                # For each frame in track
-                for f in trackframes:
-                    if f not in posesnap.keys():
-                        scene.frame_set(f)
-                        view_layer.update()
+                # Vectors
+                for f in vecpositions:
+                    # Generate pose snap of matrices
+                    if f not in posesnap:
+                        sc.frame_set(int(f/pmod))
+                        vl.update()
                         posesnap[f] = {
-                            #pb.name: (pb.location[:], pb.rotation_quaternion[:], pb.scale[:])
-                            pb.name: object.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL').decompose()
-                            for pb in posebones
+                            x: x.matrix_basis.decompose() for x in pbones.values()
                         }
-                    
-                    # Write Vector
-                    outchunk += PackVector( posesnap[f][b.name][transformtype] )
-                
-                transformtype += 1
-                 
-            # Add chunk to output
+                    outchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
             out += outchunk
         
-        render.frame_map_old = frame_map_old
-        
-        # Write Marker Data
-        if self.writemarkernames:
-            print('> Writing Marker Data...')
-            
-            markers = [m for m in lastaction.pose_markers]
-            #markers.sort(key = lambda m: m.frame)
-            
-            out += Pack('H', len(markers))
-            # Write Marker Names
-            out += b''.join( [PackString(m.name) for m in markers] )
-            # Write Marker Frame Positions
-            if self.normalizeframes:
-                out += b''.join( [Pack('f', (m.frame+frameoffset)/framemax) for m in markers] )
-                for m in markers:
-                    print("<%s: %.4f>" % (m.name, (m.frame+frameoffset)/framemax))
-            else:
-                out += b''.join( [Pack('f', m.frame+frameoffset) for m in markers] )
-                for m in markers:
-                    print("<%s: %.4f>" % (m.name, m.frame+frameoffset))
+        # Markers
+        if write_marker_names:
+            markers = [(x.name, x.frame*pmod) for x in action.pose_markers]
+            markers.sort(key=lambda x: x[1])
+            out += Pack('I', len(markers))
+            out += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers])
+            out += b''.join([Pack('f', x[1]) for x in markers])
         else:
-            out += Pack('H', 0)
+            out += Pack('I', 0)
         
-        # Restore Previous State
-        for i in range(0, len(object.pose.bones)):
-            object.pose.bones[i].matrix_basis = prepose[i]
-        #if poselibonly:
-            #object.animation_data = None
-        render.use_simplify = self.lastsimplify
-        context.area.type = arealast
+        # Restore State
+        rd.use_simplify = self.lastsimplify
+        rd.simplify_subdivision = self.lastsimplifylevels
         
         # Output to File
         oldlen = len(out)
-        out = zlib.compress(out)
+        out = zlib.compress(out, level=self.compression_level)
         
         file = open(self.filepath, 'wb')
         file.write(out)
@@ -455,8 +375,18 @@ class DMR_GM_ExportAction(bpy.types.Operator, ExportHelper):
             (self.filepath, oldlen / 1000, len(out) / 1000, 100 * len(out) / oldlen)
         print(report)
         self.report({'INFO'}, report)
+        
+        # Clear temporary data
+        [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
+        [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
+        [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
+        
+        print('> Complete')
+        
+        
+        
         return {'FINISHED'}
-classlist.append(DMR_GM_ExportAction)
+classlist.append(DMR_OP_VBX_ExportActionArmature)
 
 # =============================================================================
 
@@ -543,8 +473,7 @@ classlist.append(DMR_GM_ExportPoseMatrix)
 def register():
     for c in classlist:
         bpy.utils.register_class(c)
-    #bpy.ops.dmr.gm_export_action('INVOKE_DEFAULT')
 
 def unregister():
-    for c in classlist:
+    for c in reversed(classlist):
         bpy.utils.unregister_class(c)

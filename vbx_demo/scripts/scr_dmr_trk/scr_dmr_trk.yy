@@ -6,7 +6,7 @@
     "path": "folders/DmrVBX.yy",
   },
   "resourceVersion": "1.0",
-  "name": "scr_dmr_anitrack",
+  "name": "scr_dmr_trk",
   "tags": [],
   "resourceType": "GMScript",
 }

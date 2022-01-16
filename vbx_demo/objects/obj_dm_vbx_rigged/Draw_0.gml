@@ -52,3 +52,4 @@ DrawMeshFlash(u_shd_rigged_drawmatrix);
 // Restore State
 shader_reset();
 gpu_pop_state();
+//printf(tracktimestep)

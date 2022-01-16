@@ -7,6 +7,8 @@
 		obj_demomodel_vbx
 */
 
+const vec3 VEC3YFLIP = vec3(1.0, -1.0, 1.0);
+
 // Vertex Attributes
 attribute vec3 in_Position;	// (x,y,z)
 attribute vec3 in_Normal;	// (x,y,z)     
@@ -39,8 +41,6 @@ void main()
 	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
     
 	// Varyings ----------------------------------------------------------
-	//v_pos = (gm_Matrices[MATRIX_WORLD] * vertexpos).xyz;
-	//v_normal = normalize(gm_Matrices[MATRIX_WORLD] * normal).xyz;
     v_color = in_Color;
     v_uv = in_Uv;
 	
@@ -48,8 +48,11 @@ void main()
 	vec3 vertexpos_cs = (gm_Matrices[MATRIX_WORLD_VIEW] * vertexpos).xyz;
 	v_dirtocamera_cs = vec3(0.0) - vertexpos_cs;
 	
-	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(u_light.xyz, 1.0)).xyz;
+	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(u_light.xyz*VEC3YFLIP, 1.0)).xyz;
 	v_dirtolight_cs = lightpos_cs + v_dirtocamera_cs;
 	
 	v_normal_cs = normalize( (gm_Matrices[MATRIX_WORLD_VIEW] * normal).xyz);
+	
+	// Set draw position -------------------------------------------------
+	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
 }

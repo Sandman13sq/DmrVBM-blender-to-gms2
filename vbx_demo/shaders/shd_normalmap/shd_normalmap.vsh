@@ -39,7 +39,7 @@ void main()
 	vec3 vertexpos_cs = (gm_Matrices[MATRIX_WORLD_VIEW] * vertexpos).xyz;
 	vec3 v_dirtocamera_cs = vec3(0.0) - vertexpos_cs;
 	
-	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(u_light.xyz, 1.0)).xyz;
+	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(u_light.xyz*VEC3YFLIP, 1.0)).xyz;
 	vec3 v_dirtolight_cs = lightpos_cs + v_dirtocamera_cs;
 	
 	// Normal Map Variables ----------------------------------------------

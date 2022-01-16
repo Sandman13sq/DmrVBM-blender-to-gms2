@@ -3,6 +3,8 @@
 	By Dreamer13sq
 */
 
+#macro VBXHEADERCODE 0x00584256
+
 #macro DMRVBX_MATPOSEMAX 200
 #macro DMRVBX_MAT4ARRAYFLAT global.g_mat4identityflat
 #macro DMRVBX_MAT4ARRAY2D global.g_mat4identity2d
@@ -15,8 +17,6 @@ for (var i = 0; i < DMRVBX_MATPOSEMAX; i++)
 	array_copy(DMRVBX_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
 	DMRVBX_MAT4ARRAY2D[i] = matrix_build_identity();
 }
-
-#macro VBXHEADERCODE 0x00584256
 
 enum VBX_AttributeType
 {
@@ -200,7 +200,7 @@ function OpenVBX(path, format=-1, freeze=true)
 	var header;
 	
 	// Header
-	header = buffer_read(b, buffer_u32);
+	header = buffer_peek(b, 0, buffer_u32);
 	
 	// Not a vbx file
 	if ( (header & 0x00FFFFFF) != VBXHEADERCODE )
@@ -213,7 +213,7 @@ function OpenVBX(path, format=-1, freeze=true)
 			vb = vertex_create_buffer_from_buffer(b, format);
 			if ( vb < 0 )
 			{
-				show_debug_message("OpenVBX(): vbx data is invalid (vb) \"" + path + "\"");
+				show_debug_message("OpenVBX(): data is normal vb? \"" + path + "\"");
 				return -1;
 			}
 			
@@ -222,7 +222,7 @@ function OpenVBX(path, format=-1, freeze=true)
 			return vbx;
 		}
 		
-		show_debug_message("OpenVBX(): vbx data is invalid \"" + path + "\"");
+		show_debug_message("OpenVBX(): header is invalid \"" + path + "\"");
 		return vbx;
 	}
 	
@@ -235,7 +235,7 @@ function OpenVBX(path, format=-1, freeze=true)
 			return __VBXOpen_v1(b, format, freeze);
 	}
 	
-	return vbx;
+	return -1;
 }
 
 // Returns true if buffer contains vbx header
@@ -307,6 +307,11 @@ function GetVBXFormat(b, offset)
 // Returns vbx struct from file (.vbx)
 function __VBXOpen_v1(b, format, freeze)
 {
+	/* File spec:
+		
+	
+	*/
+	
 	var vbx = new VBXData();
 	
 	var flag;
@@ -320,6 +325,9 @@ function __VBXOpen_v1(b, format, freeze)
 	var targetmats;
 	var i, j;
 	var noformatgiven = format < 0;
+	
+	// Header
+	buffer_read(b, buffer_u32);
 	
 	flag = buffer_read(b, buffer_u8);
 	

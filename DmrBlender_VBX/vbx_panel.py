@@ -15,7 +15,7 @@ def DrawVBXPanel(self, context):
     section.column().label(text='-- Animations --')
     #section.operator("dmr.gm_export_pose", text='Export Current Pose', icon='ARMATURE_DATA')
     #section.operator("dmr.gm_export_poselib", text='Export PoseLib', icon='POSE_HLT')
-    section.operator("dmr.gm_export_action", text='Export Action', icon='RENDER_ANIMATION')
+    section.operator("dmr.vbx_export_action_armature", text='Export Action', icon='RENDER_ANIMATION')
     section.operator("dmr.gm_export_posematrix", text='Export Pose Matrices', icon='LIGHTPROBE_GRID')
 '''
 class DMR_PT_ExportVBPanel(bpy.types.Panel):

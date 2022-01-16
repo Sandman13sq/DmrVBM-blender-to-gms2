@@ -46,7 +46,9 @@ function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 	}
 	else
 	{
-		d.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
+		var e = d.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1);
+			e.valueprecision = 3;
+			e.valuedefault = 1.0;
 		d.Real("Emission").DefineControl(self, "emission").SetBounds(0, 1)
 			.Description("Amount that the natural color shows over the shading.")
 			.valueprecision=3;
@@ -129,9 +131,9 @@ function Panel_Pose(layout)
 		.Operator(OP_SetInterpolation)
 		.DefineControl(self, "interpolationtype")
 		.DefineListItems([
-			[AniTrack_Intrpl.constant, "Constant", "Floors keyframe position when evaluating pose"],
-			[AniTrack_Intrpl.linear, "Linear", "Linearly keyframe position when evaluating pose"],
-			[AniTrack_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
+			[TRK_Intrpl.constant, "Constant", "Floors keyframe position when evaluating pose"],
+			[TRK_Intrpl.linear, "Linear", "Linearly keyframe position when evaluating pose"],
+			[TRK_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
 			])
 		.Description("Method of blending together transforms when evaluating animation.");
 }

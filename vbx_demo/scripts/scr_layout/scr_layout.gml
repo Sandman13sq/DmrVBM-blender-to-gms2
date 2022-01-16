@@ -442,6 +442,8 @@ function Layout() : __LayoutSuper() constructor
 	scrolloffset = 0;
 	
 	common = {
+		activeelement : 0,
+		
 		c_base : 0x342022,
 		c_highlight : 0x743f3f,
 		c_active : 0x846c66,
@@ -676,7 +678,7 @@ function Layout() : __LayoutSuper() constructor
 			window_set_cursor(common.cursorsprite);
 		}
 		
-		return _ismouseover;
+		return _ismouseover || (common.active != 0);
 	}
 	
 	function Draw()

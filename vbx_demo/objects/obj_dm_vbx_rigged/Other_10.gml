@@ -32,7 +32,7 @@ function UpdatePose()
 	
 	// Generate relative bone matrices for position in animation
 	EvaluateAnimationTracks(_pos, 
-		AniTrack_Intrpl.constant,	// Method to blend keyframes with (constant, linear, square)
+		TRK_Intrpl.constant,	// Method to blend keyframes with (constant, linear, square)
 		_vbx.bonenames,		// Keys to use for track mapping
 		trackdata_poses,	// Track data with transforms
 		posetransform		// 2D Array to write matrix data to

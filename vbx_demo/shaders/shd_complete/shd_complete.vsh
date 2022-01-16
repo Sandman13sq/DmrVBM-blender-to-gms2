@@ -30,6 +30,8 @@ void main()
 	// Attributes --------------------------------------------------------
     vec4 vertexpos = vec4( in_Position, 1.0);
 	vec4 normal = vec4( in_Normal, 0.0);
+	vec4 tangent = vec4( in_Tangent, 0.0);
+	vec4 bitangent = vec4( in_Bitangent, 0.0);
 	
 	// Weight & Bones ----------------------------------------------------
 	mat4 m = mat4(0.0);
@@ -38,10 +40,14 @@ void main()
 	
 	vertexpos = m * vertexpos;
 	normal = m * normal;
+	tangent = m * tangent;
+	bitangent = m * bitangent;
 	
 	// Correct Y Flip
 	vertexpos.y *= -1.0;
 	normal.y *= -1.0;
+	tangent.y *= -1.0;
+	bitangent.y *= -1.0;
 	
 	// Varyings ----------------------------------------------------------
     v_color = in_Color;
@@ -51,14 +57,14 @@ void main()
 	vec3 vertexpos_cs = (gm_Matrices[MATRIX_WORLD_VIEW] * vertexpos).xyz;
 	vec3 v_dirtocamera_cs = vec3(0.0) - vertexpos_cs;
 	
-	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(u_light.xyz, 1.0)).xyz;
+	vec3 lightpos_cs = (gm_Matrices[MATRIX_VIEW] * vec4(u_light.xyz*VEC3YFLIP, 1.0)).xyz;
 	vec3 v_dirtolight_cs = lightpos_cs + v_dirtocamera_cs;
 	
 	// Normal Map Variables ----------------------------------------------
 	mat3 matmodelview = mat3(gm_Matrices[MATRIX_WORLD_VIEW]);
 	vec3 normal_camspace = matmodelview * normalize(normal.xyz);
-	vec3 tangent_camspace = matmodelview * normalize(in_Tangent * VEC3YFLIP);
-	vec3 bitangent_camspace = matmodelview * normalize(in_Bitangent * VEC3YFLIP);
+	vec3 tangent_camspace = matmodelview * normalize(tangent.xyz);
+	vec3 bitangent_camspace = matmodelview * normalize(bitangent.xyz);
 	
 	mat3 tbn = mat3(tangent_camspace, bitangent_camspace, normal_camspace);
 	
@@ -73,4 +79,5 @@ void main()
 	
 	// Set draw position -------------------------------------------------
 	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
+	
 }
