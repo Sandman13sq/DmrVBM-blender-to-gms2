@@ -118,10 +118,10 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         description='Range of keyframes to export',
     )
     
-    bake_samples: bpy.props.IntProperty(
+    bake_steps: bpy.props.IntProperty(
         name="Bake Steps",
         description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking",
-        default=5, min=-1
+        default=1, min=-1
     )
     
     start_from_zero: bpy.props.BoolProperty(
@@ -169,7 +169,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
     def invoke(self, context, event):
         sc = context.scene
         self.lastsimplify = sc.render.use_simplify
-        self.lastsimplify = sc.render.simplify_subdivision
+        self.lastsimplifylevels = sc.render.simplify_subdivision
         sc.render.use_simplify = True
         sc.render.simplify_subdivision = 0
         
@@ -214,7 +214,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
             r = r.row(align=1)
             r.prop(context.scene, 'frame_start', text='')
             r.prop(context.scene, 'frame_end', text='')
-        c.prop(self, 'bake_samples')
+        c.prop(self, 'bake_steps')
         c.prop(self, 'start_from_zero')
         c.prop(self, 'write_marker_names')
         c.prop(self, 'normalize_frames')
@@ -227,6 +227,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         normalize_frames = self.normalize_frames
         deform_only = self.deform_only
         write_marker_names = self.write_marker_names
+        bakesteps = self.bake_steps
         
         # Clear temporary data
         [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
@@ -251,13 +252,13 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
             rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
         
-        action = [x for x in bpy.data.actions if x.name == self.action_name]
-        if not action:
+        sourceaction = [x for x in bpy.data.actions if x.name == self.action_name]
+        if not sourceaction:
             self.info({'WARNING', 'No action with name "{}" found'.format(self.action_name)})
             rd.use_simplify = self.lastsimplify
             rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
-        action = action[0]
+        sourceaction = sourceaction[0]
         
         if self.define_frame_range:
             actionrange = self.frame_range
@@ -277,24 +278,26 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         workingobj.select_set(True)
         vl.objects.active = workingobj
         
-        if 1:
+        action = sourceaction
+        
+        if bakesteps > 0:
             print('> Baking animation...');
             
             contexttype = bpy.context.area.type
             bpy.context.area.type = "DOPESHEET_EDITOR"
             
             dataactions = set([x for x in bpy.data.actions])
-            lastaction = action
+            lastaction = sourceaction
             
             bpy.ops.nla.bake(
                 frame_start=actionrange[0], frame_end=actionrange[1], 
-                step=self.bake_samples,
+                step=bakesteps,
                 only_selected=False, 
                 visual_keying=False, 
                 clear_constraints=False, 
                 clear_parents=False, 
                 use_current_action=False, 
-                clean_curves=False, 
+                clean_curves=True, 
                 bake_types={'POSE'}
                 );
             
@@ -307,7 +310,6 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
             action.name = lastaction.name + '__temp'
             print([lastaction.name, action.name])
             
-        
         workingobj.animation_data.action = action
         
         fcurves = action.fcurves
@@ -399,7 +401,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         
         # Markers
         if write_marker_names:
-            markers = [(x.name, x.frame*pmod) for x in action.pose_markers]
+            markers = [(x.name, x.frame*pmod) for x in sourceaction.pose_markers]
             markers.sort(key=lambda x: x[1])
             out += Pack('I', len(markers))
             out += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers])
