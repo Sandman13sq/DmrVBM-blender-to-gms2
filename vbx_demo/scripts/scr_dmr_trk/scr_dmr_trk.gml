@@ -23,6 +23,7 @@ function TRKData() constructor
 	markercount = 0;
 	
 	positionrange = [0, 1];
+	positionstep = 1.0
 	
 	framespersecond = 1;
 	length = 0;
@@ -123,12 +124,13 @@ function __TRKOpen_v1(b)
 	
 	// Flag
 	flag = buffer_read(b, buffer_u8);
+	out.flag = flag;
 	// Animation Original FPS
 	out.framespersecond = buffer_read(b, buffer_f32);
 	// Animation Length
 	out.length = buffer_read(b, buffer_f32);
-	
-	show_debug_message([flag, out.framespersecond, out.length])
+	// Position Step
+	out.positionstep = buffer_read(b, buffer_f32);
 	
 	// Transforms -------------------------------------------------
 	
@@ -145,8 +147,6 @@ function __TRKOpen_v1(b)
 	
 	var numtracks = buffer_read(b, buffer_u32);
 	out.trackcount = numtracks;
-	
-	show_debug_message(["numtracks", numtracks]);
 	
 	array_resize(out.tracks, numtracks);
 	array_resize(out.tracknames, numtracks);
@@ -166,7 +166,6 @@ function __TRKOpen_v1(b)
 	// Read tracks
 	for (var trackindex = 0; trackindex < numtracks; trackindex++)
 	{
-		show_debug_message([trackindex, out.tracknames[trackindex]])
 		transformtracks = array_create(3); // [location<3>, quaternion<4>, scale<3>]
 		
 		// For each transform vector [location<3>, quaternion<4>, scale<3>]
@@ -175,8 +174,6 @@ function __TRKOpen_v1(b)
 			vectorsize = (transformindex == 1)? 4:3; // 4 for quats, 3 for location and scale
 			
 			numframes = buffer_read(b, buffer_u32); // Frame Count
-			
-			show_debug_message([transformindex, "numframes", numframes])
 			
 			track = new TRKData_Track();
 			trackframes = array_create(numframes);
@@ -187,8 +184,6 @@ function __TRKOpen_v1(b)
 			{
 				trackframes[f] = buffer_read(b, buffer_f32);
 			}
-			
-			show_debug_message(trackframes)
 			
 			if numframes > 0
 			{
@@ -207,7 +202,6 @@ function __TRKOpen_v1(b)
 				}
 				
 				trackvectors[f] = vector; // Vector
-				show_debug_message(vector)
 			}
 			
 			track.count = numframes;
@@ -245,8 +239,6 @@ function __TRKOpen_v1(b)
 	}
 		
 	buffer_delete(b);
-		
-	show_debug_message("Returning Animation...");
 	
 	return out;
 }
@@ -414,6 +406,8 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 				// Find Blend amount (Map "pos" distance to [0-1] value)
 				if poscurr >= posnext {blendamt = 1;} // Same frame
 				else {blendamt = (pos - poscurr) / (posnext - poscurr);} // More than one unit difference
+				
+				blendamt = clamp(blendamt, 0.0, 1.0);
 				
 				// Apply Interpolation
 				switch(interpolationtype)
@@ -604,7 +598,7 @@ function CalculateAnimationPose(
 }
 
 // Returns amount to move position in one frame
-function TrackData_GetTimeStep(trackdata, framespersecond)
+function TrackData_GetTimeStep(trkdata, framespersecond)
 {
-	return (trackdata.framespersecond/framespersecond)/trackdata.length;
+	return trkdata.positionstep*(trkdata.framespersecond/framespersecond);
 }

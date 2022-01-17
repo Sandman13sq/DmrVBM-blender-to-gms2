@@ -21,6 +21,7 @@ ANIVERSION = 1
     flags (1B)
     fps (1f)
     animationlength (1f)
+    positionstep (1f)
     
     numtracks (4B)
     tracknames[numtracks]
@@ -206,14 +207,20 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         c.prop(self, 'action_name')
         c.prop(self, 'define_frame_range')
         r = c.row()
-        r.active=self.define_frame_range
-        r.prop(self, 'frame_range')
+        if self.define_frame_range:
+            r.prop(self, 'frame_range')
+        else:
+            r.label(text='Scene Frame Range')
+            r = r.row(align=1)
+            r.prop(context.scene, 'frame_start', text='')
+            r.prop(context.scene, 'frame_end', text='')
         c.prop(self, 'bake_samples')
         c.prop(self, 'start_from_zero')
         c.prop(self, 'write_marker_names')
         c.prop(self, 'normalize_frames')
         c.prop(self, 'make_start_frame')
         c.prop(self, 'make_end_frame')
+        c.label(text=str(context.active_operator))
         
     def execute(self, context):
         # Settings
@@ -252,6 +259,11 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
             return {'FINISHED'}
         action = action[0]
         
+        if self.define_frame_range:
+            actionrange = self.frame_range
+        else:
+            actionrange = (sc.frame_start, sc.frame_end)
+        
         # Create working data
         workingarmature = sourceobj.data.copy()
         workingobj = sourceobj.copy()
@@ -261,9 +273,43 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         workingarmature.name = sourceobj.data.name + '__temp'
         sc.collection.objects.link(workingobj)
         
+        sourceobj.select_set(False)
+        workingobj.select_set(True)
+        vl.objects.active = workingobj
+        
+        if 1:
+            print('> Baking animation...');
+            
+            contexttype = bpy.context.area.type
+            bpy.context.area.type = "DOPESHEET_EDITOR"
+            
+            dataactions = set([x for x in bpy.data.actions])
+            lastaction = action
+            
+            bpy.ops.nla.bake(
+                frame_start=actionrange[0], frame_end=actionrange[1], 
+                step=self.bake_samples,
+                only_selected=False, 
+                visual_keying=False, 
+                clear_constraints=False, 
+                clear_parents=False, 
+                use_current_action=False, 
+                clean_curves=False, 
+                bake_types={'POSE'}
+                );
+            
+            bpy.context.area.type = contexttype
+            
+            dataactions = list(set([x for x in bpy.data.actions]) - dataactions)
+            for x in dataactions:
+                x.name += '__temp'
+            action = dataactions[0]
+            action.name = lastaction.name + '__temp'
+            print([lastaction.name, action.name])
+            
+        
         workingobj.animation_data.action = action
         
-        print(action)
         fcurves = action.fcurves
         
         bones = workingobj.data.bones
@@ -297,14 +343,13 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
                 if transformtype >= 0:
                     vecvalueindex = fc.array_index
                     keyframes = tuple(
-                        [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points]
+                        [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points if (x.co[0] >= actionrange[0] and x.co[0] <= actionrange[1])]
                         )
                     bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
                     netframes += tuple(x[0] for x in keyframes)
         
         netframes = list(set(netframes))
         netframes.sort()
-        print(netframes)
         
         print('----------')
         out = b''
@@ -313,7 +358,10 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         out += b'TRK' + Pack('B', 0)    # Signature
         out += Pack('B', 1)     # Flags
         out += Pack('f', rd.fps)     # fps
-        out += Pack('f', max(netframes)-min(netframes) ) # Frame Count
+        out += Pack('f', duration ) # Frame Count
+        out += Pack('f', 1.0/duration ) # Position Step
+        
+        print('Length:', duration)
         
         out += Pack('I', len(pbones) ) # Num tracks
         out += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Names
@@ -360,8 +408,14 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
             out += Pack('I', 0)
         
         # Restore State
+        [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
+        [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
+        [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
+        
         rd.use_simplify = self.lastsimplify
         rd.simplify_subdivision = self.lastsimplifylevels
+        sourceobj.select_set(True)
+        vl.objects.active = sourceobj
         
         # Output to File
         oldlen = len(out)
@@ -376,14 +430,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         print(report)
         self.report({'INFO'}, report)
         
-        # Clear temporary data
-        [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
-        [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
-        [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
-        
         print('> Complete')
-        
-        
         
         return {'FINISHED'}
 classlist.append(DMR_OP_VBX_ExportActionArmature)
