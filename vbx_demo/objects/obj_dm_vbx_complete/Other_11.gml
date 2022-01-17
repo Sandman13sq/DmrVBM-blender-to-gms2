@@ -9,6 +9,4 @@ Panel_MeshSelect(layout);
 
 Panel_Playback(layout);
 
-Panel_Pose(layout);
-
 CommonLayout(true, true, false);

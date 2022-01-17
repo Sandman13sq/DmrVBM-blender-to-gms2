@@ -384,7 +384,7 @@ function __LayoutSuper() constructor
 	{
 		if !interactable {color = c_gray;}
 		
-		var yy = yc - common.textheightdiv2;
+		var yy = y1 + common.cellmax*0.5 - common.textheightdiv2;
 		draw_text_ext_transformed_color(
 			x, yy, text, 16, 3000, 
 			common.textscale, common.textscale, 

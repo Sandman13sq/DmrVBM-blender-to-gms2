@@ -24,23 +24,21 @@ if (!showgui)
 	
 	if (
 		mouselastx != window_mouse_get_x() ||
-		mouselasty != window_mouse_get_y()
+		mouselasty != window_mouse_get_y() ||
+		!window_has_focus()
 	)
 	{
 		mouselastx = window_mouse_get_x();
 		mouselasty = window_mouse_get_y();
 		
 		cursortimeout = cursortimeouttime;
+		window_set_cursor(cr_default);
 	}
 }
 
 if (cursortimeout == 0 && !showgui)
 {
 	window_set_cursor(cr_none);
-}
-else
-{
-	window_set_cursor(cr_default);
 }
 
 // Update Layout

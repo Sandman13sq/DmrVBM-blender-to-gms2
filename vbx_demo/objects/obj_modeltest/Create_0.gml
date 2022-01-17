@@ -2,14 +2,11 @@
 
 event_user(0);
 
-Structor_VBFormat(1);
-
 enum ModelType
 {
 	simple, normal, vbx, normalmap, rigged, complete
 }
 
-camera = instance_create_depth(0, 0, 0, obj_camera);
 show_debug_overlay(1);
 
 // Vars ==============================================================
@@ -43,6 +40,7 @@ mouselasty = 0;
 // Input =============================================================
 
 LoadSettings("settings.ini");
+camera = instance_create_depth(0, 0, 0, obj_camera);
 
 // Models =============================================================
 

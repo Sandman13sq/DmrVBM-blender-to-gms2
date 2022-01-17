@@ -15,8 +15,6 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Wei
 vbf = vertex_format_end();
 
 vbx = OpenVBX(DIRPATH + "curly_complete.vbx", vbf);
-trackdata_anim = OpenTRK(DIRPATH + "curly_anim.trk");	// Animation
-trackdata_poses = OpenTRK(DIRPATH + "curly_poses.trk");	// Poses with markers
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones
@@ -24,25 +22,24 @@ posetransform = Mat4Array(DMRVBX_MATPOSEMAX, matrix_build_identity());
 // 1D flat array of matrices. Holds final transforms for bones
 matpose = Mat4ArrayFlat(DMRVBX_MATPOSEMAX, matrix_build_identity());
 
-trackpos = 0.0; // Position in animation
-tracktimestep = TrackData_GetTimeStep(trackdata_anim, game_get_speed(gamespeed_fps));
+trkanims = []
+trknames = []
+trkcount = FetchPoseFiles(DIRPATH, trkanims, trknames);
+trkindex = 0;
+trkactive = 0;
+trktimestep = 0;
+trkposition = 0.0;
+trkposlength = 0.0;
+trkmarkerindex = 0;
 playbackspeed = 1.0;
-trackposlength = trackdata_anim.length;
 isplaying = false;
 
 posemode = 0; // 0 = Poses, 1 = Animation
-poseindex = 0; // Index of pose in trackdata_poses
-posecount = trackdata_poses.markercount;
-UpdatePose();
-
 keymode = 0;
 vbmode = 1;
 
 wireframe = 0;
-demo.usetextures = false;
 interpolationtype = TRK_Intrpl.linear;
-
-playbacktimeline = new PlaybackTimeline(trackdata_anim);
 
 // Control Variables ========================================================
 meshselect = 0;
@@ -70,3 +67,6 @@ u_shd_complete_matpose = shader_get_uniform(_shd, "u_matpose");
 u_shd_complete_texnormal = shader_get_sampler_index(_shd, "u_texnormal");
 
 event_user(1);
+
+OP_ActionSelect(trkindex);
+

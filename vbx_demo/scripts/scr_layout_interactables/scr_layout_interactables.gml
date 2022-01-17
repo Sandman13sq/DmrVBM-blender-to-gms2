@@ -1084,13 +1084,13 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		// Draw Label
 		if label != ""
 		{
-			DrawText(x1+3, y1, string(label)+":");
+			DrawTextYCenter(x1+3, string(label)+":");
 			draw_set_halign(2);
-			DrawText(x2-3, y1, items[itemindex][1]);
+			DrawTextYCenter(x2-3, items[itemindex][1]);
 		}
 		else
 		{
-			DrawText(x1+3, y1, items[itemindex][1]);
+			DrawTextYCenter(x1+3, items[itemindex][1]);
 		}
 	}
 }
@@ -1227,12 +1227,12 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 		{
 			draw_set_halign(0);
 			draw_set_valign(0);
-			DrawText(x1+4, y1, label);
+			DrawTextYCenter(x1+4, label);
 		}
 		
 		draw_set_halign(2);
 		draw_set_valign(0);
-		DrawText(x2-4, y1, active? "-": "+");
+		DrawTextYCenter(x2-4, active? "-": "+");
 		
 		if active
 		{

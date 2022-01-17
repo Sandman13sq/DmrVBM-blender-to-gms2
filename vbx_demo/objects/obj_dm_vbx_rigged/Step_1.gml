@@ -11,13 +11,16 @@ for (var i = 0; i < n; i++)
 }
 
 // Pose Navigation
-if (keyboard_check_pressed(demo.key_posenext))
+if (trkactive.markercount)
 {
-	OP_PoseMarkerJump(Modulo(poseindex+1, posecount));
-}
-if (keyboard_check_pressed(demo.key_poseprev))
-{
-	OP_PoseMarkerJump(Modulo(poseindex-1, posecount));
+	if (keyboard_check_pressed(demo.key_posenext))
+	{
+		OP_PoseMarkerJump(Modulo(trkmarkerindex+1, trkactive.markercount));
+	}
+	if (keyboard_check_pressed(demo.key_poseprev))
+	{
+		OP_PoseMarkerJump(Modulo(trkmarkerindex-1, trkactive.markercount));
+	}
 }
 
 // Toggle playback
@@ -29,7 +32,7 @@ if keyboard_check_pressed(vk_space)
 // Progress Animation
 if isplaying
 {
-	trackpos = Modulo(trackpos + tracktimestep*playbackspeed, 1);
+	trkposition = Modulo(trkposition + trktimestep*playbackspeed, 1);
 	UpdateAnim();
 }
 else
@@ -38,8 +41,8 @@ else
 	var lev = LevKeyHeld(vk_right, vk_left);
 	if lev != 0
 	{
-		trackpos += lev*playbackspeed;
-		posemode = 1;
+		trkposition += lev*playbackspeed;
+		posemode = False;
 		UpdateAnim();
 	}
 }

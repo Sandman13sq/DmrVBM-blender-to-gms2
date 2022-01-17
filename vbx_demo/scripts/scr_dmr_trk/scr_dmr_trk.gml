@@ -276,6 +276,9 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 	var mat4identity = matrix_build_identity();
 	var mm = matrix_build_identity();
 	
+	var _lastepsilon = math_get_epsilon();
+	math_set_epsilon(0.00000000000000001);
+	
 	// Map tracks
 	if bonekeys == 0 // Bone Indices
 	{
@@ -551,6 +554,8 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 		
 		
 	}
+	
+	math_set_epsilon(_lastepsilon);
 	
 	return outpose;
 }

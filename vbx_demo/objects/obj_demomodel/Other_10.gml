@@ -9,133 +9,30 @@ function FetchDrawMatrix()
 		);
 }
 
-function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
+function FetchPoseFiles(path, outtrk, outnames)
 {
-	var b = layout.Box("Display");
+	path = filename_dir(path)+"/";
+	var fname = file_find_first(path+"*.trk", 0);
+	var trk;
 	
-	b.Bool("Wireframe").DefineControl(demo, "wireframe")
-		.Description("Change primitive type to wireframe.");
-	
-	if (_hastextures)
+	while (fname != "")
 	{
-		b.Bool("Use Textures").DefineControl(demo, "usetextures")
-			.Description("Use textures instead of vertex colors.");
-	}
-	if (_hasnormals)
-	{
-		b.Bool("Use Normal Maps").DefineControl(demo, "usenormalmap")
-			.Description("Use normal maps on objects that have them.");
-		b.Bool("Draw Normal Maps").DefineControl(demo, "drawnormal")
-			.Description("Display normal maps on objects that have them.");
-	}
-	
-	b.Enum("Cullmode").DefineControl(demo, "cullmode").DefineListItems([
-		[cull_noculling, "No Culling", "Draw all triangles"],
-		[cull_clockwise, "Cull Clockwise", "Skip triangles facing away from screen"],
-		[cull_counterclockwise, "Cull Counter", "Skip triangles facing towards the screen"],
-		]).
-		Description("Set which triangles to NOT draw.\nGood for speeding up draw time");
-	
-	// Draw Matrix
-	var d = b.Dropdown("Draw Matrix").SetIDName("drawmatrix")
-		.Description("Show variables sent in for draw matrix uniform");
-	
-	if ( _nodrawmatrix )
-	{
-		d.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1).valueprecision=3;
-	}
-	else
-	{
-		var e = d.Real("Alpha").DefineControl(self, "alpha").SetBounds(0, 1);
-			e.valueprecision = 3;
-			e.valuedefault = 1.0;
-		d.Real("Emission").DefineControl(self, "emission").SetBounds(0, 1)
-			.Description("Amount that the natural color shows over the shading.")
-			.valueprecision=3;
-		d.Real("Roughness").DefineControl(self, "roughness").SetBounds(0, 1)
-			.Description("Size of reflected light")
-			.valueprecision=3;
-		d.Real("Rim Strength").DefineControl(self, "rimstrength").SetBounds(0, 1)
-			.Description("")
-			.valueprecision=3;
+		if ( file_exists(path+fname) )
+		{
+			trk = OpenTRK(path+fname);
+			if trk
+			{
+				array_push(outtrk, trk);
+				array_push(outnames, fname);
+			}
+		}
+		
+		fname = file_find_next();
 	}
 	
-	var r;
+	file_find_close();
 	
-	d.Text("Blend Color (R,G,B,amt)");
-	r = d.Row();
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 0).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 1).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 2).draw_increments = false;
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorblend", 3).draw_increments = false;
-
-	d.Text("Fill Color (R,G,B,amt)");
-	r = d.Row();
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 0).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 1).draw_increments = false; 
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 2).draw_increments = false;
-	r.Real().SetBounds(0, 1, 0.05).DefineControl(demo, "colorfill", 3).draw_increments = false;
-	
-}
-
-function Panel_MeshSelect(layout)
-{
-	// Mesh
-	var b = layout.Box("Meshes");
-	var l = b.List()
-		.Operator(OP_MeshSelect)
-		.DefineControl(self, "meshselect");
-	for (var i = 0; i < vbx.vbcount; i++)
-	{
-		l.DefineListItem(i, vbx.vbnames[i], vbx.vbnames[i]);
-	}
-	
-	var r = b.Row();
-	r.Bool("Visible").SetIDName("meshvisible")
-		.DefineControl(self, "meshvisible", meshselect)
-		.Description("Toggle visibility for selected mesh");
-	r.Button("Toggle All").Operator(OP_ToggleAllVisibility)
-		.Description("Toggle visibility for all meshes");
-}
-
-function Panel_Playback(layout)
-{
-	// Playback
-	var b = layout.Box("Playback");
-	b.Bool("Play Animation").DefineControl(self, "isplaying").Operator(OP_TogglePlayback);
-	b.Real("Pos")
-		.Operator(OP_ChangeTrackPos)
-		.DefineControl(self, "trackpos")
-		.SetBounds(0, 1, 0.02)
-		.Description("Toggle animation playback")
-		.operator_on_change = true;
-	b.Real("Animation Speed")
-		.DefineControl(self, "playbackspeed")
-		.SetBounds(-100, 100, 0.02)
-		.SetDefault(1.0)
-		.Description("Set playback speed");
-	b.Button("Bind Pose").Operator(OP_BindPose);
-}
-
-function Panel_Pose(layout)
-{
-	// Pose
-	var b = layout.Box("Poses");
-	var l = b.Dropdown("Select a Pose").List().Operator(OP_PoseMarkerJump);
-	for (var i = 0; i < trackdata_poses.markercount; i++)
-	{
-		l.DefineListItem(i, trackdata_poses.markernames[i]);
-	}
-
-	var e = b.Enum("Interpolation")
-		.Operator(OP_SetInterpolation)
-		.DefineControl(self, "interpolationtype")
-		.DefineListItems([
-			[TRK_Intrpl.constant, "Constant", "Floors keyframe position when evaluating pose"],
-			[TRK_Intrpl.linear, "Linear", "Linearly keyframe position when evaluating pose"],
-			[TRK_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
-			])
-		.Description("Method of blending together transforms when evaluating animation.");
+	return array_length(outtrk);
 }
 
 function DrawMeshFlash(uniform)
@@ -193,3 +90,184 @@ function LoadNormalTextures()
 		//if string_pos("gun", vbx.vbnames[i]) {meshnormalmap[i] = _tex_gun;}
 	}
 }
+
+function UpdateAnim()
+{
+	var _vbx = vbx;
+	var _trk = trkactive;
+	
+	// Generate relative bone matrices for position in animation
+	EvaluateAnimationTracks(trkposition, 
+		interpolationtype,	// Method to blend keyframes with (constant, linear, square)
+		_vbx.bonenames,		// Keys to use for track mapping
+		_trk,				// Track data with transforms
+		posetransform		// 2D Array to write matrix data to
+		);
+	
+	// Convert relative bone matrices to model-space matrices
+	CalculateAnimationPose(
+		_vbx.bone_parentindices,	// index of bone's parent
+		_vbx.bone_localmatricies,	// matrix of bone relative to parent
+		_vbx.bone_inversematricies,	// matrix of bone relative to model origin
+		posetransform,				// relative transforms (from animation or pose)
+		matpose						// flat array of matrices to write data to
+		);
+}
+
+function UpdatePose()
+{
+	var _vbx = vbx;
+	var _trk = trkactive;
+	
+	if (_trk.markercount)
+	{
+		var _pos = _trk.markerpositions[trkmarkerindex];
+		
+		// Generate relative bone matrices for position in animation
+		EvaluateAnimationTracks(_pos, 
+			TRK_Intrpl.constant,	// Method to blend keyframes with (constant, linear, square)
+			_vbx.bonenames,		// Keys to use for track mapping
+			_trk,	// Track data with transforms
+			posetransform		// 2D Array to write matrix data to
+			);
+	
+		// Convert relative bone matrices to model-space matrices
+		CalculateAnimationPose(
+			_vbx.bone_parentindices,	// index of bone's parent
+			_vbx.bone_localmatricies,	// matrix of bone relative to parent
+			_vbx.bone_inversematricies,	// matrix of bone relative to model origin
+			posetransform,				// relative transforms (from animation or pose)
+			matpose						// flat array of matrices to write data to
+			);
+	}
+}
+
+#region Operators ==================================================
+
+function OP_MeshSelect(value, btn)
+{
+	meshselect = value;
+	layout.FindElement("meshvisible").DefineControl(self, "meshvisible", value);
+	meshflash[meshselect] = demo.flashtime;
+}
+
+function OP_ToggleAllVisibility(value, btn)
+{
+	var n = array_length(meshvisible);
+	for (var i = 0; i < n; i++)
+	{
+		if meshvisible[i]
+		{
+			ArrayClear(meshvisible, 0);
+			return;
+		}
+	}
+	
+	ArrayClear(meshvisible, 1);
+}
+
+function OP_BindPose(value, btn)
+{
+	isplaying = false;
+	Mat4ArrayFlatClear(matpose, Mat4());
+	demo.modelzrot = 0;
+	
+	if keyboard_check_direct(vk_alt)
+	{
+		Mat4ArrayFlatClear(matpose, Mat4Rotate(0, 0, 180));
+		demo.modelzrot = 180;
+	}
+}
+
+function OP_TogglePlayback(value, btn)
+{
+	posemode = 1;
+	isplaying = value;
+	UpdateAnim();
+}
+
+function OP_ChangeTrackPos(value, btn)
+{
+	posemode = 1;
+	trackpos = value;
+	UpdateAnim();
+}
+
+function OP_PoseMarkerJump(value, btn)
+{
+	trkmarkerindex = value;
+	isplaying = false;
+	
+	if (trkactive.markercount)
+	{
+		trkposition = trkactive.markerpositions[trkmarkerindex];
+		UpdateAnim();
+	}
+}
+
+function OP_ActionSelect(value, btn)
+{
+	trkindex = value;
+	trkactive = trkanims[trkindex];
+	trktimestep = TrackData_GetTimeStep(trkactive, game_get_speed(gamespeed_fps));
+	trkposlength = trkactive.length;
+	
+	layout_poselist.ClearListItems();
+	for (var i = 0; i < trkactive.markercount; i++)
+	{
+		layout_poselist.DefineListItem(i, trkactive.markernames[i]);
+	}
+	
+	printf([trktimestep, trkposition, trkmarkerindex])
+	
+	UpdateAnim();
+}
+
+function OP_SetInterpolation(value, btn)
+{
+	interpolationtype = value;
+	UpdateAnim();
+}
+
+function OP_CameraToBone(value, btn)
+{
+	var b = vbx.FindBone("t_camera")
+	
+	if (b)
+	{
+		var m = Mat4ArrayFlatGet(matpose, b);
+		var loc = Mat4GetTranslation(m);
+		
+		// Source: https://stackoverflow.com/questions/21515755/how-to-calculate-the-angles-xyz-from-a-matrix4x4
+		var xangle, yangle, zangle;
+		
+		xangle = darcsin(-m[6]);
+		if (dcos(xangle) >= 0.0001)
+		{
+			yangle = darctan2(-m[2], m[10]);
+			zangle = darctan2(-m[4], m[5]);
+		}
+		else
+		{
+			yangle = 0.0;
+			zangle = darctan2(m[1], m[5]);
+		}
+		
+		// Location
+		obj_camera.viewlocation[0] = loc[0];
+		obj_camera.viewlocation[1] = loc[1];
+		obj_camera.viewlocation[2] = loc[2];
+		
+		obj_camera.viewdirection = xangle;
+		obj_camera.viewpitch = yangle;
+		
+		obj_camera.UpdateMatView();
+		
+		lastangles = [xangle, yangle, zangle]
+		
+	}
+}
+
+
+#endregion
+

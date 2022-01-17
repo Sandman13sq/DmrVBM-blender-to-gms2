@@ -58,6 +58,6 @@ function ResetCameraPosition()
 	viewlocation[2] = 7.77;
 	
 	viewdistance = 21;
-	viewdirection = 91;
+	viewdirection = 77;
 	viewpitch = 7;
 }

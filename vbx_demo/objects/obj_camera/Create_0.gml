@@ -2,8 +2,8 @@
 
 viewlocation = [0,0,7];
 
-width = 0;
-height = 0;
+width = room_width;
+height = room_height;
 	
 viewforward = [0,1,0];
 viewright = [1,0,0];
