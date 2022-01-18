@@ -1,7 +1,7 @@
 /// @desc Debug
 
-draw_set_halign(0);
-draw_set_valign(0);
+draw_set_halign(fa_left);
+draw_set_valign(fa_top);
 
 /*
 drawfext(16, 240,

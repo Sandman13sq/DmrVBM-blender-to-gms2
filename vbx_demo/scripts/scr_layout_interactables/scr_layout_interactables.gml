@@ -29,8 +29,8 @@ function LayoutElement_Text(_root, _parent) : LayoutElement(_root, _parent) cons
 		if label != ""
 		{
 			textheight = string_height(label);
-			draw_set_halign(1);
-			draw_set_valign(0);
+			draw_set_halign(fa_center);
+			draw_set_valign(fa_top);
 			DrawTextYCenter(xc, label);
 		}
 		else
@@ -110,8 +110,8 @@ function LayoutElement_Button(_root, _parent) : LayoutElement(_root, _parent) co
 		
 		if label != ""
 		{
-			draw_set_halign(1);
-			draw_set_valign(0);
+			draw_set_halign(fa_center);
+			draw_set_valign(fa_top);
 			DrawTextYCenter(xc, label);
 		}
 	}
@@ -212,8 +212,8 @@ function LayoutElement_Bool(_root, _parent) : LayoutElement(_root, _parent) cons
 		// Draw Label after checkbox
 		if label != ""
 		{
-			draw_set_halign(0);
-			draw_set_valign(0);
+			draw_set_halign(fa_left);
+			draw_set_valign(fa_top);
 			DrawTextYCenter(x1+_cm+3, label);
 		}
 	}
@@ -510,8 +510,8 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			if (current_time/500) mod 2 
 			{v += "|";} else {v += " ";}
 			
-			draw_set_halign(0);
-			draw_set_valign(0);
+			draw_set_halign(fa_left);
+			draw_set_valign(fa_top);
 			DrawTextYCenter(x1+18, v);
 		}
 		// Display
@@ -519,17 +519,17 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		{
 			v = string_format(value, 0, valueprecision);
 			
-			draw_set_valign(0);
+			draw_set_valign(fa_top);
 			if label != ""
 			{
-				draw_set_halign(0);
+				draw_set_halign(fa_left);
 				DrawTextYCenter(x1+(18*draw_increments), label + ": ");
-				draw_set_halign(2);
+				draw_set_halign(fa_right);
 				DrawTextYCenter(x2-(18*draw_increments), v);
 			}
 			else
 			{
-				draw_set_halign(1);
+				draw_set_halign(fa_center);
 				DrawTextYCenter(xc, v);
 			}
 		}
@@ -537,8 +537,8 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 		// Inc / Dec
 		if draw_increments
 		{
-			draw_set_halign(1);
-			draw_set_valign(0);
+			draw_set_halign(fa_center);
+			draw_set_valign(fa_top);
 		
 			DrawRectWH(x1, y1, 16, h, color[0]);
 			DrawTextYCenter(x1+8, "-");
@@ -575,8 +575,8 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 	
 	static drawitem_default = function(x, y, value, index, textcolor, button)
 	{
-		draw_set_halign(0);
-		draw_set_valign(0);
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
 		
 		DrawText(x + 4, y, string(value), textcolor);
 	}
@@ -860,8 +860,8 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		// Draw Label
 		if label != ""
 		{
-			draw_set_halign(1);
-			draw_set_valign(0);
+			draw_set_halign(fa_center);
+			draw_set_valign(fa_top);
 			DrawText(xc, y1, label);
 		}
 		
@@ -1052,8 +1052,8 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 	
 	function Draw()
 	{
-		draw_set_halign(0);
-		draw_set_valign(0);
+		draw_set_halign(fa_left);
+		draw_set_valign(fa_top);
 		
 		// Draw enum elements
 		if active
@@ -1085,7 +1085,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		if label != ""
 		{
 			DrawTextYCenter(x1+3, string(label)+":");
-			draw_set_halign(2);
+			draw_set_halign(fa_right);
 			DrawTextYCenter(x2-3, items[itemindex][1]);
 		}
 		else
@@ -1225,13 +1225,13 @@ function LayoutElement_Dropdown(_root, _parent) : LayoutElement(_root, _parent) 
 		
 		if label != ""
 		{
-			draw_set_halign(0);
-			draw_set_valign(0);
+			draw_set_halign(fa_left);
+			draw_set_valign(fa_top);
 			DrawTextYCenter(x1+4, label);
 		}
 		
-		draw_set_halign(2);
-		draw_set_valign(0);
+		draw_set_halign(fa_right);
+		draw_set_valign(fa_top);
 		DrawTextYCenter(x2-4, active? "-": "+");
 		
 		if active

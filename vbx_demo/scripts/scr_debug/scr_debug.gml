@@ -148,7 +148,7 @@ function drawfextd()
 	var _str, _out = "", _l, _arr, j;
 	
 	var _drawmodev = draw_get_valign();
-	draw_set_valign(2);
+	draw_set_valign(fa_bottom);
 	
 	for (var i = 2; i < argument_count; i += 2)
 	{

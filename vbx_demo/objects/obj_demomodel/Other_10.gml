@@ -97,12 +97,14 @@ function UpdateAnim()
 	var _trk = trkactive;
 	
 	// Generate relative bone matrices for position in animation
+	trkexectime = get_timer();
 	EvaluateAnimationTracks(trkposition, 
 		interpolationtype,	// Method to blend keyframes with (constant, linear, square)
 		_vbx.bonenames,		// Keys to use for track mapping
 		_trk,				// Track data with transforms
 		posetransform		// 2D Array to write matrix data to
 		);
+	trkexectime = get_timer()-trkexectime;
 	
 	// Convert relative bone matrices to model-space matrices
 	CalculateAnimationPose(

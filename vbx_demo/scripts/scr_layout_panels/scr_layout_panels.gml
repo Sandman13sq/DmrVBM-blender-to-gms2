@@ -155,8 +155,8 @@ function LayoutElement_Column(_root, _parent) : LayoutElement(_root, _parent) co
 	{
 		if label != ""
 		{
-			draw_set_halign(1);
-			draw_set_valign(0);
+			draw_set_halign(fa_center);
+			draw_set_valign(fa_top);
 			DrawText(xc, y1 + 4, label);
 		}
 		
@@ -210,8 +210,8 @@ function LayoutElement_Box(_root, _parent) : LayoutElement(_root, _parent) const
 		
 		if label != ""
 		{
-			draw_set_halign(1);
-			draw_set_valign(0);
+			draw_set_halign(fa_center);
+			draw_set_valign(fa_top);
 			DrawText(xc, y1, label);
 		}
 		

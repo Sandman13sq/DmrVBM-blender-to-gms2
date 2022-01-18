@@ -40,6 +40,7 @@ vbmode = 1;
 
 wireframe = 0;
 interpolationtype = TRK_Intrpl.linear;
+trkexectime = 0;
 
 // Control Variables ========================================================
 meshselect = 0;

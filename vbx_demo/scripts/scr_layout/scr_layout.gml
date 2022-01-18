@@ -723,8 +723,8 @@ function Layout() : __LayoutSuper() constructor
 		// Draw Label
 		if label != ""
 		{
-			draw_set_halign(0);
-			draw_set_valign(0);
+			draw_set_halign(fa_left);
+			draw_set_valign(fa_top);
 			DrawText(x1+2, y1, label);
 		}
 		
@@ -769,8 +769,8 @@ function Layout() : __LayoutSuper() constructor
 			
 			if xx+ww >= window_get_width() {xx -= ww;}
 			
-			draw_set_halign(0);
-			draw_set_valign(0);
+			draw_set_halign(fa_left);
+			draw_set_valign(fa_top);
 			DrawRectWH(xx, yy, ww, hh, 0, 0.8);
 			DrawText(xx+4, yy+2, _s, c_white);
 		}

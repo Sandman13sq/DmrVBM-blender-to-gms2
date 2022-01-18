@@ -38,6 +38,7 @@ vbmode = 1;
 
 wireframe = 0;
 interpolationtype = TRK_Intrpl.linear;
+trkexectime = 0;
 
 // Control Variables ========================================================
 meshselect = 0;
@@ -62,8 +63,6 @@ _shd = shd_rigged;
 u_shd_rigged_drawmatrix = shader_get_uniform(_shd, "u_drawmatrix");
 u_shd_rigged_light = shader_get_uniform(_shd, "u_light");
 u_shd_rigged_matpose = shader_get_uniform(_shd, "u_matpose");
-
-lastangles = [0,0,0]
 
 event_user(1);
 
