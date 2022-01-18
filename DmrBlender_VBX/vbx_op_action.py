@@ -108,9 +108,13 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         description='Action to export',
     )
     
-    define_frame_range: bpy.props.BoolProperty(
-        name='Define Frame Range', default=False,
-        description='Override frame range of action',
+    range_type: bpy.props.EnumProperty(
+        name='Range Type', default=0, items=(
+            ('scene', 'Scene Range', 'Export keyframes from first marker to last'),
+            ('keyframes', 'Clamp To Keyframes', 'Export keyframes from starting keyframe to end keyframe'),
+            ('markers', 'Clamp To Markers', 'Export keyframes from first marker to last'),
+            ('custom', 'Custom Range', 'Define custom frame range'),
+        )
     )
     
     frame_range: bpy.props.IntVectorProperty(
@@ -120,13 +124,8 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
     
     bake_steps: bpy.props.IntProperty(
         name="Bake Steps",
-        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking",
+        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking (Good for Pose Libraries)",
         default=1, min=-1
-    )
-    
-    start_from_zero: bpy.props.BoolProperty(
-        name="Trim Empty Leading", default=True,
-        description='Start writing from first keyframe instead of from "Frame Start"',
     )
     
     write_marker_names: bpy.props.BoolProperty(
@@ -137,16 +136,6 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
     normalize_frames: bpy.props.BoolProperty(
         name="Normalize Frames", default=True,
         description="Convert Frames to [0-1] range",
-    )
-    
-    make_start_frame: bpy.props.BoolProperty(
-        name="Starting Keyframe", default=True,
-        description="Insert a keyframe at the start of the animation",
-    )
-    
-    make_end_frame: bpy.props.BoolProperty(
-        name="Ending Keyframe", default=False,
-        description="Insert a keyframe at the end of the animation",
     )
     
     deform_only: bpy.props.BoolProperty(
@@ -205,22 +194,21 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         c = layout.column()
         c.prop(self, 'armature_object')
         c.prop(self, 'action_name')
-        c.prop(self, 'define_frame_range')
-        r = c.row()
-        if self.define_frame_range:
+        b = c.box()
+        b.prop(self, 'range_type')
+        r = b.row()
+        if self.range_type == 'custom':
             r.prop(self, 'frame_range')
-        else:
+        elif self.range_type == 'scene':
             r.label(text='Scene Frame Range')
             r = r.row(align=1)
             r.prop(context.scene, 'frame_start', text='')
             r.prop(context.scene, 'frame_end', text='')
         c.prop(self, 'bake_steps')
-        c.prop(self, 'start_from_zero')
         c.prop(self, 'write_marker_names')
         c.prop(self, 'normalize_frames')
-        c.prop(self, 'make_start_frame')
-        c.prop(self, 'make_end_frame')
-        c.label(text=str(context.active_operator))
+        c.prop(self, 'deform_only')
+        c.prop(self, 'compression_level')
         
     def execute(self, context):
         # Settings
@@ -260,8 +248,14 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
             return {'FINISHED'}
         sourceaction = sourceaction[0]
         
-        if self.define_frame_range:
-            actionrange = self.frame_range
+        if self.range_type == 'custom':
+            actionrange = (self.frame_range[0], self.frame_range[1])
+        elif self.range_type == 'keyframes':
+            positions = [k.co[0] for fc in sourceaction.fcurves for k in fc.keyframe_points]
+            actionrange = (min(positions), max(positions))
+        elif self.range_type == 'markers':
+            positions = [m.frame for m in sourceaction.pose_markers]
+            actionrange = (min(positions), max(positions))
         else:
             actionrange = (sc.frame_start, sc.frame_end)
         
@@ -297,7 +291,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
                 clear_constraints=False, 
                 clear_parents=False, 
                 use_current_action=False, 
-                clean_curves=True, 
+                clean_curves=False, 
                 bake_types={'POSE'}
                 );
             
@@ -323,7 +317,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         
         netframes = ()
         
-        duration = action.frame_range[1]-action.frame_range[0]
+        duration = actionrange[1]-actionrange[0]
         pmod = 1.0/duration if normalize_frames else 1.0
         
         # Parse curves
@@ -370,6 +364,8 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         
         posesnap = {}
         
+        foffset = -actionrange[0]*pmod # Frame offset
+        
         # Bone loop
         for pb in pbones.values():
             thisbonecurves = bonecurves[pb]
@@ -385,7 +381,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
                 vecpositions = tuple(vecpositions)
                 
                 outchunk += Pack('I', len(vecpositions)) # Num Frames
-                outchunk += b''.join([Pack('f', x) for x in vecpositions]) # Frame Positions 
+                outchunk += b''.join([Pack('f', x+foffset) for x in vecpositions]) # Frame Positions 
                 
                 # Vectors
                 for f in vecpositions:
@@ -402,10 +398,10 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         # Markers
         if write_marker_names:
             markers = [(x.name, x.frame*pmod) for x in sourceaction.pose_markers]
-            markers.sort(key=lambda x: x[1])
+            #markers.sort(key=lambda x: x[0])
             out += Pack('I', len(markers))
-            out += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers])
-            out += b''.join([Pack('f', x[1]) for x in markers])
+            out += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
+            out += b''.join([Pack('f', x[1]+foffset) for x in markers]) # Frames
         else:
             out += Pack('I', 0)
         
