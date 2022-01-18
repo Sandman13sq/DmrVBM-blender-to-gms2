@@ -1,7 +1,6 @@
 {
   "resources": [
     {"id":{"name":"scr_layout_interactables","path":"scripts/scr_layout_interactables/scr_layout_interactables.yy",},"order":0,},
-    {"id":{"name":"rm_worldtest","path":"rooms/rm_worldtest/rm_worldtest.yy",},"order":2,},
     {"id":{"name":"obj_dm_normal","path":"objects/obj_dm_normal/obj_dm_normal.yy",},"order":0,},
     {"id":{"name":"tex_curly_hair_col","path":"sprites/tex_curly_hair_col/tex_curly_hair_col.yy",},"order":7,},
     {"id":{"name":"shd_default","path":"shaders/shd_default/shd_default.yy",},"order":1,},
@@ -22,7 +21,6 @@
     {"id":{"name":"obj_dm_vbx_rigged","path":"objects/obj_dm_vbx_rigged/obj_dm_vbx_rigged.yy",},"order":3,},
     {"id":{"name":"obj_camera","path":"objects/obj_camera/obj_camera.yy",},"order":6,},
     {"id":{"name":"scr_debug","path":"scripts/scr_debug/scr_debug.yy",},"order":1,},
-    {"id":{"name":"obj_worldtest","path":"objects/obj_worldtest/obj_worldtest.yy",},"order":3,},
     {"id":{"name":"shd_normalmap","path":"shaders/shd_normalmap/shd_normalmap.yy",},"order":2,},
     {"id":{"name":"scr_constants","path":"scripts/scr_constants/scr_constants.yy",},"order":8,},
     {"id":{"name":"rm_modeltest","path":"rooms/rm_modeltest/rm_modeltest.yy",},"order":1,},
@@ -65,7 +63,6 @@
   "RoomOrderNodes": [
     {"roomId":{"name":"rm_init","path":"rooms/rm_init/rm_init.yy",},},
     {"roomId":{"name":"rm_modeltest","path":"rooms/rm_modeltest/rm_modeltest.yy",},},
-    {"roomId":{"name":"rm_worldtest","path":"rooms/rm_worldtest/rm_worldtest.yy",},},
   ],
   "Folders": [
     {"folderPath":"folders/Sprites.yy","order":1,"resourceVersion":"1.0","name":"Sprites","tags":[],"resourceType":"GMFolder",},
@@ -101,9 +98,9 @@
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_poses.trk","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"ball.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"settings.ini","resourceType":"GMIncludedFile",},
-    {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_anim_battle.trk","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_anim_bstrangers.trk","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_anim_idle.trk","resourceType":"GMIncludedFile",},
+    {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"curly_anim_battle2.trk","resourceType":"GMIncludedFile",},
   ],
   "MetaData": {
     "IDEVersion": "2.3.7.606",

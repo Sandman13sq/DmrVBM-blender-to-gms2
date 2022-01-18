@@ -26,6 +26,8 @@ LoadDiffuseTextures();
 
 if vbx.FindVBIndex("curly_gun_mod") != -1
 	{meshvisible[vbx.FindVBIndex("curly_gun_mod")] = 0;}
+if vbx.FindVBIndex("curly_school") != -1
+	{meshvisible[vbx.FindVBIndex("curly_school")] = 0;}
 
 // Uniforms
 var _shd;

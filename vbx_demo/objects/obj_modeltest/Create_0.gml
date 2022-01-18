@@ -15,7 +15,7 @@ modelposition = [0,0,0];
 modelzrot = 0;
 
 wireframe = false;
-usetextures = true;
+usetextures = false;
 usenormalmap = true;
 drawnormal = false;
 cullmode = cull_clockwise;

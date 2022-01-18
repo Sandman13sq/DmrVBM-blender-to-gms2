@@ -23,7 +23,7 @@ matpose = Mat4ArrayFlat(DMRVBX_MATPOSEMAX, matrix_build_identity());
 trkanims = []
 trknames = []
 trkcount = FetchPoseFiles(DIRPATH, trkanims, trknames);
-trkindex = 0;
+trkindex = trkcount-1;
 trkactive = 0;
 trktimestep = 0;
 trkposition = 0.0;
@@ -53,6 +53,8 @@ drawmatrix = BuildDrawMatrix();
 
 if vbx.FindVBIndex("curly_gun_mod") != -1
 	{meshvisible[vbx.FindVBIndex("curly_gun_mod")] = 0;}
+if vbx.FindVBIndex("curly_school") != -1
+	{meshvisible[vbx.FindVBIndex("curly_school")] = 0;}
 
 // Uniforms ========================================================
 var _shd;

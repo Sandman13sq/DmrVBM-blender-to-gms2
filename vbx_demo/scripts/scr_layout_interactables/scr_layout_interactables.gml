@@ -530,7 +530,7 @@ function LayoutElement_Real(_root, _parent) : LayoutElement_Button(_root, _paren
 			else
 			{
 				draw_set_halign(1);
-				DrawText(xc, y1, v);
+				DrawTextYCenter(xc, v);
 			}
 		}
 		

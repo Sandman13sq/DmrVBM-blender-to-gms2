@@ -89,14 +89,6 @@ function LoadSettings()
 {
 	ini = ini_open("settings.ini");
 	
-	if (current_time <= 1000)
-	{
-		window_set_size(
-			ini_read_real("demo", "windowwidth", 960),
-			ini_read_real("demo", "windowheight", 540)
-			);
-	}
-	
 	key_right = ParseIniInput("right", "D");
 	key_left = ParseIniInput("left", "A");
 	key_up = ParseIniInput("up", "W");
