@@ -455,7 +455,7 @@ function Layout() : __LayoutSuper() constructor
 		cellui : 1,
 		cellmax : 1, // Max of textscale and uiscale
 		
-		buttonheight : 24,
+		buttonheight : 20,
 		textheight : 16,
 		textheightdiv2 : 8,
 		active : 0,

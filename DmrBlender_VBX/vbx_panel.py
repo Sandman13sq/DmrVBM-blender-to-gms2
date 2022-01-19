@@ -4,7 +4,7 @@ classlist = []
 
 def DrawVBXPanel(self, context):
     layout = self.layout
-       
+    
     section = layout.box().column()
     section.column().label(text='-- Vertex Buffer --')
     section = section.row()
@@ -16,7 +16,7 @@ def DrawVBXPanel(self, context):
     #section.operator("dmr.gm_export_pose", text='Export Current Pose', icon='ARMATURE_DATA')
     #section.operator("dmr.gm_export_poselib", text='Export PoseLib', icon='POSE_HLT')
     section.operator("dmr.vbx_export_action_armature", text='Export Action', icon='RENDER_ANIMATION')
-    section.operator("dmr.gm_export_posematrix", text='Export Pose Matrices', icon='LIGHTPROBE_GRID')
+    #section.operator("dmr.gm_export_posematrix", text='Export Pose Matrices', icon='LIGHTPROBE_GRID')
 '''
 class DMR_PT_ExportVBPanel(bpy.types.Panel):
     bl_label = 'Vertex Buffer Export'

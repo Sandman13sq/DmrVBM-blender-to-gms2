@@ -144,6 +144,33 @@ function LoadSettings()
 	);
 }
 
+function FetchWorldFiles(path, outworlds, outnames)
+{
+	path = filename_dir(path)+"/";
+	var fname = file_find_first(path+"*.vb", 0);
+	var vb;
+	
+	while (fname != "")
+	{
+		if ( file_exists(path+fname) )
+		{
+			vb = OpenVertexBuffer(path+fname, vbf_model);
+			
+			if (vb >= 0)
+			{
+				array_push(outworlds, vb);
+				array_push(outnames, fname);
+			}
+		}
+		
+		fname = file_find_next();
+	}
+	
+	file_find_close();
+	
+	return array_length(outworlds);
+}
+
 // Operators =================================================
 
 function OP_ModelMode(value, btn)
@@ -155,6 +182,22 @@ function OP_ModelMode(value, btn)
 		instance_deactivate_object(obj_demomodel);
 		instance_activate_object(modelactive);
 		modelactive.reactivated = 1;
+	}
+}
+
+function OP_WorldSelect(value, btn)
+{
+	with obj_modeltest
+	{
+		worldindex = value;
+		if (worldindex >= 0)
+		{
+			worldactive = worldvbs[worldindex];
+		}
+		else
+		{
+			worldactive = -1;
+		}
 	}
 }
 

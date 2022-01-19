@@ -13,6 +13,14 @@ layout.Enum().Label("Model")
 	[ModelType.complete, "VBX Complete", "VBX model with all features (curly_complete.vbx)"],
 	]);
 
+layout_worlds = layout.Enum("World")
+	.DefineControl(self, "worldindex")
+	.Operator(OP_WorldSelect);
+for (var i = 0; i < worldcount; i++)
+{
+	layout_worlds.DefineListItem(i, worldnames[i]);
+}
+
 layout.Bool("Show World").DefineControl(self, "drawworld");
 layout.Bool("Show Grid").DefineControl(self, "drawgrid");
 layout.Bool("Show Camera Anchor").DefineControl(self, "drawcamerapos");

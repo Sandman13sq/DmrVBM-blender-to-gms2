@@ -168,7 +168,7 @@ function OP_ToggleAllVisibility(value, btn)
 	ArrayClear(meshvisible, 1);
 }
 
-function OP_BindPose(value, btn)
+function OP_RestPose(value, btn)
 {
 	isplaying = false;
 	Mat4ArrayFlatClear(matpose, Mat4());

@@ -12,7 +12,7 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Ind
 vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Weights
 vbf = vertex_format_end();
 
-vbx = OpenVBX(DIRPATH + "curly_rigged.vbx", vbf);
+vbx = OpenVBX(DIRPATH+"model/" + "curly_rigged.vbx", vbf);
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones
@@ -22,7 +22,7 @@ matpose = Mat4ArrayFlat(DMRVBX_MATPOSEMAX, matrix_build_identity());
 
 trkanims = []
 trknames = []
-trkcount = FetchPoseFiles(DIRPATH, trkanims, trknames);
+trkcount = FetchPoseFiles(DIRPATH+"animation/", trkanims, trknames);
 trkindex = trkcount-1;
 trkactive = 0;
 trktimestep = 0;

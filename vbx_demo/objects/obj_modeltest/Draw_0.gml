@@ -14,10 +14,10 @@ matrix_set(matrix_world, matrix_build_identity());
 shader_set_uniform_f_array(u_shd_model_light, lightdata);
 
 // Draw World
-if drawworld
+if (drawworld && worldactive >= 0)
 {
 	shader_set_uniform_f_array(u_shd_model_drawmatrix, BuildDrawMatrix(1, 0, 0.75, 0));
-	vertex_submit(vb_world, pr_trianglelist, -1);
+	vertex_submit(worldactive, pr_trianglelist, -1);
 }
 
 shader_reset();

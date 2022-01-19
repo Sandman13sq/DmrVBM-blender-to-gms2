@@ -41,8 +41,7 @@ else
 	var lev = LevKeyHeld(vk_right, vk_left);
 	if lev != 0
 	{
-		trkposition += lev*playbackspeed;
-		posemode = False;
+		trkposition += lev*playbackspeed*trktimestep;
 		UpdateAnim();
 	}
 }

@@ -1074,7 +1074,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 				}
 				
 				e = items[i];
-				DrawText(x1+5, yy, e[1], (itemhighlight==i)? c_white: c_ltgray);
+				DrawText(x1+5, yy+common.textheightdiv2, e[1], (itemhighlight==i)? c_white: c_ltgray);
 				yy += hh;
 			}
 		}

@@ -42,7 +42,6 @@ else
 	if lev != 0
 	{
 		trkposition += lev*playbackspeed;
-		posemode = False;
 		UpdateAnim();
 	}
 }

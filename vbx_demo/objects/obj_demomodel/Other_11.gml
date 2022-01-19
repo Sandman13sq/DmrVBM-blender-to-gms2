@@ -115,7 +115,7 @@ function Panel_Playback(layout)
 		.SetBounds(-100, 100, 0.02)
 		.SetDefault(1.0)
 		.Description("Set playback speed");
-	b.Button("Bind Pose").Operator(OP_BindPose);
+	b.Button("Rest Pose").Operator(OP_RestPose);
 	
 	var e = b.Enum("Interpolation")
 		.Operator(OP_SetInterpolation)

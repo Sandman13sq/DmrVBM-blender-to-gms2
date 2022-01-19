@@ -57,7 +57,12 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf_model = vertex_format_end();
 
-vb_world = OpenVertexBuffer(DIRPATH+"world.vb", vbf_model);
+worldvbs = [];
+worldnames = [];
+worldcount = FetchWorldFiles(DIRPATH+"world/", worldvbs, worldnames);
+worldindex = 0;
+worldactive = -1;
+
 vb_ball = OpenVertexBuffer(DIRPATH+"ball.vb", vbf_basic);
 vb_grid = CreateGridVB(128, 1);
 
@@ -87,3 +92,5 @@ modelactive = modelobj[modelmode];
 
 // Layout
 event_user(1);
+
+OP_WorldSelect(worldindex);
