@@ -65,7 +65,7 @@ function OpenTRK(path)
 	if ( (header & 0x00FFFFFF) != TRKHEADERCODE )
 	{
 		show_debug_message("OpenTRK(): header is invalid \"" + path + "\"");
-		return new VBXData();
+		return new VBCData();
 	}
 	
 	switch(header & 0xFF)
@@ -561,7 +561,7 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 }
 
 // Fills outtransform with calculated animation pose
-// bones = Array of VBXBone()
+// bones = Array of VBCBone()
 // posedata = Array of 4x4 matrices. 2D
 // outposetransform = Flat Array of matrices in localspace, size = len(posedata) * 16, give to shader
 // outbonetransform = Array of bone matrices in modelspace

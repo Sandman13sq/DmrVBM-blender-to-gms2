@@ -1,24 +1,24 @@
 /*
-	VBX class definition and functions.
+	VBC class definition and functions.
 	By Dreamer13sq
 */
 
-#macro VBXHEADERCODE 0x00584256
+#macro VBCHEADERCODE 0x00584256
 
-#macro DMRVBX_MATPOSEMAX 200
-#macro DMRVBX_MAT4ARRAYFLAT global.g_mat4identityflat
-#macro DMRVBX_MAT4ARRAY2D global.g_mat4identity2d
+#macro DMRVBC_MATPOSEMAX 200
+#macro DMRVBC_MAT4ARRAYFLAT global.g_mat4identityflat
+#macro DMRVBC_MAT4ARRAY2D global.g_mat4identity2d
 
-DMRVBX_MAT4ARRAYFLAT = array_create(16*DMRVBX_MATPOSEMAX);
-DMRVBX_MAT4ARRAY2D = array_create(DMRVBX_MATPOSEMAX);
+DMRVBC_MAT4ARRAYFLAT = array_create(16*DMRVBC_MATPOSEMAX);
+DMRVBC_MAT4ARRAY2D = array_create(DMRVBC_MATPOSEMAX);
 
-for (var i = 0; i < DMRVBX_MATPOSEMAX; i++)
+for (var i = 0; i < DMRVBC_MATPOSEMAX; i++)
 {
-	array_copy(DMRVBX_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
-	DMRVBX_MAT4ARRAY2D[i] = matrix_build_identity();
+	array_copy(DMRVBC_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
+	DMRVBC_MAT4ARRAY2D[i] = matrix_build_identity();
 }
 
-enum VBX_AttributeType
+enum VBC_AttributeType
 {
 	_other = 0,
 	
@@ -46,7 +46,7 @@ enum VBX_AttributeType
 	]
 */
 
-function VBXData() constructor 
+function VBCData() constructor 
 {
 	vb = [];	// Vertex buffers
 	vbmap = {};	// {vbname: vertex_buffer} for each vb
@@ -61,7 +61,7 @@ function VBXData() constructor
 	bonenames = [];
 	bonecount = 0;
 	
-	vbformat = -1;	// Vertex Buffer Format created in OpenVBX() (Don't touch!)
+	vbformat = -1;	// Vertex Buffer Format created in OpenVBC() (Don't touch!)
 	
 	// Returns vertex buffer with given name. -1 if not found
 	static FindVB = function(_name)
@@ -140,19 +140,19 @@ function VBXData() constructor
 	}
 }
 
-// Removes allocated memory from vbx
-function VBXFree(vbx)
+// Removes allocated memory from vbc
+function VBCFree(vbc)
 {
-	var n = vbx.vbcount;
-	var vbuffers = vbx.vb;
+	var n = vbc.vbcount;
+	var vbuffers = vbc.vb;
 	for (var i = 0; i < n; i++)
 	{
 		vertex_delete_buffer(vbuffers[i]);
 	}
 	
-	if vbx.vbformat > -1
+	if vbc.vbformat > -1
 	{
-		vertex_format_delete(vbx.vbformat);	
+		vertex_format_delete(vbc.vbformat);	
 	}
 }
 
@@ -178,19 +178,19 @@ function OpenVertexBuffer(path, format, freeze=true)
 	return vb;
 }
 
-// Runs appropriate version function and returns vbx struct from file (.vbx)
-function OpenVBX(path, format=-1, freeze=true)
+// Runs appropriate version function and returns vbc struct from file (.vbc)
+function OpenVBC(path, format=-1, freeze=true)
 {
 	if filename_ext(path) == ""
 	{
-		path = filename_change_ext(path, ".vbx");	
+		path = filename_change_ext(path, ".vbc");	
 	}
 	
 	var bzipped = buffer_load(path);
 	
 	if bzipped < 0
 	{
-		show_debug_message("OpenVBX(): Error loading vbx data from \"" + path + "\"");
+		show_debug_message("OpenVBC(): Error loading vbc data from \"" + path + "\"");
 		return -1;
 	}
 	
@@ -202,10 +202,10 @@ function OpenVBX(path, format=-1, freeze=true)
 	// Header
 	header = buffer_peek(b, 0, buffer_u32);
 	
-	// Not a vbx file
-	if ( (header & 0x00FFFFFF) != VBXHEADERCODE )
+	// Not a vbc file
+	if ( (header & 0x00FFFFFF) != VBCHEADERCODE )
 	{
-		var vbx = new VBXData();
+		var vbc = new VBCData();
 		
 		// Maybe it's a vertex buffer?
 		if ( !noformatgiven )
@@ -213,17 +213,17 @@ function OpenVBX(path, format=-1, freeze=true)
 			vb = vertex_create_buffer_from_buffer(b, format);
 			if ( vb < 0 )
 			{
-				show_debug_message("OpenVBX(): data is normal vb? \"" + path + "\"");
+				show_debug_message("OpenVBC(): data is normal vb? \"" + path + "\"");
 				return -1;
 			}
 			
 			name = filename_name(path);
-			vbx.AddVB(vb, name);
-			return vbx;
+			vbc.AddVB(vb, name);
+			return vbc;
 		}
 		
-		show_debug_message("OpenVBX(): header is invalid \"" + path + "\"");
-		return vbx;
+		show_debug_message("OpenVBC(): header is invalid \"" + path + "\"");
+		return vbc;
 	}
 	
 	switch(header & 0xFF)
@@ -232,14 +232,14 @@ function OpenVBX(path, format=-1, freeze=true)
 		
 		// Version 1
 		case(1): 
-			return __VBXOpen_v1(b, format, freeze);
+			return __VBCOpen_v1(b, format, freeze);
 	}
 	
 	return -1;
 }
 
-// Returns true if buffer contains vbx header
-function BufferIsVBX(b, offset=0)
+// Returns true if buffer contains vbc header
+function BufferIsVBC(b, offset=0)
 {
 	if ( buffer_get_size(b) >= offset+4 )
 	{
@@ -248,14 +248,14 @@ function BufferIsVBX(b, offset=0)
 		{
 			header += chr( buffer_peek(b, offset+i, buffer_u8) );
 		}
-		if header == "VBX" {return true;}
+		if header == "VBC" {return true;}
 	}
 	
 	return false;
 }
 
-// Returns vbx format from buffer
-function GetVBXFormat(b, offset)
+// Returns vbc format from buffer
+function GetVBCFormat(b, offset)
 {
 	var numattributes = buffer_peek(b, offset, buffer_u8);
 	offset += 1;
@@ -279,13 +279,13 @@ function GetVBXFormat(b, offset)
 		switch(attributetype)
 		{
 			// Native types
-			case(VBX_AttributeType.position3d):
+			case(VBC_AttributeType.position3d):
 				vertex_format_add_position_3d(); break;
-			case(VBX_AttributeType.uv):
+			case(VBC_AttributeType.uv):
 				vertex_format_add_texcoord(); break;
-			case(VBX_AttributeType.normal):
+			case(VBC_AttributeType.normal):
 				vertex_format_add_normal(); break;
-			case(VBX_AttributeType.colorbytes):
+			case(VBC_AttributeType.colorbytes):
 				vertex_format_add_color(); break;
 				
 			// Non native types
@@ -304,15 +304,15 @@ function GetVBXFormat(b, offset)
 	return vertex_format_end();
 }
 
-// Returns vbx struct from file (.vbx)
-function __VBXOpen_v1(b, format, freeze)
+// Returns vbc struct from file (.vbc)
+function __VBCOpen_v1(b, format, freeze)
 {
 	/* File spec:
 		
 	
 	*/
 	
-	var vbx = new VBXData();
+	var outvbc = new VBCData();
 	
 	var flag;
 	var floattype;
@@ -343,7 +343,7 @@ function __VBXOpen_v1(b, format, freeze)
 	// Vertex Format
 	if noformatgiven
 	{
-		format = GetVBXFormat(b, buffer_tell(b));
+		format = GetVBCFormat(b, buffer_tell(b));
 	}
 	
 	buffer_seek(b, buffer_seek_relative, buffer_read(b, buffer_u8)*2);
@@ -351,8 +351,8 @@ function __VBXOpen_v1(b, format, freeze)
 	#region // Vertex Buffers ==============================================
 	
 	vbcount = buffer_read(b, buffer_u16);
-	vbx.vbcount = vbcount;
-	array_resize(vbx.vbnames, vbcount);
+	outvbc.vbcount = vbcount;
+	array_resize(outvbc.vbnames, vbcount);
 	
 	for (var i = 0; i < vbcount; i++) // VB Names
 	{
@@ -362,8 +362,8 @@ function __VBXOpen_v1(b, format, freeze)
 		{
 			name += chr(buffer_read(b, buffer_u8));
 		}
-		vbx.vbnames[i] = name;
-		vbx.vbnamemap[$ name] = i;
+		outvbc.vbnames[i] = name;
+		outvbc.vbnamemap[$ name] = i;
 	}
 	
 	for (var i = 0; i < vbcount; i++) // VB Data
@@ -375,8 +375,8 @@ function __VBXOpen_v1(b, format, freeze)
 		vb = vertex_create_buffer_from_buffer_ext(b, format, buffer_tell(b), numvertices);
 		
 		if freeze {vertex_freeze(vb);}
-		vbx.vb[i] = vb;
-		vbx.vbmap[$ vbx.vbnames[i]] = vb;
+		outvbc.vb[i] = vb;
+		outvbc.vbmap[$ outvbc.vbnames[i]] = vb;
 		
 		// move to next vb
 		buffer_seek(b, buffer_seek_relative, vbuffersize);
@@ -387,11 +387,11 @@ function __VBXOpen_v1(b, format, freeze)
 	#region // Bones ======================================================
 	
 	bonecount = buffer_read(b, buffer_u16);
-	vbx.bonecount = bonecount;
-	array_resize(vbx.bonenames, bonecount);
-	array_resize(vbx.bone_parentindices, bonecount);
-	array_resize(vbx.bone_localmatricies, bonecount);
-	array_resize(vbx.bone_inversematricies, bonecount);
+	outvbc.bonecount = bonecount;
+	array_resize(outvbc.bonenames, bonecount);
+	array_resize(outvbc.bone_parentindices, bonecount);
+	array_resize(outvbc.bone_localmatricies, bonecount);
+	array_resize(outvbc.bone_inversematricies, bonecount);
 	
 	// Bone Names
 	for (var i = 0; i < bonecount; i++) 
@@ -402,20 +402,20 @@ function __VBXOpen_v1(b, format, freeze)
 		{
 			name += chr(buffer_read(b, buffer_u8));
 		}
-		vbx.bonenames[i] = name;
-		vbx.bonemap[$ name] = i;
+		outvbc.bonenames[i] = name;
+		outvbc.bonemap[$ name] = i;
 		//printf("[%s] %s", i, name)
 	}
 	
 	// Parent Indices
-	targetmats = vbx.bone_parentindices;
+	targetmats = outvbc.bone_parentindices;
 	i = 0; repeat(bonecount)
 	{
 		targetmats[@ i++] = buffer_read(b, buffer_u16);
 	}
 	
 	// Local Matrices
-	targetmats = vbx.bone_localmatricies;
+	targetmats = outvbc.bone_localmatricies;
 	i = 0; repeat(bonecount)
 	{
 		mat = array_create(16);
@@ -427,7 +427,7 @@ function __VBXOpen_v1(b, format, freeze)
 	}
 	
 	// Inverse Model Matrices
-	targetmats = vbx.bone_inversematricies;
+	targetmats = outvbc.bone_inversematricies;
 	i = 0; repeat(bonecount)
 	{
 		mat = array_create(16);
@@ -445,12 +445,12 @@ function __VBXOpen_v1(b, format, freeze)
 	// Keep Temporary format
 	if noformatgiven
 	{
-		vbx.vbformat = format;
+		outvbc.vbformat = format;
 		
 		// Apparently formats need to stay in memory...
 		//vertex_format_delete(format);
 	}
 	
-	return vbx;
+	return outvbc;
 }
 

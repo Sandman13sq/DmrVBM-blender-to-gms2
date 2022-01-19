@@ -1,4 +1,4 @@
-/// @desc Remove VBX + VBF
+/// @desc Remove VBC + VBF
 
-VBXFree(vbx);
+VBCFree(vbc);
 vertex_format_delete(vbf);

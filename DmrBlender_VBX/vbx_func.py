@@ -23,7 +23,7 @@ def PrintStatus(msg, clear=1, buffersize=40):
 
 # ================================================================================
 
-VBXVERSION = 1
+VBCVERSION = 1
 FCODE = 'f'
 
 # This is more for loading files outside of GMS
@@ -263,7 +263,7 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
             m.show_viewport = applyarmature
     
     if not edgesonly:
-        m = dupobj.modifiers.new(type='TRIANGULATE', name='VBX Triangulate')
+        m = dupobj.modifiers.new(type='TRIANGULATE', name='VBC Triangulate')
         m.min_vertices=4
         m.keep_custom_normals=True
     

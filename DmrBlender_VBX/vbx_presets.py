@@ -2,9 +2,9 @@ import bpy
 import os
 
 try:
-    from .vbx_func import *
+    from .vbc_func import *
 except:
-    from vbx_func import *
+    from vbc_func import *
 
 attribpresets = {
     '_Pos-Col-UV': [VBF_POS, VBF_RGB, VBF_UVS],
@@ -27,7 +27,7 @@ def PresetPanic():
             break
         
     if p:
-        for opname in ['dmr.vbx_export_vb', 'dmr.vbx_export_vbx']:
+        for opname in ['dmr.vbc_export_vb', 'dmr.vbc_export_vbc']:
             dir = p+opname+'/'
             try:
                 os.mkdir(dir)

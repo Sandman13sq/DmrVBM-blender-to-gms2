@@ -22,23 +22,23 @@ matrix_set(matrix_world, matrix_build(
 	0, 0, -obj_modeltest.modelzrot, 1, 1, 1));
 
 // Draw Meshes
-var n = vbx.vbcount;
+var n = vbc.vbcount;
 var _primitivetype = demo.wireframe? pr_linelist: pr_trianglelist;
 
 for (var i = 0; i < n; i++)
 {
 	if ( meshvisible[i] )
 	{
-		drawmatrix[3] = string_pos("skin", vbx.vbnames[i])? skinsss: rimstrength;
+		drawmatrix[3] = string_pos("skin", vbc.vbnames[i])? skinsss: rimstrength;
 		shader_set_uniform_f_array(u_shd_model_drawmatrix, drawmatrix);
 		
 		if ( demo.usetextures )
 		{
-			vbx.SubmitVBIndex(i, _primitivetype, meshtexture[i]);
+			vbc.SubmitVBIndex(i, _primitivetype, meshtexture[i]);
 		}
 		else 
 		{
-			vbx.SubmitVBIndex(i, _primitivetype, -1);
+			vbc.SubmitVBIndex(i, _primitivetype, -1);
 		}
 	}
 }

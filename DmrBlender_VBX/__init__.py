@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'DmrBlender VBX Export',
+    'name': 'DmrBlender VBC Export',
     'category': 'Import-Export',
     'version': (0, 1),
     'blender': (3, 0, 0)
@@ -7,12 +7,12 @@ bl_info = {
  
 modulesNames = [
     'utilities',
-    'vbx_func',
-    'vbx_presets',
-    'vbx_op',
-    'vbx_op_action',
-    'vbx_panel',
-    'vbx_exportlist',
+    'vbc_func',
+    'vbc_presets',
+    'vbc_op',
+    'vbc_op_action',
+    'vbc_panel',
+    'vbc_exportlist',
     ]
  
 import sys

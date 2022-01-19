@@ -9,14 +9,14 @@ from bpy_extras.io_utils import ExportHelper
 from struct import pack as Pack
 
 try:
-    from .vbx_func import *
+    from .vbc_func import *
 except:
-    from vbx_func import *
+    from vbc_func import *
 
-# VBX Format:
+# VBC Format:
 """
-    'VBX' (3B)
-    VBX version (1B)
+    'VBC' (3B)
+    VBC version (1B)
     flags (1B)
     
     formatlength (1B)
@@ -196,7 +196,7 @@ def Items_Collections(self, context):
     out = [('<selected>', '(Selected Objects)', 'Export selected objects', 'RESTRICT_SELECT_OFF', 0)]
     
     # Export Lists
-    for i, x in enumerate(context.scene.vbx_exportlists):
+    for i, x in enumerate(context.scene.vbc_exportlists):
         out += [(EXPORTLISTHEADER+'%s' % x.name, x.name, 'Export from export list "%s"' % x.name, 'PRESET', len(out))]
     
     # Iterate through scene collections
@@ -224,7 +224,7 @@ def CollectionToObjectList(self, context):
     # Export List
     elif name[:len(EXPORTLISTHEADER)] == EXPORTLISTHEADER:
         exportlistname = name[len(EXPORTLISTHEADER):]
-        exportlists = list(context.scene.vbx_exportlists)
+        exportlists = list(context.scene.vbc_exportlists)
         listnames = [x.name for x in exportlists]
         if exportlistname in listnames:
             blendobjects = bpy.data.objects
@@ -400,7 +400,7 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
 
 class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
     """Exports selected objects as one compressed vertex buffer"""
-    bl_idname = "dmr.vbx_export_vb"
+    bl_idname = "dmr.vbc_export_vb"
     bl_label = "Export VB"
     bl_options = {'PRESET'}
     
@@ -532,14 +532,14 @@ classlist.append(DMR_OP_ExportVB)
 
 # =============================================================================
 
-class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
-    """Exports selected objects as vbx data"""
-    bl_idname = "dmr.vbx_export_vbx"
-    bl_label = "Export VBX"
+class DMR_OP_ExportVBC(ExportVBSuper, bpy.types.Operator):
+    """Exports selected objects as vbc data"""
+    bl_idname = "dmr.vbc_export_vbc"
+    bl_label = "Export VBC"
     bl_options = {'PRESET'}
 
     # ExportHelper mixin class uses this
-    filename_ext = ".vbx"
+    filename_ext = ".vbc"
     filter_glob : bpy.props.StringProperty(default='*'+filename_ext, options={'HIDDEN'}, maxlen=255)
     
     batch_export: bpy.props.EnumProperty(
@@ -547,11 +547,11 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         description="Export selected objects as separate files.",
         items = (
             ('none', 'No Batching', 'All objects will be written to a single file'),
-            ('obj', 'By Object Name', 'Objects will be written to "<filename><object_name>.vbx" by object'),
-            ('mesh', 'By Mesh Name', 'Objects will be written to "<filename><mesh_name>.vbx" by mesh'),
-            ('mat', 'By Material', 'Objects will be written to "<filename><material_name>.vbx" by material'),
-            ('armature', 'By Parent Armature', 'Objects will be written to "<filename><armature_name>.vbx" by parent armature'),
-            #('empty', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.vbx" by parent empty'),
+            ('obj', 'By Object Name', 'Objects will be written to "<filename><object_name>.vbc" by object'),
+            ('mesh', 'By Mesh Name', 'Objects will be written to "<filename><mesh_name>.vbc" by mesh'),
+            ('mat', 'By Material', 'Objects will be written to "<filename><material_name>.vbc" by material'),
+            ('armature', 'By Parent Armature', 'Objects will be written to "<filename><armature_name>.vbc" by parent armature'),
+            #('empty', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.vbc" by parent empty'),
         ),
         default='none',
     )
@@ -596,7 +596,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             return {'FINISHED'}
         
         print('='*80)
-        print('> Beginning ExportVBX to rootpath: "%s"' % path)
+        print('> Beginning ExportVBC to rootpath: "%s"' % path)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
         mattran = GetCorrectiveMatrix(self, context)
@@ -661,7 +661,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             out_format += Pack('B', VBFType[f]) # Attribute Type
             out_format += Pack('B', VBFSize[f]) # Attribute Float Size
         
-        out_header = b'VBX' + Pack('B', VBXVERSION)
+        out_header = b'VBC' + Pack('B', VBCVERSION)
         out_header += Pack('B', flag)
         out_header += out_format
         
@@ -756,7 +756,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             
             return (vbgroups, vbnumber, vbkeys)
         
-        def FinishVBX(vbgroups, vbnumbers, groupkeys, path=self.filepath):
+        def FinishVBC(vbgroups, vbnumbers, groupkeys, path=self.filepath):
             out_vb = b''
             out_vb += Pack('H', len(vbgroups)) # Number of groups
             out_vb += b''.join( [PackString(name) for name in groupkeys] ) # Group Names
@@ -780,7 +780,7 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
             vertexcount = 0
             
             vbgroups, vertexcount, vbkeys = GetVBGroupSorted(targetobjects)
-            FinishVBX(vbgroups, vertexcount, vbkeys)
+            FinishVBC(vbgroups, vertexcount, vbkeys)
         else:
             rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path
             outgroups = {} # {groupname: vertexdata}
@@ -842,13 +842,13 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
                     out_bone = ComposeBoneData(armobj)
                     vbgroups, vbnumbers = GetVBGroupSorted([x for x in armobj.children])
                     if sum(vbnumbers.values()) > 0:
-                        FinishVBX(vbgroups, vbnumbers, vbkeys, rootpath + name + self.filename_ext)
+                        FinishVBC(vbgroups, vbnumbers, vbkeys, rootpath + name + self.filename_ext)
                 outgroups = {}
             
             # Export each data as individual files
             if dooutexport:
                 for name, outgroup in outgroups.items():
-                    FinishVBX(outgroup[0], outgroup[1], rootpath + name + self.filename_ext)
+                    FinishVBC(outgroup[0], outgroup[1], rootpath + name + self.filename_ext)
         
         # Restore State --------------------------------------------------------
         RemoveTempObjects()
@@ -856,10 +856,10 @@ class DMR_OP_ExportVBX(ExportVBSuper, bpy.types.Operator):
         if activename in [x.name for x in bpy.context.selected_objects]:
             context.view_layer.objects.active = bpy.data.objects[activename]
         
-        self.report({'INFO'}, 'VBX export complete')
+        self.report({'INFO'}, 'VBC export complete')
         
         return {'FINISHED'}
-classlist.append(DMR_OP_ExportVBX)
+classlist.append(DMR_OP_ExportVBC)
 
 # =============================================================================
 

@@ -57,7 +57,7 @@ if (!layoutrunning && !camera.lock)
 {
 	if (keyboard_check_pressed(VKey._1)) {OP_ModelMode(ModelType.simple, 0);}
 	if (keyboard_check_pressed(VKey._2)) {OP_ModelMode(ModelType.normal, 0);}
-	if (keyboard_check_pressed(VKey._3)) {OP_ModelMode(ModelType.vbx, 0);}
+	if (keyboard_check_pressed(VKey._3)) {OP_ModelMode(ModelType.vbc, 0);}
 	if (keyboard_check_pressed(VKey._4)) {OP_ModelMode(ModelType.normalmap, 0);}
 	if (keyboard_check_pressed(VKey._5)) {OP_ModelMode(ModelType.rigged, 0);}
 	if (keyboard_check_pressed(VKey._6)) {OP_ModelMode(ModelType.complete, 0);}

@@ -7,10 +7,10 @@ layout.Enum().Label("Model")
 	.DefineListItems([
 	[ModelType.simple, "Simple", "One vertex buffer with vertex colors (curly_simple.vb)"],
 	[ModelType.normal, "Normal", "One vertex buffer with normal shading (curly_normal.vb)"],
-	[ModelType.vbx, "VBX", "VBX model -- multiple vertex buffers (curly.vbx)"],
-	[ModelType.normalmap, "VBX Normal Map", "VBX model with normal mappings (curly_nor.vbx)"],
-	[ModelType.rigged, "VBX Rigged", "VBX model with bone transforms (curly_rigged.vbx)"],
-	[ModelType.complete, "VBX Complete", "VBX model with all features (curly_complete.vbx)"],
+	[ModelType.vbc, "VBC", "VBC model -- multiple vertex buffers (curly.vbc)"],
+	[ModelType.normalmap, "VBC Normal Map", "VBC model with normal mappings (curly_nor.vbc)"],
+	[ModelType.rigged, "VBC Rigged", "VBC model with bone transforms (curly_rigged.vbc)"],
+	[ModelType.complete, "VBC Complete", "VBC model with all features (curly_complete.vbc)"],
 	]);
 
 layout_worlds = layout.Enum("World")

@@ -37,7 +37,7 @@ function FetchPoseFiles(path, outtrk, outnames)
 
 function DrawMeshFlash(uniform)
 {
-	var n = vbx.vbcount;
+	var n = vbc.vbcount;
 	var zfunc = gpu_get_zfunc();
 	
 	gpu_set_zfunc(cmpfunc_always);
@@ -49,7 +49,7 @@ function DrawMeshFlash(uniform)
 				BuildDrawMatrix(1, 1, 1, 0, 0, 0, c_white, 
 					power(dsin(180*meshflash[i]/demo.flashtime), 2.0)
 					));
-			vbx.SubmitVBIndex(i, pr_trianglelist, demo.usetextures? meshtexture[i]: -1);
+			vbc.SubmitVBIndex(i, pr_trianglelist, demo.usetextures? meshtexture[i]: -1);
 		}
 	}
 	gpu_set_zfunc(zfunc);
@@ -63,13 +63,13 @@ function LoadDiffuseTextures()
 	var _tex_gun = sprite_get_texture(tex_curly_gun_col, 0);
 	var i;
 	
-	for (var i = 0; i < vbx.vbcount; i++)
+	for (var i = 0; i < vbc.vbcount; i++)
 	{
-		if string_pos("def", vbx.vbnames[i]) {meshtexture[i] = _tex_def;}
-		if string_pos("skin", vbx.vbnames[i]) {meshtexture[i] = _tex_skin;}
-		if string_pos("eye", vbx.vbnames[i]) {meshtexture[i] = _tex_skin;}
-		if string_pos("hair", vbx.vbnames[i]) {meshtexture[i] = _tex_hair;}
-		if string_pos("gun", vbx.vbnames[i]) {meshtexture[i] = _tex_gun;}
+		if string_pos("def", vbc.vbnames[i]) {meshtexture[i] = _tex_def;}
+		if string_pos("skin", vbc.vbnames[i]) {meshtexture[i] = _tex_skin;}
+		if string_pos("eye", vbc.vbnames[i]) {meshtexture[i] = _tex_skin;}
+		if string_pos("hair", vbc.vbnames[i]) {meshtexture[i] = _tex_hair;}
+		if string_pos("gun", vbc.vbnames[i]) {meshtexture[i] = _tex_gun;}
 	}
 }
 
@@ -81,26 +81,26 @@ function LoadNormalTextures()
 	//var _tex_gun = sprite_get_texture(tex_curly_gun_nor, 0);
 	var i;
 	
-	for (var i = 0; i < vbx.vbcount; i++)
+	for (var i = 0; i < vbc.vbcount; i++)
 	{
-		if string_pos("def", vbx.vbnames[i]) {meshnormalmap[i] = _tex_def;}
-		if string_pos("skin", vbx.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
-		if string_pos("eye", vbx.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
-		if string_pos("hair", vbx.vbnames[i]) {meshnormalmap[i] = _tex_hair;}
-		//if string_pos("gun", vbx.vbnames[i]) {meshnormalmap[i] = _tex_gun;}
+		if string_pos("def", vbc.vbnames[i]) {meshnormalmap[i] = _tex_def;}
+		if string_pos("skin", vbc.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
+		if string_pos("eye", vbc.vbnames[i]) {meshnormalmap[i] = _tex_skin;}
+		if string_pos("hair", vbc.vbnames[i]) {meshnormalmap[i] = _tex_hair;}
+		//if string_pos("gun", vbc.vbnames[i]) {meshnormalmap[i] = _tex_gun;}
 	}
 }
 
 function UpdateAnim()
 {
-	var _vbx = vbx;
+	var _vbc = vbc;
 	var _trk = trkactive;
 	
 	// Generate relative bone matrices for position in animation
 	trkexectime = get_timer();
 	EvaluateAnimationTracks(trkposition, 
 		interpolationtype,	// Method to blend keyframes with (constant, linear, square)
-		_vbx.bonenames,		// Keys to use for track mapping
+		_vbc.bonenames,		// Keys to use for track mapping
 		_trk,				// Track data with transforms
 		posetransform		// 2D Array to write matrix data to
 		);
@@ -108,9 +108,9 @@ function UpdateAnim()
 	
 	// Convert relative bone matrices to model-space matrices
 	CalculateAnimationPose(
-		_vbx.bone_parentindices,	// index of bone's parent
-		_vbx.bone_localmatricies,	// matrix of bone relative to parent
-		_vbx.bone_inversematricies,	// matrix of bone relative to model origin
+		_vbc.bone_parentindices,	// index of bone's parent
+		_vbc.bone_localmatricies,	// matrix of bone relative to parent
+		_vbc.bone_inversematricies,	// matrix of bone relative to model origin
 		posetransform,				// relative transforms (from animation or pose)
 		matpose						// flat array of matrices to write data to
 		);
@@ -118,7 +118,7 @@ function UpdateAnim()
 
 function UpdatePose()
 {
-	var _vbx = vbx;
+	var _vbc = vbc;
 	var _trk = trkactive;
 	
 	if (_trk.markercount)
@@ -128,16 +128,16 @@ function UpdatePose()
 		// Generate relative bone matrices for position in animation
 		EvaluateAnimationTracks(_pos, 
 			TRK_Intrpl.constant,	// Method to blend keyframes with (constant, linear, square)
-			_vbx.bonenames,		// Keys to use for track mapping
+			_vbc.bonenames,		// Keys to use for track mapping
 			_trk,	// Track data with transforms
 			posetransform		// 2D Array to write matrix data to
 			);
 	
 		// Convert relative bone matrices to model-space matrices
 		CalculateAnimationPose(
-			_vbx.bone_parentindices,	// index of bone's parent
-			_vbx.bone_localmatricies,	// matrix of bone relative to parent
-			_vbx.bone_inversematricies,	// matrix of bone relative to model origin
+			_vbc.bone_parentindices,	// index of bone's parent
+			_vbc.bone_localmatricies,	// matrix of bone relative to parent
+			_vbc.bone_inversematricies,	// matrix of bone relative to model origin
 			posetransform,				// relative transforms (from animation or pose)
 			matpose						// flat array of matrices to write data to
 			);
@@ -233,7 +233,7 @@ function OP_SetInterpolation(value, btn)
 
 function OP_CameraToBone(value, btn)
 {
-	var b = vbx.FindBone("t_camera")
+	var b = vbc.FindBone("t_camera")
 	
 	if (b)
 	{

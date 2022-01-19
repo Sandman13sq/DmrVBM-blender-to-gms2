@@ -68,7 +68,7 @@ classlist = []
 
 # =============================================================================
 
-class DMR_OP_VBX_ExportPoses(bpy.types.Operator, ExportHelper):
+class DMR_OP_VBC_ExportPoses(bpy.types.Operator, ExportHelper):
     """Exports current armature pose"""
     bl_idname = "dmr.gm_export_pose"
     bl_label = "Export Pose"
@@ -85,13 +85,13 @@ class DMR_OP_VBX_ExportPoses(bpy.types.Operator, ExportHelper):
         bpy.context.view_layer.objects.active = active
         self.report({'INFO'}, 'Data written to "%s"' % self.filepath)
         return {'FINISHED'}
-classlist.append(DMR_OP_VBX_ExportPoses)
+classlist.append(DMR_OP_VBC_ExportPoses)
 
 # =============================================================================
 
-class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
+class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
     """Exports all poses in active object's Action/Pose Library"""
-    bl_idname = "dmr.vbx_export_action_armature"
+    bl_idname = "dmr.vbc_export_action_armature"
     bl_label = "Export Armature Action"
     bl_options = {'PRESET'}
     
@@ -431,7 +431,7 @@ class DMR_OP_VBX_ExportActionArmature(bpy.types.Operator, ExportHelper):
         print('> Complete')
         
         return {'FINISHED'}
-classlist.append(DMR_OP_VBX_ExportActionArmature)
+classlist.append(DMR_OP_VBC_ExportActionArmature)
 
 # =============================================================================
 
