@@ -179,23 +179,24 @@ function OpenVertexBuffer(path, format, freeze=true)
 }
 
 // Runs appropriate version function and returns vbc struct from file (.vbc)
-function OpenVBC(path, format=-1, freeze=true)
+// Returns true on success, false for error
+function OpenVBC(outvbc, path, format=-1, freeze=true)
 {
-	if filename_ext(path) == ""
+	if (filename_ext(path) == "")
 	{
 		path = filename_change_ext(path, ".vbc");	
 	}
 	
 	var bzipped = buffer_load(path);
 	
-	if bzipped < 0
+	if (bzipped < 0)
 	{
 		show_debug_message("OpenVBC(): Error loading vbc data from \"" + path + "\"");
-		return -1;
+		return outvbc;
 	}
 	
 	var b = buffer_decompress(bzipped);
-	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	if (b < 0) {b = bzipped;} else {buffer_delete(bzipped);}
 	
 	var header;
 	
@@ -205,7 +206,6 @@ function OpenVBC(path, format=-1, freeze=true)
 	// Not a vbc file
 	if ( (header & 0x00FFFFFF) != VBCHEADERCODE )
 	{
-		var vbc = new VBCData();
 		var noformatgiven = format < 0;
 		
 		// Maybe it's a vertex buffer?
@@ -219,12 +219,12 @@ function OpenVBC(path, format=-1, freeze=true)
 			}
 			
 			var name = filename_name(path);
-			vbc.AddVB(vb, name);
-			return vbc;
+			outvbc.AddVB(vb, name);
+			return outvbc;
 		}
 		
 		show_debug_message("OpenVBC(): header is invalid \"" + path + "\"");
-		return vbc;
+		return outvbc;
 	}
 	
 	switch(header & 0xFF)
@@ -233,10 +233,10 @@ function OpenVBC(path, format=-1, freeze=true)
 		
 		// Version 1
 		case(1): 
-			return __VBCOpen_v1(b, format, freeze);
+			return __VBCOpen_v1(outvbc, b, format, freeze);
 	}
 	
-	return -1;
+	return outvbc;
 }
 
 // Returns true if buffer contains vbc header
@@ -306,14 +306,37 @@ function GetVBCFormat(b, offset)
 }
 
 // Returns vbc struct from file (.vbc)
-function __VBCOpen_v1(b, format, freeze)
+function __VBCOpen_v1(outvbc, b, format, freeze)
 {
-	/* File spec:
+	/* Vertex Buffer Collection v1 File spec:
 		
-	
+		'VBC' (3B)
+	    VBC version = 1 (1B)
+	    flags (1B)
+    
+	    formatlength (1B)
+	    formatentry[formatlength]
+	        attributetype (1B)
+	        attributefloatsize (1B)
+    
+	    vbcount (2B)
+	    vbnames[vbcount]
+			namelength (1B)
+			namechars[namelength]
+				char (1B)
+	    vbdata[vbcount]
+	        vbcompressedsize (4B)
+	        vbcompresseddata (vbcompressedsize B)
+    
+	    bonecount (2B)
+	    bonenames[bonecount]
+			namelength (1B)
+			namechars[namelength]
+				char (1B)
+	    parentindices[bonecount] (2B)
+	    localmatrices[bonecount] (16f each)
+	    inversemodelmatrices[bonecount] (16f each)
 	*/
-	
-	var outvbc = new VBCData();
 	
 	var flag;
 	var floattype;
@@ -444,7 +467,7 @@ function __VBCOpen_v1(b, format, freeze)
 	buffer_delete(b);
 	
 	// Keep Temporary format
-	if noformatgiven
+	if (noformatgiven)
 	{
 		outvbc.vbformat = format;
 		

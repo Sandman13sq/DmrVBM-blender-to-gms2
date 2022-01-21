@@ -12,7 +12,8 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf = vertex_format_end();
 
-vbc = OpenVBC(DIRPATH+"model/" + "curly_tangent.vbc", vbf);
+vbc = new VBCData();
+OpenVBC(vbc, DIRPATH+"model/" + "curly_tangent.vbc", vbf);
 
 // Control Variables
 meshselect = 0;

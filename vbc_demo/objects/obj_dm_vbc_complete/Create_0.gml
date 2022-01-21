@@ -14,7 +14,8 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Ind
 vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Weights
 vbf = vertex_format_end();
 
-vbc = OpenVBC(DIRPATH+"model/" + "curly_complete.vbc", vbf);
+vbc = new VBCData();
+OpenVBC(vbc, DIRPATH+"model/" + "curly_complete.vbc", vbf);
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones

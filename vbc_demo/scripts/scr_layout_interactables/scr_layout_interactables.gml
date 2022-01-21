@@ -606,7 +606,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		return self;
 	}
 	
-	function DefineListItems(_itemlist)
+	function DefineItems(_itemlist)
 	{
 		var n, e;
 		n = array_length(_itemlist);
@@ -627,7 +627,7 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 		return self;
 	}
 	
-	function ClearListItems()
+	function ClearItems()
 	{
 		array_resize(items, 0);
 		itemcount = 0;
@@ -889,18 +889,30 @@ function LayoutElement_List(_root, _parent) : LayoutElement(_root, _parent) cons
 function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) constructor
 {
 	color = common.c_base;
-	valuedefault = value;
+	valuedefault = undefined;
 	
 	items = [];	// <value, name, description>
 	itemcount = 0;
 	itemindex = 0;
 	itemhighlight = 0;
 	
+	function SetDefault(_default_value)
+	{
+		var _index = GetItemIndex(_default_value);
+		
+		if (_index >= 0)
+		{
+			valuedefault = _default_value;
+		}
+		
+		return self;
+	}
+	
 	function Value(_value, runop=true)
 	{
 		for (var i = 0; i < itemcount; i++)
 		{
-			if value == items[i][0]
+			if (value == items[i][0])
 			{
 				itemindex = i;
 				value = items[itemindex][0];
@@ -915,16 +927,34 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		return self;
 	}
 	
+	function GetItemIndex(_value)
+	{
+		for (var i = 0; i < itemcount; i++)
+		{
+			if (items[i][0] == _value)
+			{
+				return i;
+			}
+		}
+		
+		return -1;
+	}
+	
 	function DefineListItem(_value, _name, _desc)
 	{
 		array_push(items, [_value, _name, _desc]);
 		itemcount = array_length(items);
 		itemindex = clamp(itemindex, 0, itemcount-1);
 		value = items[itemindex][0];
+		
+		if ( !is_undefined(valuedefault) )
+		{
+			valuedefault = items[0][0];
+		}
 		return self;
 	}
 	
-	function DefineListItems(_enumlist)
+	function DefineItems(_enumlist)
 	{
 		var n, e;
 		n = array_length(_enumlist);
@@ -942,7 +972,21 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 		itemindex = clamp(itemindex, 0, itemcount-1);
 		value = items[itemindex][0];
 		
+		if (valuedefault == undefined)
+		{
+			valuedefault = items[0][0];
+		}
+		
 		return self;
+	}
+	
+	function ClearItems()
+	{
+		array_resize(items, 0);
+		itemcount = 0;
+		itemindex = 0;
+		itemhighlight = -1;
+		valuedefault = undefined;
 	}
 	
 	function UpdatePos(_x1, _y1, _x2, _y2)
@@ -1041,6 +1085,19 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 					UpdateTooltip();	
 				}
 			}
+			
+			// Default Value
+			if keyboard_check_pressed(vk_backspace)
+			{
+				var _index = GetItemIndex(valuedefault);
+				if (_index >= 0)
+				{
+					itemindex = _index;
+					value = items[itemindex][0];
+					UpdateControl(value);
+					if op {op(value, self);}
+				}
+			}
 		}
 		else
 		{
@@ -1064,6 +1121,7 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 			
 			var _chigh = common.c_highlight;
 			
+			draw_set_valign(fa_middle);
 			DrawRectWH(x1, y1, w, h, 0);
 			for (var i = 0; i < itemcount; i++)
 			{
@@ -1074,23 +1132,25 @@ function LayoutElement_Enum(_root, _parent) : LayoutElement(_root, _parent) cons
 				}
 				
 				e = items[i];
-				DrawText(x1+5, yy+common.textheightdiv2, e[1], (itemhighlight==i)? c_white: c_ltgray);
+				DrawText(x1+5, yy+hh*0.5, e[1], (itemhighlight==i)? c_white: c_ltgray);
 				yy += hh;
 			}
+			draw_set_valign(fa_top);
 		}
 		
 		DrawRectWH(x1, y1, w, common.cellmax, color);
 		
 		// Draw Label
-		if label != ""
+		if (label != "")
 		{
 			DrawTextYCenter(x1+3, string(label)+":");
 			draw_set_halign(fa_right);
-			DrawTextYCenter(x2-3, items[itemindex][1]);
+			
+			DrawTextYCenter(x2-3, itemcount > 0? items[itemindex][1]: "---");
 		}
 		else
 		{
-			DrawTextYCenter(x1+3, items[itemindex][1]);
+			DrawTextYCenter(x1+3, itemcount > 0? items[itemindex][1]: "---");
 		}
 	}
 }

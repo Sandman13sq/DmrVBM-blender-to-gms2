@@ -214,7 +214,7 @@ function OP_ActionSelect(value, btn)
 	trktimestep = TrackData_GetTimeStep(trkactive, game_get_speed(gamespeed_fps));
 	trkposlength = trkactive.length;
 	
-	layout_poselist.ClearListItems();
+	layout_poselist.ClearItems();
 	for (var i = 0; i < trkactive.markercount; i++)
 	{
 		layout_poselist.DefineListItem(i, trkactive.markernames[i]);

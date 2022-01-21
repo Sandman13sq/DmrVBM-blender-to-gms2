@@ -20,12 +20,13 @@ function CommonLayout(_hastextures, _hasnormals, _nodrawmatrix)
 			.Description("Display normal maps on objects that have them.");
 	}
 	
-	b.Enum("Cullmode").DefineControl(demo, "cullmode").DefineListItems([
+	b.Enum("Cullmode").DefineControl(demo, "cullmode").DefineItems([
 		[cull_noculling, "No Culling", "Draw all triangles"],
 		[cull_clockwise, "Cull Clockwise", "Skip triangles facing away from screen"],
 		[cull_counterclockwise, "Cull Counter", "Skip triangles facing towards the screen"],
 		]).
-		Description("Set which triangles to NOT draw.\nGood for speeding up draw time");
+		Description("Set which triangles to NOT draw.\nGood for speeding up draw time")
+		.SetDefault(cull_clockwise);
 	
 	// Draw Matrix
 	var d = b.Dropdown("Draw Matrix").SetIDName("drawmatrix")
@@ -94,14 +95,14 @@ function Panel_Playback(layout)
 	// Playback
 	var b = layout.Box("Playback");
 	
-	var l = b.Dropdown("Select a Animation").List().Operator(OP_ActionSelect);
+	var l = b.Enum("Animation").Operator(OP_ActionSelect);
 	for (var i = 0; i < trkcount; i++)
 	{
 		l.DefineListItem(i, trknames[i]);
 	}
 	
 	// Pose
-	layout_poselist = b.Dropdown("Select a Pose").List().Operator(OP_PoseMarkerJump);
+	layout_poselist = b.Enum("Pose").Operator(OP_PoseMarkerJump);
 	
 	b.Bool("Play Animation").DefineControl(self, "isplaying").Operator(OP_TogglePlayback);
 	b.Real("Pos")
@@ -120,7 +121,7 @@ function Panel_Playback(layout)
 	var e = b.Enum("Interpolation")
 		.Operator(OP_SetInterpolation)
 		.DefineControl(self, "interpolationtype")
-		.DefineListItems([
+		.DefineItems([
 			[TRK_Intrpl.constant, "Constant", "Floors keyframe position when evaluating pose"],
 			[TRK_Intrpl.linear, "Linear", "Linearly keyframe position when evaluating pose"],
 			[TRK_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
