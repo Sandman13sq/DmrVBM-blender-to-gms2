@@ -3,7 +3,7 @@
 */
 
 // Constants
-const float DP_EXP = 1.0;	// Higher values smooth(?), Lower values sharpen
+const float DP_EXP = 0.7;	// Higher values smooth(?), Lower values sharpen
 const float SPE_EXP = 16.0;	// Higher values sharpen, Lower values smooth
 const float RIM_EXP = 8.0;	// Higher values sharpen, Lower values smooth
 const float EULERNUMBER = 2.71828;	// Funny E number used in logarithmic stuff

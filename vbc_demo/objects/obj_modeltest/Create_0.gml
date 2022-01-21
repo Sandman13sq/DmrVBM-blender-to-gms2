@@ -27,9 +27,9 @@ zrotanchor = 0;
 mouseanchor = [0,0];
 mouselock = 0;
 
-lightdata = [-16, 128, 64, 1]; // Light position
+lightdata = [-16, 156, 64, 1]; // Light position
 lightdata = [0.575000*32, -0.475000*32, 0.666146*32, 1];
-lightdata = [0.291667*32, -0.575000*32, 0.764399*32, 1]
+lightdata = [0.291667*32, -0.775000*32, 0.764399*32, 1]
 
 showgui = true;
 cursortimeout = 0;
