@@ -2,6 +2,7 @@ import bpy
 import struct
 import zlib
 import sys
+import mathutils
 
 from bpy_extras.io_utils import ExportHelper
 from struct import pack as Pack
@@ -123,9 +124,18 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
     )
     
     bake_steps: bpy.props.IntProperty(
-        name="Bake Steps",
-        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking (Good for Pose Libraries)",
-        default=1, min=-1
+        name="Bake Steps", default=1, min=-1,
+        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking.\nSet to -1 for all frames (Good for Pose Libraries)",
+    )
+    
+    scale: bpy.props.FloatProperty(
+        name="Action Scale", default=1.0,
+        description="Scales positions of keyframes.",
+    )
+    
+    time_step: bpy.props.FloatProperty(
+        name="Time Step", default=1.0,
+        description="Speed modifier for track playback.",
     )
     
     write_marker_names: bpy.props.BoolProperty(
@@ -205,6 +215,10 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
             r.prop(context.scene, 'frame_start', text='')
             r.prop(context.scene, 'frame_end', text='')
         c.prop(self, 'bake_steps')
+        r = c.row(align=1)
+        r.prop(self, 'scale', text='Scale')
+        r.prop(self, 'time_step')
+        c.separator();
         c.prop(self, 'write_marker_names')
         c.prop(self, 'normalize_frames')
         c.prop(self, 'deform_only')
@@ -216,6 +230,8 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         deform_only = self.deform_only
         write_marker_names = self.write_marker_names
         bakesteps = self.bake_steps
+        timestep = self.time_step
+        scale = self.scale
         
         # Clear temporary data
         [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
@@ -285,9 +301,9 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
             
             bpy.ops.nla.bake(
                 frame_start=actionrange[0], frame_end=actionrange[1], 
-                step=bakesteps,
+                step=max(1, bakesteps),
                 only_selected=False, 
-                visual_keying=False, 
+                visual_keying=True,
                 clear_constraints=False, 
                 clear_parents=False, 
                 use_current_action=False, 
@@ -321,28 +337,54 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         pmod = 1.0/duration if normalize_frames else 1.0
         
         # Parse curves
-        for fc in fcurves:
-            dp = fc.data_path
-            bonename = dp[dp.find('"')+1:dp.rfind('"')]
-            
-            if bonename in bonenames:
-                transformstring = dp[dp.rfind('.')+1:]
-                transformtype = -1
+        if bakesteps >= 0:
+            for fc in fcurves:
+                dp = fc.data_path
+                bonename = dp[dp.find('"')+1:dp.rfind('"')]
                 
-                if transformstring == 'location':
-                    transformtype = 0
-                elif transformstring == 'rotation_quaternion':
-                    transformtype = 1
-                elif transformstring == 'scale':
-                    transformtype = 2
+                if bonename in bonenames:
+                    transformstring = dp[dp.rfind('.')+1:]
+                    transformtype = -1
+                    
+                    if transformstring == 'location':
+                        transformtype = 0
+                    elif transformstring == 'rotation_quaternion':
+                        transformtype = 1
+                    elif transformstring == 'scale':
+                        transformtype = 2
+                    
+                    if transformtype >= 0:
+                        vecvalueindex = fc.array_index
+                        keyframes = tuple(
+                            [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points if (x.co[0] >= actionrange[0] and x.co[0] <= actionrange[1])]
+                            )
+                        bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
+                        netframes += tuple(x[0] for x in keyframes)
+        # Fill for all positions
+        else:
+            poslist = [x for x in range(actionrange[0], actionrange[1]+1)]
+            for fc in fcurves:
+                dp = fc.data_path
+                bonename = dp[dp.find('"')+1:dp.rfind('"')]
                 
-                if transformtype >= 0:
-                    vecvalueindex = fc.array_index
-                    keyframes = tuple(
-                        [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points if (x.co[0] >= actionrange[0] and x.co[0] <= actionrange[1])]
-                        )
-                    bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
-                    netframes += tuple(x[0] for x in keyframes)
+                if bonename in bonenames:
+                    transformstring = dp[dp.rfind('.')+1:]
+                    transformtype = -1
+                    
+                    if transformstring == 'location':
+                        transformtype = 0
+                    elif transformstring == 'rotation_quaternion':
+                        transformtype = 1
+                    elif transformstring == 'scale':
+                        transformtype = 2
+                    
+                    if transformtype >= 0:
+                        vecvalueindex = fc.array_index
+                        keyframes = tuple(
+                            [(x*pmod, 0) for x in poslist if (x >= actionrange[0] and x <= actionrange[1])]
+                            )
+                        bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
+                        netframes += tuple(x[0] for x in keyframes)
         
         netframes = list(set(netframes))
         netframes.sort()
@@ -354,10 +396,10 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         out += b'TRK' + Pack('B', 0)    # Signature
         out += Pack('B', 1)     # Flags
         out += Pack('f', rd.fps)     # fps
-        out += Pack('f', duration ) # Frame Count
-        out += Pack('f', 1.0/duration ) # Position Step
+        out += Pack('f', duration*scale ) # Frame Count
+        out += Pack('f', timestep/(duration*scale) ) # Position Step
         
-        print('Length:', duration)
+        print('Length:', duration*scale)
         
         out += Pack('I', len(pbones) ) # Num tracks
         out += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Names
@@ -381,7 +423,7 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
                 vecpositions = tuple(vecpositions)
                 
                 outchunk += Pack('I', len(vecpositions)) # Num Frames
-                outchunk += b''.join([Pack('f', x+foffset) for x in vecpositions]) # Frame Positions 
+                outchunk += b''.join([Pack('f', x*scale+foffset) for x in vecpositions]) # Frame Positions 
                 
                 # Vectors
                 for f in vecpositions:
@@ -390,14 +432,17 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
                         sc.frame_set(int(f/pmod))
                         vl.update()
                         posesnap[f] = {
-                            x: x.matrix_basis.decompose() for x in pbones.values()
+                            x: workingobj.convert_space(
+                                pose_bone=x, matrix=x.matrix, from_space='WORLD', to_space='LOCAL'
+                            ).decompose() 
+                            for x in pbones.values()
                         }
                     outchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
             out += outchunk
         
         # Markers
         if write_marker_names:
-            markers = [(x.name, x.frame*pmod) for x in sourceaction.pose_markers]
+            markers = [(x.name, x.frame*scale*pmod) for x in sourceaction.pose_markers]
             #markers.sort(key=lambda x: x[0])
             out += Pack('I', len(markers))
             out += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
