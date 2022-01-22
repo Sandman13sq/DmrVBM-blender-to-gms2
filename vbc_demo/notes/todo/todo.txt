@@ -1,6 +1,0 @@
-/// Writing things down so I don't forget
-
-- Playback timeline
-- Fix Marker Name Order
-- Mattran rotations screws up normal lighting
-- Texture Transforms
