@@ -181,8 +181,8 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
 
 # =============================================================================
 
-class DMR_OP_VBC_ExportActionTracks(ExportActionSuper, ExportHelper):
-    bl_idname = "dmr.vbc_export_action_tracks"
+class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
+    bl_idname = "dmr.vbm_export_action_tracks"
     bl_label = "Export Action Tracks"
     bl_description = 'Exports action curves as tracks for Location, Rotation, Scale'
     bl_options = {'PRESET'}
@@ -470,7 +470,7 @@ class DMR_OP_VBC_ExportActionTracks(ExportActionSuper, ExportHelper):
         print('> Complete')
         
         return {'FINISHED'}
-classlist.append(DMR_OP_VBC_ExportActionTracks)
+classlist.append(DMR_OP_VBM_ExportActionTracks)
 
 # =============================================================================
 def register():

@@ -14,14 +14,14 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Ind
 vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Weights
 vbf = vertex_format_end();
 
-vbc = new VBCData();
-OpenVBC(vbc, DIRPATH+"model/" + "curly_complete.vbc", vbf);
+vbm = new VBMData();
+OpenVBM(vbm, DIRPATH+"model/" + "curly_complete.vbm", vbf);
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones
-posetransform = Mat4Array(DMRVBC_MATPOSEMAX, matrix_build_identity());
+posetransform = Mat4Array(DMRVBM_MATPOSEMAX, matrix_build_identity());
 // 1D flat array of matrices. Holds final transforms for bones
-matpose = Mat4ArrayFlat(DMRVBC_MATPOSEMAX, matrix_build_identity());
+matpose = Mat4ArrayFlat(DMRVBM_MATPOSEMAX, matrix_build_identity());
 
 trkanims = []
 trknames = []
@@ -57,10 +57,10 @@ LoadNormalTextures();
 
 drawmatrix = BuildDrawMatrix();
 
-if vbc.FindVBIndex("curly_gun_mod") != -1
-	{meshvisible[vbc.FindVBIndex("curly_gun_mod")] = 0;}
-if vbc.FindVBIndex("curly_school") != -1
-	{meshvisible[vbc.FindVBIndex("curly_school")] = 0;}
+if vbm.FindVBIndex("curly_gun_mod") != -1
+	{meshvisible[vbm.FindVBIndex("curly_gun_mod")] = 0;}
+if vbm.FindVBIndex("curly_school") != -1
+	{meshvisible[vbm.FindVBIndex("curly_school")] = 0;}
 
 // Uniforms ========================================================
 var _shd;

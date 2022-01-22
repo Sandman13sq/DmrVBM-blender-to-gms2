@@ -4,7 +4,7 @@
 	Used by:
 		obj_modeltest (world.vb)
 		obj_demomodel_normal
-		obj_demomodel_vbc
+		obj_demomodel_vbm
 */
 
 const vec3 VEC3YFLIP = vec3(1.0, -1.0, 1.0);

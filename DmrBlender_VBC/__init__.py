@@ -1,5 +1,5 @@
 bl_info = {
-    'name': 'DmrBlender VBC Export',
+    'name': 'DmrBlender Vertex Buffer Model Export',
     'category': 'Import-Export',
     'version': (0, 1),
     'blender': (3, 0, 0)
@@ -7,14 +7,14 @@ bl_info = {
  
 modulesNames = [
     'utilities',
-    'vbc_func',
-    'vbc_presets',
-    'vbc_op',
-    'vbc_op_action',
-    'vbc_panel',
-    'vbc_exportlist',
+    'vbm_func',
+    'vbm_presets',
+    'vbm_op',
+    'vbm_op_action',
+    'vbm_panel',
+    'vbm_exportlist',
     ]
- 
+
 import sys
 import importlib
 

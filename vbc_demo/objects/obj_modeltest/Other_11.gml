@@ -7,10 +7,10 @@ layout.Enum().Label("Model")
 	.DefineItems([
 	[ModelType.simple, "Simple", "One vertex buffer with vertex colors (curly_simple.vb)"],
 	[ModelType.normal, "Normal", "One vertex buffer with normal shading (curly_normal.vb)"],
-	[ModelType.vbc, "VBC", "VBC model -- multiple vertex buffers (curly.vbc)"],
-	[ModelType.normalmap, "VBC Normal Map", "VBC model with normal mappings (curly_nor.vbc)"],
-	[ModelType.rigged, "VBC Rigged", "VBC model with bone transforms (curly_rigged.vbc)"],
-	[ModelType.complete, "VBC Complete", "VBC model with all features (curly_complete.vbc)"],
+	[ModelType.vbm, "VBM", "VBM model -- multiple vertex buffers (curly.vbm)"],
+	[ModelType.normalmap, "VBM Normal Map", "VBM model with normal mappings (curly_nor.vbm)"],
+	[ModelType.rigged, "VBM Rigged", "VBM model with bone transforms (curly_rigged.vbm)"],
+	[ModelType.complete, "VBM Complete", "VBM model with all features (curly_complete.vbm)"],
 	])
 	.SetDefault(modelmode);
 

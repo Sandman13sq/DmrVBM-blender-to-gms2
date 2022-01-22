@@ -12,8 +12,8 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf = vertex_format_end();
 
-vbc = new VBCData();
-OpenVBC(vbc, DIRPATH+"model/" + "curly_tangent.vbc", vbf);
+vbm = new VBMData();
+OpenVBM(vbm, DIRPATH+"model/" + "curly_tangent.vbm", vbf);
 
 // Control Variables
 meshselect = 0;
@@ -29,10 +29,10 @@ drawmatrix = BuildDrawMatrix();
 LoadDiffuseTextures();
 LoadNormalTextures();
 
-if vbc.FindVBIndex("curly_gun_mod") != -1
-	{meshvisible[vbc.FindVBIndex("curly_gun_mod")] = 0;}
-if vbc.FindVBIndex("curly_school") != -1
-	{meshvisible[vbc.FindVBIndex("curly_school")] = 0;}
+if vbm.FindVBIndex("curly_gun_mod") != -1
+	{meshvisible[vbm.FindVBIndex("curly_gun_mod")] = 0;}
+if vbm.FindVBIndex("curly_school") != -1
+	{meshvisible[vbm.FindVBIndex("curly_school")] = 0;}
 
 // Uniforms
 var _shd;

@@ -4,7 +4,7 @@ event_user(0);
 
 enum ModelType
 {
-	simple, normal, vbc, normalmap, rigged, complete
+	simple, normal, vbm, normalmap, rigged, complete
 }
 
 show_debug_overlay(1);
@@ -80,10 +80,10 @@ flashtime = 15;
 modelobj = array_create(8, obj_dm_simple);
 modelobj[ModelType.simple]	= instance_create_depth(0,0,0, obj_dm_simple);
 modelobj[ModelType.normal]	= instance_create_depth(0,0,0, obj_dm_normal);
-modelobj[ModelType.vbc]	= instance_create_depth(0,0,0, obj_dm_vbc);
-modelobj[ModelType.normalmap]	= instance_create_depth(0,0,0, obj_dm_vbc_normalmap);
-modelobj[ModelType.rigged]	= instance_create_depth(0,0,0, obj_dm_vbc_rigged);
-modelobj[ModelType.complete]	= instance_create_depth(0,0,0, obj_dm_vbc_complete);
+modelobj[ModelType.vbm]	= instance_create_depth(0,0,0, obj_dm_vbm);
+modelobj[ModelType.normalmap]	= instance_create_depth(0,0,0, obj_dm_vbm_normalmap);
+modelobj[ModelType.rigged]	= instance_create_depth(0,0,0, obj_dm_vbm_rigged);
+modelobj[ModelType.complete]	= instance_create_depth(0,0,0, obj_dm_vbm_complete);
 modelmode = ModelType.rigged;
 
 instance_deactivate_object(obj_demomodel);

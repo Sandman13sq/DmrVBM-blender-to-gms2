@@ -77,9 +77,9 @@ function Panel_MeshSelect(layout)
 	var l = b.List()
 		.Operator(OP_MeshSelect)
 		.DefineControl(self, "meshselect");
-	for (var i = 0; i < vbc.vbcount; i++)
+	for (var i = 0; i < vbm.vbcount; i++)
 	{
-		l.DefineListItem(i, vbc.vbnames[i], vbc.vbnames[i]);
+		l.DefineListItem(i, vbm.vbnames[i], vbm.vbnames[i]);
 	}
 	
 	var r = b.Row();

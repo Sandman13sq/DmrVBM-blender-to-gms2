@@ -3,7 +3,7 @@
 // Inherit the parent event
 event_inherited();
 
-layout.Label("VBC (shd_model)");
+layout.Label("VBM (shd_model)");
 
 Panel_MeshSelect(layout);
 

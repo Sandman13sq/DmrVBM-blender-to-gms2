@@ -1,8 +1,8 @@
 /// @desc
 
 #macro DIRPATH working_directory
-#macro DEBUG:DIRPATH "D:/GitHub/DmrVBC/vbc_demo/datafiles/"
-//#macro DEBUG:DIRPATH "C:/Users/Dreamer/Documents/GitHub/DmrVBC/vbc_demo/datafiles/"
+#macro DEBUG:DIRPATH "D:/GitHub/DmrVBM/vbm_demo/datafiles/"
+//#macro DEBUG:DIRPATH "C:/Users/Dreamer/Documents/GitHub/DmrVBM/vbm_demo/datafiles/"
 
 event_user(0);
 
