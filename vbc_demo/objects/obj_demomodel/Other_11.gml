@@ -121,10 +121,11 @@ function Panel_Playback(layout)
 	var e = b.Enum("Interpolation")
 		.Operator(OP_SetInterpolation)
 		.DefineControl(self, "interpolationtype")
+		.Description("Method of blending together transforms when evaluating animation.")
 		.DefineItems([
 			[TRK_Intrpl.constant, "Constant", "Floors keyframe position when evaluating pose"],
 			[TRK_Intrpl.linear, "Linear", "Linearly keyframe position when evaluating pose"],
 			[TRK_Intrpl.smooth, "Square", "Uses square of position difference when evaluating pose"]
 			])
-		.Description("Method of blending together transforms when evaluating animation.");
+		.SetDefault(TRK_Intrpl.linear);
 }

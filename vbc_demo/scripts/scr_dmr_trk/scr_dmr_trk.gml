@@ -273,7 +273,6 @@ function EvaluateAnimationTracks(pos, interpolationtype, bonekeys, trackdata, ou
 	if pos < 0.5 {possearchstart = 0;}
 	else {possearchstart = trackdata.length;}
 	
-	var mat4identity = matrix_build_identity();
 	var mm = matrix_build_identity();
 	
 	var _lastepsilon = math_get_epsilon();

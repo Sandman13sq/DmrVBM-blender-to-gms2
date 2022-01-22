@@ -13,10 +13,8 @@ def DrawVBCPanel(self, context):
     
     section = layout.box().column()
     section.column().label(text='-- Animations --')
-    #section.operator("dmr.gm_export_pose", text='Export Current Pose', icon='ARMATURE_DATA')
-    #section.operator("dmr.gm_export_poselib", text='Export PoseLib', icon='POSE_HLT')
-    section.operator("dmr.vbc_export_action_armature", text='Export Action', icon='RENDER_ANIMATION')
-    #section.operator("dmr.gm_export_posematrix", text='Export Pose Matrices', icon='LIGHTPROBE_GRID')
+    #section.operator("dmr.vbc_export_action_matrices", text='Export Armature Matrices', icon='CON_TRANSFORM_CACHE')
+    section.operator("dmr.vbc_export_action_tracks", text='Export Armature Tracks', icon='ACTION')
 '''
 class DMR_PT_ExportVBPanel(bpy.types.Panel):
     bl_label = 'Vertex Buffer Export'

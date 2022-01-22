@@ -12,7 +12,7 @@ PackVector = lambda v: b''.join([struct.pack('<f', x) for x in v])
 PackMatrix = lambda m: b''.join( [struct.pack('<ffff', *x) for x in m.copy().transposed()] )
 QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
 
-ANIVERSION = 1
+TRKVERSION = 1
 
 # TRK format
 '''
@@ -65,40 +65,13 @@ def Items_GetArmatureObjects(self, context):
 def ChooseAction(self, context):
     action = bpy.data.actions[self.actionname]
 
+# =============================================================================
+
 classlist = []
 
 # =============================================================================
 
-class DMR_OP_VBC_ExportPoses(bpy.types.Operator, ExportHelper):
-    """Exports current armature pose"""
-    bl_idname = "dmr.gm_export_pose"
-    bl_label = "Export Pose"
-    
-    filename_ext = ".pse"
-    filter_glob: bpy.props.StringProperty(default="*.pse", options={'HIDDEN'}, maxlen=255)
-    
-    def execute(self, context):
-        active = bpy.context.view_layer.objects.active
-        settings = {
-            'path' : self.filepath,
-        }
-        ExportPose( FetchArmature(active), settings )
-        bpy.context.view_layer.objects.active = active
-        self.report({'INFO'}, 'Data written to "%s"' % self.filepath)
-        return {'FINISHED'}
-classlist.append(DMR_OP_VBC_ExportPoses)
-
-# =============================================================================
-
-class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
-    """Exports all poses in active object's Action/Pose Library"""
-    bl_idname = "dmr.vbc_export_action_armature"
-    bl_label = "Export Armature Action"
-    bl_options = {'PRESET'}
-    
-    filename_ext = ".trk"
-    filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
-    
+class ExportActionSuper(bpy.types.Operator, ExportHelper):
     armature_object: bpy.props.EnumProperty(
         name='Armature Object', items=Items_GetArmatureObjects, default=0,
         description='Armature object to use for pose matrices'
@@ -111,10 +84,10 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
     
     range_type: bpy.props.EnumProperty(
         name='Range Type', default=0, items=(
-            ('scene', 'Scene Range', 'Export keyframes from first marker to last'),
-            ('keyframes', 'Clamp To Keyframes', 'Export keyframes from starting keyframe to end keyframe'),
-            ('markers', 'Clamp To Markers', 'Export keyframes from first marker to last'),
-            ('custom', 'Custom Range', 'Define custom frame range'),
+            ('SCENE', 'Scene Range', 'Export keyframes from first marker to last'),
+            ('KEYFRAME', 'Clamp To Keyframes', 'Export keyframes from starting keyframe to end keyframe'),
+            ('MARKER', 'Clamp To Markers', 'Export keyframes from first marker to last'),
+            ('CUSTOM', 'Custom Range', 'Define custom frame range'),
         )
     )
     
@@ -136,6 +109,14 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
     time_step: bpy.props.FloatProperty(
         name="Time Step", default=1.0,
         description="Speed modifier for track playback.",
+    )
+    
+    space: bpy.props.EnumProperty(
+        name='Space', default=0, items=(
+            ('LOCAL', 'Local Space', "Bone matrices are relative to bone's parent"),
+            ('POSE', 'Pose Space', 'Bone matrices are relative to armature origin'),
+            ('WORLD', 'World Space', 'Bone matrices are relative to world origin'),
+        )
     )
     
     write_marker_names: bpy.props.BoolProperty(
@@ -197,6 +178,17 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
     def cancel(self, context):
         context.scene.render.use_simplify = self.lastsimplify
         context.scene.render.simplify_subdivision = self.lastsimplifylevels
+
+# =============================================================================
+
+class DMR_OP_VBC_ExportActionTracks(ExportActionSuper, ExportHelper):
+    bl_idname = "dmr.vbc_export_action_tracks"
+    bl_label = "Export Action Tracks"
+    bl_description = 'Exports action curves as tracks for Location, Rotation, Scale'
+    bl_options = {'PRESET'}
+    
+    filename_ext = ".trk"
+    filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
     
     def draw(self, context):
         layout = self.layout
@@ -207,9 +199,9 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         b = c.box()
         b.prop(self, 'range_type')
         r = b.row()
-        if self.range_type == 'custom':
+        if self.range_type == 'CUSTOM':
             r.prop(self, 'frame_range')
-        elif self.range_type == 'scene':
+        elif self.range_type == 'SCENE':
             r.label(text='Scene Frame Range')
             r = r.row(align=1)
             r.prop(context.scene, 'frame_start', text='')
@@ -218,6 +210,7 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         r = c.row(align=1)
         r.prop(self, 'scale', text='Scale')
         r.prop(self, 'time_step')
+        c.prop(self, 'space')
         c.separator();
         c.prop(self, 'write_marker_names')
         c.prop(self, 'normalize_frames')
@@ -232,6 +225,7 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         bakesteps = self.bake_steps
         timestep = self.time_step
         scale = self.scale
+        space = self.space
         
         # Clear temporary data
         [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
@@ -264,14 +258,14 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
             return {'FINISHED'}
         sourceaction = sourceaction[0]
         
-        if self.range_type == 'custom':
+        if self.range_type == 'CUSTOM':
             actionrange = (self.frame_range[0], self.frame_range[1])
-        elif self.range_type == 'keyframes':
+        elif self.range_type == 'KEYFRAME':
             positions = [k.co[0] for fc in sourceaction.fcurves for k in fc.keyframe_points]
             actionrange = (min(positions), max(positions))
-        elif self.range_type == 'markers':
+        elif self.range_type == 'MARKER':
             positions = [m.frame for m in sourceaction.pose_markers]
-            actionrange = (min(positions), max(positions))
+            actionrange = (min(positions), max(positions)+1)
         else:
             actionrange = (sc.frame_start, sc.frame_end)
         
@@ -389,11 +383,11 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         netframes = list(set(netframes))
         netframes.sort()
         
-        print('----------')
+        # Output ---------------------------------------------------------------
         out = b''
         
         # Header
-        out += b'TRK' + Pack('B', 0)    # Signature
+        out += b'TRK' + Pack('B', TRKVERSION)    # Signature
         out += Pack('B', 1)     # Flags
         out += Pack('f', rd.fps)     # fps
         out += Pack('f', duration*scale ) # Frame Count
@@ -433,7 +427,7 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
                         vl.update()
                         posesnap[f] = {
                             x: workingobj.convert_space(
-                                pose_bone=x, matrix=x.matrix, from_space='WORLD', to_space='LOCAL'
+                                pose_bone=x, matrix=x.matrix, from_space='WORLD', to_space=space
                             ).decompose() 
                             for x in pbones.values()
                         }
@@ -476,90 +470,9 @@ class DMR_OP_VBC_ExportActionArmature(bpy.types.Operator, ExportHelper):
         print('> Complete')
         
         return {'FINISHED'}
-classlist.append(DMR_OP_VBC_ExportActionArmature)
+classlist.append(DMR_OP_VBC_ExportActionTracks)
 
 # =============================================================================
-
-class DMR_GM_ExportPoseMatrix(bpy.types.Operator, ExportHelper):
-    """Exports all poses in active object's Action/Pose Library"""
-    bl_idname = "dmr.gm_export_posematrix"
-    bl_label = "Export Action"
-    
-    filename_ext = ".pse"
-    filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
-    
-    def execute(self, context):
-        # Find Armature ----------------------------------------------------
-        object = bpy.context.object
-        if not object:
-            self.report({'WARNING'}, 'No object selected')
-            return {'FINISHED'}
-        if object.type != 'ARMATURE':
-            self.report({'WARNING'}, 'Active object "%s" is not an armature' % object.name)
-            return {'FINISHED'}
-        
-        # Setup Vars ----------------------------------------------------
-        object = bpy.context.object
-        bones = object.data.bones
-        pbones = object.pose.bones
-        prepose = [b.matrix_basis.copy() for b in pbones]
-        
-        action = object.pose_library
-        markers = action.pose_markers
-        print([(m.name, m.frame) for m in action.pose_markers])
-        keyframes = [m.frame for m in action.pose_markers]
-        #keyframes.sort(key = lambda x : x[1])
-        keyframes.sort()
-        
-        # Get Poses ----------------------------------------------------
-        out = b''
-        
-        out += Pack('<I', len(bones))
-        out += Pack('<I', len(keyframes))
-        
-        # Store State
-        lastobjectmode = bpy.context.active_object.mode
-        bpy.ops.object.mode_set(mode = 'POSE') # Update selected
-        selected = [b for b in bones if b.select]
-        hidden = [b for b in bones if b.hide]
-        
-        for b in hidden: b.hide = False
-        bpy.ops.pose.select_all(action='SELECT')
-        
-        # Pose iteration ===============================================
-        for i in range(0, len(markers)):
-            # Set pose
-            bpy.ops.poselib.apply_pose(pose_index=i)
-            chunk = b''
-            # Write matrix data
-            for pb in pbones:
-                chunk += PackMatrix(pb.matrix_channel)
-            out += chunk
-            
-        # Restore State ------------------------------------------------
-        bpy.ops.pose.select_all(action='DESELECT')
-        for b in selected: b.select = True
-        for b in hidden: b.hide = True
-        for i in range(0, len(pbones)):
-            pbones[i].matrix_basis = prepose[i]
-        bpy.ops.object.mode_set(mode = lastobjectmode)
-        
-        # Output to File ===============================================
-        oldlen = len(out)
-        out = zlib.compress(out)
-        
-        file = open(self.filepath, 'wb')
-        file.write(out)
-        file.close()
-        
-        report = 'Data written to "%s". (%.2fKB -> %.2fKB) %.2f%%' % \
-            (self.filepath, oldlen / 1000, len(out) / 1000, 100 * len(out) / oldlen)
-        print(report)
-        self.report({'INFO'}, report)
-        
-        return {'FINISHED'}
-classlist.append(DMR_GM_ExportPoseMatrix)      
-
 def register():
     for c in classlist:
         bpy.utils.register_class(c)
