@@ -62,6 +62,9 @@ def CompressAndWrite(self, out, path):
     outcompressed = zlib.compress(out, level=self.compression_level)
     outlen = (len(out), len(outcompressed))
     
+    if os.path.basename(path) == '':
+        path += bpy.path.basename(bpy.context.blend_data.filepath)
+    
     file = open(path, 'wb')
     file.write(outcompressed)
     file.close()
@@ -77,7 +80,6 @@ def DrawCommonProps(self, context):
     
     c = layout.column_flow(align=1)
     c.prop(self, 'apply_armature', text='Apply Armature')
-    c.prop(self, 'deform_only', text='Deform Only', emboss=self.apply_armature)
     
     b = c.box()
     r = b.row(align=1)
@@ -412,12 +414,12 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         name="Batch Export",
         description="Export selected objects as separate files.",
         items = (
-            ('none', 'No Batching', 'All objects will be written to a single file'),
-            ('obj', 'By Object Name', 'Objects will be written to "<filename><objectname>.vb" by object'),
-            ('mesh', 'By Mesh Name', 'Objects will be written to "<filename><meshname>.vb" by mesh'),
-            ('mat', 'By Material', 'Objects will be written to "<filename><materialname>.vb" by material'),
+            ('NONE', 'No Batching', 'All objects will be written to a single file'),
+            ('OBJECT', 'By Object Name', 'Objects will be written to "<filename><objectname>.vb" by object'),
+            ('MESH', 'By Mesh Name', 'Objects will be written to "<filename><meshname>.vb" by mesh'),
+            ('MATERIAL', 'By Material', 'Objects will be written to "<filename><materialname>.vb" by material'),
         ),
-        default='none',
+        default='NONE',
     )
     
     def draw(self, context):
@@ -475,7 +477,7 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         
         batchexport = self.batch_export
         # Single file
-        if batchexport == 'none':
+        if batchexport == 'NONE':
             out = b''
             for i, obj in enumerate(targetobjects):
                 data = GetVBData(context, obj, format, settings, uvlayertarget, vclayertarget)[0]
@@ -487,34 +489,42 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             self.report({'INFO'}, 'VB data written to \"%s\"' % path)
         # Batch Export
         else:
-            rootpath = path[:path.rfind('.vb')] if '.vb' in path else path
+            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path
             outgroups = {} # {groupname: vertexdata}
+            vbkeys = []
             
-            for i, obj in enumerate(targetobjects):
-                vbdata = GetVBData(context, obj, format, settings, uvlayertarget, vclayertarget)[0]
+            for obj in targetobjects:
+                datapair = GetVBData(context, obj, format, settings, uvlayertarget, vclayertarget)
+                vbytes = datapair[0]
+                vcounts = datapair[1]
+                vertexcount = sum(datapair[1].values())
                 
-                # By Object Name
-                if batchexport == 'obj':
-                    name = obj.name
-                    name = FixName(name, self.delimiter)
-                    outgroups[name] = outgroups.get(name, b'')
-                    outgroups[name] += b''.join([x for x in vbdata.values()])
-                # By Mesh Name
-                elif batchexport == 'mesh':
-                    name = obj.data.name
-                    name = FixName(name, self.delimiter)
-                    outgroups[name] = outgroups.get(name, b'')
-                    outgroups[name] += b''.join([x for x in vbdata.values()])
-                # By Material Name
-                elif batchexport == 'mat':
-                    for name, d in vbdata.items():
-                        name = FixName(name, self.delimiter)
-                        outgroups[name] = outgroups.get(name, b'')
-                        outgroups[name] += d
-            
+                # By Object or Mesh name
+                if batchexport in ['OBJECT', 'MESH']:
+                    if vertexcount:
+                        k = obj.name if batchexport == 'OBJECT' else obj.data.name
+                        name = FixName(k, self.delimiter)
+                        if name not in vbkeys:
+                            vbkeys.append(name)
+                            outgroups[name] = [b'', {name: 0}]
+                        
+                        outgroups[name][0] += b''.join([x for x in vbytes.values()])
+                        outgroups[name][1][name] += vertexcount
+                # By Material
+                elif batchexport == 'MATERIAL':
+                    for k, d in vbytes.items():
+                        if vcounts[k]:
+                            name = FixName(k, self.delimiter)
+                            if name not in vbkeys:
+                                vbkeys.append(name)
+                                outgroups[name] = [b'', {name: 0}]
+                            
+                            outgroups[name][0] += vbytes[k]
+                            outgroups[name][1][name] += vcounts[k]
+                
             # Export each data as individual files
-            for name, data in outgroups.items():
-                out = data
+            for name, outgroup in outgroups.items():
+                out = outgroup[0]
                 outcompressed = zlib.compress(out)
                 outlen = (len(out), len(outcompressed))
                 
@@ -546,24 +556,24 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         name="Batch Export",
         description="Export selected objects as separate files.",
         items = (
-            ('none', 'No Batching', 'All objects will be written to a single file'),
-            ('obj', 'By Object Name', 'Objects will be written to "<filename><object_name>.vbm" by object'),
-            ('mesh', 'By Mesh Name', 'Objects will be written to "<filename><mesh_name>.vbm" by mesh'),
-            ('mat', 'By Material', 'Objects will be written to "<filename><material_name>.vbm" by material'),
-            ('armature', 'By Parent Armature', 'Objects will be written to "<filename><armature_name>.vbm" by parent armature'),
-            #('empty', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.vbm" by parent empty'),
+            ('NONE', 'No Batching', 'All objects will be written to a single file'),
+            ('OBJECT', 'By Object Name', 'Objects will be written to "<filename><object_name>.vbm" by object'),
+            ('MESH', 'By Mesh Name', 'Objects will be written to "<filename><mesh_name>.vbm" by mesh'),
+            ('MATERIAL', 'By Material', 'Objects will be written to "<filename><material_name>.vbm" by material'),
+            ('ARMATURE', 'By Parent Armature', 'Objects will be written to "<filename><armature_name>.vbm" by parent armature'),
+            #('EMPTY', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.vbm" by parent empty'),
         ),
-        default='none',
+        default='NONE',
     )
     
     grouping : bpy.props.EnumProperty(
         name="Mesh Grouping",
         description="Choose to export vertices grouped by object or material",
         items=(
-            ('OBJ', "By Object", "Objects -> VBs"),
-            ('MAT', "By Material", "Materials -> VBs"),
+            ('OBJECT', "By Object", "Objects -> VBs"),
+            ('MATERIAL', "By Material", "Materials -> VBs"),
         ),
-        default='OBJ',
+        default='OBJECT',
     )
     
     export_armature : bpy.props.BoolProperty(
@@ -727,32 +737,32 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
             
             for obj in objlist:
                 datapair = GetVBData(context, obj, format, settings, uvlayertarget, vclayertarget)
-                data = datapair[0]
+                vbytes = datapair[0]
                 vcounts = datapair[1]
                 
                 # Group by Object
-                if grouping == 'OBJ':
+                if grouping == 'OBJECT':
                     name = obj.name
                     name = FixName(name, self.delimiter)
-                    if name not in vbkeys:
-                        vbkeys.append(name)
-                    if sum( [len(x) for x in data.values()] ) >= 0:
-                        vbgroups[name] = vbgroups.get(name, b'')
-                        vbnumber[name] = vbnumber.get(name, 0)
-                        for vbdata in data.values():
-                            vbgroups[name] += vbdata
-                        vbnumber[name] += sum(vcounts.values())
-                # Group by Material
-                elif grouping == 'MAT':
-                    for name, vbdata in data.items():
-                        name = FixName(name, self.delimiter)
+                    if sum( [len(x) for x in vbytes.values()] ) >= 0:
                         if name not in vbkeys:
                             vbkeys.append(name)
+                            vbgroups[name] = b''
+                            vbnumber[name] = 0
+                        vbgroups[name] += b''.join(vbytes.values())
+                        vbnumber[name] += sum(vcounts.values())
+                # Group by Material
+                elif grouping == 'MATERIAL':
+                    for name, vbdata in vbytes.items():
+                        vcount = vcounts[name]
+                        name = FixName(name, self.delimiter)
                         if len(vbdata) > 0:
-                            vbgroups[name] = vbgroups.get(name, b'')
-                            vbnumber[name] = vbnumber.get(name, 0)
+                            if name not in vbkeys:
+                                vbkeys.append(name)
+                                vbgroups[name] = b''
+                                vbnumber[name] = 0
                             vbgroups[name] += vbdata
-                            vbnumber[name] += vbnumber[name]
+                            vbnumber[name] += vcount
             
             return (vbgroups, vbnumber, vbkeys)
         
@@ -774,7 +784,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         
         # No Batching
         batchexport = self.batch_export
-        if batchexport == 'none':
+        if batchexport == 'NONE':
             vbgroups = {}
             vbkeys = []
             vertexcount = 0
@@ -784,63 +794,51 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         else:
             rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path
             outgroups = {} # {groupname: vertexdata}
+            vbkeys = []
             dooutexport = True
             
-            # By Object Name
-            if batchexport == 'obj':
+            if batchexport in ['OBJECT', 'MESH', 'MATERIAL']:
                 for obj in targetobjects:
-                    name = obj.name
-                    name = FixName(name, self.delimiter)
-                    if name not in vbkeys:
-                        vbkeys.append(name)
                     datapair = GetVBData(context, obj, format, settings, uvlayertarget, vclayertarget)
-                    data = datapair[0]
+                    vbytes = datapair[0]
+                    vcounts = datapair[1]
                     vertexcount = sum(datapair[1].values())
-                    vbgroups = {name: b''.join([x for x in data.values()])}
-                    outgroups[name] = (vbgroups, {name: vertexcount})
-            # By Mesh Name
-            elif batchexport == 'mesh':
-                for obj in targetobjects:
-                    name = obj.data.name
-                    name = FixName(name, self.delimiter)
-                    if name not in vbkeys:
-                        vbkeys.append(name)
-                    datapair = GetVBData(context, obj, format, settings, uvlayertarget, vclayertarget)
-                    data = datapair[0]
-                    vertexcount = sum(datapair[1].values())
-                    vbgroups = {name: b''.join([x for x in data.values()])}
-                    outgroups[name] = (vbgroups, {name: vertexcount})
-            # By Material Name
-            elif batchexport == 'mat':
-                for obj in targetobjects:
-                    datapair = GetVBData(context, obj, format, settings, uvlayertarget, vclayertarget)
-                    data = datapair[0]
                     
-                    for name, d in data.items():
-                        name = FixName(name, self.delimiter)
-                        if name not in vbkeys:
-                            vbkeys.append(name)
-                        vertexcount = datapair[1][name]
-                        vbgroups = {name: b''.join([x for x in data.values()])}
-                        if name not in outgroups.keys():
-                            outgroups[name] = [vbgroups, [vertexcount]]
-                        else:
-                            for g in outgroups[name][0].values():
-                                g += d
+                    # By Object or Mesh name
+                    if batchexport in ['OBJECT', 'MESH']:
+                        if vertexcount:
+                            k = obj.name if batchexport == 'OBJECT' else obj.data.name
+                            name = FixName(k, self.delimiter)
+                            if name not in vbkeys:
+                                vbkeys.append(name)
+                                outgroups[name] = [b'', {name: 0}]
+                            
+                            outgroups[name][0] += b''.join([x for x in vbytes.values()])
+                            outgroups[name][1][name] += vertexcount
+                    # By Material
+                    elif batchexport == 'MATERIAL':
+                        for k, d in vbytes.items():
+                            if vcounts[k]:
+                                name = FixName(k, self.delimiter)
+                                if name not in vbkeys:
+                                    vbkeys.append(name)
+                                    outgroups[name] = [b'', {name: 0}]
+                                
+                                outgroups[name][0] += vbytes[k]
+                                outgroups[name][1][name] += vcounts[k]
             # By Armature
-            elif batchexport == 'armature':
+            elif batchexport == 'ARMATURE':
                 arms = [x for x in armatures if len(x.children) > 0]
                 dooutexport = True
-                print('> Arms: %s' % armatures)
                 
                 for armobj in arms:
                     name = armobj.name
                     name = FixName(name, self.delimiter)
                     if name not in vbkeys:
                         vbkeys.append(name)
-                    print('> %s: %s' % (armobj.name, [x.name for x in armobj.children]) )
+                    children = [x for x in armobj.children if ((self.export_hidden and not x.hide_get()) or not self.hidden)]
                     out_bone = ComposeBoneData(armobj)
-                    vbgroups, vbnumbers = GetVBGroupSorted([x for x in armobj.children])
+                    vbgroups, vbnumbers, groupnames = GetVBGroupSorted(children)
                     if sum(vbnumbers.values()) > 0:
                         FinishVBM(vbgroups, vbnumbers, vbkeys, rootpath + name + self.filename_ext)
                 outgroups = {}

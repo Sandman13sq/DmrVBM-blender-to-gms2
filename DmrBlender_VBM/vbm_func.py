@@ -248,8 +248,8 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
         vshow = m.show_viewport
         rshow = m.show_render
         if (
-            (modreq == MTY_VIEW and not vport) or 
-            (modreq == MTY_RENDER and not rport) or 
+            (modreq == MTY_VIEW and not vshow) or 
+            (modreq == MTY_RENDER and not rshow) or 
             (modreq == MTY_OR and not (vshow or rshow)) or 
             (modreq == MTY_AND and not (vshow and rshow))
             ):
@@ -543,10 +543,6 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                 [outwritemap[attribkey](outblock, attribindex) for attribindex, attribkey in format_enumerated]
             materialvbytes[matkey] += outblock
         
-        # Join byte blocksobj.data.materials
-        materialvbytes = {matnames[k] if x in range(0, len(matnames)) else '__': b''.join(x) for k,x in materialvbytes.items()}
-        materialvcounts = {matnames[k] if x in range(0, len(matnames)) else '__': x for k,x in materialvcounts.items()}
-        
         t = time.time()-t
         PrintStatus(' Complete (%s Vertices, Byte Exec time: %.6f sec)' % (sum(materialvcounts.values()), t) )
         PrintStatus('\n')
@@ -557,6 +553,21 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
     # Remove temp data
     workingobj.to_mesh_clear()
     bpy.data.objects.remove(dupobj)
+    
+    # Join byte blocks
+    outvbytes = {}
+    outvcounts = {}
+    for i in materialvbytes.keys():
+        if i in range(0, len(matnames)):
+            name = matnames[i]
+        else:
+            name = '<no material>'
+        
+        if name not in outvbytes.keys():
+            outvbytes[name] = b''
+            outvcounts[name] = 0
+        outvbytes[name] += b''.join(materialvbytes[i])
+        outvcounts[name] += materialvcounts[i]
     
     # Instancing
     if sourceobj.instance_type != 'NONE':
@@ -571,14 +582,14 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                 instancerun=True
                 )
             for k in instvbytes.keys():
-                if k not in materialvbytes:
-                    materialvbytes[k] = instvbytes[k]
-                    materialvcounts[k] = instvcounts[k]
+                if k not in outvbytes:
+                    outvbytes[k] = instvbytes[k]
+                    outvcounts[k] = instvcounts[k]
                 else:
-                    materialvbytes[k] += instvbytes[k]
-                    materialvcounts[k] += instvcounts[k]
+                    outvbytes[k] += instvbytes[k]
+                    outvcounts[k] += instvcounts[k]
     
-    return (materialvbytes, materialvcounts)
+    return (outvbytes, outvcounts)
 
 
 
