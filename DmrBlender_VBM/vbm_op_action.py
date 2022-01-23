@@ -263,9 +263,9 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         elif self.range_type == 'KEYFRAME':
             positions = [k.co[0] for fc in sourceaction.fcurves for k in fc.keyframe_points]
             actionrange = (min(positions), max(positions))
-        elif self.range_type == 'MARKER':
+        elif self.range_type == 'MARKER' and sourceaction.pose_markers:
             positions = [m.frame for m in sourceaction.pose_markers]
-            actionrange = (min(positions), max(positions)+1)
+            actionrange = (min(positions), max(positions)+(max(positions)!=sourceaction.frame_range[1]))
         else:
             actionrange = (sc.frame_start, sc.frame_end)
         
