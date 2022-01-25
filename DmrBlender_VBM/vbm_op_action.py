@@ -20,8 +20,13 @@ TRKVERSION = 1
     TRK Version (1B)
     
     flags (1B)
+        Has Matrices = 1 << 0
+        Has Tracks = 1 << 1
+        Frames Normalized = 1 << 2
+    
     fps (1f)
-    animationlength (1f)
+    framecount (int32)
+    duration (1f)
     positionstep (1f)
     
     numtracks (4B)
@@ -29,6 +34,10 @@ TRKVERSION = 1
         namelength (1B)
         namechars[namelength]
             char (1B)
+    
+    matrixdata[framecount]
+        framematrices[trackcount]
+            mat4 (16f)
     
     trackdata[numtracks]
         numframes (4B)
@@ -61,6 +70,16 @@ def Items_GetArmatureObjects(self, context):
         (a.name, a.name, '%s' % a.name, 'ARMATURE_DATA', i)
         for i, a in enumerate(bpy.data.objects) if a.type == 'ARMATURE'
     ]
+
+Items_ExportSpace=[
+    ('LOCAL', 'Local Space', "Bone matrices are relative to bone's parent"),
+    ('POSE', 'Pose Space', 'Bone matrices are relative to armature origin'),
+    ('WORLD', 'World Space', 'Bone matrices are relative to world origin'),
+]
+
+Items_ExportSpaceMatrix= Items_ExportSpace + [
+    ('EVALUATED', 'Evaluated', 'Matrices are evaluated up to final transform ready for shader uniform')
+]
 
 def ChooseAction(self, context):
     action = bpy.data.actions[self.actionname]
@@ -111,12 +130,22 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
         description="Speed modifier for track playback.",
     )
     
-    space: bpy.props.EnumProperty(
-        name='Space', default=0, items=(
-            ('LOCAL', 'Local Space', "Bone matrices are relative to bone's parent"),
-            ('POSE', 'Pose Space', 'Bone matrices are relative to armature origin'),
-            ('WORLD', 'World Space', 'Bone matrices are relative to world origin'),
-        )
+    export_matrices: bpy.props.BoolProperty(
+        name="Export Matrices", default=False,
+        description="Export matrices to file",
+    )
+    
+    matrix_space: bpy.props.EnumProperty(
+        name='Matrix Space', default='EVALUATED', items=Items_ExportSpaceMatrix
+    )
+    
+    export_tracks: bpy.props.BoolProperty(
+        name="Export Tracks", default=True,
+        description="Export tracks to file",
+    )
+    
+    track_space: bpy.props.EnumProperty(
+        name='Track Space', default='LOCAL', items=Items_ExportSpace
     )
     
     write_marker_names: bpy.props.BoolProperty(
@@ -210,7 +239,19 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         r = c.row(align=1)
         r.prop(self, 'scale', text='Scale')
         r.prop(self, 'time_step')
-        c.prop(self, 'space')
+        
+        b = c.box().column()
+        b.prop(self, 'export_tracks')
+        r = b.row()
+        r.enabled = self.export_tracks
+        r.prop(self, 'track_space', text='Space')
+        
+        b = c.box().column()
+        b.prop(self, 'export_matrices')
+        r = b.row()
+        r.enabled = self.export_matrices
+        r.prop(self, 'matrix_space', text='Space')
+        
         c.separator();
         c.prop(self, 'write_marker_names')
         c.prop(self, 'normalize_frames')
@@ -219,13 +260,16 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
     def execute(self, context):
         # Settings
+        export_tracks = self.export_tracks
+        track_space = self.track_space
+        export_matrices = self.export_matrices
+        matrix_space = self.matrix_space
         normalize_frames = self.normalize_frames
         deform_only = self.deform_only
         write_marker_names = self.write_marker_names
         bakesteps = self.bake_steps
         timestep = self.time_step
         scale = self.scale
-        space = self.space
         
         # Clear temporary data
         [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
@@ -239,7 +283,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         # Validation
         sourceobj = [x for x in bpy.data.objects if x.name == self.armature_object]
         if not sourceobj:
-            self.info({'WARNING', 'No object with name "{}" found'.format(self.armature_object)})
+            self.info({'WARNING'}, 'No object with name "{}" found'.format(self.armature_object))
             rd.use_simplify = self.lastsimplify
             rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
@@ -252,7 +296,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         sourceaction = [x for x in bpy.data.actions if x.name == self.action_name]
         if not sourceaction:
-            self.info({'WARNING', 'No action with name "{}" found'.format(self.action_name)})
+            self.info({'WARNING'}, 'No action with name "{}" found'.format(self.action_name))
             rd.use_simplify = self.lastsimplify
             rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
@@ -269,6 +313,8 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         else:
             actionrange = (sc.frame_start, sc.frame_end)
         
+        print('> Beginning export for "{}"...'.format(sourceaction.name));
+        
         # Create working data
         workingarmature = sourceobj.data.copy()
         workingobj = sourceobj.copy()
@@ -283,6 +329,9 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         vl.objects.active = workingobj
         
         action = sourceaction
+        workingobj.animation_data.action = action
+        sc.frame_set(sc.frame_current)
+        vl.update()
         
         if bakesteps > 0:
             print('> Baking animation...');
@@ -310,9 +359,8 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
             dataactions = list(set([x for x in bpy.data.actions]) - dataactions)
             for x in dataactions:
                 x.name += '__temp'
-            action = dataactions[0]
+            action = dataactions[-1]
             action.name = lastaction.name + '__temp'
-            print([lastaction.name, action.name])
             
         workingobj.animation_data.action = action
         
@@ -324,6 +372,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
             pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
         bonenames = [x for x in pbones.keys()]
         bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
+        pboneslist = [x for x in pbones.values()]
         
         netframes = ()
         
@@ -388,9 +437,19 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         # Header
         out += b'TRK' + Pack('B', TRKVERSION)    # Signature
-        out += Pack('B', 1)     # Flags
+        
+        flags = 0
+        if export_matrices:
+            flags |= 1 << 0
+        if export_tracks:
+            flags |= 1 << 1
+        if normalize_frames:
+            flags |= 1 << 2
+        out += Pack('B', flags)     # Flags
+        
         out += Pack('f', rd.fps)     # fps
-        out += Pack('f', duration*scale ) # Frame Count
+        out += Pack('I', len(netframes) ) # Frame Count
+        out += Pack('f', duration*scale ) # Duration
         out += Pack('f', timestep/(duration*scale) ) # Position Step
         
         print('Length:', duration*scale)
@@ -398,44 +457,108 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         out += Pack('I', len(pbones) ) # Num tracks
         out += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Names
         
-        posesnap = {}
-        
         foffset = -actionrange[0]*pmod # Frame offset
         
-        # Bone loop
-        for pb in pbones.values():
-            thisbonecurves = bonecurves[pb]
+        # Matrices
+        if export_matrices:
+            print('> Writing Matrices...');
             
-            outchunk = b''
+            # Use convert_space()
+            if matrix_space != 'EVALUATED':
+                for f in netframes:
+                    outchunk = b''
+                    
+                    sc.frame_set(int(f/pmod))
+                    vl.update()
+                    
+                    out += b''.join(
+                        Pack('f', x)
+                        
+                        for pb in pboneslist
+                        for v in workingobj.convert_space(
+                            pose_bone=pb, matrix=pb.matrix, from_space='WORLD', to_space=matrix_space
+                            ).transposed()
+                        for x in v
+                        )
+            # Evaluate final transforms
+            else:
+                #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
+                bmatrix = {b: (b.matrix_local.copy()) for b in bones}
+                bmatlocal = {
+                    pbones[b.name]: (bmatrix[b.parent].inverted() @ bmatrix[b] if b.parent else bmatrix[b])
+                    for b in bones if b.name in pbones.keys()
+                }
+                bmatinverse = {
+                    pbones[b.name]: bmatrix[b].inverted()
+                    for b in bones if b.name in pbones.keys()
+                }
+                
+                for f in netframes:
+                    outchunk = b''
+                    
+                    sc.frame_set(int(f/pmod))
+                    vl.update()
+                    
+                    localtransforms = {
+                        pb: bmatlocal[pb] @ workingobj.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='WORLD', to_space='LOCAL')
+                        for pb in pboneslist
+                    }
+                    
+                    bonetransforms = {}
+                    for pb in pboneslist:
+                        bonetransforms[pb] = bonetransforms[pb.parent]@localtransforms[pb] if pb.parent else localtransforms[pb]
+                    
+                    finaltransforms = {
+                        pb: bonetransforms[pb]@bmatinverse[pb]
+                        for pb in pboneslist
+                    }
+                    
+                    out += b''.join(
+                        Pack('f', x)
+                        for pb in pboneslist
+                        for v in (finaltransforms[pb]).transposed()
+                        for x in v
+                )
+        
+        # Tracks
+        if export_tracks:
+            print('> Writing Tracks...');
+            posesnap = {}
             
-            # Transform components
-            for tindex in (0, 1, 2):
-                targetvecs = thisbonecurves[tindex]
-                veckeyframes = list(set(k for v in targetvecs for k in v))
-                vecpositions = list(set(x[0] for x in veckeyframes))
-                vecpositions.sort(key=lambda x: x)
-                vecpositions = tuple(vecpositions)
+            for pb in pboneslist:
+                thisbonecurves = bonecurves[pb]
                 
-                outchunk += Pack('I', len(vecpositions)) # Num Frames
-                outchunk += b''.join([Pack('f', x*scale+foffset) for x in vecpositions]) # Frame Positions 
+                outchunk = b''
                 
-                # Vectors
-                for f in vecpositions:
-                    # Generate pose snap of matrices
-                    if f not in posesnap:
-                        sc.frame_set(int(f/pmod))
-                        vl.update()
-                        posesnap[f] = {
-                            x: workingobj.convert_space(
-                                pose_bone=x, matrix=x.matrix, from_space='WORLD', to_space=space
-                            ).decompose() 
-                            for x in pbones.values()
-                        }
-                    outchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
-            out += outchunk
+                # Transform components
+                for tindex in (0, 1, 2):
+                    targetvecs = thisbonecurves[tindex]
+                    veckeyframes = list(set(k for v in targetvecs for k in v))
+                    vecpositions = list(set(x[0] for x in veckeyframes))
+                    vecpositions.sort(key=lambda x: x)
+                    vecpositions = tuple(vecpositions)
+                    
+                    outchunk += Pack('I', len(vecpositions)) # Num Frames
+                    outchunk += b''.join([Pack('f', x*scale+foffset) for x in vecpositions]) # Frame Positions 
+                    
+                    # Vectors
+                    for f in vecpositions:
+                        # Generate pose snap of matrices
+                        if f not in posesnap:
+                            sc.frame_set(int(f/pmod))
+                            vl.update()
+                            posesnap[f] = {
+                                x: workingobj.convert_space(
+                                    pose_bone=x, matrix=x.matrix, from_space='WORLD', to_space=track_space
+                                ).decompose()
+                                for x in pbones.values()
+                            }
+                        outchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
+                out += outchunk
         
         # Markers
         if write_marker_names:
+            print('> Writing Markers...');
             markers = [(x.name, x.frame*scale*pmod) for x in sourceaction.pose_markers]
             #markers.sort(key=lambda x: x[0])
             out += Pack('I', len(markers))
@@ -444,15 +567,10 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         else:
             out += Pack('I', 0)
         
-        # Restore State
+        # Free Temporary Data
         [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
         [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
         [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
-        
-        rd.use_simplify = self.lastsimplify
-        rd.simplify_subdivision = self.lastsimplifylevels
-        sourceobj.select_set(True)
-        vl.objects.active = sourceobj
         
         # Output to File
         oldlen = len(out)
@@ -461,6 +579,13 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         file = open(self.filepath, 'wb')
         file.write(out)
         file.close()
+        
+        # Restore State
+        if self.lastsimplify > -1:
+            rd.use_simplify = self.lastsimplify
+            rd.simplify_subdivision = self.lastsimplifylevels
+        sourceobj.select_set(True)
+        vl.objects.active = sourceobj
         
         report = 'Data written to "%s". (%.2fKB -> %.2fKB) %.2f%%' % \
             (self.filepath, oldlen / 1000, len(out) / 1000, 100 * len(out) / oldlen)

@@ -37,9 +37,6 @@ void main()
 	vertexpos.y *= -1.0;
 	normal.y *= -1.0;
 	
-	// Set draw position -------------------------------------------------
-	gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
-    
 	// Varyings ----------------------------------------------------------
     v_color = in_Color;
     v_uv = in_Uv;

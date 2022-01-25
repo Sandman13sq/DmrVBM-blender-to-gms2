@@ -700,8 +700,8 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 # Write Data
                 out_bone = b''
                 
-                out_bone += Pack('H', len(bones))
-                out_bone += b''.join( [PackString(b.name) for b in bones] )
+                out_bone += Pack('H', len(bones)) # Bone count
+                out_bone += b''.join( [PackString(b.name) for b in bones] ) # Bone names
                 out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] )
                 out_bone += b''.join( [PackMatrix('f',
                     (bonemat[b.parent].inverted() @ bonemat[b])

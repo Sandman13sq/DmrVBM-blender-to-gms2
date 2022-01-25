@@ -12,6 +12,8 @@ enum TRK_Intrpl
 
 function TRKData() constructor
 {
+	framematrices = []; // Array of flat matrix arrays for each frame
+	
 	tracks = []; // array of TRKData_Track
 	tracknames = [];	// (bone) names for each track
 	trackmap = {}; // {trackname: track} for each track
@@ -25,6 +27,7 @@ function TRKData() constructor
 	positionrange = [0, 1];
 	positionstep = 1.0
 	
+	framecount = 0;
 	framespersecond = 1;
 	length = 0;
 	flag = 0;
@@ -83,18 +86,28 @@ function OpenTRK(path)
 function __TRKOpen_v1(b)
 {
 	/* File spec:
-		'TRK' (3B)
+	    'TRK' (3B)
 	    TRK Version (1B)
     
 	    flags (1B)
-	    fps (1f)
-	    animationlength (1f)
+			Has Matrices = 1 << 0
+	        Has Tracks = 1 << 1
+	        Frames Normalized = 1 << 2
     
-	    numtracks (4B)
+	    fps (1f)
+	    framecount (int32)
+	    duration (1f)
+	    positionstep (1f)
+    
+	    numtracks (int32)
 	    tracknames[numtracks]
 	        namelength (1B)
 	        namechars[namelength]
-	            chr (1B)
+	            char (1B)
+    
+	    matrixdata[framecount]
+	        framematrices[trackcount]
+	            mat4 (16f)
     
 	    trackdata[numtracks]
 	        numframes (4B)
@@ -127,6 +140,8 @@ function __TRKOpen_v1(b)
 	out.flag = flag;
 	// Animation Original FPS
 	out.framespersecond = buffer_read(b, buffer_f32);
+	// Frame Count
+	out.framecount = buffer_read(b, buffer_u32);
 	// Animation Length
 	out.length = buffer_read(b, buffer_f32);
 	// Position Step
@@ -142,8 +157,9 @@ function __TRKOpen_v1(b)
 	var name;
 	var vector;
 	var vectorsize;
+	var matarray;
 	
-	var v, f;
+	var v, f, n;
 	
 	var numtracks = buffer_read(b, buffer_u32);
 	out.trackcount = numtracks;
@@ -162,82 +178,104 @@ function __TRKOpen_v1(b)
 		}
 		out.tracknames[trackindex] = name;
 	}
-		
-	// Read tracks
-	for (var trackindex = 0; trackindex < numtracks; trackindex++)
+	
+	// Read Matrices
+	if (flag & (1 << 0))
 	{
-		transformtracks = array_create(3); // [location<3>, quaternion<4>, scale<3>]
-		
-		// For each transform vector [location<3>, quaternion<4>, scale<3>]
-		for (var transformindex = 0; transformindex < 3; transformindex++)
+		numframes = out.framecount;
+		n = numtracks*16;
+		array_resize(out.framematrices, numframes);
+		for (var f = 0; f < numframes; f++)
 		{
-			vectorsize = (transformindex == 1)? 4:3; // 4 for quats, 3 for location and scale
-			
-			numframes = buffer_read(b, buffer_u32); // Frame Count
-			
-			track = new TRKData_Track();
-			trackframes = array_create(numframes);
-			trackvectors = array_create(numframes);
-			
-			// Frame Positions
-			for (f = 0; f < numframes; f++)
+			matarray = array_create(n);
+			for (var i = 0; i < n; i++)
 			{
-				trackframes[f] = buffer_read(b, buffer_f32);
+				matarray[i] = buffer_read(b, buffer_f32);
 			}
-			
-			if numframes > 0
-			{
-				out.positionrange[0] = min(out.positionrange[0], trackframes[0]);
-				out.positionrange[1] = max(out.positionrange[1], trackframes[numframes-1]);
-			}
-			
-			// Frame Vectors
-			for (f = 0; f < numframes; f++)
-			{
-				vector = array_create(vectorsize);
-						
-				for (v = 0; v < vectorsize; v++)
-				{
-					vector[v] = buffer_read(b, buffer_f32);
-				}
-				
-				trackvectors[f] = vector; // Vector
-			}
-			
-			track.count = numframes;
-			track.frames = trackframes;
-			track.vectors = trackvectors;
-			transformtracks[transformindex] = track;
 		}
+	}
+	
+	// Read tracks
+	if (flag & (1 << 1))
+	{
+		for (var trackindex = 0; trackindex < numtracks; trackindex++)
+		{
+			transformtracks = array_create(3); // [location<3>, quaternion<4>, scale<3>]
 		
-		out.tracks[trackindex] = transformtracks;
-		out.trackmap[$ out.tracknames[trackindex] ] = transformtracks;
+			// For each transform vector [location<3>, quaternion<4>, scale<3>]
+			for (var transformindex = 0; transformindex < 3; transformindex++)
+			{
+				vectorsize = (transformindex == 1)? 4:3; // 4 for quats, 3 for location and scale
+			
+				numframes = buffer_read(b, buffer_u32); // Frame Count
+			
+				track = new TRKData_Track();
+				trackframes = array_create(numframes);
+				trackvectors = array_create(numframes);
+			
+				// Frame Positions
+				for (f = 0; f < numframes; f++)
+				{
+					trackframes[f] = buffer_read(b, buffer_f32);
+				}
+			
+				if numframes > 0
+				{
+					out.positionrange[0] = min(out.positionrange[0], trackframes[0]);
+					out.positionrange[1] = max(out.positionrange[1], trackframes[numframes-1]);
+				}
+			
+				// Frame Vectors
+				for (f = 0; f < numframes; f++)
+				{
+					vector = array_create(vectorsize);
+						
+					for (v = 0; v < vectorsize; v++)
+					{
+						vector[v] = buffer_read(b, buffer_f32);
+					}
+				
+					trackvectors[f] = vector; // Vector
+				}
+			
+				track.count = numframes;
+				track.frames = trackframes;
+				track.vectors = trackvectors;
+				transformtracks[transformindex] = track;
+			}
+		
+			out.tracks[trackindex] = transformtracks;
+			out.trackmap[$ out.tracknames[trackindex] ] = transformtracks;
+		}
 	}
 	
 	// Markers -----------------------------------------------------
-	var nummarkers = buffer_read(b, buffer_u32);
-	out.markercount = nummarkers;
-	
-	array_resize(out.markerpositions, nummarkers);
-	array_resize(out.markernames, nummarkers);
-	
-	for (var i = 0; i < nummarkers; i++) // Marker Names
+	if (flag & (1 << 2))
 	{
-		name = "";
-		namelength = buffer_read(b, buffer_u8);
-		repeat(namelength)
+		var nummarkers = buffer_read(b, buffer_u32);
+		out.markercount = nummarkers;
+	
+		array_resize(out.markerpositions, nummarkers);
+		array_resize(out.markernames, nummarkers);
+	
+		for (var i = 0; i < nummarkers; i++) // Marker Names
 		{
-			name += chr( buffer_read(b, buffer_u8) );
+			name = "";
+			namelength = buffer_read(b, buffer_u8);
+			repeat(namelength)
+			{
+				name += chr( buffer_read(b, buffer_u8) );
+			}
+			out.markernames[i] = name;
 		}
-		out.markernames[i] = name;
+	
+		for (var i = 0; i < nummarkers; i++) // Marker Frames
+		{
+			out.markerpositions[i] = buffer_read(b, buffer_f32);
+			out.markermap[$ out.markernames[i] ] = out.markerpositions[i];
+		}
 	}
 	
-	for (var i = 0; i < nummarkers; i++) // Marker Frames
-	{
-		out.markerpositions[i] = buffer_read(b, buffer_f32);
-		out.markermap[$ out.markernames[i] ] = out.markerpositions[i];
-	}
-		
 	buffer_delete(b);
 	
 	return out;
