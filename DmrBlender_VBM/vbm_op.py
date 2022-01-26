@@ -681,14 +681,6 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         out_header += out_format
         
         # Compose Bone Data =========================================================
-        """
-            bonecount (2B)
-            bonenames[bonecount] ((1 + name length)B each)
-            parentindices[bonecount] (2B)
-            localmatrices[bonecount] (16f each)
-            inversemodelmatrices[bonecount] (16f each)
-        """
-        
         def ComposeBoneData(armature):
             if armature and self.export_armature:
                 print('> Composing armature data...')
@@ -724,14 +716,6 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         out_bone = ComposeBoneData(armature)
         
         # Compose Vertex Buffer Data ================================================
-        """
-            vbcount (2B)
-            vbnames[vbcount] ((1 + name length)B each)
-            vbdata[vbcount]
-                vbsize (4B)
-                vbvertexcount (4B)
-                vbcompresseddata (vbsize B)
-        """
         
         def GetVBGroupSorted(objlist):
             vbgroups = {}
