@@ -1,8 +1,8 @@
-/// @desc 
+/// @desc Camera controls
 
 var _spd = 0.1;
 
-// Move model
+// Move camera
 if ( keyboard_check(vk_right) ) {cameraposition[0] += _spd;}
 if ( keyboard_check(vk_left) ) {cameraposition[0] -= _spd;}
 if ( keyboard_check(vk_up) ) {cameraposition[1] += _spd;}

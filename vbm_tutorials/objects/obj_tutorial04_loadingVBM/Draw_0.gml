@@ -1,6 +1,6 @@
 /// @desc Set matrices and draw VBs
 
-// Store room matrices in matrix stack
+// Store room matrices
 var roommatrices = [
 	matrix_get(matrix_projection),
 	matrix_get(matrix_view),
@@ -18,26 +18,31 @@ matrix_set(matrix_projection, matproj);
 matrix_set(matrix_view, matview);
 
 // Draw vertex buffers (Simple)
-shader_set(shd_yflip);
+shader_set(shd_simple);
 
-vertex_submit(vb_grid, pr_linelist, -1); // <- pr_linelist here
-vertex_submit(vb_axis, pr_trianglelist, -1);
+if (vb_grid >= 0) {vertex_submit(vb_grid, pr_linelist, -1);}
+if (vb_axis >= 0) {vertex_submit(vb_axis, pr_trianglelist, -1);}
 
 matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_style);
 
-for (var i = 0; i < vbm_curly.vbcount; i++)
+shader_set_uniform_f_array(u_style_light, lightpos);
+
+if (vbm_curly)
 {
-	if (meshvisible & (1 << i))
+	for (var i = 0; i < vbm_curly.vbcount; i++) // Iterate through vb indices
 	{
-		vbm_curly.SubmitVBIndex(i, pr_trianglelist, -1);
+		if ( meshvisible & (1 << i) ) // Check if bit is set for mesh index
+		{
+			vbm_curly.SubmitVBIndex(i, pr_trianglelist, -1); // Send indexed vb to GPU
+		}
 	}
 }
 
 shader_reset();
 
-// Restore previous matrices from matrix stack
+// Restore previous matrices
 matrix_set(matrix_projection, roommatrices[0]);
 matrix_set(matrix_view, roommatrices[1]);
 matrix_set(matrix_world, roommatrices[2]);

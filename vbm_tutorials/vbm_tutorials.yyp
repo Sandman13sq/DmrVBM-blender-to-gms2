@@ -15,8 +15,7 @@
     {"id":{"name":"obj_tutorial01_triangle","path":"objects/obj_tutorial01_triangle/obj_tutorial01_triangle.yy",},"order":0,},
     {"id":{"name":"shd_rigged","path":"shaders/shd_rigged/shd_rigged.yy",},"order":3,},
     {"id":{"name":"scr_dmr_trk","path":"scripts/scr_dmr_trk/scr_dmr_trk.yy",},"order":2,},
-    {"id":{"name":"shd_yflip","path":"shaders/shd_yflip/shd_yflip.yy",},"order":0,},
-    {"id":{"name":"obj_tutorial08ish","path":"objects/obj_tutorial08ish/obj_tutorial08ish.yy",},"order":1,},
+    {"id":{"name":"shd_simple","path":"shaders/shd_simple/shd_simple.yy",},"order":0,},
     {"id":{"name":"rm_init","path":"rooms/rm_init/rm_init.yy",},"order":0,},
   ],
   "Options": [

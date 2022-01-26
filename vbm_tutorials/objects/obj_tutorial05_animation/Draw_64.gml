@@ -9,3 +9,5 @@ draw_text(16, 64, "Camera Position: " + string(cameraposition));
 draw_text(16, 80, "Z Rotation: " + string(zrot));
 draw_text(16, 112, "Press SPACE to switch animation modes");
 draw_text(16, 128, "Animation Mode: " + (playbackmode==0? "Matrix": "Tracks"));
+draw_text(16, 144, "Animation Position: " + string(playbackposition));
+draw_text(16, 160, "Animation Frame: " + string(playbackposition*trk.framecount));

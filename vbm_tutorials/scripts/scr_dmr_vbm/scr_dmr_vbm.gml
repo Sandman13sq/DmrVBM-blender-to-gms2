@@ -261,8 +261,6 @@ function GetVBMFormat(b, offset)
 	var numattributes = buffer_peek(b, offset, buffer_u8);
 	offset += 1;
 	
-	//printf("Attribute Count: %s", numattributes);
-	
 	vertex_format_begin();
 	
 	var attributetype;
@@ -274,9 +272,7 @@ function GetVBMFormat(b, offset)
 		offset += 1;
 		attributesize = buffer_peek(b, offset, buffer_u8);
 		offset += 1;
-			
-		//printf("AttribType: %s %s", attributetype, attributesize);
-			
+		
 		switch(attributetype)
 		{
 			// Native types
@@ -288,7 +284,7 @@ function GetVBMFormat(b, offset)
 				vertex_format_add_normal(); break;
 			case(VBM_AttributeType.colorbytes):
 				vertex_format_add_color(); break;
-				
+			
 			// Non native types
 			default:
 				switch(attributesize)
@@ -309,37 +305,36 @@ function GetVBMFormat(b, offset)
 function __VBMOpen_v1(outvbm, b, format, freeze)
 {
 	/* Vertex Buffer Collection v1 File spec:
-		
 		'VBM' (3B)
 	    VBM version = 1 (1B)
+		
 	    flags (1B)
-    
+		
 	    formatlength (1B)
 	    formatentry[formatlength]
 	        attributetype (1B)
 	        attributefloatsize (1B)
-    
-	    vbcount (2B)
+		
+	    vbcount (1I)
 	    vbnames[vbcount]
 			namelength (1B)
 			namechars[namelength]
 				char (1B)
 	    vbdata[vbcount]
-	        vbcompressedsize (4B)
+	        vbcompressedsize (1L)
 	        vbcompresseddata (vbcompressedsize B)
-    
-	    bonecount (2B)
+		
+	    bonecount (1I)
 	    bonenames[bonecount]
 			namelength (1B)
 			namechars[namelength]
 				char (1B)
-	    parentindices[bonecount] (2B)
+	    parentindices[bonecount] (1I)
 	    localmatrices[bonecount] (16f each)
 	    inversemodelmatrices[bonecount] (16f each)
 	*/
 	
 	var flag;
-	var floattype;
 	var bonecount;
 	var vbcount;
 	var namelength;
@@ -355,15 +350,6 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	
 	flag = buffer_read(b, buffer_u8);
 	
-	// Float Type
-	switch(flag & 3)
-	{
-		default:
-		case(0): floattype = buffer_f32; break;
-		case(1): floattype = buffer_f64; break;
-		case(2): floattype = buffer_f16; break;
-	}
-	
 	// Vertex Format
 	if noformatgiven
 	{
@@ -372,13 +358,14 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	
 	buffer_seek(b, buffer_seek_relative, buffer_read(b, buffer_u8)*2);
 	
-	#region // Vertex Buffers ==============================================
+	#region // Vertex Buffers ==================================================
 	
-	vbcount = buffer_read(b, buffer_u16);
+	vbcount = buffer_read(b, buffer_u32);
 	outvbm.vbcount = vbcount;
 	array_resize(outvbm.vbnames, vbcount);
 	
-	for (var i = 0; i < vbcount; i++) // VB Names
+	// VB Names ------------------------------------------------------------
+	for (var i = 0; i < vbcount; i++) 
 	{
 		name = "";
 		namelength = buffer_read(b, buffer_u8);
@@ -390,7 +377,8 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 		outvbm.vbnamemap[$ name] = i;
 	}
 	
-	for (var i = 0; i < vbcount; i++) // VB Data
+	// VB Data -------------------------------------------------------------
+	for (var i = 0; i < vbcount; i++)
 	{
 		var vbuffersize = buffer_read(b, buffer_u32);
 		var numvertices = buffer_read(b, buffer_u32);
@@ -408,16 +396,16 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	
 	#endregion -------------------------------------------------------------
 	
-	#region // Bones ======================================================
+	#region // Bones ===========================================================
 	
-	bonecount = buffer_read(b, buffer_u16);
+	bonecount = buffer_read(b, buffer_u32);
 	outvbm.bonecount = bonecount;
 	array_resize(outvbm.bonenames, bonecount);
 	array_resize(outvbm.bone_parentindices, bonecount);
 	array_resize(outvbm.bone_localmatricies, bonecount);
 	array_resize(outvbm.bone_inversematricies, bonecount);
 	
-	// Bone Names
+	// Bone Names ----------------------------------------------------------
 	for (var i = 0; i < bonecount; i++) 
 	{
 		name = "";
@@ -428,36 +416,35 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 		}
 		outvbm.bonenames[i] = name;
 		outvbm.bonemap[$ name] = i;
-		//printf("[%s] %s", i, name)
 	}
 	
-	// Parent Indices
+	// Parent Indices ------------------------------------------------------
 	targetmats = outvbm.bone_parentindices;
 	i = 0; repeat(bonecount)
 	{
-		targetmats[@ i++] = buffer_read(b, buffer_u16);
+		targetmats[@ i++] = buffer_read(b, buffer_u32);
 	}
 	
-	// Local Matrices
+	// Local Matrices ------------------------------------------------------
 	targetmats = outvbm.bone_localmatricies;
 	i = 0; repeat(bonecount)
 	{
 		mat = array_create(16);
 		j = 0; repeat(16)
 		{
-			mat[j++] = buffer_read(b, floattype);
+			mat[j++] = buffer_read(b, buffer_f32);
 		}
 		targetmats[@ i++] = mat;
 	}
 	
-	// Inverse Model Matrices
+	// Inverse Model Matrices ----------------------------------------------
 	targetmats = outvbm.bone_inversematricies;
 	i = 0; repeat(bonecount)
 	{
 		mat = array_create(16);
 		j = 0; repeat(16)
 		{
-			mat[j++] = buffer_read(b, floattype);
+			mat[j++] = buffer_read(b, buffer_f32);
 		}
 		targetmats[@ i++] = mat;
 	}

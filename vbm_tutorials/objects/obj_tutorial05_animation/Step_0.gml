@@ -26,28 +26,28 @@ matview = matrix_build_lookat(
 	0, 0, 1);
 mattran = matrix_build(x, y, 0, 0, 0, zrot, 1, 1, 1);
 
-// Switch pose mode
-if (keyboard_check_pressed(vk_space))
-{
-	playbackmode ^= 1;
-}
+// Switch between matrices and track evaluation
+if (keyboard_check_pressed(vk_space)) {playbackmode ^= 1;}
 
-// Playback
+// Progress Playback
 playbackposition = (playbackposition+playbackspeed) mod 1;
 
+// Use pre-evaluated matrices
 if (playbackmode == 0)
 {
 	matpose = trk.framematrices[playbackposition*trk.framecount];
 }
+// Evaluate matrices on the fly
 else
 {
 	localpose = Mat4Array(DMRVBM_MATPOSEMAX);
+	matpose = Mat4ArrayFlat(DMRVBM_MATPOSEMAX);
 	
 	EvaluateAnimationTracks(
+		trk,
 		playbackposition,
 		TRK_Intrpl.linear,
 		0,
-		trk,
 		localpose
 		);
 	
@@ -59,6 +59,3 @@ else
 		matpose
 		);
 }
-
-
-

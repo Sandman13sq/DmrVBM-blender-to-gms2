@@ -26,4 +26,5 @@ matview = matrix_build_lookat(
 	0, 0, 1);
 mattran = matrix_build(x, y, 0, 0, 0, zrot, 1, 1, 1);
 
+// Toggle shader mode
 shadermode ^= keyboard_check_pressed(vk_space);

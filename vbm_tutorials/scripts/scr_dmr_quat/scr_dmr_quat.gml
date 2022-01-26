@@ -1,6 +1,6 @@
 /*
 	References:
-		Quat Ops: https://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/code/index.htm
+		Quat Operations: https://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/code/index.htm
 		Extra functions: https://github.com/JujuAdams/basic-quaternions
 		Matrix to Quat: https://d3cw3dd2w32x2b.cloudfront.net/wp-content/uploads/2015/01/matrix-to-quat.pdf
 */

@@ -1,4 +1,5 @@
 /*
+	Track data struct for animation playback
 */
 
 #macro TRKHEADERCODE 0x004b5254
@@ -12,8 +13,10 @@ enum TRK_Intrpl
 
 function TRKData() constructor
 {
+	matrixspace = 0; // 0 = None, 1 = Local, 2 = Pose, 3 = World, 4 = Evaluated
 	framematrices = []; // Array of flat matrix arrays for each frame
 	
+	trackspace = 0; // 0 = None, 1 = Local, 2 = Pose, 3 = World
 	tracks = []; // array of TRKData_Track
 	tracknames = [];	// (bone) names for each track
 	trackmap = {}; // {trackname: track} for each track
@@ -38,6 +41,12 @@ function TRKData_Track() constructor
 	frames = [];
 	vectors = [];
 	count = 0;
+}
+
+// Removes allocated memory from trk struct (None yet)
+function TRKFree(trk) constructor
+{
+	
 }
 
 // Returns animation struct from file (.trk)
@@ -88,37 +97,43 @@ function __TRKOpen_v1(b, outtrk)
 	/* File spec:
 	    'TRK' (3B)
 	    TRK Version (1B)
-    
+		
 	    flags (1B)
-			Has Matrices = 1 << 0
-	        Has Tracks = 1 << 1
-	        Frames Normalized = 1 << 2
-    
+		
 	    fps (1f)
-	    framecount (int32)
+	    framecount (1I)
+	    numtracks (1I)
 	    duration (1f)
 	    positionstep (1f)
-    
-	    numtracks (int32)
-	    tracknames[numtracks]
+		
+		tracknames[numtracks]
 	        namelength (1B)
 	        namechars[namelength]
 	            char (1B)
 		
-		if flags & (1 << 0)
-		    matrixdata[framecount]
-		        framematrices[trackcount]
-		            mat4 (16f)
+		matrixspace (1B)
+	        0 = No Matrices
+	        1 = LOCAL
+	        2 = POSE
+	        3 = WORLD
+	        4 = EVALUATED
+	    matrixdata[framecount]
+	        framematrices[numtracks]
+	            mat4 (16f)
 		
-		if flags & (1 << 1)
-		    trackdata[numtracks]
-		        numframes (4B)
-		        framepositions[numframes]
-		            position (1f)
-		        framevectors[numframes]
-		            vector[3]
-		                value (1f)
-		
+	    trackspace (1B)
+	        0 = No Tracks
+	        1 = LOCAL
+	        2 = POSE
+	        3 = WORLD
+	    trackdata[numtracks]
+	        numframes (4B)
+	        framepositions[numframes]
+	            position (1f)
+	        framevectors[numframes]
+	            vector[3]
+	                value (1f)
+    
 	    nummarkers (4B)
 	    markernames[nummarkers]
 	        namelength (1B)
@@ -143,7 +158,9 @@ function __TRKOpen_v1(b, outtrk)
 	outtrk.framespersecond = buffer_read(b, buffer_f32);
 	// Frame Count
 	outtrk.framecount = buffer_read(b, buffer_u32);
-	// Animation Length
+	// Track/Bone Count
+	outtrk.trackcount = buffer_read(b, buffer_u32);
+	// Duration
 	outtrk.duration = buffer_read(b, buffer_f32);
 	// Position Step
 	outtrk.positionstep = buffer_read(b, buffer_f32);
@@ -164,8 +181,7 @@ function __TRKOpen_v1(b, outtrk)
 	
 	var i, v, f, n;
 	
-	var numtracks = buffer_read(b, buffer_u32);
-	outtrk.trackcount = numtracks;
+	var numtracks = outtrk.trackcount;
 	
 	array_resize(outtrk.tracks, numtracks);
 	array_resize(outtrk.tracknames, numtracks);
@@ -183,7 +199,8 @@ function __TRKOpen_v1(b, outtrk)
 	}
 	
 	// Read Matrices
-	if (flag & (1 << 0))
+	outtrk.matrixspace = buffer_read(b, buffer_u8);
+	if (outtrk.matrixspace > 0)
 	{
 		numframes = outtrk.framecount;
 		n = numtracks*16;
@@ -215,7 +232,8 @@ function __TRKOpen_v1(b, outtrk)
 	}
 	
 	// Read tracks
-	if (flag & (1 << 1))
+	outtrk.trackspace = buffer_read(b, buffer_u8);
+	if (outtrk.trackspace > 0)
 	{
 		for (trackindex = 0; trackindex < numtracks; trackindex++)
 		{
@@ -303,10 +321,10 @@ function __TRKOpen_v1(b, outtrk)
 // Evaluates animation at given position and fills "outpose" with evaluated matrices
 // Set "bonekeys" to 0 to use indices instead of bone names
 function EvaluateAnimationTracks(
-	pos, 
-	interpolationtype, 
-	bonekeys, 
-	trackdata, 
+	trackdata,	// TRK struct for animation
+	pos,	// 0-1 Value for animation position
+	interpolationtype,	// Interpolation method for blending keyframes
+	bonekeys,	// Bone names to map tracks to bones. 0 for track indices
 	outpose
 	)
 {
@@ -334,7 +352,7 @@ function EvaluateAnimationTracks(
 		q_c, q_s, q_omc;
 	
 	if pos < 0.5 {possearchstart = 0;}
-	else {possearchstart = trackdata.duration;}
+	else {possearchstart = 1.0;}
 	
 	var mm = matrix_build_identity();
 	

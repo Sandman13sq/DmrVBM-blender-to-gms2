@@ -18,7 +18,7 @@ matrix_set(matrix_projection, matproj);
 matrix_set(matrix_view, matview);
 
 // Draw vertex buffers (Simple)
-shader_set(shd_yflip);
+shader_set(shd_simple);
 
 vertex_submit(vb_grid, pr_linelist, -1); // <- pr_linelist here
 vertex_submit(vb_axis, pr_trianglelist, -1);
@@ -26,7 +26,8 @@ vertex_submit(vb_axis, pr_trianglelist, -1);
 matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_rigged);
-shader_set_uniform_matrix_array(u_matpose, matpose);
+shader_set_uniform_f_array(u_rigged_light, lightpos);
+shader_set_uniform_matrix_array(u_rigged_matpose, matpose);
 
 for (var i = 0; i < vbm_curly.vbcount; i++)
 {

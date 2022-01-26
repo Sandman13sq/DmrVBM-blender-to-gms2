@@ -11,11 +11,11 @@ varying vec4 v_vColour;
 
 void main()
 {
-    vec4 object_space_pos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
+    vec4 vertexpos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
 	
-	object_space_pos.y *= -1.0;
+	vertexpos.y *= -1.0;
 	
-    gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * object_space_pos;
+    gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * vertexpos;
     
     v_vColour = in_Colour;
     v_vTexcoord = in_TextureCoord;
