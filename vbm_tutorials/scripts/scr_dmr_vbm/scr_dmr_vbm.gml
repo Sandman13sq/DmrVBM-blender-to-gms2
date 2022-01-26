@@ -1,21 +1,23 @@
 /*
-	VBM class definition and functions.
+	VBM definition and functions.
 	By Dreamer13sq
 */
 
 #macro VBMHEADERCODE 0x004D4256
 
-#macro DMRVBM_MATPOSEMAX 200
-#macro DMRVBM_MAT4ARRAYFLAT global.g_mat4identityflat
-#macro DMRVBM_MAT4ARRAY2D global.g_mat4identity2d
+// Max number of bones for pose matrix array
+#macro VBM_MATPOSEMAX 200
 
-DMRVBM_MAT4ARRAYFLAT = array_create(16*DMRVBM_MATPOSEMAX);
-DMRVBM_MAT4ARRAY2D = array_create(DMRVBM_MATPOSEMAX);
+#macro VBM_MAT4ARRAYFLAT global.g_mat4identityflat
+#macro VBM_MAT4ARRAY2D global.g_mat4identity2d
 
-for (var i = 0; i < DMRVBM_MATPOSEMAX; i++)
+VBM_MAT4ARRAYFLAT = array_create(16*VBM_MATPOSEMAX);
+VBM_MAT4ARRAY2D = array_create(VBM_MATPOSEMAX);
+
+for (var i = 0; i < VBM_MATPOSEMAX; i++)
 {
-	array_copy(DMRVBM_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
-	DMRVBM_MAT4ARRAY2D[i] = matrix_build_identity();
+	array_copy(VBM_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
+	VBM_MAT4ARRAY2D[i] = matrix_build_identity();
 }
 
 enum VBM_AttributeType
@@ -29,9 +31,11 @@ enum VBM_AttributeType
 	colorbytes = 5,
 	
 	weight = 6,
-	weightindex = 7,
-	tangent = 8,
-	bitangent = 9,
+	weightbytes = 7,
+	bone = 8,
+	bonebytes = 9,
+	tangent = 10,
+	bitangent = 11,
 }
 
 /*
@@ -283,6 +287,8 @@ function GetVBMFormat(b, offset)
 			case(VBM_AttributeType.normal):
 				vertex_format_add_normal(); break;
 			case(VBM_AttributeType.colorbytes):
+			case(VBM_AttributeType.bonebytes):
+			case(VBM_AttributeType.weightbytes):
 				vertex_format_add_color(); break;
 			
 			// Non native types

@@ -1,4 +1,8 @@
 /*
+	Operations and functions for 4x4 Matrices
+*/
+
+/*
 	GM matrix index ref:
 	[
 		 0,  4,  8, 12,	| (x)
@@ -11,7 +15,7 @@
 */
 
 // ====================================================================
-// Mat4 Initializations
+#region // Mat4 Initializations
 // ====================================================================
 
 // Returns identity matrix
@@ -171,8 +175,10 @@ function Mat4ArrayFlatClearExt(flatarray, m, startindex = 0, endindex = -1)
 	}
 }
 
+#endregion
+
 // ====================================================================
-// Mat4 Base Operations
+#region // Mat4 Base Operations
 // ====================================================================
 
 /// Game Maker's "matrix_multiply" works left to right
@@ -295,8 +301,10 @@ function Mat4TranslateClear(mat4)
 	mat4[@ 12] = 0; mat4[@ 13] = 0; mat4[@ 14] = 0;
 }
 
+#endregion
+
 // ====================================================================
-// Mat4 Complex Operations
+#region // Mat4 Complex Operations
 // ====================================================================
 
 function Mat4RotVector(dirx, diry, dirz, up_x, up_y, up_z, out = matrix_build_identity())
@@ -553,3 +561,5 @@ function DrawMatrix(_x, _y, _matrix)
 		_y += 16;
 	}
 }
+
+#endregion

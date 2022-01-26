@@ -1,7 +1,8 @@
-//
-// Simple passthrough vertex shader
-//
+/*
+	
+*/
 
+// Vertex Attributes - From vertex buffer
 attribute vec3 in_Position;     // (x,y,z)
 attribute vec3 in_Normal;       // (x,y,z)
 attribute vec4 in_Colour;       // (r,g,b,a)
@@ -9,6 +10,7 @@ attribute vec2 in_TextureCoord; // (u,v)
 attribute vec4 in_Bone;		// (b0,b1,b2,b3)
 attribute vec4 in_Weight;	// (w0,w1,w2,w3)
 
+// Varyings - Passed to fragment shader
 varying vec2 v_vTexcoord;
 varying vec4 v_vColour;
 
@@ -16,9 +18,8 @@ varying vec3 v_dirtolight_cs;	// Used for basic shading
 varying vec3 v_dirtocamera_cs;	// ^
 varying vec3 v_normal_cs;
 
-//const vec3 u_lightpos = vec3(8.0, 32.0, 48.0);
+// Uniforms - Passed in in draw call
 uniform vec3 u_lightpos;	// Passed in in draw call
-
 uniform mat4 u_matpose[200];
 
 void main()

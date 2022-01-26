@@ -1,7 +1,8 @@
-//
-// Simple passthrough fragment shader
-//
+/*
+	Uses simple shadow and specular lighting
+*/
 
+// Varyings - Passed in from vertex shader
 varying vec2 v_vTexcoord;
 varying vec4 v_vColour;
 

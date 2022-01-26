@@ -1,7 +1,8 @@
-//
-// Toon-Like Shading
-//
+/*
+	Toon-like shading
+*/
 
+// Varyings - Passed in from vertex shader
 varying vec2 v_vTexcoord;
 varying vec4 v_vColour;
 

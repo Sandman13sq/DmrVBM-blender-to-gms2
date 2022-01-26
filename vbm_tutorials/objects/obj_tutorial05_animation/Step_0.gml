@@ -40,8 +40,8 @@ if (playbackmode == 0)
 // Evaluate matrices on the fly
 else
 {
-	localpose = Mat4Array(DMRVBM_MATPOSEMAX);
-	matpose = Mat4ArrayFlat(DMRVBM_MATPOSEMAX);
+	localpose = Mat4Array(VBM_MATPOSEMAX);
+	matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 	
 	EvaluateAnimationTracks(
 		trk,

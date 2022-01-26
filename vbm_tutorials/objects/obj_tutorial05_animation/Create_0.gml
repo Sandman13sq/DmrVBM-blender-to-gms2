@@ -49,8 +49,8 @@ zrot = 0;
 lightpos = [8, 32, 48]
 meshindex = 0;
 meshvisible = ~0;
-localpose = Mat4Array(DMRVBM_MATPOSEMAX);	// Array of matrices to be populated by EvaluateAnimationTracks()
-matpose = Mat4ArrayFlat(DMRVBM_MATPOSEMAX);	// Flat array of matrices to pass into the shader
+localpose = Mat4Array(VBM_MATPOSEMAX);	// Array of matrices to be populated by EvaluateAnimationTracks()
+matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);	// Flat array of matrices to pass into the shader
 
 // *Playback Controls ----------------------------------
 playbackposition = 0;	// Current position of animation
