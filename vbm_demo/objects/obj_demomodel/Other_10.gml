@@ -23,6 +23,10 @@ function FetchPoseFiles(path, outtrk, outnames)
 			
 			if ( OpenTRK(trk, path+fname) )
 			{
+				if string_pos("start", fname)
+				{
+					trkindex = array_length(outtrk);
+				}
 				array_push(outtrk, trk);
 				array_push(outnames, fname);
 			}
@@ -97,53 +101,42 @@ function UpdateAnim()
 	var _vbm = vbm;
 	var _trk = trkactive;
 	
-	// Generate relative bone matrices for position in animation
-	trkexectime = get_timer();
-	EvaluateAnimationTracks(
-		_trk,				// Track data with transforms
-		trkposition,		// Position in animation
-		interpolationtype,	// Method to blend keyframes with (constant, linear, square)
-		_vbm.bonenames,		// Keys to use for track mapping
-		posetransform		// 2D Array to write matrix data to
-		);
-	trkexectime = get_timer()-trkexectime;
-	
-	// Convert relative bone matrices to model-space matrices
-	CalculateAnimationPose(
-		_vbm.bone_parentindices,	// index of bone's parent
-		_vbm.bone_localmatricies,	// matrix of bone relative to parent
-		_vbm.bone_inversematricies,	// matrix of bone relative to model origin
-		posetransform,				// relative transforms (from animation or pose)
-		matpose						// flat array of matrices to write data to
-		);
-}
-
-function UpdatePose()
-{
-	var _vbm = vbm;
-	var _trk = trkactive;
-	
-	if (_trk.markercount)
+	// Pre-Evaluated
+	if (evalmode == 0)
 	{
-		var _pos = _trk.markerpositions[trkmarkerindex];
+		if (_trk.matrixspace)
+		{
+			matpose = _trk.framematrices[clamp(trkposition*_trk.framecount, 0, _trk.framecount-1)];
+		}
+	}
+	// Use Tracks
+	else
+	{
+		if (_trk.trackspace)
+		{
+			posetransform = Mat4Array(VBM_MATPOSEMAX);
+			matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 		
-		// Generate relative bone matrices for position in animation
-		EvaluateAnimationTracks(
-			_trk,	// Track data with transforms
-			_pos,	// Position in animation
-			TRK_Intrpl.constant,	// Method to blend keyframes with (constant, linear, square)
-			_vbm.bonenames,		// Keys to use for track mapping
-			posetransform		// 2D Array to write matrix data to
-			);
-	
-		// Convert relative bone matrices to model-space matrices
-		CalculateAnimationPose(
-			_vbm.bone_parentindices,	// index of bone's parent
-			_vbm.bone_localmatricies,	// matrix of bone relative to parent
-			_vbm.bone_inversematricies,	// matrix of bone relative to model origin
-			posetransform,				// relative transforms (from animation or pose)
-			matpose						// flat array of matrices to write data to
-			);
+			// Generate relative bone matrices for position in animation
+			trkexectime = get_timer();
+			EvaluateAnimationTracks(
+				_trk,				// Track data with transforms
+				trkposition,		// Position in animation
+				interpolationtype,	// Method to blend keyframes with (constant, linear, square)
+				_vbm.bonenames,		// Keys to use for track mapping
+				posetransform		// 2D Array to write matrix data to
+				);
+			trkexectime = get_timer()-trkexectime;
+		
+			// Convert relative bone matrices to model-space matrices
+			CalculateAnimationPose(
+				_vbm.bone_parentindices,	// index of bone's parent
+				_vbm.bone_localmatricies,	// matrix of bone relative to parent
+				_vbm.bone_inversematricies,	// matrix of bone relative to model origin
+				posetransform,				// relative transforms (from animation or pose)
+				matpose						// flat array of matrices to write data to
+				);
+		}
 	}
 }
 
@@ -222,8 +215,6 @@ function OP_ActionSelect(value, btn)
 	{
 		layout_poselist.DefineListItem(i, trkactive.markernames[i]);
 	}
-	
-	printf([trktimestep, trkposition, trkmarkerindex])
 	
 	UpdateAnim();
 }

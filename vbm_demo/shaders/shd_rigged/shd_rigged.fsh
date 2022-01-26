@@ -30,7 +30,6 @@ void main()
 	vec4 colorfill = u_drawmatrix[2];
 	
 	// Varyings -------------------------------------------------------
-	// There's some error when normalizing in vertex shader. Looks smoother here
 	vec3 n = normalize(v_normal_cs);		// Vertex Normal
 	vec3 l = normalize(v_dirtolight_cs);	// Light Direction
 	vec3 e = normalize(v_dirtocamera_cs);	// Camera Direction

@@ -66,10 +66,8 @@ function ArrayNextPos(array, pos)
 {
 	var n = array_length(array);
 	if n == 0 {return pos;}
-	printf(array)
 	for (var i = 0; i < n; i++)
 	{
-		printf(array[i]);
 		if array[i] > pos {return array[i];}
 	}
 	return array[0];

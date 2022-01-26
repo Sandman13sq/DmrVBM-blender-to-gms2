@@ -176,6 +176,7 @@ function __TRKOpen_v1(b, outtrk)
 	var vector;
 	var vectorsize;
 	var trackindex;
+	var transformindex;
 	var matarray;
 	var m;
 	
@@ -187,7 +188,8 @@ function __TRKOpen_v1(b, outtrk)
 	array_resize(outtrk.tracknames, numtracks);
 	
 	// Track Names
-	for (trackindex = 0; trackindex < numtracks; trackindex++)
+	trackindex = 0;
+	repeat(numtracks)
 	{
 		name = "";
 		namelength = buffer_read(b, buffer_u8);
@@ -196,6 +198,7 @@ function __TRKOpen_v1(b, outtrk)
 			name += chr( buffer_read(b, buffer_u8) );
 		}
 		outtrk.tracknames[trackindex] = name;
+		trackindex++;
 	}
 	
 	// Read Matrices
@@ -206,16 +209,19 @@ function __TRKOpen_v1(b, outtrk)
 		n = numtracks*16;
 		array_resize(outtrk.framematrices, numframes);
 		
-		for (f = 0; f < numframes; f++)
+		f = 0;
+		repeat(numframes)
 		{
-			matarray = array_create(numtracks);
+			matarray = array_create(n);
 			
-			for (i = 0; i < n; i++)
+			i = 0;
+			repeat(n)
 			{
-				matarray[i] = buffer_read(b, buffer_f32);
+				matarray[i++] = buffer_read(b, buffer_f32);
 			}
 			
 			/*
+			matarray = array_create(numtracks);
 			for (trackindex = 0; trackindex < numtracks; trackindex++)
 			{
 				m = matrix_build_identity();
@@ -227,7 +233,7 @@ function __TRKOpen_v1(b, outtrk)
 			}
 			*/
 			
-			outtrk.framematrices[@ f] = matarray;
+			outtrk.framematrices[@ f++] = matarray;
 		}
 	}
 	
@@ -235,12 +241,14 @@ function __TRKOpen_v1(b, outtrk)
 	outtrk.trackspace = buffer_read(b, buffer_u8);
 	if (outtrk.trackspace > 0)
 	{
-		for (trackindex = 0; trackindex < numtracks; trackindex++)
+		trackindex = 0;
+		repeat(numtracks)
 		{
 			transformtracks = array_create(3); // [location<3>, quaternion<4>, scale<3>]
 		
 			// For each transform vector [location<3>, quaternion<4>, scale<3>]
-			for (var transformindex = 0; transformindex < 3; transformindex++)
+			transformindex = 0;
+			repeat(3)
 			{
 				vectorsize = (transformindex == 1)? 4:3; // 4 for quats, 3 for location and scale
 			
@@ -251,9 +259,10 @@ function __TRKOpen_v1(b, outtrk)
 				trackvectors = array_create(numframes);
 			
 				// Frame Positions
-				for (f = 0; f < numframes; f++)
+				f = 0;
+				repeat(numframes)
 				{
-					trackframes[f] = buffer_read(b, buffer_f32);
+					trackframes[f++] = buffer_read(b, buffer_f32);
 				}
 			
 				if numframes > 0
@@ -263,26 +272,28 @@ function __TRKOpen_v1(b, outtrk)
 				}
 			
 				// Frame Vectors
-				for (f = 0; f < numframes; f++)
+				f = 0;
+				repeat(numframes)
 				{
 					vector = array_create(vectorsize);
-						
-					for (v = 0; v < vectorsize; v++)
+					
+					v = 0;
+					repeat(vectorsize)
 					{
-						vector[v] = buffer_read(b, buffer_f32);
+						vector[v++] = buffer_read(b, buffer_f32);
 					}
 				
-					trackvectors[f] = vector; // Vector
+					trackvectors[f++] = vector; // Vector
 				}
 			
 				track.count = numframes;
 				track.frames = trackframes;
 				track.vectors = trackvectors;
-				transformtracks[transformindex] = track;
+				transformtracks[transformindex++] = track;
 			}
-		
+			
 			outtrk.tracks[trackindex] = transformtracks;
-			outtrk.trackmap[$ outtrk.tracknames[trackindex] ] = transformtracks;
+			outtrk.trackmap[$ outtrk.tracknames[trackindex++] ] = transformtracks;
 		}
 	}
 	
@@ -293,7 +304,9 @@ function __TRKOpen_v1(b, outtrk)
 	array_resize(outtrk.markerpositions, nummarkers);
 	array_resize(outtrk.markernames, nummarkers);
 	
-	for (var i = 0; i < nummarkers; i++) // Marker Names
+	// Marker Names
+	i = 0;
+	repeat(nummarkers)
 	{
 		name = "";
 		namelength = buffer_read(b, buffer_u8);
@@ -301,13 +314,16 @@ function __TRKOpen_v1(b, outtrk)
 		{
 			name += chr( buffer_read(b, buffer_u8) );
 		}
-		outtrk.markernames[i] = name;
+		outtrk.markernames[i++] = name;
 	}
 	
-	for (var i = 0; i < nummarkers; i++) // Marker Frames
+	// Marker Frames
+	i = 0;
+	repeat(nummarkers)
 	{
 		outtrk.markerpositions[i] = buffer_read(b, buffer_f32);
 		outtrk.markermap[$ outtrk.markernames[i] ] = outtrk.markerpositions[i];
+		i++;
 	}
 	
 	buffer_delete(b);
@@ -394,7 +410,8 @@ function EvaluateAnimationTracks(
 		
 		// For each transform (location, scale, rotation)
 		// Performs in this order: Translation, Rotation, Scale
-		for (ttype = 0; ttype < 3; ttype++)
+		ttype = 0;
+		repeat(3)
 		{
 			track = transformtracks[ttype]; // TRKData_Track
 			trackframes = track.frames;
@@ -627,6 +644,8 @@ function EvaluateAnimationTracks(
 						break;
 				}
 			}
+			
+			ttype++;
 		}
 		
 		

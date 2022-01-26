@@ -105,6 +105,7 @@ function Panel_Playback(layout)
 	layout_poselist = b.Enum("Pose").Operator(OP_PoseMarkerJump);
 	
 	b.Bool("Play Animation").DefineControl(self, "isplaying").Operator(OP_TogglePlayback);
+	b.Bool("Use Track Evaluation").DefineControl(self, "evalmode");
 	b.Real("Pos")
 		.Operator(OP_ChangeTrackPos)
 		.DefineControl(self, "trkposition")

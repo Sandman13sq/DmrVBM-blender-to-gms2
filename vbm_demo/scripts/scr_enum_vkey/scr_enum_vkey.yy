@@ -6,7 +6,7 @@
     "path": "folders/Scripts.yy",
   },
   "resourceVersion": "1.0",
-  "name": "scr_playbacktimeline",
+  "name": "scr_enum_vkey",
   "tags": [],
   "resourceType": "GMScript",
 }

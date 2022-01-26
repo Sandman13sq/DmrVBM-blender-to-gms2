@@ -17,23 +17,24 @@ OpenVBM(vbm, DIRPATH+"model/" + "curly_rigged.vbm", vbf);
 
 // Animation Vars =====================================================
 // 2D array of matrices. Holds relative transforms for bones
-posetransform = Mat4Array(DMRVBM_MATPOSEMAX, matrix_build_identity());
+posetransform = Mat4Array(VBM_MATPOSEMAX, matrix_build_identity());
 // 1D flat array of matrices. Holds final transforms for bones
-matpose = Mat4ArrayFlat(DMRVBM_MATPOSEMAX, matrix_build_identity());
+matpose = Mat4ArrayFlat(VBM_MATPOSEMAX, matrix_build_identity());
 
+trkindex = 0;
+trkactive = 0;
 trkanims = []
 trknames = []
 trkcount = FetchPoseFiles(DIRPATH+"animation/", trkanims, trknames);
-trkindex = 0;
-trkactive = 0;
 trktimestep = 0;
 trkposition = 0.0;
 trkposlength = 0.0;
 trkmarkerindex = 0;
 playbackspeed = 1.0;
-isplaying = false;
+isplaying = true;
 
 posemode = 0; // 0 = Poses, 1 = Animation
+evalmode = 0; // 0 = Matrices, 1 = Tracks
 keymode = 0;
 vbmode = 1;
 
