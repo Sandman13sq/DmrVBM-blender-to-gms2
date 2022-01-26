@@ -7,10 +7,10 @@ import mathutils
 from bpy_extras.io_utils import ExportHelper
 from struct import pack as Pack
 
-PackString = lambda x: b'%c%s' % (len(x), str.encode(x))
-PackVector = lambda v: b''.join([struct.pack('<f', x) for x in v])
-PackMatrix = lambda m: b''.join( [struct.pack('<ffff', *x) for x in m.copy().transposed()] )
-QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
+try:
+    from .vbm_func import *
+except:
+    from vbm_func import *
 
 TRKVERSION = 1
 
@@ -20,34 +20,42 @@ TRKVERSION = 1
     TRK Version (1B)
     
     flags (1B)
-        Has Matrices = 1 << 0
-        Has Tracks = 1 << 1
-        Frames Normalized = 1 << 2
     
     fps (1f)
-    framecount (int32)
+    framecount (1I)
+    numtracks (1I)
     duration (1f)
     positionstep (1f)
     
-    numtracks (4B)
+    trackspace (1B)
+        0 = No Tracks
+        1 = LOCAL
+        2 = POSE
+        3 = WORLD
     tracknames[numtracks]
         namelength (1B)
         namechars[namelength]
             char (1B)
     
+    matrixspace (1B)
+        0 = No Matrices
+        1 = LOCAL
+        2 = POSE
+        3 = WORLD
+        4 = EVALUATED
     matrixdata[framecount]
-        framematrices[trackcount]
+        framematrices[numtracks]
             mat4 (16f)
     
     trackdata[numtracks]
-        numframes (4B)
+        numframes (1I)
         framepositions[numframes]
             position (1f)
         framevectors[numframes]
             vector[3]
                 value (1f)
     
-    nummarkers (4B)
+    nummarkers (1I)
     markernames[nummarkers]
         namelength (1B)
         namechars[namelength]
@@ -58,6 +66,25 @@ TRKVERSION = 1
 '''
 
 # =============================================================================
+
+def GetCorrectiveMatrix(self, context):
+    mattran = mathutils.Matrix()
+    u = self.up_axis
+    f = self.forward_axis
+    uvec = mathutils.Vector( ((u=='+x')-(u=='-x'), (u=='+y')-(u=='-y'), (u=='+z')-(u=='-z')) )
+    fvec = mathutils.Vector( ((f=='+x')-(f=='-x'), (f=='+y')-(f=='-y'), (f=='+z')-(f=='-z')) )
+    rvec = fvec.cross(uvec)
+    
+    # Create rotation
+    mattran = mathutils.Matrix()
+    mattran[0][0:3] = rvec
+    mattran[1][0:3] = fvec
+    mattran[2][0:3] = uvec
+    
+    # Create and apply scale
+    #mattran = mathutils.Matrix.LocRotScale(None, None, self.scale) @ mattran
+    
+    return mattran
 
 def Items_GetActions(self, context):
     return [
@@ -72,6 +99,7 @@ def Items_GetArmatureObjects(self, context):
     ]
 
 Items_ExportSpace=[
+    ('NONE', 'None', "Skip this data"),
     ('LOCAL', 'Local Space', "Bone matrices are relative to bone's parent"),
     ('POSE', 'Pose Space', 'Bone matrices are relative to armature origin'),
     ('WORLD', 'World Space', 'Bone matrices are relative to world origin'),
@@ -80,6 +108,25 @@ Items_ExportSpace=[
 Items_ExportSpaceMatrix= Items_ExportSpace + [
     ('EVALUATED', 'Evaluated', 'Matrices are evaluated up to final transform ready for shader uniform')
 ]
+SpaceID = {item[0]: i for i, item in enumerate(Items_ExportSpaceMatrix)}
+
+Items_UpAxis = (
+    ('+x', '+X Up', 'Export action with +X Up axis'),
+    ('+y', '+Y Up', 'Export action with +Y Up axis'),
+    ('+z', '+Z Up', 'Export action with +Z Up axis'),
+    ('-x', '-X Up', 'Export action with -X Up axis'),
+    ('-y', '-Y Up', 'Export action with -Y Up axis'),
+    ('-z', '-Z Up', 'Export action with -Z Up axis'),
+)
+
+Items_ForwardAxis = (
+    ('+x', '+X Forward', 'Export action with +X Forward axis'),
+    ('+y', '+Y Forward', 'Export action with +Y Forward axis'),
+    ('+z', '+Z Forward', 'Export action with +Z Forward axis'),
+    ('-x', '-X Forward', 'Export action with -X Forward axis'),
+    ('-y', '-Y Forward', 'Export action with -Y Forward axis'),
+    ('-z', '-Z Forward', 'Export action with -Z Forward axis'),
+)
 
 def ChooseAction(self, context):
     action = bpy.data.actions[self.actionname]
@@ -130,6 +177,20 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
         description="Speed modifier for track playback.",
     )
     
+    forward_axis: bpy.props.EnumProperty(
+        name="Forward Axis", 
+        description="Forward Axis to use when Exporting",
+        items = Items_ForwardAxis, 
+        default='+y',
+    )
+    
+    up_axis: bpy.props.EnumProperty(
+        name="Up Axis", 
+        description="Up Axis to use when Exporting",
+        items = Items_UpAxis, 
+        default='+z',
+    )
+    
     export_matrices: bpy.props.BoolProperty(
         name="Export Matrices", default=False,
         description="Export matrices to file",
@@ -151,11 +212,6 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
     write_marker_names: bpy.props.BoolProperty(
         name="Write Marker Names", default=True,
         description="Write names of markers before track data",
-    )
-    
-    normalize_frames: bpy.props.BoolProperty(
-        name="Normalize Frames", default=True,
-        description="Convert Frames to [0-1] range",
     )
     
     deform_only: bpy.props.BoolProperty(
@@ -225,6 +281,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         c = layout.column()
         c.prop(self, 'armature_object')
         c.prop(self, 'action_name')
+        
         b = c.box()
         b.prop(self, 'range_type')
         r = b.row()
@@ -235,36 +292,35 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
             r = r.row(align=1)
             r.prop(context.scene, 'frame_start', text='')
             r.prop(context.scene, 'frame_end', text='')
-        c.prop(self, 'bake_steps')
-        r = c.row(align=1)
+        
+        cc = b.column()
+        cc.prop(self, 'bake_steps')
+        r = cc.row(align=1)
         r.prop(self, 'scale', text='Scale')
         r.prop(self, 'time_step')
         
-        b = c.box().column()
-        b.prop(self, 'export_tracks')
+        b = c.box().column(align=0)
         r = b.row()
-        r.enabled = self.export_tracks
-        r.prop(self, 'track_space', text='Space')
+        r.label(text='Track Space:')
+        r.prop(self, 'track_space', text='')
         
-        b = c.box().column()
-        b.prop(self, 'export_matrices')
         r = b.row()
-        r.enabled = self.export_matrices
-        r.prop(self, 'matrix_space', text='Space')
+        r.label(text='Matrix Space:')
+        r.prop(self, 'matrix_space', text='')
+        
+        r = b.row(align=1)
+        r.prop(self, 'up_axis', text='')
+        r.prop(self, 'forward_axis', text='')
         
         c.separator();
         c.prop(self, 'write_marker_names')
-        c.prop(self, 'normalize_frames')
         c.prop(self, 'deform_only')
         c.prop(self, 'compression_level')
         
     def execute(self, context):
         # Settings
-        export_tracks = self.export_tracks
         track_space = self.track_space
-        export_matrices = self.export_matrices
         matrix_space = self.matrix_space
-        normalize_frames = self.normalize_frames
         deform_only = self.deform_only
         write_marker_names = self.write_marker_names
         bakesteps = self.bake_steps
@@ -315,7 +371,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         print('> Beginning export for "{}"...'.format(sourceaction.name));
         
-        # Create working data
+        # Create working data ----------------------------------------------------------------
         workingarmature = sourceobj.data.copy()
         workingobj = sourceobj.copy()
         
@@ -328,11 +384,14 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         workingobj.select_set(True)
         vl.objects.active = workingobj
         
+        mattran = GetCorrectiveMatrix(self, context)
+        
         action = sourceaction
         workingobj.animation_data.action = action
         sc.frame_set(sc.frame_current)
         vl.update()
         
+        # Baking ----------------------------------------------------------------
         if bakesteps > 0:
             print('> Baking animation...');
             
@@ -377,9 +436,9 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         netframes = ()
         
         duration = actionrange[1]-actionrange[0]
-        pmod = 1.0/duration if normalize_frames else 1.0
+        pmod = 1.0/duration
         
-        # Parse curves
+        # Parse curves ----------------------------------------------------------------
         if bakesteps >= 0:
             for fc in fcurves:
                 dp = fc.data_path
@@ -403,7 +462,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                             )
                         bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
                         netframes += tuple(x[0] for x in keyframes)
-        # Fill for all positions
+        # Fill for all positions ----------------------------------------------------------------
         else:
             poslist = [x for x in range(actionrange[0], actionrange[1]+1)]
             for fc in fcurves:
@@ -432,35 +491,30 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         netframes = list(set(netframes))
         netframes.sort()
         
-        # Output ---------------------------------------------------------------
+        foffset = -actionrange[0]*pmod # Frame offset
+        
+        # Output ================================================================================
         out = b''
         
         # Header
         out += b'TRK' + Pack('B', TRKVERSION)    # Signature
         
         flags = 0
-        if export_matrices:
-            flags |= 1 << 0
-        if export_tracks:
-            flags |= 1 << 1
-        if normalize_frames:
-            flags |= 1 << 2
         out += Pack('B', flags)     # Flags
         
         out += Pack('f', rd.fps)     # fps
         out += Pack('I', len(netframes) ) # Frame Count
+        out += Pack('I', len(pbones) ) # Num tracks
         out += Pack('f', duration*scale ) # Duration
         out += Pack('f', timestep/(duration*scale) ) # Position Step
         
         print('Length:', duration*scale)
         
-        out += Pack('I', len(pbones) ) # Num tracks
-        out += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Names
+        out += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Track Names
         
-        foffset = -actionrange[0]*pmod # Frame offset
-        
-        # Matrices
-        if export_matrices:
+        # Matrices ----------------------------------------------------------------------
+        out += Pack('B', SpaceID[matrix_space])
+        if matrix_space != 'NONE':
             print('> Writing Matrices...');
             
             # Use convert_space()
@@ -476,14 +530,14 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                         
                         for pb in pboneslist
                         for v in workingobj.convert_space(
-                            pose_bone=pb, matrix=pb.matrix, from_space='WORLD', to_space=matrix_space
+                            pose_bone=pb, matrix=mattran @ pb.matrix, from_space='WORLD', to_space=matrix_space
                             ).transposed()
                         for x in v
                         )
             # Evaluate final transforms
             else:
                 #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
-                bmatrix = {b: (b.matrix_local.copy()) for b in bones}
+                bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones}
                 bmatlocal = {
                     pbones[b.name]: (bmatrix[b.parent].inverted() @ bmatrix[b] if b.parent else bmatrix[b])
                     for b in bones if b.name in pbones.keys()
@@ -520,8 +574,9 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                         for x in v
                 )
         
-        # Tracks
-        if export_tracks:
+        # Tracks -------------------------------------------------------------------
+        out += Pack('B', SpaceID[track_space])
+        if track_space != 'NONE':
             print('> Writing Tracks...');
             posesnap = {}
             
@@ -556,7 +611,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                         outchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
                 out += outchunk
         
-        # Markers
+        # Markers ----------------------------------------------------------------
         if write_marker_names:
             print('> Writing Markers...');
             markers = [(x.name, x.frame*scale*pmod) for x in sourceaction.pose_markers]
