@@ -46,6 +46,7 @@ VBF_RGB = 'COLORBYTES'
 VBF_BON = 'BONE'
 VBF_BOI = 'BONEBYTES'
 VBF_WEI = 'WEIGHT'
+VBF_WEB = 'WEIGHTBYTES'
 
 VBFSize = {
     VBF_000: 0,
@@ -56,9 +57,10 @@ VBFSize = {
     VBF_BTN: 3,
     VBF_COL: 4, 
     VBF_RGB: 1, 
-    VBF_WEI: 4, 
     VBF_BON: 4,
     VBF_BOI: 1,
+    VBF_WEI: 4, 
+    VBF_WEB: 4, 
     }
 
 Items_VBF = (
@@ -71,8 +73,9 @@ Items_VBF = (
     (VBF_COL, 'Color (RGBA)', '4 Floats', 'COLOR', 6),
     (VBF_RGB, 'Color Bytes (RGBA)', '4 Bytes = Size of 1 Float in format 0xRRGGBBAA', 'RESTRICT_COLOR_OFF', 7),
     (VBF_BON, 'Bone Indices', '4 Floats (Use with Weights)', 'BONE_DATA', 8),
-    (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYZZ', 'BONE_DATA', 9),
+    (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'BONE_DATA', 9),
     (VBF_WEI, 'Weights', '4 Floats', 'MOD_VERTEX_WEIGHT', 10),
+    (VBF_WEB, 'Weight Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'MOD_VERTEX_WEIGHT', 11),
 )
 
 VBFType = {x[1]: x[0] for x in enumerate([
@@ -83,7 +86,9 @@ VBFType = {x[1]: x[0] for x in enumerate([
     VBF_COL,
     VBF_RGB,
     VBF_WEI,
+    VBF_WEB,
     VBF_BON,
+    VBF_BOI,
     VBF_TAN,
     VBF_BTN,
     ])}
@@ -388,7 +393,8 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                     tuple(co)[:4], 
                     tuple(boneindices+(0,0,0,0))[:4], 
                     tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
-                    tuple(weights+(0,0,0,0))[:4]
+                    tuple(weights+(0,0,0,0))[:4],
+                    tuple([int(x*255.0) for x in weights+(0,0,0,0)])[:4], 
                     )
                 
             vertices = {v.index:v for v in workingmesh.vertices}
@@ -517,11 +523,12 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
         def out_bon(out, attribindex): out.append(Pack(4*FCODE, *vmeta[1][:4]));
         def out_boi(out, attribindex): out.append(Pack('4B', *vmeta[2]));
         def out_wei(out, attribindex): out.append(Pack(4*FCODE, *vmeta[3][:4]));
+        def out_web(out, attribindex): out.append(Pack('4B', *vmeta[4]));
         
         outwritemap = {
             VBF_POS: out_pos, VBF_NOR: out_nor, VBF_TAN: out_tan, VBF_BTN: out_btn,
             VBF_UVS: out_tex, VBF_COL: out_col, VBF_RGB: out_rgb, 
-            VBF_BON: out_bon, VBF_BOI: out_boi, VBF_WEI: out_wei
+            VBF_BON: out_bon, VBF_BOI: out_boi, VBF_WEI: out_wei, VBF_WEB: out_web
         }
         
         format_enumerated = tuple(enumerate(format))
