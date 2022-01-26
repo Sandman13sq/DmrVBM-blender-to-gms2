@@ -389,6 +389,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         sourceobj.select_set(False)
         workingobj.select_set(True)
         vl.objects.active = workingobj
+        bpy.ops.object.mode_set(mode='OBJECT')
         
         mattran = GetCorrectiveMatrix(self, context)
         
@@ -438,6 +439,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         bonenames = [x for x in pbones.keys()]
         bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
         pboneslist = [x for x in pbones.values()]
+        pbonesnames = [x.name for x in pboneslist]
         
         netframes = ()
         
@@ -499,6 +501,8 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         foffset = -actionrange[0]*pmod # Frame offset
         
+        dg = context.evaluated_depsgraph_get()
+        
         # Output ================================================================================
         out = b''
         
@@ -529,14 +533,16 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                     outchunk = b''
                     
                     sc.frame_set(int(f/pmod))
-                    vl.update()
+                    dg = context.evaluated_depsgraph_get()
+                    evaluatedobj = workingobj.evaluated_get(dg)
+                    evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
                     
                     out += b''.join(
                         Pack('f', x)
                         
-                        for pb in pboneslist
+                        for i, pb in enumerate(pboneslist)
                         for v in workingobj.convert_space(
-                            pose_bone=pb, matrix=mattran @ pb.matrix, from_space='WORLD', to_space=matrix_space
+                            pose_bone=evalbones[i], matrix=mattran @ evalbones[i].matrix, from_space='WORLD', to_space=matrix_space
                             ).transposed()
                         for x in v
                         )
@@ -557,11 +563,15 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                     outchunk = b''
                     
                     sc.frame_set(int(f/pmod))
-                    vl.update()
+                    dg = context.evaluated_depsgraph_get()
+                    evaluatedobj = workingobj.evaluated_get(dg)
+                    evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
                     
                     localtransforms = {
-                        pb: bmatlocal[pb] @ workingobj.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='WORLD', to_space='LOCAL')
-                        for pb in pboneslist
+                        pb: bmatlocal[pb] @ workingobj.convert_space(
+                            pose_bone=evalbones[i], matrix=evalbones[i].matrix, from_space='WORLD', to_space='LOCAL'
+                            )
+                        for i, pb in enumerate(pboneslist)
                     }
                     
                     bonetransforms = {}
@@ -569,7 +579,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                         bonetransforms[pb] = bonetransforms[pb.parent]@localtransforms[pb] if pb.parent else localtransforms[pb]
                     
                     finaltransforms = {
-                        pb: bonetransforms[pb]@bmatinverse[pb]
+                        pb: bonetransforms[pb] @ bmatinverse[pb]
                         for pb in pboneslist
                     }
                     
@@ -607,12 +617,15 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                         # Generate pose snap of matrices
                         if f not in posesnap:
                             sc.frame_set(int(f/pmod))
-                            vl.update()
+                            dg = context.evaluated_depsgraph_get()
+                            evaluatedobj = workingobj.evaluated_get(dg)
+                            evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
+                            
                             posesnap[f] = {
                                 x: workingobj.convert_space(
-                                    pose_bone=x, matrix=x.matrix, from_space='WORLD', to_space=track_space
+                                    pose_bone=evalbones[i], matrix=evalbones[i].matrix, from_space='WORLD', to_space=track_space
                                 ).decompose()
-                                for x in pbones.values()
+                                for i, x in enumerate(pbones.values())
                             }
                         outchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
                 out += outchunk
