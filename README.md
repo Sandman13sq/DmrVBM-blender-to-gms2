@@ -18,7 +18,7 @@ For stable versions see the **Releases** on the GitHub page (when they're ready)
 
 ## Game Maker Studio 2 Installation
 * With a GMS2 project open, go to `Tools` > `Import Local Package`
-* Navigate to the `dmr_vbm.yymps` file. Select the file and click `Open`
+* Navigate to the `DmrVBM.yymps` file. Select the file and click `Open`
 * Choose which scripts to import into the project
     * *scr_dmr_vbm* is written to be independent of any other script.  The other scripts use elements from all scripts.
 
