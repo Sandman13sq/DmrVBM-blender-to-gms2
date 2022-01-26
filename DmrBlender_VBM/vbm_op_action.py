@@ -336,6 +336,12 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         sc = context.scene
         rd = sc.render
         
+        if self.lastsimplify == -1:
+            self.lastsimplify = sc.render.use_simplify
+            self.lastsimplifylevels = sc.render.simplify_subdivision
+            sc.render.use_simplify = True
+            sc.render.simplify_subdivision = 0
+        
         # Validation
         sourceobj = [x for x in bpy.data.objects if x.name == self.armature_object]
         if not sourceobj:
