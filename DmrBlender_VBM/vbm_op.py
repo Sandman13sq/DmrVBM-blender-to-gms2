@@ -599,7 +599,6 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         
     def execute(self, context):
         path = self.filepath
-        FCODE = self.float_type
         
         if not os.path.exists(os.path.dirname(path)):
             self.info({'WARNING'}, 'Invalid path specified: "%s"' % path)
@@ -659,10 +658,6 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         
         # Make flag
         flag = 0
-        if self.float_type == 'd':
-            flag |= 1 << 0
-        elif self.float_type == 'e':
-            flag |= 1 << 1
         
         # Vertex Format
         out_format = b''
@@ -700,20 +695,20 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 # Write Data
                 out_bone = b''
                 
-                out_bone += Pack('H', len(bones)) # Bone count
+                out_bone += Pack('I', len(bones)) # Bone count
                 out_bone += b''.join( [PackString(b.name) for b in bones] ) # Bone names
-                out_bone += b''.join( [Pack('H', bones.index(b.parent) if b.parent else 0) for b in bones] )
+                out_bone += b''.join( [Pack('I', bones.index(b.parent) if b.parent else 0) for b in bones] ) # Bone parent index
                 out_bone += b''.join( [PackMatrix('f',
-                    (bonemat[b.parent].inverted() @ bonemat[b])
+                    (bonemat[b.parent].inverted() @ bonemat[b]) # local matrices
                     if b.parent else bonemat[b]) for b in bones] )
-                out_bone += b''.join( [PackMatrix('f', bonemat[b].inverted()) for b in bones] )
+                out_bone += b''.join( [PackMatrix('f', bonemat[b].inverted()) for b in bones] ) # inverse matrices
                 
                 # Delete Temporary
                 bpy.data.objects.remove(workingobj)
                 bpy.data.armatures.remove(workingarmature)
                 
             else:
-                out_bone = Pack('H', 0)
+                out_bone = Pack('I', 0) # Bone Count
             return out_bone
         
         out_bone = ComposeBoneData(armature)
@@ -768,7 +763,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         
         def FinishVBM(vbgroups, vbnumbers, groupkeys, path=self.filepath):
             out_vb = b''
-            out_vb += Pack('H', len(vbgroups)) # Number of groups
+            out_vb += Pack('I', len(vbgroups)) # Number of groups
             out_vb += b''.join( [PackString(name) for name in groupkeys] ) # Group Names
             
             # Write groups
