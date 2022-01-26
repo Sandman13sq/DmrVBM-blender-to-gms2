@@ -19,8 +19,9 @@ function FetchPoseFiles(path, outtrk, outnames)
 	{
 		if ( file_exists(path+fname) )
 		{
-			trk = OpenTRK(path+fname);
-			if trk
+			trk = new TRKData();
+			
+			if ( OpenTRK(trk, path+fname) )
 			{
 				array_push(outtrk, trk);
 				array_push(outnames, fname);
@@ -98,10 +99,11 @@ function UpdateAnim()
 	
 	// Generate relative bone matrices for position in animation
 	trkexectime = get_timer();
-	EvaluateAnimationTracks(trkposition, 
+	EvaluateAnimationTracks(
+		_trk,				// Track data with transforms
+		trkposition,		// Position in animation
 		interpolationtype,	// Method to blend keyframes with (constant, linear, square)
 		_vbm.bonenames,		// Keys to use for track mapping
-		_trk,				// Track data with transforms
 		posetransform		// 2D Array to write matrix data to
 		);
 	trkexectime = get_timer()-trkexectime;
@@ -126,10 +128,11 @@ function UpdatePose()
 		var _pos = _trk.markerpositions[trkmarkerindex];
 		
 		// Generate relative bone matrices for position in animation
-		EvaluateAnimationTracks(_pos, 
+		EvaluateAnimationTracks(
+			_trk,	// Track data with transforms
+			_pos,	// Position in animation
 			TRK_Intrpl.constant,	// Method to blend keyframes with (constant, linear, square)
 			_vbm.bonenames,		// Keys to use for track mapping
-			_trk,	// Track data with transforms
 			posetransform		// 2D Array to write matrix data to
 			);
 	
@@ -212,7 +215,7 @@ function OP_ActionSelect(value, btn)
 	trkindex = value;
 	trkactive = trkanims[trkindex];
 	trktimestep = TrackData_GetTimeStep(trkactive, game_get_speed(gamespeed_fps));
-	trkposlength = trkactive.length;
+	trkposlength = trkactive.duration;
 	
 	layout_poselist.ClearItems();
 	for (var i = 0; i < trkactive.markercount; i++)

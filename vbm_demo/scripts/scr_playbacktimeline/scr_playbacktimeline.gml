@@ -57,7 +57,7 @@ function PlaybackTimeline(_trackdata) constructor
 	
 	function UpdateTimeline(_pos)
 	{
-		var tracklength = trackdata.length;
+		var tracklength = trackdata.duration;
 		var tracks = trackdata.tracks;
 		var transformtracks;
 		var numtracks = array_length(tracks);
