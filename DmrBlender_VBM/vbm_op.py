@@ -13,28 +13,38 @@ try:
 except:
     from vbm_func import *
 
-# VBM Format:
+# VBM v1 spec:
 """
     'VBM' (3B)
-    VBM version (1B)
-    flags (1B)
+    VBM version = 1 (1B)
     
+    flags (1B)
+
     formatlength (1B)
     formatentry[formatlength]
         attributetype (1B)
         attributefloatsize (1B)
-    
-    vbcount (2B)
-    vbnames[vbcount] ((1 + name length)B each)
+
+    vbcount (1I)
+    vbnames[vbcount]
+        namelength (1B)
+        namechars[namelength]
+            char (1B)
     vbdata[vbcount]
-        vbcompressedsize (4B)
+        vbcompressedsize (1L)
         vbcompresseddata (vbcompressedsize B)
-    
-    bonecount (2B)
-    bonenames[bonecount] ((1 + name length)B each)
-    parentindices[bonecount] (2B)
-    localmatrices[bonecount] (16f each)
-    inversemodelmatrices[bonecount] (16f each)
+
+    bonecount (1I)
+    bonenames[bonecount]
+        namelength (1B)
+        namechars[namelength]
+            char (1B)
+    parentindices[bonecount] 
+        parentindex (1I)
+    localmatrices[bonecount]
+        mat4 (16f)
+    inversemodelmatrices[bonecount]
+        mat4 (16f)
 """
 
 

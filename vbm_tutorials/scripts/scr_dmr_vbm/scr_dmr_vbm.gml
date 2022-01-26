@@ -306,32 +306,35 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 {
 	/* Vertex Buffer Collection v1 File spec:
 		'VBM' (3B)
-	    VBM version = 1 (1B)
-		
-	    flags (1B)
-		
-	    formatlength (1B)
-	    formatentry[formatlength]
-	        attributetype (1B)
-	        attributefloatsize (1B)
-		
-	    vbcount (1I)
-	    vbnames[vbcount]
-			namelength (1B)
-			namechars[namelength]
-				char (1B)
-	    vbdata[vbcount]
-	        vbcompressedsize (1L)
-	        vbcompresseddata (vbcompressedsize B)
-		
-	    bonecount (1I)
-	    bonenames[bonecount]
-			namelength (1B)
-			namechars[namelength]
-				char (1B)
-	    parentindices[bonecount] (1I)
-	    localmatrices[bonecount] (16f each)
-	    inversemodelmatrices[bonecount] (16f each)
+		VBM version = 1 (1B)
+    
+		flags (1B)
+
+		formatlength (1B)
+		formatentry[formatlength]
+		    attributetype (1B)
+		    attributefloatsize (1B)
+
+		vbcount (1I)
+		vbnames[vbcount]
+		    namelength (1B)
+		    namechars[namelength]
+		        char (1B)
+		vbdata[vbcount]
+		    vbcompressedsize (1L)
+		    vbcompresseddata (vbcompressedsize B)
+
+		bonecount (1I)
+		bonenames[bonecount]
+		    namelength (1B)
+		    namechars[namelength]
+		        char (1B)
+		parentindices[bonecount] 
+		    parentindex (1I)
+		localmatrices[bonecount]
+		    mat4 (16f)
+		inversemodelmatrices[bonecount]
+		    mat4 (16f)
 	*/
 	
 	var flag;
