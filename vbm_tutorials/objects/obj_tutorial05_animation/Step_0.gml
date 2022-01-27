@@ -32,30 +32,31 @@ if (keyboard_check_pressed(vk_space)) {playbackmode ^= 1;}
 // Progress Playback
 playbackposition = (playbackposition+playbackspeed) mod 1;
 
-// Use pre-evaluated matrices
-if (playbackmode == 0)
-{
-	matpose = trk.framematrices[playbackposition*trk.framecount];
-}
-// Evaluate matrices on the fly
-else
-{
-	localpose = Mat4Array(VBM_MATPOSEMAX);
-	matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
+	// Use pre-evaluated matrices
+	if (playbackmode == 0)
+	{
+		// Use matrices for given frame
+		matpose = trk.framematrices[playbackposition*trk.framecount];
+	}
+	// Evaluate matrices on the fly
+	else
+	{
+		localpose = Mat4Array(VBM_MATPOSEMAX);
+		matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 	
-	EvaluateAnimationTracks(
-		trk,
-		playbackposition,
-		TRK_Intrpl.linear,
-		0,
-		localpose
-		);
+		EvaluateAnimationTracks(
+			trk,				// TRK data
+			playbackposition,	// Position in animation ([0-1] range)
+			TRK_Intrpl.linear,	// Type of interpolation for blending transforms
+			vbm_curly.bonenames,	// Keys for mapping tracks to indices. 0 for index only
+			localpose			// 2D Array of matrices to write local transforms to
+			);
 	
-	CalculateAnimationPose(
-		vbm_curly.bone_parentindices,
-		vbm_curly.bone_localmatricies,
-		vbm_curly.bone_inversematricies,
-		localpose,
-		matpose
-		);
-}
+		CalculateAnimationPose(
+			vbm_curly.bone_parentindices,	// Indices of parent bones for each bone
+			vbm_curly.bone_localmatricies,	// Bind pose local matrices for each bone
+			vbm_curly.bone_inversematricies,	// Inverse model matrices for each bone
+			localpose,	// 2D Array of local transform matrices
+			matpose		// 1D Flat Array of object space transform matrices to give to shader
+			);
+	}

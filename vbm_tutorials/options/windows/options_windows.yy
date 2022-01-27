@@ -1,5 +1,5 @@
 {
-  "option_windows_display_name": "Created with GameMaker Studio 2",
+  "option_windows_display_name": "VBM Tutorials",
   "option_windows_executable_name": "${project_name}.exe",
   "option_windows_version": "1.0.0.0",
   "option_windows_company_info": "YoYo Games Ltd",
@@ -15,7 +15,7 @@
   "option_windows_allow_fullscreen_switching": false,
   "option_windows_interpolate_pixels": false,
   "option_windows_vsync": false,
-  "option_windows_resize_window": false,
+  "option_windows_resize_window": true,
   "option_windows_borderless": false,
   "option_windows_scale": 0,
   "option_windows_copy_exe_to_dest": false,

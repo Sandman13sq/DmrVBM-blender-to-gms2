@@ -30,13 +30,13 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf_normal = vertex_format_end();
 
-// *Load Vertex Buffers --------------------------------
-vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
-vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
+	// *Load Vertex Buffers --------------------------------
+	vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
+	vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
 
-// *Open VBM -------------------------------------------
-vbm_curly = new VBMData();	// Initialize new VBM data
-OpenVBM(vbm_curly, "curly.vbm", vbf_normal);	// Read in VBM from file
+	// *Open VBM -------------------------------------------
+	vbm_curly = new VBMData();	// Initialize new VBM data
+	OpenVBM(vbm_curly, "curly.vbm", vbf_normal);	// Read in VBM from file
 
 // *Model Controls -------------------------------------
 zrot = 0;

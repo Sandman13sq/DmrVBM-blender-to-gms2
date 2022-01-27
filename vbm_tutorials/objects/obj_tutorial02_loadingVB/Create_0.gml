@@ -4,16 +4,23 @@
 cameraposition = [1, 4, 4]; // Camera position
 cameralookat = [0, 0, 0];	// Camera eye target
 
-fieldofview = 50;
-znear = 1;
-zfar = 100;
+fieldofview = 50;	// Angle of vision
+znear = 1;	// Clipping distance for close triangles
+zfar = 100;	// Clipping distance for far triangles
 
+// Projection Matrix maps pixels to the screen
 matproj = matrix_build_projection_perspective_fov(
-	fieldofview, window_get_width()/window_get_height(), znear, zfar);
+	fieldofview,
+	window_get_width()/window_get_height(),	// Screen ratio
+	znear,
+	zfar
+	);
+// View Matrix maps world to camera eye
 matview = matrix_build_lookat(
-	cameraposition[0], cameraposition[1], cameraposition[2], 
-	cameralookat[0], cameralookat[1], cameralookat[2], 
-	0, 0, 1);
+	cameraposition[0], cameraposition[1], cameraposition[2],	// Camera location 
+	cameralookat[0], cameralookat[1], cameralookat[2],			// Camera eye target
+	0, 0, 1														// "Up" orientation of camera
+	);
 mattran = matrix_build_identity(); // World/Model transform
 
 // Vertex format ---------------------------------------

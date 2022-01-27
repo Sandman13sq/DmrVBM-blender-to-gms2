@@ -42,5 +42,7 @@ function ChangeTutorial(index)
 		
 		tutorialindex = index;
 		tutorialactive = instance_create_depth(0, 0, 0, tutorialobjects[tutorialindex]);
+		
+		window_set_caption("VBM Tutorial " + string(tutorialindex));
 	}
 }
