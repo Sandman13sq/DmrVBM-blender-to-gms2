@@ -229,6 +229,7 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
     reversewinding = settings.get('reversewinding', False)
     settingsmatrix = settings.get('matrix', mathutils.Matrix())
     FCODE = settings.get('floattype', 'f')
+    colordefault = settings.get('defaultcolor', (1.0, 1.0, 1.0, 1.0))
     
     if not instancerun:
         PrintStatus('> Composing data for \"%s\":' % sourceobj.name, 0)
@@ -243,40 +244,36 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
     
     # Handle modifiers
     modifiers = dupobj.modifiers
-    for m in modifiers:
-        # Skip Bang Modifiers
-        if (m.name[0] == '!'):
-            m.show_viewport = False
-            continue
+    if modifiers != None:
+        for m in modifiers:
+            # Skip Bang Modifiers
+            if (m.name[0] == '!'):
+                m.show_viewport = False
+                continue
+            
+            # Modifier requirements
+            vshow = m.show_viewport
+            rshow = m.show_render
+            if (
+                (modreq == MTY_VIEW and not vshow) or 
+                (modreq == MTY_RENDER and not rshow) or 
+                (modreq == MTY_OR and not (vshow or rshow)) or 
+                (modreq == MTY_AND and not (vshow and rshow))
+                ):
+                m.show_viewport = False
+                continue
+            
+            if maxsubdivisions >= 0 and m.type == 'SUBSURF':
+                m.levels = min(m.levels, maxsubdivisions)
+            
+            if m.type == 'ARMATURE':
+                m.show_viewport = applyarmature
         
-        # Modifier requirements
-        vshow = m.show_viewport
-        rshow = m.show_render
-        if (
-            (modreq == MTY_VIEW and not vshow) or 
-            (modreq == MTY_RENDER and not rshow) or 
-            (modreq == MTY_OR and not (vshow or rshow)) or 
-            (modreq == MTY_AND and not (vshow and rshow))
-            ):
-            m.show_viewport = False
-            continue
-        
-        if maxsubdivisions >= 0 and m.type == 'SUBSURF':
-            m.levels = min(m.levels, maxsubdivisions)
-        
-        if m.type == 'ARMATURE':
-            m.show_viewport = applyarmature
-    
-    if not edgesonly:
-        m = dupobj.modifiers.new(type='TRIANGULATE', name='VBM Triangulate')
-        m.min_vertices=4
-        m.keep_custom_normals=True
-    
-    # Create missing data
-    if len(dupobj.data.vertex_colors) == 0:
-        dupobj.data.vertex_colors.new()
-    if len(dupobj.data.uv_layers) == 0:
-        dupobj.uv_layers.new()
+        if not edgesonly:
+            m = dupobj.modifiers.new(type='TRIANGULATE', name='VBM Triangulate')
+            if m:
+                m.min_vertices=4
+                m.keep_custom_normals=True
     
     context.view_layer.update()
     
@@ -285,6 +282,12 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
     # Invoke to_mesh() for evaluated object.
     workingobj = dupobj.evaluated_get(dg)
     workingmesh = workingobj.evaluated_get(dg).to_mesh()
+    
+    # Create missing data
+    if len(workingmesh.vertex_colors) == 0:
+        workingmesh.vertex_colors.new()
+    if len(workingmesh.uv_layers) == 0:
+        workingmesh.uv_layers.new()
     
     instancemats = []
     if instancerun:

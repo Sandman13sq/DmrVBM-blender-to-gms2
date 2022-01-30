@@ -47,7 +47,6 @@ except:
         mat4 (16f)
 """
 
-
 EXPORTLISTHEADER = '<exportlist>'
 
 # Float type to use for Packing
@@ -58,6 +57,8 @@ PackString = lambda x: b'%c%s' % (len(x), str.encode(x))
 PackVector = lambda f, v: struct.pack(f*len(v), *(v[:]))
 PackMatrix = lambda f, m: b''.join( [struct.pack(f*4, *x) for x in m.copy().transposed()] )
 QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
+
+VALIDOBJTYPES = ['MESH', 'CURVE', 'META', 'FONT', 'SURFACE']
 
 # ---------------------------------------------------------------------------------------
 
@@ -474,7 +475,7 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         
         # Get list of selected objects
         objects = CollectionToObjectList(self, context)
-        targetobjects = [x for x in objects if x.type == 'MESH']
+        targetobjects = [x for x in objects if x.type in VALIDOBJTYPES]
         if len(targetobjects) == 0:
             self.report({'WARNING'}, 'No valid objects selected')
             return {'FINISHED'}
@@ -638,7 +639,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         
         # Get list of selected objects
         objects = CollectionToObjectList(self, context)
-        targetobjects = [x for x in objects if x.type == 'MESH']
+        targetobjects = [x for x in objects if x.type in VALIDOBJTYPES]
         if len(targetobjects) == 0:
             self.report({'WARNING'}, 'No valid objects selected')
             return {'FINISHED'}
@@ -659,7 +660,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
             if obj.type == 'ARMATURE':
                 armature = obj
                 break
-            elif obj.type == 'MESH':
+            elif obj.type in VALIDOBJTYPES:
                 armature = obj.find_armature()
                 if armature:
                     break
