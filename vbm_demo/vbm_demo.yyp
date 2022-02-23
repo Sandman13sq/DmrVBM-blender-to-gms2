@@ -82,7 +82,6 @@
     {"isScaled":true,"autocrop":true,"border":2,"mipsToGenerate":0,"groupParent":null,"targets":-1,"resourceVersion":"1.3","name":"Default","resourceType":"GMTextureGroup",},
   ],
   "IncludedFiles": [
-    {"CopyToMask":-1,"filePath":"datafiles/model","resourceVersion":"1.0","name":"curly.vbm","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/model","resourceVersion":"1.0","name":"curly_simple.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/model","resourceVersion":"1.0","name":"curly_normal.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/model","resourceVersion":"1.0","name":"curly_rigged.vbm","resourceType":"GMIncludedFile",},
@@ -100,7 +99,7 @@
     {"CopyToMask":-1,"filePath":"datafiles/animation","resourceVersion":"1.0","name":"anim_tsunami.trk","resourceType":"GMIncludedFile",},
   ],
   "MetaData": {
-    "IDEVersion": "2022.1.0.609",
+    "IDEVersion": "2022.1.1.610",
   },
   "resourceVersion": "1.4",
   "name": "vbm_demo",

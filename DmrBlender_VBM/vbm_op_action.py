@@ -413,8 +413,8 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                 step=max(1, bakesteps),
                 only_selected=False, 
                 visual_keying=True,
-                clear_constraints=False, 
-                clear_parents=False, 
+                clear_constraints=True, 
+                clear_parents=True, 
                 use_current_action=False, 
                 clean_curves=False, 
                 bake_types={'POSE'}

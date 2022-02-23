@@ -383,9 +383,9 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     UVlyrProp = lambda i: bpy.props.EnumProperty(name="UV Layer", 
         description='UV layer to reference', items=Items_UVLayers, default=0)
     vbf0 : VbfProp(0, VBF_POS)
-    vbf1 : VbfProp(1, VBF_000)
-    vbf2 : VbfProp(2, VBF_RGB)
-    vbf3 : VbfProp(3, VBF_UVS)
+    vbf1 : VbfProp(1, VBF_RGB)
+    vbf2 : VbfProp(2, VBF_UVS)
+    vbf3 : VbfProp(3, VBF_000)
     vbf4 : VbfProp(4, VBF_000)
     vbf5 : VbfProp(5, VBF_000)
     vbf6 : VbfProp(6, VBF_000)
