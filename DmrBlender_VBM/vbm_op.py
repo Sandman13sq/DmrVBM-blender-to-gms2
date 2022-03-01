@@ -70,7 +70,11 @@ def PrintStatus(msg, clear=1, buffersize=40):
 # ---------------------------------------------------------------------------------------
 
 def CompressAndWrite(self, out, path):
-    outcompressed = zlib.compress(out, level=self.compression_level)
+    if self.compression_level != 0:
+        outcompressed = zlib.compress(out, level=self.compression_level)
+    else:
+        outcompressed = out
+    
     outlen = (len(out), len(outcompressed))
     
     if os.path.basename(path) == '':
