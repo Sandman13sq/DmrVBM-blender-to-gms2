@@ -27,11 +27,6 @@ TRKVERSION = 1
     duration (1f)
     positionstep (1f)
     
-    trackspace (1B)
-        0 = No Tracks
-        1 = LOCAL
-        2 = POSE
-        3 = WORLD
     tracknames[numtracks]
         namelength (1B)
         namechars[namelength]
@@ -47,6 +42,11 @@ TRKVERSION = 1
         framematrices[numtracks]
             mat4 (16f)
     
+    trackspace (1B)
+        0 = No Tracks
+        1 = LOCAL
+        2 = POSE
+        3 = WORLD
     trackdata[numtracks]
         numframes (1I)
         framepositions[numframes]
@@ -648,7 +648,9 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         # Output to File
         oldlen = len(out)
-        out = zlib.compress(out, level=self.compression_level)
+        
+        if self.compression_level != 0:
+            out = zlib.compress(out, level=self.compression_level)
         
         file = open(self.filepath, 'wb')
         file.write(out)

@@ -95,6 +95,7 @@ def DrawCommonProps(self, context):
     
     c = layout.column_flow(align=1)
     c.prop(self, 'apply_armature', text='Apply Armature')
+    c.prop(self, 'deform_only', text='Deform Bones Only')
     
     b = c.box()
     r = b.row(align=1)
@@ -465,6 +466,7 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             'format' : format,
             'edgesonly' : self.edges_only,
             'applyarmature' : self.apply_armature,
+            'deformonly' : self.deform_only,
             'uvlayertarget': self.uv_layer_target == 'render',
             'colorlayertarget': self.color_layer_target == 'render',
             'matrix': mattran,
@@ -607,7 +609,6 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         
         r = layout.column_flow(align=1)
         r.prop(self, 'export_armature', text='Export Armature')
-        r.prop(self, 'deform_only', text='Deform Bones Only')
         
         DrawCommonProps(self, context)
         DrawAttributes(self, context)
