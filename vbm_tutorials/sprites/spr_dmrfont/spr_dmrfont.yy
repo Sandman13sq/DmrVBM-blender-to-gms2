@@ -439,7 +439,7 @@
     "eventToFunction": {},
     "eventStubScript": null,
     "parent": {"name":"spr_dmrfont","path":"sprites/spr_dmrfont/spr_dmrfont.yy",},
-    "resourceVersion": "1.3",
+    "resourceVersion": "1.4",
     "name": "spr_dmrfont",
     "tags": [],
     "resourceType": "GMSequence",

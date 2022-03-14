@@ -63,7 +63,7 @@
     "eventToFunction": {},
     "eventStubScript": null,
     "parent": {"name":"spr_starbk","path":"sprites/spr_starbk/spr_starbk.yy",},
-    "resourceVersion": "1.3",
+    "resourceVersion": "1.4",
     "name": "spr_starbk",
     "tags": [],
     "resourceType": "GMSequence",

@@ -99,9 +99,9 @@
     {"CopyToMask":-1,"filePath":"datafiles/animation","resourceVersion":"1.0","name":"anim_tsunami.trk","resourceType":"GMIncludedFile",},
   ],
   "MetaData": {
-    "IDEVersion": "2022.1.1.610",
+    "IDEVersion": "2022.2.1.618",
   },
-  "resourceVersion": "1.4",
+  "resourceVersion": "1.5",
   "name": "vbm_demo",
   "tags": [],
   "resourceType": "GMProject",

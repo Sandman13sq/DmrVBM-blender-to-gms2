@@ -59,7 +59,7 @@
     "eventToFunction": {},
     "eventStubScript": null,
     "parent": {"name":"tex_curly_gun_col","path":"sprites/tex_curly_gun_col/tex_curly_gun_col.yy",},
-    "resourceVersion": "1.3",
+    "resourceVersion": "1.4",
     "name": "tex_curly_gun_col",
     "tags": [],
     "resourceType": "GMSequence",

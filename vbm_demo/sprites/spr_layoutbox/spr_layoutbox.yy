@@ -63,7 +63,7 @@
     "eventToFunction": {},
     "eventStubScript": null,
     "parent": {"name":"spr_layoutbox","path":"sprites/spr_layoutbox/spr_layoutbox.yy",},
-    "resourceVersion": "1.3",
+    "resourceVersion": "1.4",
     "name": "spr_layoutbox",
     "tags": [],
     "resourceType": "GMSequence",

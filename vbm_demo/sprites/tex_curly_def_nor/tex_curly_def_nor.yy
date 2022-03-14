@@ -59,7 +59,7 @@
     "eventToFunction": {},
     "eventStubScript": null,
     "parent": {"name":"tex_curly_def_nor","path":"sprites/tex_curly_def_nor/tex_curly_def_nor.yy",},
-    "resourceVersion": "1.3",
+    "resourceVersion": "1.4",
     "name": "tex_curly_def_nor",
     "tags": [],
     "resourceType": "GMSequence",

@@ -95,52 +95,54 @@ function OpenTRK(outtrk, path)
 function __TRKOpen_v1(b, outtrk)
 {
 	/* File spec:
-	    'TRK' (3B)
-	    TRK Version (1B)
-		
-	    flags (1B)
-		
-	    fps (1f)
-	    framecount (1I)
-	    numtracks (1I)
-	    duration (1f)
-	    positionstep (1f)
-		
-		tracknames[numtracks]
-	        namelength (1B)
-	        namechars[namelength]
-	            char (1B)
-		
-		matrixspace (1B)
-	        0 = No Matrices
-	        1 = LOCAL
-	        2 = POSE
-	        3 = WORLD
-	        4 = EVALUATED
-	    matrixdata[framecount]
-	        framematrices[numtracks]
-	            mat4 (16f)
-		
-	    trackspace (1B)
-	        0 = No Tracks
-	        1 = LOCAL
-	        2 = POSE
-	        3 = WORLD
-	    trackdata[numtracks]
-	        numframes (4B)
-	        framepositions[numframes]
-	            position (1f)
-	        framevectors[numframes]
-	            vector[3]
-	                value (1f)
+	
+    'TRK' (3B)
+    TRK Version (1B)
     
-	    nummarkers (4B)
-	    markernames[nummarkers]
-	        namelength (1B)
-	        namechars[namelength]
-	            char (1B)
-	    markerpositions[nummarkers]
-	        position (1f)
+    flags (1B)
+    
+    fps (1f)
+    framecount (1I)
+    numtracks (1I)
+    duration (1f)
+    positionstep (1f)
+    
+    tracknames[numtracks]
+        namelength (1B)
+        namechars[namelength]
+            char (1B)
+    
+    matrixspace (1B)
+        0 = No Matrices
+        1 = LOCAL
+        2 = POSE
+        3 = WORLD
+        4 = EVALUATED
+    matrixdata[framecount]
+        framematrices[numtracks]
+            mat4 (16f)
+    
+    trackspace (1B)
+        0 = No Tracks
+        1 = LOCAL
+        2 = POSE
+        3 = WORLD
+    trackdata[numtracks]
+        numframes (1I)
+        framepositions[numframes]
+            position (1f)
+        framevectors[numframes]
+            vector[3]
+                value (1f)
+    
+    nummarkers (1I)
+    markernames[nummarkers]
+        namelength (1B)
+        namechars[namelength]
+            char (1B)
+    markerpositions[nummarkers]
+        position (1f)
+	
 	*/
 	
 	var flag;
