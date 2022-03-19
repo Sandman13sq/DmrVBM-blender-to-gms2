@@ -48,6 +48,7 @@ except:
 """
 
 EXPORTLISTHEADER = '<exportlist>'
+ActiveExportDialog = None
 
 # Float type to use for Packing
 # 'f' = float (32bit), 'd' = double (64bit), 'e' = binary16 (16bit)
@@ -146,13 +147,21 @@ def DrawAttributes(self, context):
     for i in range(0, 8):
         if getattr(self, 'vbf%d' % i) != VBF_000:
             l = i+2;
-        
+    l = max(l, 1)
+    
+    stride = 0
+    sizelist = []
+    
     for i in range(0, min(l, 8)):
         c = b.row().column(align=1)
         
-        c.prop(self, 'vbf%d' % i, text='Attrib%d' % i)
+        r = c.row(align=1)
+        r.prop(self, 'vbf%d' % i, text='')
+        r.prop(self, 'moveattribup%d' % i, text='', icon='TRIA_UP')
+        r.prop(self, 'moveattribdown%d' % i, text='', icon='TRIA_DOWN')
         
         vbfkey = getattr(self, 'vbf%d' % i)
+        sizelist += [VBFSize[vbfkey]]
         
         if vbfkey == VBF_COL or vbfkey == VBF_RGB:
             split = c.split(factor=0.25)
@@ -162,6 +171,12 @@ def DrawAttributes(self, context):
             split = c.split(factor=0.25)
             split.label(text='')
             split.prop(self, 'uvlyr%d' % i, text='Layer')
+    sizestring = ''
+    if len(sizelist) > 1:
+        for x in sizelist[:-2]:
+            sizestring += '%d + ' % x
+        sizestring += '%d'%sizelist[-2]    
+    layout.label(text='Stride: %d (%s)' % (sum(sizestring), sizestring))
 
 # ---------------------------------------------------------------------------------------
 
@@ -267,6 +282,27 @@ def FixName(name, delimiter):
     if delimiter in name:
         return name[:name.find(delimiter)]
     return name
+
+# ---------------------------------------------------------------------------------------
+
+def MoveAttribute(self, index, moveup=False):
+    if self.mutex:  # Lock access to function if mutex is active
+        return
+    
+    indices = [index, (0 if index==0 else index-1) if moveup else index+1]
+    
+    def SwapAttrib(formatstring):
+        values = [getattr(self, formatstring % x) for x in indices]
+        setattr(self, formatstring % indices[0], values[1])
+        setattr(self, formatstring % indices[1], values[0])
+    
+    SwapAttrib('vbf%d')
+    SwapAttrib('uvlyr%d')
+    SwapAttrib('vclyr%d')
+    
+    self.mutex = True   # Lock function to prevent recursion
+    setattr(self, ('moveattribup%d' if moveup else 'moveattribdown%d') % index, False)
+    self.mutex = False  # Unlock function
 
 # =============================================================================
 
@@ -408,6 +444,27 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     uvlyr5 : UVlyrProp(5)
     uvlyr6 : UVlyrProp(6)
     uvlyr7 : UVlyrProp(7)
+    
+    # Fake buttons
+    mutex : bpy.props.BoolProperty(default=False)
+    
+    moveattribup0 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,0,True))
+    moveattribup1 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,1,True))
+    moveattribup2 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,2,True))
+    moveattribup3 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,3,True))
+    moveattribup4 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,4,True))
+    moveattribup5 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,5,True))
+    moveattribup6 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,6,True))
+    moveattribup7 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,7,True))
+    
+    moveattribdown0 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,0,False))
+    moveattribdown1 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,1,False))
+    moveattribdown2 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,2,False))
+    moveattribdown3 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,3,False))
+    moveattribdown4 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,4,False))
+    moveattribdown5 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,5,False))
+    moveattribdown6 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,6,False))
+    moveattribdown7 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,7,False))
 
 # =============================================================================
 
