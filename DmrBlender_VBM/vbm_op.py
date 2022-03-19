@@ -369,11 +369,6 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         description="Maximum number of subdivisions for Subdivision Surface modifier.\n(-1 for no limit)",
     )
     
-    compression_level: bpy.props.IntProperty(
-        name="Compression Level", default=-1, min=-1, max=9,
-        description="Level of zlib compression to apply to export.\n0 for no compression. -1 for zlib default compression",
-    )
-    
     float_type : bpy.props.EnumProperty(
         name="Float Type", 
         description='Data type to export floats in for vertex attributes and bone matrices', 
@@ -436,6 +431,11 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             ('MATERIAL', 'By Material', 'Objects will be written to "<filename><materialname>.vb" by material'),
         ),
         default='NONE',
+    )
+    
+    compression_level: bpy.props.IntProperty(
+        name="Compression Level", default=0, min=-1, max=9,
+        description="Level of zlib compression to apply to export.\n0 for no compression. -1 for zlib default compression",
     )
     
     def draw(self, context):
@@ -581,6 +581,11 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
             #('EMPTY', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.vbm" by parent empty'),
         ),
         default='NONE',
+    )
+    
+    compression_level: bpy.props.IntProperty(
+        name="Compression Level", default=-1, min=-1, max=9,
+        description="Level of zlib compression to apply to export.\n0 for no compression. -1 for zlib default compression",
     )
     
     grouping : bpy.props.EnumProperty(
