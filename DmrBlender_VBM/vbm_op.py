@@ -176,7 +176,7 @@ def DrawAttributes(self, context):
         for x in sizelist[:-2]:
             sizestring += '%d + ' % x
         sizestring += '%d'%sizelist[-2]    
-    layout.label(text='Stride: %d (%s)' % (sum(sizestring), sizestring))
+    layout.label(text='Stride: %d (%s)' % (sum(sizelist), sizestring))
 
 # ---------------------------------------------------------------------------------------
 
