@@ -138,7 +138,7 @@ Items_ForwardAxis = (
 
 def Items_UVLayers(self, context):
     items = []
-    items.append( (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" below') )
+    items.append( (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" in ==Show More Options==') )
     items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
     items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') )
     
@@ -161,7 +161,7 @@ def Items_UVLayers(self, context):
 
 def Items_VCLayers(self, context):
     items = []
-    items.append( (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" below') )
+    items.append( (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" in ==Show More Options==') )
     items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
     items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') )
     
