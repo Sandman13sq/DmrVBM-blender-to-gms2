@@ -428,7 +428,7 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
             
             loopmeta += tuple(
                 (
-                    tuple(l.normal),
+                    tuple(l.normal.normalized()),
                     tuple(l.tangent),
                     tuple(l.bitangent),
                     tuple( tuple(lyr.data[l.index].uv) for lyr in uvlayers),
