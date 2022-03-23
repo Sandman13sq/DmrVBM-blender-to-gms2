@@ -446,25 +446,25 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     uvlyr7 : UVlyrProp(7)
     
     # Fake buttons
-    mutex : bpy.props.BoolProperty(default=False)
+    mutex : bpy.props.BoolProperty(default=False, options={'SKIP_SAVE', 'HIDDEN'})
     
-    moveattribup0 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,0,True))
-    moveattribup1 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,1,True))
-    moveattribup2 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,2,True))
-    moveattribup3 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,3,True))
-    moveattribup4 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,4,True))
-    moveattribup5 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,5,True))
-    moveattribup6 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,6,True))
-    moveattribup7 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,7,True))
+    moveattribup0 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,0,True), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribup1 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,1,True), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribup2 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,2,True), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribup3 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,3,True), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribup4 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,4,True), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribup5 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,5,True), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribup6 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,6,True), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribup7 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,7,True), options={'SKIP_SAVE', 'HIDDEN'})
     
-    moveattribdown0 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,0,False))
-    moveattribdown1 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,1,False))
-    moveattribdown2 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,2,False))
-    moveattribdown3 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,3,False))
-    moveattribdown4 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,4,False))
-    moveattribdown5 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,5,False))
-    moveattribdown6 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,6,False))
-    moveattribdown7 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,7,False))
+    moveattribdown0 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,0,False), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribdown1 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,1,False), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribdown2 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,2,False), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribdown3 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,3,False), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribdown4 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,4,False), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribdown5 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,5,False), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribdown6 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,6,False), options={'SKIP_SAVE', 'HIDDEN'})
+    moveattribdown7 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,7,False), options={'SKIP_SAVE', 'HIDDEN'})
 
 # =============================================================================
 
