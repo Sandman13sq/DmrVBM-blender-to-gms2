@@ -131,6 +131,15 @@ Items_ForwardAxis = (
 def ChooseAction(self, context):
     action = bpy.data.actions[self.actionname]
 
+# --------------------------------------------------------------------------------------
+
+def BoneDeformParent(b):
+    if b.parent == None:
+        return None
+    while (b.parent != None and b.parent.use_deform == False):
+        b = b.parent
+    return b.parent
+
 # =============================================================================
 
 classlist = []
@@ -398,6 +407,20 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         sc.frame_set(sc.frame_current)
         vl.update()
         
+        bones = workingobj.data.bones
+        pbones = workingobj.pose.bones
+        if deform_only:
+            pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
+        boneparents = {b: BoneDeformParent(b) for b in bones}
+        bonenames = [x for x in pbones.keys()]
+        bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
+        pboneslist = [x for x in pbones.values()]
+        pbonesnames = [x.name for x in pboneslist]
+        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones if b.use_deform}
+        
+        for pb, parent in pboneparents.items():
+            print([pb, parent])
+        
         # Baking ----------------------------------------------------------------
         if bakesteps > 0:
             print('> Baking animation...');
@@ -431,16 +454,6 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         workingobj.animation_data.action = action
         
         fcurves = action.fcurves
-        
-        bones = workingobj.data.bones
-        pbones = workingobj.pose.bones
-        if deform_only:
-            pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
-        bonenames = [x for x in pbones.keys()]
-        bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
-        pboneslist = [x for x in pbones.values()]
-        pbonesnames = [x.name for x in pboneslist]
-        
         netframes = ()
         
         duration = actionrange[1]-actionrange[0]
@@ -551,7 +564,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                 #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
                 bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones}
                 bmatlocal = {
-                    pbones[b.name]: (bmatrix[b.parent].inverted() @ bmatrix[b] if b.parent else bmatrix[b])
+                    pbones[b.name]: (bmatrix[boneparents[b]].inverted() @ bmatrix[b] if boneparents[b] else bmatrix[b])
                     for b in bones if b.name in pbones.keys()
                 }
                 bmatinverse = {
@@ -576,7 +589,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
                     
                     bonetransforms = {}
                     for pb in pboneslist:
-                        bonetransforms[pb] = bonetransforms[pb.parent]@localtransforms[pb] if pb.parent else localtransforms[pb]
+                        bonetransforms[pb] = bonetransforms[pboneparents[pb]]@localtransforms[pb] if pboneparents[pb] else localtransforms[pb]
                     
                     finaltransforms = {
                         pb: bonetransforms[pb] @ bmatinverse[pb]

@@ -304,6 +304,15 @@ def MoveAttribute(self, index, moveup=False):
     setattr(self, ('moveattribup%d' if moveup else 'moveattribdown%d') % index, False)
     self.mutex = False  # Unlock function
 
+# --------------------------------------------------------------------------------------
+
+def BoneDeformParent(b):
+    if b.parent == None:
+        return None
+    while (b.parent != None and b.parent.use_deform == False):
+        b = b.parent
+    return b.parent
+
 # =============================================================================
 
 classlist = []
@@ -767,10 +776,10 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 
                 out_bone += Pack('I', len(bones)) # Bone count
                 out_bone += b''.join( [PackString(b.name) for b in bones] ) # Bone names
-                out_bone += b''.join( [Pack('I', bones.index(b.parent) if b.parent else 0) for b in bones] ) # Bone parent index
+                out_bone += b''.join( [Pack('I', bones.index(BoneDeformParent(b)) if BoneDeformParent(b) else 0) for b in bones] ) # Bone parent index
                 out_bone += b''.join( [PackMatrix('f',
-                    (bonemat[b.parent].inverted() @ bonemat[b]) # local matrices
-                    if b.parent else bonemat[b]) for b in bones] )
+                    (bonemat[BoneDeformParent(b)].inverted() @ bonemat[b]) # local matrices
+                    if BoneDeformParent(b) else bonemat[b]) for b in bones] )
                 out_bone += b''.join( [PackMatrix('f', bonemat[b].inverted()) for b in bones] ) # inverse matrices
                 
                 # Delete Temporary
