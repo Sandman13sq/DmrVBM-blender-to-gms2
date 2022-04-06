@@ -418,9 +418,6 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         pbonesnames = [x.name for x in pboneslist]
         pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones if b.use_deform}
         
-        for pb, parent in pboneparents.items():
-            print([pb, parent])
-        
         # Baking ----------------------------------------------------------------
         if bakesteps > 0:
             print('> Baking animation...');
