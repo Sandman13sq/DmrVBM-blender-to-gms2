@@ -142,6 +142,302 @@ def BoneDeformParent(b):
 
 # =============================================================================
 
+def GetTRKData(context, sourceobj, sourceaction, settings):
+    # Settings
+    track_space = settings["track_space"]
+    matrix_space = settings["matrix_space"]
+    deform_only = settings["deform_only"]
+    write_marker_names = settings["write_marker_names"]
+    bakesteps = settings["bake_steps"]
+    timestep = settings["time_step"]
+    scale = settings["scale"]
+    range_type = settings["range_type"]
+    mattran = settings["mattran"]
+    
+    vl = context.view_layer
+    sc = context.scene
+    rd = sc.render
+    
+    if range_type == 'CUSTOM':
+        actionrange = (self.frame_range[0], self.frame_range[1])
+    elif range_type == 'KEYFRAME':
+        positions = [k.co[0] for fc in sourceaction.fcurves for k in fc.keyframe_points]
+        actionrange = (min(positions), max(positions))
+    elif range_type == 'MARKER' and sourceaction.pose_markers:
+        positions = [m.frame for m in sourceaction.pose_markers]
+        actionrange = (min(positions), max(positions)+(max(positions)!=sourceaction.frame_range[1]))
+    else:
+        actionrange = (sc.frame_start, sc.frame_end)
+    
+    print('> Beginning export for "{}"...'.format(sourceaction.name));
+    
+    # Create working data ----------------------------------------------------------------
+    workingarmature = sourceobj.data.copy()
+    workingobj = sourceobj.copy()
+    
+    workingobj.data = workingarmature
+    workingobj.name = sourceobj.name + '__temp'
+    workingarmature.name = sourceobj.data.name + '__temp'
+    sc.collection.objects.link(workingobj)
+    
+    sourceobj.select_set(False)
+    workingobj.select_set(True)
+    vl.objects.active = workingobj
+    bpy.ops.object.mode_set(mode='OBJECT')
+    
+    action = sourceaction
+    workingobj.animation_data.action = action
+    sc.frame_set(sc.frame_current)
+    vl.update()
+    
+    bones = workingobj.data.bones
+    pbones = workingobj.pose.bones
+    if deform_only:
+        pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
+    boneparents = {b: BoneDeformParent(b) for b in bones}
+    bonenames = [x for x in pbones.keys()]
+    bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
+    pboneslist = [x for x in pbones.values()]
+    pbonesnames = [x.name for x in pboneslist]
+    pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones if b.use_deform}
+    
+    # Baking ----------------------------------------------------------------
+    if bakesteps > 0:
+        print('> Baking animation...');
+        
+        contexttype = bpy.context.area.type
+        bpy.context.area.type = "DOPESHEET_EDITOR"
+        
+        dataactions = set([x for x in bpy.data.actions])
+        lastaction = sourceaction
+        
+        bpy.ops.nla.bake(
+            frame_start=actionrange[0], frame_end=actionrange[1], 
+            step=max(1, bakesteps),
+            only_selected=False, 
+            visual_keying=True,
+            clear_constraints=True, 
+            clear_parents=True, 
+            use_current_action=False, 
+            clean_curves=False, 
+            bake_types={'POSE'}
+            );
+        
+        bpy.context.area.type = contexttype
+        
+        dataactions = list(set([x for x in bpy.data.actions]) - dataactions)
+        for x in dataactions:
+            x.name += '__temp'
+        action = dataactions[-1]
+        action.name = lastaction.name + '__temp'
+        
+    workingobj.animation_data.action = action
+    
+    fcurves = action.fcurves
+    netframes = ()
+    
+    duration = actionrange[1]-actionrange[0]
+    pmod = 1.0/duration
+    
+    # Parse curves ----------------------------------------------------------------
+    if bakesteps >= 0:
+        for fc in fcurves:
+            dp = fc.data_path
+            bonename = dp[dp.find('"')+1:dp.rfind('"')]
+            
+            if bonename in bonenames:
+                transformstring = dp[dp.rfind('.')+1:]
+                transformtype = -1
+                
+                if transformstring == 'location':
+                    transformtype = 0
+                elif transformstring == 'rotation_quaternion':
+                    transformtype = 1
+                elif transformstring == 'scale':
+                    transformtype = 2
+                
+                if transformtype >= 0:
+                    vecvalueindex = fc.array_index
+                    keyframes = tuple(
+                        [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points if (x.co[0] >= actionrange[0] and x.co[0] <= actionrange[1])]
+                        )
+                    bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
+                    netframes += tuple(x[0] for x in keyframes)
+    # Fill for all positions ----------------------------------------------------------------
+    else:
+        poslist = [x for x in range(actionrange[0], actionrange[1]+1)]
+        for fc in fcurves:
+            dp = fc.data_path
+            bonename = dp[dp.find('"')+1:dp.rfind('"')]
+            
+            if bonename in bonenames:
+                transformstring = dp[dp.rfind('.')+1:]
+                transformtype = -1
+                
+                if transformstring == 'location':
+                    transformtype = 0
+                elif transformstring == 'rotation_quaternion':
+                    transformtype = 1
+                elif transformstring == 'scale':
+                    transformtype = 2
+                
+                if transformtype >= 0:
+                    vecvalueindex = fc.array_index
+                    keyframes = tuple(
+                        [(x*pmod, 0) for x in poslist if (x >= actionrange[0] and x <= actionrange[1])]
+                        )
+                    bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
+                    netframes += tuple(x[0] for x in keyframes)
+    
+    netframes = list(set(netframes))
+    netframes.sort()
+    
+    foffset = -actionrange[0]*pmod # Frame offset
+    
+    dg = context.evaluated_depsgraph_get()
+    
+    # Output ================================================================================
+    outtrk = b''
+    
+    # Header
+    outtrk += b'TRK' + Pack('B', TRKVERSION)    # Signature
+    
+    flags = 0
+    outtrk += Pack('B', flags)     # Flags
+    
+    outtrk += Pack('f', rd.fps)     # fps
+    outtrk += Pack('I', len(netframes) ) # Frame Count
+    outtrk += Pack('I', len(pbones) ) # Num tracks
+    outtrk += Pack('f', duration*scale ) # Duration
+    outtrk += Pack('f', timestep/(duration*scale) ) # Position Step
+    
+    print('Length:', duration*scale)
+    
+    outtrk += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Track Names
+    
+    # Matrices ----------------------------------------------------------------------
+    outtrk += Pack('B', SpaceID[matrix_space])
+    if matrix_space != 'NONE':
+        print('> Writing Matrices...');
+        
+        # Use convert_space()
+        if matrix_space != 'EVALUATED':
+            for f in netframes:
+                outtrkchunk = b''
+                
+                sc.frame_set(int(f/pmod))
+                dg = context.evaluated_depsgraph_get()
+                evaluatedobj = workingobj.evaluated_get(dg)
+                evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
+                
+                outtrk += b''.join(
+                    Pack('f', x)
+                    
+                    for i, pb in enumerate(pboneslist)
+                    for v in workingobj.convert_space(
+                        pose_bone=evalbones[i], matrix=mattran @ evalbones[i].matrix, from_space='WORLD', to_space=matrix_space
+                        ).transposed()
+                    for x in v
+                    )
+        # Evaluate final transforms
+        else:
+            #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
+            bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones}
+            bmatlocal = {
+                pbones[b.name]: (bmatrix[boneparents[b]].inverted() @ bmatrix[b] if boneparents[b] else bmatrix[b])
+                for b in bones if b.name in pbones.keys()
+            }
+            bmatinverse = {
+                pbones[b.name]: bmatrix[b].inverted()
+                for b in bones if b.name in pbones.keys()
+            }
+            
+            for f in netframes:
+                outtrkchunk = b''
+                
+                sc.frame_set(int(f/pmod))
+                dg = context.evaluated_depsgraph_get()
+                evaluatedobj = workingobj.evaluated_get(dg)
+                evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
+                
+                localtransforms = {
+                    pb: bmatlocal[pb] @ workingobj.convert_space(
+                        pose_bone=evalbones[i], matrix=evalbones[i].matrix, from_space='WORLD', to_space='LOCAL'
+                        )
+                    for i, pb in enumerate(pboneslist)
+                }
+                
+                bonetransforms = {}
+                for pb in pboneslist:
+                    bonetransforms[pb] = bonetransforms[pboneparents[pb]]@localtransforms[pb] if pboneparents[pb] else localtransforms[pb]
+                
+                finaltransforms = {
+                    pb: bonetransforms[pb] @ bmatinverse[pb]
+                    for pb in pboneslist
+                }
+                
+                outtrk += b''.join(
+                    Pack('f', x)
+                    for pb in pboneslist
+                    for v in (finaltransforms[pb]).transposed()
+                    for x in v
+            )
+    
+    # Tracks -------------------------------------------------------------------
+    outtrk += Pack('B', SpaceID[track_space])
+    if track_space != 'NONE':
+        print('> Writing Tracks...');
+        posesnap = {}
+        
+        for pb in pboneslist:
+            thisbonecurves = bonecurves[pb]
+            
+            outtrkchunk = b''
+            
+            # Transform components
+            for tindex in (0, 1, 2):
+                targetvecs = thisbonecurves[tindex]
+                veckeyframes = list(set(k for v in targetvecs for k in v))
+                vecpositions = list(set(x[0] for x in veckeyframes))
+                vecpositions.sort(key=lambda x: x)
+                vecpositions = tuple(vecpositions)
+                
+                outtrkchunk += Pack('I', len(vecpositions)) # Num Frames
+                outtrkchunk += b''.join([Pack('f', x*scale+foffset) for x in vecpositions]) # Frame Positions 
+                
+                # Vectors
+                for f in vecpositions:
+                    # Generate pose snap of matrices
+                    if f not in posesnap:
+                        sc.frame_set(int(f/pmod))
+                        dg = context.evaluated_depsgraph_get()
+                        evaluatedobj = workingobj.evaluated_get(dg)
+                        evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
+                        
+                        posesnap[f] = {
+                            x: workingobj.convert_space(
+                                pose_bone=evalbones[i], matrix=evalbones[i].matrix, from_space='WORLD', to_space=track_space
+                            ).decompose()
+                            for i, x in enumerate(pbones.values())
+                        }
+                    outtrkchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
+            outtrk += outtrkchunk
+    
+    # Markers ----------------------------------------------------------------
+    if write_marker_names:
+        print('> Writing Markers...');
+        markers = [(x.name, x.frame*scale*pmod) for x in sourceaction.pose_markers]
+        #markers.sort(key=lambda x: x[0])
+        outtrk += Pack('I', len(markers))
+        outtrk += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
+        outtrk += b''.join([Pack('f', x[1]+foffset) for x in markers]) # Frames
+    else:
+        outtrk += Pack('I', 0)
+    
+    return outtrk;
+
+# =============================================================================
+
 classlist = []
 
 # =============================================================================
@@ -289,7 +585,6 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         c = layout.column()
         c.prop(self, 'armature_object')
-        c.prop(self, 'action_name')
         
         b = c.box()
         b.prop(self, 'range_type')
@@ -327,29 +622,23 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         c.prop(self, 'compression_level')
         
     def execute(self, context):
-        # Settings
-        track_space = self.track_space
-        matrix_space = self.matrix_space
-        deform_only = self.deform_only
-        write_marker_names = self.write_marker_names
-        bakesteps = self.bake_steps
-        timestep = self.time_step
-        scale = self.scale
-        
-        # Clear temporary data
-        [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
-        [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
-        [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
-        
-        vl = context.view_layer
-        sc = context.scene
-        rd = sc.render
+        settings = {
+            'matrix_space': self.matrix_space,
+            'track_space': self.track_space,
+            'deform_only': self.deform_only,
+            'write_marker_names': self.write_marker_names,
+            'bake_steps': self.bake_steps,
+            'time_step': self.time_step,
+            'scale': self.scale,
+            'range_type': self.range_type,   
+            'mattran': GetCorrectiveMatrix(self, context)
+        }
         
         if self.lastsimplify == -1:
-            self.lastsimplify = sc.render.use_simplify
-            self.lastsimplifylevels = sc.render.simplify_subdivision
-            sc.render.use_simplify = True
-            sc.render.simplify_subdivision = 0
+            self.lastsimplify = context.scene.render.use_simplify
+            self.lastsimplifylevels = context.scene.render.simplify_subdivision
+            context.scene.render.use_simplify = True
+            context.scene.render.simplify_subdivision = 0
         
         # Validation
         sourceobj = [x for x in bpy.data.objects if x.name == self.armature_object]
@@ -373,283 +662,13 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
             return {'FINISHED'}
         sourceaction = sourceaction[0]
         
-        if self.range_type == 'CUSTOM':
-            actionrange = (self.frame_range[0], self.frame_range[1])
-        elif self.range_type == 'KEYFRAME':
-            positions = [k.co[0] for fc in sourceaction.fcurves for k in fc.keyframe_points]
-            actionrange = (min(positions), max(positions))
-        elif self.range_type == 'MARKER' and sourceaction.pose_markers:
-            positions = [m.frame for m in sourceaction.pose_markers]
-            actionrange = (min(positions), max(positions)+(max(positions)!=sourceaction.frame_range[1]))
-        else:
-            actionrange = (sc.frame_start, sc.frame_end)
+        # Clear temporary data
+        [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
+        [bpy.data.armatures.remove(x) for x in bpy.data.armatures if '__temp' in x.name]
+        [bpy.data.actions.remove(x) for x in bpy.data.actions if '__temp' in x.name]
         
-        print('> Beginning export for "{}"...'.format(sourceaction.name));
-        
-        # Create working data ----------------------------------------------------------------
-        workingarmature = sourceobj.data.copy()
-        workingobj = sourceobj.copy()
-        
-        workingobj.data = workingarmature
-        workingobj.name = sourceobj.name + '__temp'
-        workingarmature.name = sourceobj.data.name + '__temp'
-        sc.collection.objects.link(workingobj)
-        
-        sourceobj.select_set(False)
-        workingobj.select_set(True)
-        vl.objects.active = workingobj
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
-        mattran = GetCorrectiveMatrix(self, context)
-        
-        action = sourceaction
-        workingobj.animation_data.action = action
-        sc.frame_set(sc.frame_current)
-        vl.update()
-        
-        bones = workingobj.data.bones
-        pbones = workingobj.pose.bones
-        if deform_only:
-            pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
-        boneparents = {b: BoneDeformParent(b) for b in bones}
-        bonenames = [x for x in pbones.keys()]
-        bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
-        pboneslist = [x for x in pbones.values()]
-        pbonesnames = [x.name for x in pboneslist]
-        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones if b.use_deform}
-        
-        # Baking ----------------------------------------------------------------
-        if bakesteps > 0:
-            print('> Baking animation...');
-            
-            contexttype = bpy.context.area.type
-            bpy.context.area.type = "DOPESHEET_EDITOR"
-            
-            dataactions = set([x for x in bpy.data.actions])
-            lastaction = sourceaction
-            
-            bpy.ops.nla.bake(
-                frame_start=actionrange[0], frame_end=actionrange[1], 
-                step=max(1, bakesteps),
-                only_selected=False, 
-                visual_keying=True,
-                clear_constraints=True, 
-                clear_parents=True, 
-                use_current_action=False, 
-                clean_curves=False, 
-                bake_types={'POSE'}
-                );
-            
-            bpy.context.area.type = contexttype
-            
-            dataactions = list(set([x for x in bpy.data.actions]) - dataactions)
-            for x in dataactions:
-                x.name += '__temp'
-            action = dataactions[-1]
-            action.name = lastaction.name + '__temp'
-            
-        workingobj.animation_data.action = action
-        
-        fcurves = action.fcurves
-        netframes = ()
-        
-        duration = actionrange[1]-actionrange[0]
-        pmod = 1.0/duration
-        
-        # Parse curves ----------------------------------------------------------------
-        if bakesteps >= 0:
-            for fc in fcurves:
-                dp = fc.data_path
-                bonename = dp[dp.find('"')+1:dp.rfind('"')]
-                
-                if bonename in bonenames:
-                    transformstring = dp[dp.rfind('.')+1:]
-                    transformtype = -1
-                    
-                    if transformstring == 'location':
-                        transformtype = 0
-                    elif transformstring == 'rotation_quaternion':
-                        transformtype = 1
-                    elif transformstring == 'scale':
-                        transformtype = 2
-                    
-                    if transformtype >= 0:
-                        vecvalueindex = fc.array_index
-                        keyframes = tuple(
-                            [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points if (x.co[0] >= actionrange[0] and x.co[0] <= actionrange[1])]
-                            )
-                        bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
-                        netframes += tuple(x[0] for x in keyframes)
-        # Fill for all positions ----------------------------------------------------------------
-        else:
-            poslist = [x for x in range(actionrange[0], actionrange[1]+1)]
-            for fc in fcurves:
-                dp = fc.data_path
-                bonename = dp[dp.find('"')+1:dp.rfind('"')]
-                
-                if bonename in bonenames:
-                    transformstring = dp[dp.rfind('.')+1:]
-                    transformtype = -1
-                    
-                    if transformstring == 'location':
-                        transformtype = 0
-                    elif transformstring == 'rotation_quaternion':
-                        transformtype = 1
-                    elif transformstring == 'scale':
-                        transformtype = 2
-                    
-                    if transformtype >= 0:
-                        vecvalueindex = fc.array_index
-                        keyframes = tuple(
-                            [(x*pmod, 0) for x in poslist if (x >= actionrange[0] and x <= actionrange[1])]
-                            )
-                        bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
-                        netframes += tuple(x[0] for x in keyframes)
-        
-        netframes = list(set(netframes))
-        netframes.sort()
-        
-        foffset = -actionrange[0]*pmod # Frame offset
-        
-        dg = context.evaluated_depsgraph_get()
-        
-        # Output ================================================================================
-        out = b''
-        
-        # Header
-        out += b'TRK' + Pack('B', TRKVERSION)    # Signature
-        
-        flags = 0
-        out += Pack('B', flags)     # Flags
-        
-        out += Pack('f', rd.fps)     # fps
-        out += Pack('I', len(netframes) ) # Frame Count
-        out += Pack('I', len(pbones) ) # Num tracks
-        out += Pack('f', duration*scale ) # Duration
-        out += Pack('f', timestep/(duration*scale) ) # Position Step
-        
-        print('Length:', duration*scale)
-        
-        out += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Track Names
-        
-        # Matrices ----------------------------------------------------------------------
-        out += Pack('B', SpaceID[matrix_space])
-        if matrix_space != 'NONE':
-            print('> Writing Matrices...');
-            
-            # Use convert_space()
-            if matrix_space != 'EVALUATED':
-                for f in netframes:
-                    outchunk = b''
-                    
-                    sc.frame_set(int(f/pmod))
-                    dg = context.evaluated_depsgraph_get()
-                    evaluatedobj = workingobj.evaluated_get(dg)
-                    evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
-                    
-                    out += b''.join(
-                        Pack('f', x)
-                        
-                        for i, pb in enumerate(pboneslist)
-                        for v in workingobj.convert_space(
-                            pose_bone=evalbones[i], matrix=mattran @ evalbones[i].matrix, from_space='WORLD', to_space=matrix_space
-                            ).transposed()
-                        for x in v
-                        )
-            # Evaluate final transforms
-            else:
-                #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
-                bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones}
-                bmatlocal = {
-                    pbones[b.name]: (bmatrix[boneparents[b]].inverted() @ bmatrix[b] if boneparents[b] else bmatrix[b])
-                    for b in bones if b.name in pbones.keys()
-                }
-                bmatinverse = {
-                    pbones[b.name]: bmatrix[b].inverted()
-                    for b in bones if b.name in pbones.keys()
-                }
-                
-                for f in netframes:
-                    outchunk = b''
-                    
-                    sc.frame_set(int(f/pmod))
-                    dg = context.evaluated_depsgraph_get()
-                    evaluatedobj = workingobj.evaluated_get(dg)
-                    evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
-                    
-                    localtransforms = {
-                        pb: bmatlocal[pb] @ workingobj.convert_space(
-                            pose_bone=evalbones[i], matrix=evalbones[i].matrix, from_space='WORLD', to_space='LOCAL'
-                            )
-                        for i, pb in enumerate(pboneslist)
-                    }
-                    
-                    bonetransforms = {}
-                    for pb in pboneslist:
-                        bonetransforms[pb] = bonetransforms[pboneparents[pb]]@localtransforms[pb] if pboneparents[pb] else localtransforms[pb]
-                    
-                    finaltransforms = {
-                        pb: bonetransforms[pb] @ bmatinverse[pb]
-                        for pb in pboneslist
-                    }
-                    
-                    out += b''.join(
-                        Pack('f', x)
-                        for pb in pboneslist
-                        for v in (finaltransforms[pb]).transposed()
-                        for x in v
-                )
-        
-        # Tracks -------------------------------------------------------------------
-        out += Pack('B', SpaceID[track_space])
-        if track_space != 'NONE':
-            print('> Writing Tracks...');
-            posesnap = {}
-            
-            for pb in pboneslist:
-                thisbonecurves = bonecurves[pb]
-                
-                outchunk = b''
-                
-                # Transform components
-                for tindex in (0, 1, 2):
-                    targetvecs = thisbonecurves[tindex]
-                    veckeyframes = list(set(k for v in targetvecs for k in v))
-                    vecpositions = list(set(x[0] for x in veckeyframes))
-                    vecpositions.sort(key=lambda x: x)
-                    vecpositions = tuple(vecpositions)
-                    
-                    outchunk += Pack('I', len(vecpositions)) # Num Frames
-                    outchunk += b''.join([Pack('f', x*scale+foffset) for x in vecpositions]) # Frame Positions 
-                    
-                    # Vectors
-                    for f in vecpositions:
-                        # Generate pose snap of matrices
-                        if f not in posesnap:
-                            sc.frame_set(int(f/pmod))
-                            dg = context.evaluated_depsgraph_get()
-                            evaluatedobj = workingobj.evaluated_get(dg)
-                            evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
-                            
-                            posesnap[f] = {
-                                x: workingobj.convert_space(
-                                    pose_bone=evalbones[i], matrix=evalbones[i].matrix, from_space='WORLD', to_space=track_space
-                                ).decompose()
-                                for i, x in enumerate(pbones.values())
-                            }
-                        outchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
-                out += outchunk
-        
-        # Markers ----------------------------------------------------------------
-        if write_marker_names:
-            print('> Writing Markers...');
-            markers = [(x.name, x.frame*scale*pmod) for x in sourceaction.pose_markers]
-            #markers.sort(key=lambda x: x[0])
-            out += Pack('I', len(markers))
-            out += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
-            out += b''.join([Pack('f', x[1]+foffset) for x in markers]) # Frames
-        else:
-            out += Pack('I', 0)
+        # Gen TRK Data
+        out = GetTRKData(context, sourceobj, sourceaction, settings)
         
         # Free Temporary Data
         [bpy.data.objects.remove(x) for x in bpy.data.objects if '__temp' in x.name]
@@ -668,10 +687,10 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         # Restore State
         if self.lastsimplify > -1:
-            rd.use_simplify = self.lastsimplify
-            rd.simplify_subdivision = self.lastsimplifylevels
+            context.scene.render.use_simplify = self.lastsimplify
+            context.scene.render.simplify_subdivision = self.lastsimplifylevels
         sourceobj.select_set(True)
-        vl.objects.active = sourceobj
+        context.view_layer.objects.active = sourceobj
         
         report = 'Data written to "%s". (%.2fKB -> %.2fKB) %.2f%%' % \
             (self.filepath, oldlen / 1000, len(out) / 1000, 100 * len(out) / oldlen)
