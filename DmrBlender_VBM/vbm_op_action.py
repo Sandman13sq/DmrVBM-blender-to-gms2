@@ -585,6 +585,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         
         c = layout.column()
         c.prop(self, 'armature_object')
+        c.prop(self, 'action_name')
         
         b = c.box()
         b.prop(self, 'range_type')
