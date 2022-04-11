@@ -165,7 +165,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         actionrange = (min(positions), max(positions))
     elif range_type == 'MARKER' and sourceaction.pose_markers:
         positions = [m.frame for m in sourceaction.pose_markers]
-        actionrange = (min(positions), max(positions)+(max(positions)!=sourceaction.frame_range[1]))
+        actionrange = (min(positions), max(positions))
     else:
         actionrange = (sc.frame_start, sc.frame_end)
     
@@ -236,7 +236,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     fcurves = action.fcurves
     netframes = ()
     
-    duration = actionrange[1]-actionrange[0]
+    duration = actionrange[1]-actionrange[0]+1
     pmod = 1.0/duration
     
     # Parse curves ----------------------------------------------------------------
