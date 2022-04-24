@@ -192,14 +192,19 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     
     bones = workingobj.data.bones
     pbones = workingobj.pose.bones
+    boneparents = {b: BoneDeformParent(b) for b in bones}
+    
     if deform_only:
         pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
-    boneparents = {b: BoneDeformParent(b) for b in bones}
-    bonenames = [x for x in pbones.keys()]
+        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones if b.use_deform}
+    else:
+        pbones = {x.name: x for x in pbones}
+        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones}
+    
     bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
     pboneslist = [x for x in pbones.values()]
     pbonesnames = [x.name for x in pboneslist]
-    pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones if b.use_deform}
+    bonenames = [x for x in pbones.keys()]
     
     # Baking ----------------------------------------------------------------
     if bakesteps > 0:
