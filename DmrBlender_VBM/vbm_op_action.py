@@ -133,11 +133,18 @@ def ChooseAction(self, context):
 
 # --------------------------------------------------------------------------------------
 
-def BoneDeformParent(b):
+def BoneFindParent(b, check_select, check_deform):
     if b.parent == None:
         return None
-    while (b.parent != None and b.parent.use_deform == False):
+    
+    while (
+        b.parent != None and (
+            ((check_select) and (b.parent.select == False)) or
+            ((check_deform) and (b.parent.use_deform == False))
+        )
+        ):
         b = b.parent
+    
     return b.parent
 
 # =============================================================================
@@ -153,6 +160,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     scale = settings["scale"]
     range_type = settings["range_type"]
     mattran = settings["mattran"]
+    selected_bones_only = settings["selected_bones_only"]
     
     vl = context.view_layer
     sc = context.scene
@@ -190,16 +198,23 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     sc.frame_set(sc.frame_current)
     vl.update()
     
-    bones = workingobj.data.bones
-    pbones = workingobj.pose.bones
-    boneparents = {b: BoneDeformParent(b) for b in bones}
+    bones = {b.name: b for b in workingobj.data.bones}
     
+    # Make dict of selected bones
+    if selected_bones_only:
+        bones = {b.name: b for b in bones.values() if b.select}
+    
+    boneparents = {b: BoneFindParent(b, selected_bones_only, deform_only) for b in bones.values()}
+    pbones = [workingobj.pose.bones[b.name] for b in bones.values()]
+    
+    # Make dict of deform bones
     if deform_only:
         pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
-        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones if b.use_deform}
+        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones.values() if b.use_deform}
+    # Make dict of all bones
     else:
         pbones = {x.name: x for x in pbones}
-        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones}
+        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones.values()}
     
     bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
     pboneslist = [x for x in pbones.values()]
@@ -347,14 +362,14 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         # Evaluate final transforms
         else:
             #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
-            bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones}
+            bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones.values()}
             bmatlocal = {
                 pbones[b.name]: (bmatrix[boneparents[b]].inverted() @ bmatrix[b] if boneparents[b] else bmatrix[b])
-                for b in bones if b.name in pbones.keys()
+                for b in bones.values() if b.name in pbones.keys()
             }
             bmatinverse = {
                 pbones[b.name]: bmatrix[b].inverted()
-                for b in bones if b.name in pbones.keys()
+                for b in bones.values() if b.name in pbones.keys()
             }
             
             for f in netframes:
@@ -529,6 +544,11 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
         description='Only export bones with the "Deform" box checked',
     )
     
+    selected_bones_only: bpy.props.BoolProperty(
+        name="Selected Bones Only", default=False,
+        description='Only write data for bones that are selected',
+    )
+    
     compression_level: bpy.props.IntProperty(
         name="Compression Level", default=-1, min=-1, max=9,
         description="Level of zlib compression to apply to export.\n0 for no compression. -1 for zlib default compression",
@@ -625,6 +645,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         c.separator();
         c.prop(self, 'write_marker_names')
         c.prop(self, 'deform_only')
+        c.prop(self, 'selected_bones_only')
         c.prop(self, 'compression_level')
         
     def execute(self, context):
@@ -637,7 +658,8 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
             'time_step': self.time_step,
             'scale': self.scale,
             'range_type': self.range_type,   
-            'mattran': GetCorrectiveMatrix(self, context)
+            'mattran': GetCorrectiveMatrix(self, context),
+            'selected_bones_only': self.selected_bones_only,
         }
         
         if self.lastsimplify == -1:
