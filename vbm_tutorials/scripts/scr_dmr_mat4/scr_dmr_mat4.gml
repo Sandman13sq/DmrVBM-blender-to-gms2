@@ -103,7 +103,7 @@ function Mat4ArrayPartition(flatarray)
 	var out = array_create(n/16);
 	for (var i = 0; i < n; i += 16)
 	{
-		out[i] = array_create(16);
+		out[i div 16] = array_create(16);
 		array_copy(out[i div 16], 0, flatarray, i, 16);
 	}
 	
