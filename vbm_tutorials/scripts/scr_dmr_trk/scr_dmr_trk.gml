@@ -59,14 +59,24 @@ function OpenTRK(outtrk, path)
 	
 	var bzipped = buffer_load(path);
 	
+	// error reading file
 	if bzipped < 0
 	{
 		show_debug_message("OpenTRK(): Error loading track data from \"" + path + "\"");
 		return -1;
 	}
 	
-	var b = buffer_decompress(bzipped);
-	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	// Check for compression headers
+	var _header = buffer_peek(bzipped, 0, buffer_u8) | (buffer_peek(bzipped, 1, buffer_u8) << 8);
+	if (
+		(_header & 0x0178) == 0x0178 ||
+		(_header & 0x9C78) == 0x9C78 ||
+		(_header & 0xDA78) == 0xDA78
+		)
+	{
+		var b = buffer_decompress(bzipped);
+		buffer_delete(bzipped);
+	}
 	
 	var header;
 	

@@ -164,20 +164,33 @@ function VBMFree(vbm)
 function OpenVertexBuffer(path, format, freeze=true)
 {
 	var bzipped = buffer_load(path);
+	var b = bzipped;
 	
 	// error reading file
-	if bzipped < 0
+	if (bzipped < 0)
 	{
 		show_debug_message("OpenVertexBuffer(): Error loading vertex buffer from \"" + path + "\"");
 		return -1;
 	}
 	
-	var b = buffer_decompress(bzipped);
-	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	// Check for compression headers
+	var _header = buffer_peek(bzipped, 0, buffer_u8) | (buffer_peek(bzipped, 1, buffer_u8) << 8);
+	if (
+		(_header & 0x0178) == 0x0178 ||
+		(_header & 0x9C78) == 0x9C78 ||
+		(_header & 0xDA78) == 0xDA78
+		)
+	{
+		var b = buffer_decompress(bzipped);
+		buffer_delete(bzipped);
+	}
 	
 	var vb = vertex_create_buffer_from_buffer(b, format);
 	
-	if freeze {vertex_freeze(vb);}
+	// Freeze buffer to improve performance
+	if (freeze) {vertex_freeze(vb);}
+	
+	buffer_delete(b);
 	
 	return vb;
 }
