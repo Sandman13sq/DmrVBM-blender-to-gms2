@@ -342,23 +342,24 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         
         # Use convert_space()
         if matrix_space != 'EVALUATED':
+            evalbones = [x for x in workingobj.pose.bones if x.name in pbonesnames]
+            pbonesenumerated = enumerate(pboneslist)
+            pbonesrange = range(0, len(pbonesenumerated))
+            outtrkchunk = b''
+            
             for f in netframes:
-                outtrkchunk = b''
-                
                 sc.frame_set(int(f/pmod))
-                dg = context.evaluated_depsgraph_get()
-                evaluatedobj = workingobj.evaluated_get(dg)
-                evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
                 
-                outtrk += b''.join(
+                outtrkchunk += b''.join(
                     Pack('f', x)
                     
-                    for i, pb in enumerate(pboneslist)
+                    for i in pbonesrange
                     for v in workingobj.convert_space(
                         pose_bone=evalbones[i], matrix=mattran @ evalbones[i].matrix, from_space='WORLD', to_space=matrix_space
                         ).transposed()
                     for x in v
                     )
+            outtrk += outtrkchunk
         # Evaluate final transforms
         else:
             #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
