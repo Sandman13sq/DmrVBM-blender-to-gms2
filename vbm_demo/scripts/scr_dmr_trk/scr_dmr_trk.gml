@@ -20,6 +20,7 @@ function TRKData() constructor
 	tracks = []; // array of TRKData_Track
 	tracknames = [];	// (bone) names for each track
 	trackmap = {}; // {trackname: track} for each track
+	trackindices = {};	// {trackname: index} for each track
 	trackcount = 0;
 	
 	markerpositions = []; // Frame positions in animation
@@ -200,6 +201,7 @@ function __TRKOpen_v1(b, outtrk)
 			name += chr( buffer_read(b, buffer_u8) );
 		}
 		outtrk.tracknames[trackindex] = name;
+		outtrk.trackindices[$ name] = trackindex;
 		trackindex++;
 	}
 	
@@ -294,8 +296,10 @@ function __TRKOpen_v1(b, outtrk)
 				transformtracks[transformindex++] = track;
 			}
 			
+			name = outtrk.tracknames[trackindex++];
+			
 			outtrk.tracks[trackindex] = transformtracks;
-			outtrk.trackmap[$ outtrk.tracknames[trackindex++] ] = transformtracks;
+			outtrk.trackmap[$ name] = transformtracks;
 		}
 	}
 	
@@ -659,7 +663,9 @@ function EvaluateAnimationTracks(
 }
 
 // Fills outtransform with calculated animation pose
-// bones = Array of VBMBone()
+// bone_parentindices = Array of parent index for bone at current index
+// bone_localmatricies = Array of local 4x4 matrices for bones
+// bone_inversemodelmatrices = Array of inverse 4x4 matrices for bones
 // posedata = Array of 4x4 matrices. 2D
 // outposetransform = Flat Array of matrices in localspace, size = len(posedata) * 16, give to shader
 // outbonetransform = Array of bone matrices in modelspace

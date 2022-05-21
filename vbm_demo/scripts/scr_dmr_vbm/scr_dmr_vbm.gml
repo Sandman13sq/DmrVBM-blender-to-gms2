@@ -164,6 +164,7 @@ function VBMFree(vbm)
 function OpenVertexBuffer(path, format, freeze=true)
 {
 	var bzipped = buffer_load(path);
+	var b = bzipped;
 	
 	// error reading file
 	if bzipped < 0
@@ -172,8 +173,12 @@ function OpenVertexBuffer(path, format, freeze=true)
 		return -1;
 	}
 	
-	var b = buffer_decompress(bzipped);
-	if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	// Check for compression
+	if (buffer_peek(bzipped, 0, buffer_u8) == 0x78)
+	{
+		var b = buffer_decompress(bzipped);
+		if b < 0 {b = bzipped;} else {buffer_delete(bzipped);}
+	}
 	
 	var vb = vertex_create_buffer_from_buffer(b, format);
 	
