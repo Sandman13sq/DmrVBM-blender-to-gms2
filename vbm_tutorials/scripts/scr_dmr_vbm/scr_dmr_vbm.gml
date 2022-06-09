@@ -259,7 +259,7 @@ function OpenVertexBuffer(path, format, freeze=true)
 
 // Runs appropriate version function and returns vbm struct from file (.vbm)
 // Returns true on success, false for error
-function OpenVBM(outvbm, path, format=-1, freeze=true)
+function OpenVBM(outvbm, path, format=-1, freeze=true, merge=false)
 {
 	if (filename_ext(path) == "")
 	{
@@ -267,7 +267,9 @@ function OpenVBM(outvbm, path, format=-1, freeze=true)
 	}
 	
 	var bzipped = buffer_load(path);
+	var b = bzipped;
 	
+	// error reading file
 	if (bzipped < 0)
 	{
 		show_debug_message("OpenVBM(): Error loading vbm data from \"" + path + "\"");
@@ -323,7 +325,7 @@ function OpenVBM(outvbm, path, format=-1, freeze=true)
 		
 		// Version 1
 		case(1): 
-			return __VBMOpen_v1(outvbm, b, format, freeze);
+			return __VBMOpen_v1(outvbm, b, format, freeze, merge);
 	}
 	
 	return outvbm;
@@ -394,7 +396,7 @@ function GetVBMFormat(b, offset)
 }
 
 // Returns vbm struct from file (.vbm)
-function __VBMOpen_v1(outvbm, b, format, freeze)
+function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 {
 	/* Vertex Buffer Collection v1 File spec:
 		'VBM' (3B)
@@ -432,6 +434,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	var flag;
 	var bonecount;
 	var vbcount;
+	var appendcount;
 	var namelength;
 	var name;
 	var mat;
@@ -456,11 +459,21 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	#region // Vertex Buffers ==================================================
 	
 	vbcount = buffer_read(b, buffer_u32);
+	
+	if (merge)
+	{
+		appendcount = 1;
+	}
+	else
+	{
+		appendcount = vbcount;
+	}
+	
 	outvbm.vertexbuffercount += appendcount;
 	array_resize(outvbm.vertexbuffernames, outvbm.vertexbuffercount);
 	
 	// VB Names ------------------------------------------------------------
-	for (var i = 0; i < vbcount; i++) 
+	for (var i = 0; i < appendcount; i++) 
 	{
 		name = "";
 		namelength = buffer_read(b, buffer_u8);
@@ -468,25 +481,66 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 		{
 			name += chr(buffer_read(b, buffer_u8));
 		}
-		outvbm.vbnames[i] = name;
-		outvbm.vbnamemap[$ name] = i;
+		outvbm.vertexbuffernames[i] = name;
+		outvbm.vertexbuffernamemap[$ name] = i;
+	}
+	
+	// Skip rest of names if merge is true
+	repeat(vbcount-appendcount)
+	{
+		name = "";
+		namelength = buffer_read(b, buffer_u8);
+		repeat(namelength)
+		{
+			name += chr(buffer_read(b, buffer_u8));
+		}
 	}
 	
 	// VB Data -------------------------------------------------------------
-	for (var i = 0; i < vbcount; i++)
+	if (!merge)
 	{
-		var vbuffersize = buffer_read(b, buffer_u32);
-		var numvertices = buffer_read(b, buffer_u32);
+		for (var i = 0; i < vbcount; i++)
+		{
+			var vbuffersize = buffer_read(b, buffer_u32);
+			var numvertices = buffer_read(b, buffer_u32);
 		
-		// Create vb
-		vb = vertex_create_buffer_from_buffer_ext(b, format, buffer_tell(b), numvertices);
+			// Create vb
+			vb = vertex_create_buffer_from_buffer_ext(b, format, buffer_tell(b), numvertices);
+		
+			if freeze {vertex_freeze(vb);}
+			outvbm.vertexbuffers[i] = vb;
+			outvbm.vertexbuffermap[$ outvbm.vertexbuffernames[i]] = vb;
+		
+			// move to next vb
+			buffer_seek(b, buffer_seek_relative, vbuffersize);
+		}
+	}
+	// Merge VBs
+	else
+	{
+		var bb = buffer_create(0, buffer_grow, 1);
+		
+		for (var i = 0; i < vbcount; i++)
+		{
+			var vbuffersize = buffer_read(b, buffer_u32);
+			var numvertices = buffer_read(b, buffer_u32);
+			
+			// Copy vb data
+			buffer_resize(bb, buffer_get_size(bb)+vbuffersize);
+			buffer_copy(b, buffer_tell(b), vbuffersize, bb, buffer_get_size(bb)-vbuffersize);
+			
+			// move to next vb
+			buffer_seek(b, buffer_seek_relative, vbuffersize);
+		}
+		
+		vb = vertex_create_buffer_from_buffer(bb, format);
+		
+		outvbm.vertexbuffers[0] = vb;
+		outvbm.vertexbuffermap[$ outvbm.vertexbuffernames[0]] = vb;
 		
 		if freeze {vertex_freeze(vb);}
-		outvbm.vb[i] = vb;
-		outvbm.vbmap[$ outvbm.vbnames[i]] = vb;
 		
-		// move to next vb
-		buffer_seek(b, buffer_seek_relative, vbuffersize);
+		buffer_delete(bb);
 	}
 	
 	#endregion -------------------------------------------------------------
