@@ -167,9 +167,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     rd = sc.render
     
     if range_type == 'CUSTOM':
-        actionrange = (self.frame_range[0], self.frame_range[1])
+        actionrange = settings['frame_range']
     elif range_type == 'KEYFRAME':
-        positions = [k.co[0] for fc in sourceaction.fcurves for k in fc.keyframe_points]
+        positions = [int(k.co[0]) for fc in sourceaction.fcurves for k in fc.keyframe_points]
         actionrange = (min(positions), max(positions))
     elif range_type == 'MARKER' and sourceaction.pose_markers:
         positions = [m.frame for m in sourceaction.pose_markers]
@@ -232,7 +232,8 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         lastaction = sourceaction
         
         bpy.ops.nla.bake(
-            frame_start=actionrange[0], frame_end=actionrange[1], 
+            frame_start=actionrange[0], 
+            frame_end=actionrange[1], 
             step=max(1, bakesteps),
             only_selected=False, 
             visual_keying=True,
@@ -664,6 +665,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
             'range_type': self.range_type,   
             'mattran': GetCorrectiveMatrix(self, context),
             'selected_bones_only': self.selected_bones_only,
+            'frame_range': self.frame_range
         }
         
         if self.lastsimplify == -1:
