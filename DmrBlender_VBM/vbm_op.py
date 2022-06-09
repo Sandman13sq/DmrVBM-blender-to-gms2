@@ -548,6 +548,7 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         # Get list of selected objects
         objects = CollectionToObjectList(self, context)
         targetobjects = [x for x in objects if x.type in VALIDOBJTYPES]
+        
         if len(targetobjects) == 0:
             self.report({'WARNING'}, 'No valid objects selected')
             return {'FINISHED'}

@@ -361,6 +361,8 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                 v.co = vertcooriginal[v]
             
             vgroups = workingobj.vertex_groups
+            weightdefaults = (1,1,1,1) if len(vgroups) == 0 else (0,0,0,0)
+            
             validvgroups = tuple(vg.index for vg in vgroups)
             vgremap = {vg.index: vg.index for vg in vgroups}
             
@@ -396,8 +398,8 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                     tuple(co)[:4], 
                     tuple(boneindices+(0,0,0,0))[:4], 
                     tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
-                    tuple(weights+(0,0,0,0))[:4],
-                    tuple([int(x*255.0) for x in weights+(0,0,0,0)])[:4], 
+                    tuple(weights+weightdefaults)[:4],
+                    tuple([int(x*255.0) for x in weights+weightdefaults])[:4], 
                     )
                 
             vertices = {v.index:v for v in workingmesh.vertices}
