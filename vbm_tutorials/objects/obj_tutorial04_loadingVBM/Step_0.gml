@@ -20,9 +20,9 @@ else
 }
 
 if ( keyboard_check_pressed(vk_add) || keyboard_check_pressed(187) ) 
-	{meshindex = (meshindex+1) mod vbm_curly.vbcount;}
+	{meshindex = (meshindex+1) mod vbm_curly.Count();}
 if ( keyboard_check_pressed(vk_subtract) || keyboard_check_pressed(189) ) 
-	{meshindex = (meshindex==0)? vbm_curly.vbcount-1: (meshindex-1);}
+	{meshindex = (meshindex==0)? vbm_curly.Count()-1: (meshindex-1);}
 
 // Update view matrix
 matview = matrix_build_lookat(

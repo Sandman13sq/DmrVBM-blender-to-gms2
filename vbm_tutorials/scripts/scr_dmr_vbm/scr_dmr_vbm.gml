@@ -52,11 +52,11 @@ enum VBM_AttributeType
 
 function VBMData() constructor 
 {
-	vb = [];	// Vertex buffers
-	vbmap = {};	// {vbname: vertex_buffer} for each vb
-	vbnames = [];	// Names corresponding to buffers
-	vbnamemap = {};	// Names to indices
-	vbcount = 0;
+	vertexbuffers = [];	// Vertex buffers
+	vertexbuffermap = {};	// {vbname: vertex_buffer} for each vb
+	vertexbuffernames = [];	// Names corresponding to buffers
+	vertexbuffernamemap = {};	// Names to indices
+	vertexbuffercount = 0;
 	
 	bone_parentindices = [];	// Parent transform corresponding to each bone
 	bone_localmatricies = [];	// Local transform corresponding to each bone
@@ -65,21 +65,83 @@ function VBMData() constructor
 	bonenames = [];
 	bonecount = 0;
 	
-	vbformat = -1;	// Vertex Buffer Format created in OpenVBM() (Don't touch!)
+	vertexformat = -1;	// Vertex Buffer Format created in OpenVBM() (Don't touch!)
+	
+	// Accessors -------------------------------------------------------------------
+	
+	static Count = function() {return vertexbuffercount;}
+	static Names = function() {return vertexbuffernames;}
+	static GetVertexBuffer = function(index) {return vertexbuffers[index];}
+	static GetName = function(index) {return vertexbuffernames[index];}
+	
+	static BoneCount = function() {return bonecount;}
+	static BoneNames = function() {return bonenames;}
+	static GetBoneName = function(index) {return bonenames[index];}
+	
+	static Format = function() {return vertexformat;}
+	
+	// Methods -------------------------------------------------------------------
+	
+	static LoadVBM = function(path, format=-1, freeze=true)
+	{
+		OpenVBM(self, path, format, freeze);
+	}
+	
+	// Removes all dynamic data from struct
+	static Clear = function()
+	{
+		ClearVertexBuffers();
+		ClearBones();
+		
+		// Delete format
+		if vertexformat > -1
+		{
+			vertex_format_delete(vertexformat);	
+		}
+	}
+	
+	// Removes vertex buffer data
+	static ClearVertexBuffers = function()
+	{
+		// Free buffers
+		for (var i = 0; i < vertexbuffercount; i++)
+		{
+			vertex_delete_buffer(vertexbuffers[i]);
+		}
+		
+		array_resize(vertexbuffers, 0);
+		array_resize(vertexbuffernames, 0);
+		
+		vertexbuffermap = {};
+		vertexbuffernamemap = {};
+		vertexbuffercount = 0;
+	}
+	
+	// Removes bone data
+	static ClearBones = function()
+	{
+		array_resize(bone_parentindices, 0);
+		array_resize(bone_localmatricies, 0);
+		array_resize(bone_inversematricies, 0);
+		array_resize(bonenames, 0);
+		
+		bonemap = {};
+		bonecount = 0;
+	}
 	
 	// Returns vertex buffer with given name. -1 if not found
 	static FindVB = function(_name)
 	{
-		var i = variable_struct_get(vbmap, _name);
+		var i = variable_struct_get(vertexbuffermap, _name);
 		return is_undefined(i)? -1: i;
 	}
 	
 	// Returns index of vb with given name. -1 if not found
 	static FindVBIndex = function(_name)
 	{
-		var i = 0; repeat(vbcount)
+		var i = 0; repeat(vertexbuffercount)
 		{
-			if vbnames[i] == _name {return i;}
+			if vertexbuffernames[i] == _name {return i;}
 			i++;
 		}
 		return -1;
@@ -88,9 +150,9 @@ function VBMData() constructor
 	// Returns index if vb contains given name. -1 if not found
 	static FindVBIndex_Contains = function(_name)
 	{
-		var i = 0; repeat(vbcount)
+		var i = 0; repeat(vertexbuffercount)
 		{
-			if string_pos(_name, vbnames[i]) {return i;}
+			if string_pos(_name, vertexbuffernames[i]) {return i;}
 			i++;
 		}
 		return -1;
@@ -103,20 +165,30 @@ function VBMData() constructor
 		return is_undefined(i)? -1: i;
 	}
 	
+	// Submits all vertex buffers
+	static Submit = function(prim=pr_trianglelist, texture=-1)
+	{
+		var i = 0;
+		repeat(vertexbuffercount)
+		{
+			vertex_submit(vertexbuffers[i++], prim, texture);
+		}
+	}
+	
 	// Submits vertex buffer using index
 	static SubmitVBIndex = function(vbindex, prim=pr_trianglelist, texture=-1)
 	{
-		if (vbcount > 0)
+		if (vertexbuffercount > 0)
 		{
 			// Positive number, normal index
-			if (vbindex >= 0 && vbindex < vbcount)
+			if (vbindex >= 0 && vbindex < vertexbuffercount)
 			{
-				vertex_submit(vb[vbindex], prim, texture);
+				vertex_submit(vertexbuffers[vbindex], prim, texture);
 			}
 			// Negative number, start from end of list
-			else if (vbindex < 0 && (vbcount+vbindex) < vbcount)
+			else if (vbindex < 0 && (vertexbuffercount+vbindex) < vertexbuffercount)
 			{
-				vertex_submit(vb[vbcount+vbindex], prim, texture);
+				vertex_submit(vertexbuffers[vertexbuffercount+vbindex], prim, texture);
 			}
 		}
 	}
@@ -124,40 +196,30 @@ function VBMData() constructor
 	// Submits vertex buffer using name
 	static SubmitVBKey = function(vbname, prim=pr_trianglelist, texture=-1)
 	{
-		if (vbcount > 0)
+		if (vertexbuffercount > 0)
 		{
 			// Name exists
-			if ( variable_struct_exists(vbmap, vbname) )
+			if ( variable_struct_exists(vertexbuffermap, vbname) )
 			{
-				vertex_submit(vbmap[$ vbname], prim, texture);
+				vertex_submit(vertexbuffermap[$ vbname], prim, texture);
 			}
 		}
 	}
 	
 	static AddVB = function(vb, vbname)
 	{
-		vb[vbcount] = vb;
-		vbmap[$ vbname] = vb;
-		vbnames[vbcount] = vbname;
-		vbnamemap[$ vbname] = vbcount;
-		vbcount += 1;	
+		vertexbuffers[vertexbuffercount] = vb;
+		vertexbuffermap[$ vbname] = vb;
+		vertexbuffernames[vertexbuffercount] = vbname;
+		vertexbuffernamemap[$ vbname] = vertexbuffercount;
+		vertexbuffercount += 1;	
 	}
 }
 
 // Removes allocated memory from vbm
 function VBMFree(vbm)
 {
-	var n = vbm.vbcount;
-	var vbuffers = vbm.vb;
-	for (var i = 0; i < n; i++)
-	{
-		vertex_delete_buffer(vbuffers[i]);
-	}
-	
-	if vbm.vbformat > -1
-	{
-		vertex_format_delete(vbm.vbformat);	
-	}
+	vbm.Clear();
 }
 
 // Returns vertex buffer from file (.vb)
@@ -209,19 +271,28 @@ function OpenVBM(outvbm, path, format=-1, freeze=true)
 	if (bzipped < 0)
 	{
 		show_debug_message("OpenVBM(): Error loading vbm data from \"" + path + "\"");
-		return outvbm;
+		return -1;
 	}
 	
-	var b = buffer_decompress(bzipped);
-	if (b < 0) {b = bzipped;} else {buffer_delete(bzipped);}
+	// Check for compression headers
+	var _header = buffer_peek(bzipped, 0, buffer_u8) | (buffer_peek(bzipped, 1, buffer_u8) << 8);
+	if (
+		(_header & 0x0178) == 0x0178 ||
+		(_header & 0x9C78) == 0x9C78 ||
+		(_header & 0xDA78) == 0xDA78
+		)
+	{
+		var b = buffer_decompress(bzipped);
+		buffer_delete(bzipped);
+	}
 	
-	var header;
+	var vbmheader;
 	
 	// Header
-	header = buffer_peek(b, 0, buffer_u32);
+	vbmheader = buffer_peek(b, 0, buffer_u32);
 	
 	// Not a vbm file
-	if ( (header & 0x00FFFFFF) != VBMHEADERCODE )
+	if ( (vbmheader & 0x00FFFFFF) != VBMHEADERCODE )
 	{
 		var noformatgiven = format < 0;
 		
@@ -235,6 +306,8 @@ function OpenVBM(outvbm, path, format=-1, freeze=true)
 				return -1;
 			}
 			
+			if (freeze) {vertex_freeze(vb);}
+			
 			var name = filename_name(path);
 			outvbm.AddVB(vb, name);
 			return outvbm;
@@ -244,7 +317,7 @@ function OpenVBM(outvbm, path, format=-1, freeze=true)
 		return outvbm;
 	}
 	
-	switch(header & 0xFF)
+	switch(vbmheader & 0xFF)
 	{
 		default:
 		
@@ -335,7 +408,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 		    attributefloatsize (1B)
 
 		vbcount (1I)
-		vbnames[vbcount]
+		vertexbuffernames[vbcount]
 		    namelength (1B)
 		    namechars[namelength]
 		        char (1B)
@@ -373,7 +446,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	flag = buffer_read(b, buffer_u8);
 	
 	// Vertex Format
-	if noformatgiven
+	if (noformatgiven)
 	{
 		format = GetVBMFormat(b, buffer_tell(b));
 	}
@@ -383,8 +456,8 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	#region // Vertex Buffers ==================================================
 	
 	vbcount = buffer_read(b, buffer_u32);
-	outvbm.vbcount = vbcount;
-	array_resize(outvbm.vbnames, vbcount);
+	outvbm.vertexbuffercount += appendcount;
+	array_resize(outvbm.vertexbuffernames, outvbm.vertexbuffercount);
 	
 	// VB Names ------------------------------------------------------------
 	for (var i = 0; i < vbcount; i++) 
@@ -478,7 +551,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze)
 	// Keep Temporary format
 	if (noformatgiven)
 	{
-		outvbm.vbformat = format;
+		outvbm.vertexformat = format;
 		
 		// Apparently formats need to stay in memory...
 		//vertex_format_delete(format);
