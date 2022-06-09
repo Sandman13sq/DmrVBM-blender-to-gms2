@@ -326,7 +326,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     outtrk += Pack('B', flags)     # Flags
     
     outtrk += Pack('f', rd.fps)     # fps
-    outtrk += Pack('I', duration ) # Frame Count
+    outtrk += Pack('I', len(netframes) ) # Frame Count
     outtrk += Pack('I', len(pbones) ) # Num tracks
     outtrk += Pack('f', duration*scale ) # Duration
     outtrk += Pack('f', timestep/(duration*scale) ) # Position Step
@@ -373,12 +373,12 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                 for b in bones.values() if b.name in pbones.keys()
             }
             
-            #for f in netframes:
-            for f in range(actionrange[0], duration+1):
+            for f in netframes:
+            #for f in range(actionrange[0], duration+1):
                 outtrkchunk = b''
                 
-                #sc.frame_set(int(f/pmod))
-                sc.frame_set(int(f))
+                sc.frame_set(int(f/pmod))
+                #sc.frame_set(int(f))
                 dg = context.evaluated_depsgraph_get()
                 evaluatedobj = workingobj.evaluated_get(dg)
                 evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
@@ -408,6 +408,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     
     # Tracks -------------------------------------------------------------------
     outtrk += Pack('B', SpaceID[track_space])
+    
     if track_space != 'NONE':
         print('> Writing Tracks...');
         posesnap = {}
