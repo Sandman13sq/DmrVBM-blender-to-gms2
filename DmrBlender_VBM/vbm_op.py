@@ -479,7 +479,7 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
 
 class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
     """Exports selected objects as one compressed vertex buffer"""
-    bl_idname = "dmr.vbm_export_vb"
+    bl_idname = "vbm.export_vb"
     bl_label = "Export VB"
     bl_options = {'PRESET'}
     
@@ -628,7 +628,7 @@ classlist.append(DMR_OP_ExportVB)
 
 class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
     """Exports selected objects as vbm data"""
-    bl_idname = "dmr.vbm_export_vbm"
+    bl_idname = "vbm.export_vbm"
     bl_label = "Export VBM"
     bl_options = {'PRESET'}
 
@@ -771,7 +771,8 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 if settings.get('deformonly', False):
                     bones = [b for b in workingarmature.bones if b.use_deform]
                 bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
-                
+                for i, b in enumerate(bones):
+                    print([i, b.name])
                 # Write Data
                 out_bone = b''
                 

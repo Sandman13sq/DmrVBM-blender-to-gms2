@@ -345,7 +345,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         if matrix_space != 'EVALUATED':
             evalbones = [x for x in workingobj.pose.bones if x.name in pbonesnames]
             pbonesenumerated = enumerate(pboneslist)
-            pbonesrange = range(0, len(pbonesenumerated))
+            pbonesrange = range(0, len(pboneslist))
             outtrkchunk = b''
             
             for f in netframes:
@@ -494,7 +494,7 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
     
     bake_steps: bpy.props.IntProperty(
         name="Bake Steps", default=1, min=-1,
-        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking.\nSet to -1 for all frames (Good for Pose Libraries)",
+        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking.\nSet to -1 for all frames (Good for Pose Libraries)\nPositive value needed for constraints",
     )
     
     scale: bpy.props.FloatProperty(
@@ -602,7 +602,7 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
 # =============================================================================
 
 class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
-    bl_idname = "dmr.vbm_export_action_tracks"
+    bl_idname = "vbm.export_action_tracks"
     bl_label = "Export Action Tracks"
     bl_description = 'Exports action curves as tracks for Location, Rotation, Scale'
     bl_options = {'PRESET'}
