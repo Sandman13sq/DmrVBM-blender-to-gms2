@@ -654,6 +654,10 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         c.prop(self, 'compression_level')
         
     def execute(self, context):
+        if not os.path.exists(os.path.dirname(self.filepath)):
+            self.report({'WARNING'}, 'Invalid path specified: "%s"' % self.filepath)
+            return {'FINISHED'}
+        
         settings = {
             'matrix_space': self.matrix_space,
             'track_space': self.track_space,

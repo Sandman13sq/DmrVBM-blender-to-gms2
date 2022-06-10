@@ -519,7 +519,7 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         path = self.filepath
         
         if not os.path.exists(os.path.dirname(path)):
-            self.info({'WARNING'}, 'Invalid path specified: "%s"' % path)
+            self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
             return {'FINISHED'}
         
         print('='*80)
@@ -689,7 +689,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         path = self.filepath
         
         if not os.path.exists(os.path.dirname(path)):
-            self.info({'WARNING'}, 'Invalid path specified: "%s"' % path)
+            self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
             return {'FINISHED'}
         
         print('='*80)
