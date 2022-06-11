@@ -12,6 +12,7 @@ tutorialobjects = [
 	obj_tutorial03_shaders,
 	obj_tutorial04_loadingVBM,
 	obj_tutorial05_animation,
+	obj_testscript,
 ];
 
 tutorialnames = [
@@ -21,10 +22,10 @@ tutorialnames = [
 	"Tutorial 3: Using Shaders",
 	"Tutorial 4: Loading VBM",
 	"Tutorial 5: Animation",
-	""
+	"Test Script",
 ];
 
-tutorialindex = 5;
+tutorialindex = 1;
 tutorialactive = instance_create_depth(0, 0, 0, tutorialobjects[tutorialindex]);
 
 lastfullscreen = window_get_fullscreen();
