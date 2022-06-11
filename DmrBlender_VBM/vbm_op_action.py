@@ -1,4 +1,5 @@
 import bpy
+import os
 import struct
 import zlib
 import sys
@@ -468,7 +469,7 @@ classlist = []
 # =============================================================================
 
 class ExportActionSuper(bpy.types.Operator, ExportHelper):
-    armature_object: bpy.props.EnumProperty(
+    armature_name: bpy.props.EnumProperty(
         name='Armature Object', items=Items_GetArmatureObjects, default=0,
         description='Armature object to use for pose matrices'
     )
@@ -584,11 +585,11 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
         if objs:
             for o in objs:
                 if o.animation_data and o.animation_data.action:
-                    self.armature_object = o.name
+                    self.armature_name = o.name
                     self.action_name = o.animation_data.action.name
                     break
                 elif o.pose_library:
-                    self.armature_object = o.name
+                    self.armature_name = o.name
                     self.action_name = o.pose_library.name
             
         context.window_manager.fileselect_add(self)
@@ -601,8 +602,8 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
 
 # =============================================================================
 
-class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
-    bl_idname = "vbm.export_action_tracks"
+class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
+    bl_idname = "vbm.export_trk"
     bl_label = "Export Action Tracks"
     bl_description = 'Exports action curves as tracks for Location, Rotation, Scale'
     bl_options = {'PRESET'}
@@ -614,7 +615,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         layout = self.layout
         
         c = layout.column()
-        c.prop(self, 'armature_object')
+        c.prop(self, 'armature_name')
         c.prop(self, 'action_name')
         
         b = c.box()
@@ -654,8 +655,10 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         c.prop(self, 'compression_level')
         
     def execute(self, context):
-        if not os.path.exists(os.path.dirname(self.filepath)):
-            self.report({'WARNING'}, 'Invalid path specified: "%s"' % self.filepath)
+        path = bpy.path.abspath(self.filepath)
+        
+        if not os.path.exists(os.path.dirname(path)):
+            self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
             return {'FINISHED'}
         
         settings = {
@@ -679,15 +682,15 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
             context.scene.render.simplify_subdivision = 0
         
         # Validation
-        sourceobj = [x for x in bpy.data.objects if x.name == self.armature_object]
+        sourceobj = [x for x in bpy.data.objects if x.name == self.armature_name]
         if not sourceobj:
-            self.info({'WARNING'}, 'No object with name "{}" found'.format(self.armature_object))
+            self.info({'WARNING'}, 'No object with name "{}" found'.format(self.armature_name))
             rd.use_simplify = self.lastsimplify
             rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
         sourceobj = sourceobj[0]
         if sourceobj.type != 'ARMATURE':
-            self.info({'WARNING'}, '"{}" is not armature'.format(self.armature_object))
+            self.info({'WARNING'}, '"{}" is not armature'.format(self.armature_name))
             rd.use_simplify = self.lastsimplify
             rd.simplify_subdivision = self.lastsimplifylevels
             return {'FINISHED'}
@@ -719,7 +722,7 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         if self.compression_level != 0:
             out = zlib.compress(out, level=self.compression_level)
         
-        file = open(self.filepath, 'wb')
+        file = open(path, 'wb')
         file.write(out)
         file.close()
         
@@ -731,14 +734,14 @@ class DMR_OP_VBM_ExportActionTracks(ExportActionSuper, ExportHelper):
         context.view_layer.objects.active = sourceobj
         
         report = 'Data written to "%s". (%.2fKB -> %.2fKB) %.2f%%' % \
-            (self.filepath, oldlen / 1000, len(out) / 1000, 100 * len(out) / oldlen)
+            (path, oldlen / 1000, len(out) / 1000, 100 * len(out) / oldlen)
         print(report)
         self.report({'INFO'}, report)
         
         print('> Complete')
         
         return {'FINISHED'}
-classlist.append(DMR_OP_VBM_ExportActionTracks)
+classlist.append(VBM_OT_ExportTRK)
 
 # =============================================================================
 def register():

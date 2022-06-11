@@ -477,7 +477,7 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
 
 # =============================================================================
 
-class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
+class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
     """Exports selected objects as one compressed vertex buffer"""
     bl_idname = "vbm.export_vb"
     bl_label = "Export VB"
@@ -516,7 +516,7 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         DrawAttributes(self, context)
 
     def execute(self, context):
-        path = self.filepath
+        path = bpy.path.abspath(self.filepath)
         
         if not os.path.exists(os.path.dirname(path)):
             self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
@@ -622,11 +622,11 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             context.view_layer.objects.active = bpy.data.objects[activename]
         
         return {'FINISHED'}
-classlist.append(DMR_OP_ExportVB)
+classlist.append(VBM_OT_ExportVB)
 
 # =============================================================================
 
-class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
+class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
     """Exports selected objects as vbm data"""
     bl_idname = "vbm.export_vbm"
     bl_label = "Export VBM"
@@ -686,7 +686,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         DrawAttributes(self, context)
         
     def execute(self, context):
-        path = self.filepath
+        path = bpy.path.abspath(self.filepath)
         
         if not os.path.exists(os.path.dirname(path)):
             self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
@@ -771,8 +771,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 if settings.get('deformonly', False):
                     bones = [b for b in workingarmature.bones if b.use_deform]
                 bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
-                for i, b in enumerate(bones):
-                    print([i, b.name])
+                
                 # Write Data
                 out_bone = b''
                 
@@ -925,7 +924,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         self.report({'INFO'}, 'VBM export complete')
         
         return {'FINISHED'}
-classlist.append(DMR_OP_ExportVBM)
+classlist.append(VBM_OT_ExportVBM)
 
 # =============================================================================
 

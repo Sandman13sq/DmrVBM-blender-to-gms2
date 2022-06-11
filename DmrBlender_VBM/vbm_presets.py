@@ -27,7 +27,7 @@ def PresetPanic():
             break
         
     if p:
-        for opname in ['dmr.vbm_export_vb', 'dmr.vbm_export_vbm']:
+        for opname in ['vbm.export_vb', 'vbm.export_vbm']:
             dir = p+opname+'/'
             try:
                 os.mkdir(dir)

@@ -13,15 +13,15 @@ def DrawVBMPanel(self, context):
     
     section = layout.box().column()
     section.column().label(text='-- Animations --')
-    section.operator("vbm.export_action_tracks", text='Export Armature Tracks', icon='ACTION')
+    section.operator("vbm.export_trk", text='Export Armature Tracks', icon='ACTION')
 
-class DMR_PT_ExportVBPanel_Scene(bpy.types.Panel):
+class VBM_PT_ExportVBPanel_Scene(bpy.types.Panel):
     bl_label = 'Vertex Buffer Export'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = 'scene'
     draw = DrawVBMPanel
-classlist.append(DMR_PT_ExportVBPanel_Scene)
+classlist.append(VBM_PT_ExportVBPanel_Scene)
 
 # ==================================================================
 
