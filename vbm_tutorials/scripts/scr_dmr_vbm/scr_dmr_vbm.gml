@@ -312,17 +312,14 @@ function OpenVBM(outvbm, path, format=-1, freeze=true, merge=false)
 		if ( !noformatgiven )
 		{
 			var vb = vertex_create_buffer_from_buffer(b, format);
-			if ( vb < 0 )
+			
+			if ( vb >= 0 )
 			{
-				show_debug_message("OpenVBM(): data is normal vb? \"" + path + "\"");
-				return -1;
+				if (freeze) {vertex_freeze(vb);}
+				var name = filename_name(path);
+				outvbm.AddVB(vb, name);
+				return outvbm;
 			}
-			
-			if (freeze) {vertex_freeze(vb);}
-			
-			var name = filename_name(path);
-			outvbm.AddVB(vb, name);
-			return outvbm;
 		}
 		
 		show_debug_message("OpenVBM(): header is invalid \"" + path + "\"");
