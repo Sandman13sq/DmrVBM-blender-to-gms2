@@ -1,8 +1,10 @@
 /// @desc Initializing Variables
 
-// *Camera ----------------------------------------------
-cameraposition = [2, -24, 12];
-cameralookat = [0, 0, 8]; // z value raised to 8
+// Camera ----------------------------------------------
+cameraposition = [0, 0, 8];	// Location to point the camera at
+cameraxrot = -10;	// Camera's vertical rotation
+camerazrot = 10;	// Camera's horizontal rotation
+cameradistance = 24;	// Distance from camera position
 
 fieldofview = 50;
 znear = 1;
@@ -10,11 +12,16 @@ zfar = 100;
 
 matproj = matrix_build_projection_perspective_fov(
 	fieldofview, window_get_width()/window_get_height(), znear, zfar);
-matview = matrix_build_lookat(
-	cameraposition[0], -cameraposition[1], cameraposition[2], 
-	cameralookat[0], -cameralookat[1], cameralookat[2], 
-	0, 0, 1);
+
+matview = matrix_build_identity();
 mattran = matrix_build_identity();
+
+// Camera Controls
+mouseanchor = [mouse_x, mouse_y];
+cameraxrotanchor = cameraxrot;	// Updated when middle mouse is pressed
+camerazrotanchor = camerazrot;	// Updated when middle mouse is pressed
+movingcamera = false;	// Middle mouse or left mouse + alt is held
+movingcameralast = false;	// Used to check when middle has been pressed
 
 // Vertex formats --------------------------------------
 vertex_format_begin();
@@ -30,13 +37,13 @@ vertex_format_add_color();
 vertex_format_add_texcoord();
 vbf_normal = vertex_format_end();
 
-	// *Load Vertex Buffers --------------------------------
-	vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
-	vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
+// *Load Vertex Buffers --------------------------------
+vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
+vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
 
-	// *Open VBM -------------------------------------------
-	vbm_curly = new VBMData();	// Initialize new VBM data
-	OpenVBM(vbm_curly, "curly.vbm", vbf_normal);	// Read in VBM from file
+// *Open VBM -------------------------------------------
+vbm_curly = new VBMData();	// Initialize new VBM data
+OpenVBM(vbm_curly, "curly_normal.vbm", vbf_normal);	// Read in VBM from file
 
 // *Model Controls -------------------------------------
 zrot = 0;
@@ -45,4 +52,6 @@ meshindex = 0;	// Index of current vb
 meshvisible = ~0; // Bit field of all 1's
 
 // Shader Uniforms
-u_style_light = shader_get_uniform(shd_style, "u_lightpos");
+u_style_lightpos = shader_get_uniform(shd_style, "u_lightpos");
+
+event_perform(ev_step, 0);	// Force an update

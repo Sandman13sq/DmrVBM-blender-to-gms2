@@ -27,7 +27,7 @@ matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_style);
 
-shader_set_uniform_f_array(u_style_light, lightpos);
+shader_set_uniform_f_array(u_style_lightpos, lightpos);
 
 if (vbm_curly)
 {

@@ -76,15 +76,24 @@ function VBMData() constructor
 	
 	static BoneCount = function() {return bonecount;}
 	static BoneNames = function() {return bonenames;}
+	static BoneParentIndices = function() {return bone_parentindices;}
+	static BoneLocalMatrices = function() {return bone_localmatricies;}
+	static BoneInverseMatrices = function() {return bone_inversematricies;}
 	static GetBoneName = function(index) {return bonenames[index];}
 	
 	static Format = function() {return vertexformat;}
 	
 	// Methods -------------------------------------------------------------------
 	
-	static LoadVBM = function(path, format=-1, freeze=true)
+	static toString = function()
+	{
+		return "VBMData: {" +string(vertexbuffercount)+" vbs, " + string(bonecount) + " bones" + "}";
+	}
+	
+	static Open = function(path, format=-1, freeze=true)
 	{
 		OpenVBM(self, path, format, freeze);
+		return self;
 	}
 	
 	// Removes all dynamic data from struct
@@ -214,6 +223,7 @@ function VBMData() constructor
 		vertexbuffernamemap[$ vbname] = vertexbuffercount;
 		vertexbuffercount += 1;	
 	}
+	
 }
 
 // Removes allocated memory from vbm

@@ -12,4 +12,4 @@ if (vb_grid >= 0) {vertex_delete_buffer(vb_grid);}
 VBMFree(vbm_curly);
 
 // TRK
-TRKFree(trk);
+TRKFree(trk_wave);
