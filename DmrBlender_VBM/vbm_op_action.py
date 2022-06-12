@@ -162,6 +162,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     range_type = settings["range_type"]
     mattran = settings["mattran"]
     selected_bones_only = settings["selected_bones_only"]
+    marker_frames_only = settings["marker_frames_only"]
     
     vl = context.view_layer
     sc = context.scene
@@ -177,6 +178,12 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         actionrange = (min(positions), max(positions))
     else:
         actionrange = (sc.frame_start, sc.frame_end)
+    
+    if marker_frames_only:
+        actionrange = (
+            max(actionrange[0], min([m.frame for m in sourceaction.pose_markers])),
+            min(actionrange[1], max([m.frame for m in sourceaction.pose_markers]))
+            )
     
     print('> Beginning export for "{}"...'.format(sourceaction.name));
     
@@ -257,11 +264,12 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     
     fcurves = action.fcurves
     netframes = ()
+    markerframes = [m.frame for m in sourceaction.pose_markers]
     
     duration = actionrange[1]-actionrange[0]+1
     pmod = 1.0/duration
     
-    # Parse curves ----------------------------------------------------------------
+    # Parse curve positions ----------------------------------------------------------------
     if bakesteps >= 0:
         for fc in fcurves:
             dp = fc.data_path
@@ -280,14 +288,23 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                 
                 if transformtype >= 0:
                     vecvalueindex = fc.array_index
-                    keyframes = tuple(
-                        [(x.co[0]*pmod, x.co[1]) for x in fc.keyframe_points if (x.co[0] >= actionrange[0] and x.co[0] <= actionrange[1])]
-                        )
+                    
+                    if not marker_frames_only:
+                        keyframes = tuple([
+                            (k.co[0]*pmod, k.co[1]) 
+                            for k in fc.keyframe_points if (k.co[0] >= actionrange[0] and k.co[0] <= actionrange[1])
+                            ])
+                    else:
+                        keyframes = tuple([
+                            (k.co[0]*pmod, k.co[1]) 
+                            for k in fc.keyframe_points if round(k.co[0]) in markerframes
+                            ])
                     bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
-                    netframes += tuple(x[0] for x in keyframes)
+                    netframes += tuple(k[0] for k in keyframes)
     # Fill for all positions ----------------------------------------------------------------
     else:
         poslist = [x for x in range(actionrange[0], actionrange[1]+1)]
+        
         for fc in fcurves:
             dp = fc.data_path
             bonename = dp[dp.find('"')+1:dp.rfind('"')]
@@ -311,8 +328,15 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                     bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
                     netframes += tuple(x[0] for x in keyframes)
     
+    # Only Markers' Frames
+    if marker_frames_only:
+        netframes = tuple([m.frame for m in sourceaction.pose_markers if (m.frame >= actionrange[0] and m.frame <= actionrange[1])])
+        duration = len(netframes)
+    
     netframes = list(set(netframes))
     netframes.sort()
+    
+    print(netframes)
     
     foffset = -actionrange[0]*pmod # Frame offset
     
@@ -350,7 +374,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             outtrkchunk = b''
             
             for f in netframes:
-                sc.frame_set(int(f/pmod))
+                sc.frame_set(round(f/pmod))
                 
                 outtrkchunk += b''.join(
                     Pack('f', x)
@@ -362,9 +386,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                     for x in v
                     )
             outtrk += outtrkchunk
+        
         # Evaluate final transforms
         else:
-            #bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
             bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones.values()}
             bmatlocal = {
                 pbones[b.name]: (bmatrix[boneparents[b]].inverted() @ bmatrix[b] if boneparents[b] else bmatrix[b])
@@ -376,11 +400,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             }
             
             for f in netframes:
-            #for f in range(actionrange[0], duration+1):
                 outtrkchunk = b''
                 
-                sc.frame_set(int(f/pmod))
-                #sc.frame_set(int(f))
+                sc.frame_set(round(f))
                 dg = context.evaluated_depsgraph_get()
                 evaluatedobj = workingobj.evaluated_get(dg)
                 evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
@@ -435,7 +457,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                 for f in vecpositions:
                     # Generate pose snap of matrices
                     if f not in posesnap:
-                        sc.frame_set(int(f/pmod))
+                        sc.frame_set(round(f/pmod))
                         dg = context.evaluated_depsgraph_get()
                         evaluatedobj = workingobj.evaluated_get(dg)
                         evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
@@ -452,11 +474,22 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     # Markers ----------------------------------------------------------------
     if write_marker_names:
         print('> Writing Markers...');
-        markers = [(x.name, x.frame*scale*pmod) for x in sourceaction.pose_markers]
+        
+        if marker_frames_only:
+            markers = [(x.name, i/(duration-1.0)) for i,x in enumerate(sourceaction.pose_markers)]
+        else:
+            markers = [(x.name, (x.frame-actionrange[0])*scale/(duration-1.0)) for x in sourceaction.pose_markers]
         #markers.sort(key=lambda x: x[0])
+        print('actionrange', actionrange)
+        print('duration', duration)
+        print('len(netframes)', len(netframes))
+        print('netframes', netframes)
+        print('pmod', pmod)
+        print('markers', markers)
+        
         outtrk += Pack('I', len(markers))
         outtrk += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
-        outtrk += b''.join([Pack('f', x[1]+foffset) for x in markers]) # Frames
+        outtrk += b''.join([Pack('f', x[1]) for x in markers]) # Frames
     else:
         outtrk += Pack('I', 0)
     
@@ -487,6 +520,11 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
             ('CUSTOM', 'Custom Range', 'Define custom frame range'),
         )
     )
+    
+    marker_frames_only : bpy.props.BoolProperty(
+        name='Marker Frames Only', default=False,
+        description="Export pose marker frames only.\n(Good for pose libraries)"
+        )
     
     frame_range: bpy.props.IntVectorProperty(
         name='Frame Range', size=2, default=(1, 250),
@@ -630,6 +668,7 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
             r.prop(context.scene, 'frame_end', text='')
         
         cc = b.column()
+        cc.prop(self, 'marker_frames_only')
         cc.prop(self, 'bake_steps')
         r = cc.row(align=1)
         r.prop(self, 'scale', text='Scale')
@@ -672,7 +711,8 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
             'range_type': self.range_type,   
             'mattran': GetCorrectiveMatrix(self, context),
             'selected_bones_only': self.selected_bones_only,
-            'frame_range': self.frame_range
+            'frame_range': self.frame_range,
+            'marker_frames_only': self.marker_frames_only,
         }
         
         if self.lastsimplify == -1:
