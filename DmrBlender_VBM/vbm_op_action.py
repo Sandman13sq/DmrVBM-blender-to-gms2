@@ -336,8 +336,6 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     netframes = list(set(netframes))
     netframes.sort()
     
-    print(netframes)
-    
     foffset = -actionrange[0]*pmod # Frame offset
     
     dg = context.evaluated_depsgraph_get()
@@ -479,13 +477,6 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             markers = [(x.name, i/(duration-1.0)) for i,x in enumerate(sourceaction.pose_markers)]
         else:
             markers = [(x.name, (x.frame-actionrange[0])*scale/(duration-1.0)) for x in sourceaction.pose_markers]
-        #markers.sort(key=lambda x: x[0])
-        print('actionrange', actionrange)
-        print('duration', duration)
-        print('len(netframes)', len(netframes))
-        print('netframes', netframes)
-        print('pmod', pmod)
-        print('markers', markers)
         
         outtrk += Pack('I', len(markers))
         outtrk += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
