@@ -10,7 +10,7 @@ playbackposition = (playbackposition+trk_wave.CalculateTimeStep(game_get_speed(g
 if (playbackmode == 0)
 {
 	// Use matrices for given frame
-	matpose = trk_wave.framematrices[playbackposition*trk_wave.framecount];
+	matpose = trk_wave.GetFrameMatricesByPosition(playbackposition);
 }
 // Evaluate matrices on the fly
 else
@@ -67,8 +67,8 @@ if (mouse_wheel_down()) {cameradistance *= 1.1;}
 // Set mouse anchors
 if (movingcamera && (movingcamera != movingcameralast))	// In this frame, movingcamera JUST went active
 {
-	mouseanchor[0] = mouse_x;
-	mouseanchor[1] = mouse_y;
+	mouseanchor[0] = window_mouse_get_x();
+	mouseanchor[1] = window_mouse_get_y();
 	cameraxrotanchor = cameraxrot;
 	camerazrotanchor = camerazrot;
 }
@@ -76,8 +76,8 @@ if (movingcamera && (movingcamera != movingcameralast))	// In this frame, moving
 // Move camera with mouse
 if (movingcamera)
 {
-	camerazrot = camerazrotanchor - (mouse_x-mouseanchor[0]) * _spd;
-	cameraxrot = cameraxrotanchor - (mouse_y-mouseanchor[1]) * _spd;
+	camerazrot = camerazrotanchor - (window_mouse_get_x()-mouseanchor[0]) * _spd;
+	cameraxrot = cameraxrotanchor - (window_mouse_get_y()-mouseanchor[1]) * _spd;
 }
 
 movingcameralast = movingcamera;

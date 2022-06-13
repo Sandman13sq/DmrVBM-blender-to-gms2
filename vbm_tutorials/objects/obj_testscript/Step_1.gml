@@ -12,7 +12,7 @@ if (mouse_wheel_down()) {viewdistance *= _wheelspeed;}
 // Set anchors when middle mouse is pressed
 if (middledown && middledown != middlelast)
 {
-	mouseanchor = [mouse_x, mouse_y];
+	mouseanchor = [window_mouse_get_x(), window_mouse_get_y()];
 	viewzrotanchor = viewzrot;
 	viewxrotanchor = viewxrot;
 	array_copy(viewlocationanchor, 0, viewlocation, 0, 3);
@@ -25,8 +25,8 @@ if (middledown)
 	if (keyboard_check(vk_shift))
 	{
 		var _spd = viewdistance * 0.001;
-		var _mx = (mouse_x-mouseanchor[0]) * _spd;
-		var _my = (mouse_y-mouseanchor[1]) * _spd;
+		var _mx = (window_mouse_get_x()-mouseanchor[0]) * _spd;
+		var _my = (window_mouse_get_y()-mouseanchor[1]) * _spd;
 		viewlocation[0] = viewlocationanchor[0] + viewright[0] * _mx + viewup[0] * _my;
 		viewlocation[1] = viewlocationanchor[1] + viewright[1] * _mx + viewup[1] * _my;
 		viewlocation[2] = viewlocationanchor[2] + viewright[2] * _mx + viewup[2] * _my;
@@ -35,8 +35,8 @@ if (middledown)
 	else
 	{
 		var _spd = 0.5;
-		viewzrot = viewzrotanchor + (mouse_x-mouseanchor[0]) * _spd;
-		viewxrot = viewxrotanchor + (mouse_y-mouseanchor[1]) * _spd;
+		viewzrot = viewzrotanchor + (window_mouse_get_x()-mouseanchor[0]) * _spd;
+		viewxrot = viewxrotanchor + (window_mouse_get_y()-mouseanchor[1]) * _spd;
 	}
 }
 
@@ -77,8 +77,6 @@ if (keyboard_check_pressed(ord("P")))
 {
 	matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 }
-
-//viewzrot += 0.5;
 
 // Playback
 playbackactive ^= keyboard_check_pressed(vk_space);

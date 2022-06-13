@@ -17,7 +17,7 @@ matview = matrix_build_identity();
 mattran = matrix_build_identity();
 
 // Camera Controls
-mouseanchor = [mouse_x, mouse_y];
+mouseanchor = [window_mouse_get_x(), window_mouse_get_y()];
 cameraxrotanchor = cameraxrot;	// Updated when middle mouse is pressed
 camerazrotanchor = camerazrot;	// Updated when middle mouse is pressed
 movingcamera = false;	// Middle mouse or left mouse + alt is held
