@@ -42,6 +42,18 @@ if (middledown)
 
 middlelast = middledown;
 
+// Reset Camera
+if (keyboard_check_pressed(vk_numpad0) || keyboard_check_pressed(ord("C")))
+{
+	viewlocation = [0,0,10];
+	viewforward = [0,-1,0];
+	viewright = [1,0,0];
+	viewup = [0,0,1];
+	viewdistance = 24;
+	viewzrot = 0;
+	viewxrot = 10;
+}
+
 // Pose controls
 if (keyboard_check_pressed(ord("M")))
 {
@@ -53,10 +65,10 @@ var lev = keyboard_check_pressed(vk_right) - keyboard_check_pressed(vk_left);
 if (lev != 0)
 {
 	poseindex += lev;
-	if (poseindex < 0) {poseindex = trk_poses.framecount-1;}
-	else if (poseindex >= trk_poses.framecount) {poseindex = 0;}
+	if (poseindex < 0) {poseindex = trk_poses.MarkerCount()-1;}
+	else if (poseindex >= trk_poses.MarkerCount()) {poseindex = 0;}
 	
-	matpose = trk_poses.framematrices[poseindex];
+	matpose = trk_poses.GetFrameMatricesMarker(poseindex);
 	
 	playbackactive = false;
 }
@@ -66,23 +78,7 @@ if (keyboard_check_pressed(ord("P")))
 	matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 }
 
-
-
-if (keyboard_check_pressed(vk_numpad0))
-|| (keyboard_check_pressed(ord("C")))
-{
-	viewlocation = [0,0,10];
-	viewforward = [0,-1,0];
-	viewright = [1,0,0];
-	viewup = [0,0,1];
-	viewdistance = 24;
-	viewzrot = 0;
-	viewxrot = 10;
-}
-
 //viewzrot += 0.5;
-
-
 
 // Playback
 playbackactive ^= keyboard_check_pressed(vk_space);
@@ -111,9 +107,9 @@ if (playbackactive)
 		);
 	
 	CalculateAnimationPose(
-		vbm_curly_exportlist.BoneParentIndices(),
-		vbm_curly_exportlist.BoneLocalMatrices(),
-		vbm_curly_exportlist.BoneInverseMatrices(),
+		vbm_curly_complete.BoneParentIndices(),
+		vbm_curly_complete.BoneLocalMatrices(),
+		vbm_curly_complete.BoneInverseMatrices(),
 		Mat4ArrayPartition(trk_gun.GetFrameMatricesPos(playbackposition)),
 		matpose2
 		);

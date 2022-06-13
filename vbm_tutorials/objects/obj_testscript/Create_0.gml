@@ -79,10 +79,16 @@ vbf_rigged = vertex_format_end();
 // Shader Uniforms -------------------------------------------------------------
 u_normal_lightpos = shader_get_uniform(shd_normal, "u_lightpos");
 u_style_lightpos = shader_get_uniform(shd_style, "u_lightpos");
-u_principled_light = shader_get_uniform(shd_principled, "u_lightpos");
-u_principled_matpose = shader_get_uniform(shd_principled, "u_matpose");	// Handler for pose matrix array
+u_rigged_lightpos = shader_get_uniform(shd_rigged, "u_lightpos");
+u_rigged_matpose = shader_get_uniform(shd_rigged, "u_matpose");	// Handler for pose matrix array
+u_complete_lightpos = shader_get_uniform(shd_complete, "u_lightpos");
+u_complete_matpose = shader_get_uniform(shd_complete, "u_matpose");	// Handler for pose matrix array
+u_complete_normalmap = shader_get_sampler_index(shd_complete, "u_normalmap");
 
 // VBs =========================================================================
+
+var dir = "D:/GitHub/DmrVBM/vbm_tutorials/datafiles/";
+if (!directory_exists(dir)) {dir = "";}
 
 show_debug_message("TEST START =====================================================");
 
@@ -90,49 +96,49 @@ Report("== OpenVertexBuffer() ==");
 
 // Invalid path
 time = get_timer();
-vb_wrongpath = OpenVertexBuffer("test/???.vb", vbf_simple);
+vb_wrongpath = OpenVertexBuffer(dir+"test/???.vb", vbf_simple);
 time = get_timer()-time;
 Report("Invalid VB path: "+string(time)+"ms, return: "+string(vb_wrongpath));
 
 // Wrong File Type
 time = get_timer();
-vb_notcurly = OpenVertexBuffer("test/notcurly.png", vbf_simple);
+vb_notcurly = OpenVertexBuffer(dir+"test/notcurly.png", vbf_simple);
 time = get_timer()-time;
 Report("Wrong File Type: "+string(time)+"ms, return: "+string(vb_notcurly));
 
 // Uncompressed buffer
 time = get_timer();
-vb_curly_nocompression = OpenVertexBuffer("test/curly_comp0.vb", vbf_simple);
+vb_curly_nocompression = OpenVertexBuffer(dir+"test/curly_comp0.vb", vbf_simple);
 time = get_timer()-time;
 Report("Non-Compressed VB: "+string(time)+"ms, return: "+string(vb_curly_nocompression));
 
 // Compressed buffer
 time = get_timer();
-vb_curly_fullcompression = OpenVertexBuffer("test/curly_comp9.vb", vbf_simple);
+vb_curly_fullcompression = OpenVertexBuffer(dir+"test/curly_comp9.vb", vbf_simple);
 time = get_timer()-time;
 Report("Compressed VB: "+string(time)+"ms, return: "+string(vb_curly_fullcompression));
 
 // Wrong Format
 time = get_timer();
-vb_curly_floatcolors = OpenVertexBuffer("test/curly_floatcolors.vb", vbf_simple);
+vb_curly_floatcolors = OpenVertexBuffer(dir+"test/curly_floatcolors.vb", vbf_simple);
 time = get_timer()-time;
 Report("Wrong Format VB: "+string(time)+"ms, return: "+string(vb_curly_floatcolors));
 
 // Edges Only
 time = get_timer();
-vb_curly_edgesonly = OpenVertexBuffer("test/curly_edgesonly.vb", vbf_simple);
+vb_curly_edgesonly = OpenVertexBuffer(dir+"test/curly_edgesonly.vb", vbf_simple);
 time = get_timer()-time;
 Report("Edges Only VB: "+string(time)+"ms, return: "+string(vb_curly_edgesonly));
 
 // Scaled
 time = get_timer();
-vb_curly_scaled = OpenVertexBuffer("test/curly_scaled.vb", vbf_normal);
+vb_curly_scaled = OpenVertexBuffer(dir+"test/curly_scaled.vb", vbf_normal);
 time = get_timer()-time;
 Report("Scaled VB: "+string(time)+"ms, return: "+string(vb_curly_scaled));
 
 // Instancing
 time = get_timer();
-vb_instanced = OpenVertexBuffer("test/instanced.vb", vbf_normal);
+vb_instanced = OpenVertexBuffer(dir+"test/instanced.vb", vbf_normal);
 time = get_timer()-time;
 Report("Instanced VB: "+string(time)+"ms, return: "+string(vb_instanced));
 
@@ -145,74 +151,73 @@ Report("\n== VBMs() ==");
 // Invalid path
 time = get_timer();
 vbm_wrongpath = new VBMData();
-vbm_wrongpath.Open("test/???.vbm");
+vbm_wrongpath.Open(dir+"test/???.vbm");
 time = get_timer()-time;
 Report("Invalid VBM path: "+string(time)+"ms, return: "+string(vbm_wrongpath));
 
 // Wrong file type
 time = get_timer();
 vbm_wrongfiletype = new VBMData();
-vbm_wrongfiletype.Open("test/notcurly.png");
+vbm_wrongfiletype.Open(dir+"test/notcurly.png");
 time = get_timer()-time;
 Report("Wrong Filetype: "+string(time)+"ms, return: "+string(vbm_wrongfiletype));
 
 // Uncompressed
 time = get_timer();
 vbm_curly_uncompressed = new VBMData();
-vbm_curly_uncompressed.Open("test/curly_uncompressed.vbm");
+vbm_curly_uncompressed.Open(dir+"test/curly_uncompressed.vbm");
 time = get_timer()-time;
 Report("Uncompressed: "+string(time)+"ms, return: "+string(vbm_curly_uncompressed));
 
 // Compressed
 time = get_timer();
 vbm_curly_compressed = new VBMData();
-vbm_curly_compressed.Open("test/curly_compressed.vbm");
+vbm_curly_compressed.Open(dir+"test/curly_compressed.vbm");
 time = get_timer()-time;
 Report("Compressed: "+string(time)+"ms, return: "+string(vbm_curly_compressed));
 
 // Vertex Buffer, no format given (Not VBM)
 time = get_timer();
 vbm_curly_vb = new VBMData();
-vbm_curly_vb.Open("test/curly_comp0.vb");
+vbm_curly_vb.Open(dir+"test/curly_comp0.vb");
 time = get_timer()-time;
 Report("Vertex Buffer, No Format Given (Not VBM): "+string(time)+"ms, return: "+string(vbm_curly_vb));
 
 // Format Given
 time = get_timer();
-vbm_curly_vb.Open("test/curly_vb.vbm", vbf_normal);
+vbm_curly_vb.Open(dir+"test/curly_vb.vbm", vbf_normal);
 time = get_timer()-time;
 Report("Vertex Buffer (Not VBM): "+string(time)+"ms, return: "+string(vbm_curly_vb));
 
 // Export List
 time = get_timer();
 vbm_curly_exportlist = new VBMData();
-vbm_curly_exportlist.Open("test/curly_exportlist.vbm", vbf_rigged, true, true);
+vbm_curly_exportlist.Open(dir+"test/curly_exportlist.vbm", vbf_rigged, true, true);
 time = get_timer()-time;
 Report("Export List: "+string(time)+"ms, return: "+string(vbm_curly_exportlist));
 
-// More than 255 Bones
+// Tangents
 time = get_timer();
-vbm_curly_surplusbones = new VBMData();
-vbm_curly_surplusbones.Open("test/curly_surplusbones.vbm");
+vbm_curly_complete = new VBMData();
+vbm_curly_complete.Open(dir+"test/curly_complete.vbm");
 time = get_timer()-time;
-Report("Surplus Bones: "+string(time)+"ms, return: "+string(vbm_curly_surplusbones));
+Report("Complete: "+string(time)+"ms, return: "+string(vbm_curly_complete));
 
 // Instanced
 time = get_timer();
 vbm_instanced = new VBMData();
-vbm_instanced.Open("test/instanced.vbm");
+vbm_instanced.Open(dir+"test/instanced.vbm");
 time = get_timer()-time;
 Report("Instanced: "+string(time)+"ms, return: "+string(vbm_instanced));
 
-vbm_curly = new VBMData();
-OpenVBM(vbm_curly, "test/rigged_deformonly.vbm", vbf_rigged, true, true);	// VBM with bone index and weight attributes
+normalmap = sprite_add(dir+"test/curly-def-normal.png", 1, 0, 0, 0, 0);
 
 // TRKs -------------------------------------------------------------------------
 trk_poses = new TRKData();
-OpenTRK(trk_poses, "test/poses-all.trk");
+OpenTRK(trk_poses, dir+"test/poses-all.trk");
 
 trk_gun = new TRKData();
-OpenTRK(trk_gun, "test/gun.trk");
+OpenTRK(trk_gun, dir+"test/gun.trk");
 
 poseindex = 0;
 playbackactive = true;
@@ -222,7 +227,6 @@ localpose = Mat4Array(VBM_MATPOSEMAX);
 matpose = trk_poses.framematrices[poseindex];
 
 lightpos = [80, 320, 480];
+lightpos = [2000, 4000, 3000];
 
 show_debug_message("TEST END =====================================================");
-
-//show_message(report);

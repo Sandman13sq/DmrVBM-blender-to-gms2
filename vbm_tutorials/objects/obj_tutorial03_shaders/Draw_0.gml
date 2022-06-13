@@ -27,19 +27,19 @@ matrix_set(matrix_world, mattran); // Model transform matrix
 
 if (shadermode == 0) // Draw simple model
 {
-	if (vb_shinonoko_simple >= 0)
+	if (vb_curly_simple >= 0)
 	{
 		//shader_set(shd_simple);
-		vertex_submit(vb_shinonoko_simple, pr_trianglelist, -1);
+		vertex_submit(vb_curly_simple, pr_trianglelist, -1);
 	}
 }
 else // Draw model with normals
 {
-	if (vb_shinonoko_normal >= 0)
+	if (vb_curly_normal >= 0)
 	{
 		shader_set(shd_normal);	// Switch to shader with vertex normal attributes
 		shader_set_uniform_f_array(u_normal_lightpos, lightpos); // Set light position for shader
-		vertex_submit(vb_shinonoko_normal, pr_trianglelist, -1);
+		vertex_submit(vb_curly_normal, pr_trianglelist, -1);
 	}
 }
 

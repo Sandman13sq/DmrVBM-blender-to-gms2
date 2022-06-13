@@ -6,9 +6,9 @@ cameraxrot = -10;	// Camera's vertical rotation
 camerazrot = 10;	// Camera's horizontal rotation
 cameradistance = 24;	// Distance from camera position
 
-fieldofview = 50;
-znear = 1;
-zfar = 100;
+fieldofview = 50;	// Angle of vision
+znear = 1;	// Clipping distance for close triangles
+zfar = 100;	// Clipping distance for far triangles
 
 matproj = matrix_build_projection_perspective_fov(
 	fieldofview, window_get_width()/window_get_height(), znear, zfar);
@@ -40,8 +40,8 @@ vbf_normal = vertex_format_end();	// For shd_normal
 // *Load Vertex Buffers --------------------------------
 vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
 vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
-vb_shinonoko_simple = OpenVertexBuffer("curly_simple.vb", vbf_simple);
-vb_shinonoko_normal = OpenVertexBuffer("curly_normal.vb", vbf_normal);
+vb_curly_simple = OpenVertexBuffer("curly_simple.vb", vbf_simple);
+vb_curly_normal = OpenVertexBuffer("curly_normal.vb", vbf_normal);
 
 // *Model Controls
 zrot = 0;	// Model rotation

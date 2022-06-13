@@ -6,9 +6,9 @@ cameraxrot = -10;	// Camera's vertical rotation
 camerazrot = 10;	// Camera's horizontal rotation
 cameradistance = 24;	// Distance from camera position
 
-fieldofview = 50;
-znear = 1;
-zfar = 100;
+fieldofview = 50;	// Angle of vision
+znear = 1;	// Clipping distance for close triangles
+zfar = 100;	// Clipping distance for far triangles
 
 matproj = matrix_build_projection_perspective_fov(
 	fieldofview, window_get_width()/window_get_height(), znear, zfar);

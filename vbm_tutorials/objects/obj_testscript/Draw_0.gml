@@ -31,17 +31,14 @@ if (mode == 0)
 {
 	// Draw vertex buffers (Simple)
 	shader_set(shd_style);
-	shader_set_uniform_f_array(u_style_lightpos, [8, 32, 48]);
+	shader_set_uniform_f_array(u_style_lightpos, lightpos);
 	
-	matrix_set(matrix_world, Mat4());
+	matrix_set(matrix_world, Mat4Translate(x, y, 0));
 	vertex_submit(vb_instanced, pr_trianglelist, -1);
 
 	matrix_set(matrix_world, Mat4Translate(x+0, y-sep, 0));
 	vertex_submit(vb_curly_scaled, pr_trianglelist, -1);
 	DrawModelDesc("Scaled");
-	
-	//shader_set(shd_normal);
-	//shader_set_uniform_f_array(u_normal_lightpos, [8, 32, 48]);
 	
 	shader_set(shd_simple);
 	
@@ -53,11 +50,11 @@ if (mode == 0)
 	vertex_submit(vb_curly_fullcompression, pr_trianglelist, -1);
 	DrawModelDesc("Full Compression");
 
-	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
+	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 1));
 	vertex_submit(vb_curly_floatcolors, pr_trianglelist, -1);
 	DrawModelDesc("Float Colors");
 
-	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
+	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 1));
 	vertex_submit(vb_curly_edgesonly, pr_linelist, -1);
 	DrawModelDesc("Edges Only");
 }
@@ -65,13 +62,13 @@ if (mode == 0)
 else if (mode == 1)
 {
 	shader_set(shd_normal);
-	shader_set_uniform_f_array(u_normal_lightpos, [80, 320, 480]);
+	shader_set_uniform_f_array(u_normal_lightpos, lightpos);
 	
 	matrix_set(matrix_world, Mat4Translate(x, y, 0));
 	vbm_instanced.Submit();
 	
 	shader_set(shd_style);
-	shader_set_uniform_f_array(u_style_lightpos, [80, 320, 480]);
+	shader_set_uniform_f_array(u_style_lightpos, lightpos);
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
 	vbm_curly_uncompressed.Submit();
@@ -84,30 +81,32 @@ else if (mode == 1)
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
 	vbm_curly_vb.Submit();
 	DrawModelDesc("VB (Not VBM)");
-	
 }
+// Animations
 else
 {
 	shader_set(shd_normal);
-	shader_set_uniform_f_array(u_normal_lightpos, [80, 320, 480]);
+	shader_set_uniform_f_array(u_normal_lightpos, lightpos);
 	
 	matrix_set(matrix_world, Mat4Translate(x, y, 0));
 	vbm_instanced.Submit();
 	
-	shader_set(shd_principled);
-	shader_set_uniform_f_array(u_principled_light, [80, 320, 480]);
-	
-	shader_set_uniform_f_array(u_principled_matpose, matpose);
+	shader_set(shd_rigged);
+	shader_set_uniform_f_array(u_rigged_lightpos, lightpos);
+	shader_set_uniform_f_array(u_rigged_matpose, matpose);
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
 	vbm_curly_exportlist.Submit();
 	DrawModelDesc("Export List");
 	
-	shader_set_uniform_f_array(u_principled_matpose, matpose2);
+	shader_set(shd_complete);
+	shader_set_uniform_f_array(u_complete_lightpos, lightpos);
+	shader_set_uniform_f_array(u_complete_matpose, matpose2);
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
-	vbm_curly_surplusbones.Submit();
-	DrawModelDesc("Surplus Bones");
+	texture_set_stage(u_complete_normalmap, sprite_get_texture(normalmap, 0));
+	vbm_curly_complete.Submit();
+	DrawModelDesc("Complete");
 }
 
 shader_reset();
