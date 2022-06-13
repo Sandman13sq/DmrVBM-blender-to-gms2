@@ -59,7 +59,11 @@ function TRKData() constructor
 	static FrameCount = function() {return framecount;}
 	static FrameMatrices = function() {return framematrices;}
 	static GetFrameMatrices = function(index) {return framematrices[index];}
-	static GetFrameMatricesPos = function(pos) {return framematrices[clamp(pos*framecount, 0, framecount-1)];}
+	static GetFrameMatricesByPosition = function(pos) {return framematrices[clamp(pos*framecount, 0, framecount-1)];}
+	static GetFrameMatricesByMarker = function(marker_index) 
+	{
+		return framematrices[round(markerpositions[clamp(marker_index, 0, markercount-1)]*(framecount-1))];
+	}
 	
 	static Tracks = function() {return tracks;}
 	static TrackCount = function() {return trackcount;}

@@ -68,7 +68,7 @@ if (lev != 0)
 	if (poseindex < 0) {poseindex = trk_poses.MarkerCount()-1;}
 	else if (poseindex >= trk_poses.MarkerCount()) {poseindex = 0;}
 	
-	matpose = trk_poses.GetFrameMatricesMarker(poseindex);
+	matpose = trk_poses.GetFrameMatricesByMarker(poseindex);
 	
 	playbackactive = false;
 }
@@ -110,7 +110,7 @@ if (playbackactive)
 		vbm_curly_complete.BoneParentIndices(),
 		vbm_curly_complete.BoneLocalMatrices(),
 		vbm_curly_complete.BoneInverseMatrices(),
-		Mat4ArrayPartition(trk_gun.GetFrameMatricesPos(playbackposition)),
+		Mat4ArrayPartition(trk_gun.GetFrameMatricesByPosition(playbackposition)),
 		matpose2
 		);
 }
