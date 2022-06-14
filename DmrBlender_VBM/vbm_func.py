@@ -137,46 +137,46 @@ Items_ForwardAxis = (
 # ---------------------------------------------------------------------------------------
 
 def Items_UVLayers(self, context):
-    items = []
-    items.append( (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" in ==Show More Options==') )
-    items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
-    items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') )
+    items = [
+        (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" in ==Show More Options==', 'PREFERENCES', 0),
+        (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object', 'RESTRICT_RENDER_OFF', 1),
+        (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object', 'RESTRICT_SELECT_OFF', 2),
+    ]
     
-    objects = [x for x in context.selected_objects if (x and x.type == 'MESH')]
-    lyrnames = []
+    lyrnames = [
+        lyr.name
+        for obj in context.scene.objects if (obj and obj.type == 'MESH')
+        for lyr in obj.data.uv_layers
+    ]
     
-    for obj in objects:
-        for lyr in obj.data.uv_layers:
-            lyrnames.append(lyr.name)
-    
+    # Sort by number of entries
     lyrnames.sort(key=lambda x: lyrnames.count(x))
     lyrnames = list(set(lyrnames))
     
-    for i,name in enumerate(lyrnames):
-        items.append( (name, name, 'Use "%s" layer for uv data' % name, 'GROUP_UVS', i+3) )
+    items += [(name, name, 'Use "%s" layer for color data' % name, 'GROUP_UVS', i+3) for i,name in enumerate(lyrnames)]
     
     return items
 
 # --------------------------------------------------------------------------------------------------
 
 def Items_VCLayers(self, context):
-    items = []
-    items.append( (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" in ==Show More Options==') )
-    items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
-    items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') )
+    items = [
+        (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" in ==Show More Options==', 'PREFERENCES', 0),
+        (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object', 'RESTRICT_RENDER_OFF', 1),
+        (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object', 'RESTRICT_SELECT_OFF', 2),
+    ]
     
-    objects = [x for x in context.selected_objects if (x and x.type == 'MESH')]
-    lyrnames = []
+    lyrnames = [
+        lyr.name
+        for obj in context.scene.objects if (obj and obj.type == 'MESH')
+        for lyr in obj.data.vertex_colors
+    ]
     
-    for obj in objects:
-        for lyr in obj.data.vertex_colors:
-            lyrnames.append(lyr.name)
-    
+    # Sort by number of entries
     lyrnames.sort(key=lambda x: lyrnames.count(x))
     lyrnames = list(set(lyrnames))
     
-    for i,name in enumerate(lyrnames):
-        items.append( (name, name, 'Use "%s" layer for color data' % name, 'GROUP_VCOL', i+3) )
+    items += [(name, name, 'Use "%s" layer for color data' % name, 'GROUP_VCOL', i+3) for i,name in enumerate(lyrnames)]
     
     return items
 
