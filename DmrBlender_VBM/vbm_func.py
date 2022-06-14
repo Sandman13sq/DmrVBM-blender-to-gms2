@@ -35,7 +35,7 @@ Items_FloatChoice = (
     ('e', 'Binary16 (16bit)', 'Write floating point data using binary16 (16 bits)'),
 )
 
-VBF_000 = ''
+VBF_000 = '0'
 VBF_POS = 'POSITION'
 VBF_UVS = 'UV'
 VBF_NOR = 'NORMAL'
@@ -241,6 +241,7 @@ def GetVBData(
     settingsmatrix = settings.get('matrix', mathutils.Matrix())
     FCODE = settings.get('floattype', 'f')
     colordefault = settings.get('defaultcolor', (1.0, 1.0, 1.0, 1.0))
+    attribsizes = settings.get('attribsizes', [3]+[4]*7)
     
     process_groups = True if sum([1 for k in format if k in [VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]]) > 0 else False
     process_tangents = True if sum([1 for k in format if k in [VBF_TAN, VBF_BTN]]) > 0 else False
@@ -577,17 +578,17 @@ def GetVBData(
         PrintStatus(' Creating byte data...')
         
         # Triangles
-        def out_pos(out, attribindex): out.append(Pack(3*FCODE, *vmeta[0][:3]));
-        def out_nor(out, attribindex): out.append(Pack(3*FCODE, *lmeta[0][:3]));
-        def out_tan(out, attribindex): out.append(Pack(3*FCODE, *lmeta[1][:3]));
-        def out_btn(out, attribindex): out.append(Pack(3*FCODE, *lmeta[2][:3]));
-        def out_tex(out, attribindex): out.append(Pack(2*FCODE, *lmeta[3][uvattriblyr[attribindex]]));
-        def out_col(out, attribindex): out.append(Pack(4*FCODE, *lmeta[4][vcattriblyr[attribindex]]));
-        def out_rgb(out, attribindex): out.append(Pack('4B', *lmeta[5][vcattriblyr[attribindex]]));
-        def out_bon(out, attribindex): out.append(Pack(4*FCODE, *vmeta[1][:4]));
-        def out_boi(out, attribindex): out.append(Pack('4B', *vmeta[2]));
-        def out_wei(out, attribindex): out.append(Pack(4*FCODE, *vmeta[3][:4]));
-        def out_web(out, attribindex): out.append(Pack('4B', *vmeta[4]));
+        def out_pos(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[0][:size]));
+        def out_nor(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[0][:3]));
+        def out_tan(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[1][:3]));
+        def out_btn(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[2][:3]));
+        def out_tex(out, attribindex, size): out.append(Pack(2*FCODE, *lmeta[3][uvattriblyr[attribindex]]));
+        def out_col(out, attribindex, size): out.append(Pack(size*FCODE, *lmeta[4][vcattriblyr[attribindex]][:size]));
+        def out_rgb(out, attribindex, size): out.append(Pack(size*'B', *lmeta[5][vcattriblyr[attribindex]][:size]));
+        def out_bon(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[1][:4][:size]));
+        def out_boi(out, attribindex, size): out.append(Pack(size*'B', *vmeta[2][:size]));
+        def out_wei(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[3][:4][:size]));
+        def out_web(out, attribindex, size): out.append(Pack(size*'B', *vmeta[4][:size]));
         
         outwritemap = {
             VBF_POS: out_pos, 
@@ -621,7 +622,7 @@ def GetVBData(
                 vmeta = vertexmeta[p[3][li]]
                 lmeta = loopmeta[p[4][li]]
                 
-                [outwritemap[attribkey](outblock, attribindex) for attribindex, attribkey in format_enumerated]
+                [outwritemap[attribkey](outblock, attribindex, attribsizes[attribindex]) for attribindex, attribkey in format_enumerated]
             materialvbytes[matkey] += outblock
         
         t = time.time()-t

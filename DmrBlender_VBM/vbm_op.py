@@ -158,16 +158,25 @@ def DrawAttributes(self, context):
         
         r = c.row(align=1)
         r.prop(self, 'vbf%d' % i, text='')
-        r.prop(self, 'moveattribup%d' % i, text='', icon='TRIA_UP')
-        r.prop(self, 'moveattribdown%d' % i, text='', icon='TRIA_DOWN')
         
         vbfkey = getattr(self, 'vbf%d' % i)
         sizelist += [VBFSize[vbfkey]]
         
+        # Attribute Size
+        if vbfkey in [VBF_POS, VBF_COL, VBF_RGB, VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]:
+            rr = r.row(align=1)
+            rr.scale_x = 0.4
+            rr.prop(self, 'attribsize%d' % i, text='', icon_only=True)
+        
+        r.prop(self, 'moveattribup%d' % i, text='', icon='TRIA_UP')
+        r.prop(self, 'moveattribdown%d' % i, text='', icon='TRIA_DOWN')
+        
+        # Vertex Colors
         if vbfkey == VBF_COL or vbfkey == VBF_RGB:
             split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'vclyr%d' % i, text='Layer')
+        # UVs
         elif vbfkey == VBF_UVS:
             split = c.split(factor=0.16)
             split.label(text='')
@@ -223,6 +232,25 @@ def GetCorrectiveMatrix(self, context):
     mattran = mathutils.Matrix.LocRotScale(None, None, self.scale) @ mattran
     
     return mattran
+
+# --------------------------------------------------------------------------------------------------
+
+def GenerateSettings(self, context):
+    return {
+        'format' : format,
+        'edgesonly' : self.edges_only,
+        'applyarmature' : self.apply_armature,
+        'deformonly' : self.deform_only,
+        'uvlayertarget': self.uv_layer_target == 'render',
+        'colorlayertarget': self.color_layer_target == 'render',
+        'matrix': GetCorrectiveMatrix(self, context),
+        'maxsubdivisions': self.max_subdivisions,
+        'flipnormals': self.flip_normals,
+        'reversewinding': self.reverse_winding,
+        'flipuvs': self.flip_uvs,
+        'floattype': self.float_type,
+        'attributesizes': [getattr(self, 'attribsize%d' % i) for i in range(0, 8)],
+    }
 
 # --------------------------------------------------------------------------------------------------
 
@@ -290,19 +318,45 @@ def MoveAttribute(self, index, moveup=False):
     if self.mutex:  # Lock access to function if mutex is active
         return
     
-    indices = [index, (0 if index==0 else index-1) if moveup else index+1]
+    indexpair = [index, (0 if index==0 else index-1) if moveup else index+1]
     
-    def SwapAttrib(formatstring):
-        values = [getattr(self, formatstring % x) for x in indices]
-        setattr(self, formatstring % indices[0], values[1])
-        setattr(self, formatstring % indices[1], values[0])
+    def SwapAttrib(formatstring, handlesizes=False):
+        values = [getattr(self, formatstring % i) for i in indexpair]
+        
+        # Move attribute sizes
+        if handlesizes:
+            sizes = [getattr(self, 'attribsize%d' % i) for i in indexpair]
+        
+        setattr(self, formatstring % indexpair[0], values[1])
+        setattr(self, formatstring % indexpair[1], values[0])
+        
+        if handlesizes:
+            setattr(self, 'attribsize%d' % indexpair[0], sizes[1])
+            setattr(self, 'attribsize%d' % indexpair[1], sizes[0])
     
-    SwapAttrib('vbf%d')
+    SwapAttrib('vbf%d', True)
     SwapAttrib('uvlyr%d')
     SwapAttrib('vclyr%d')
     
     self.mutex = True   # Lock function to prevent recursion
     setattr(self, ('moveattribup%d' if moveup else 'moveattribdown%d') % index, False)
+    self.mutex = False  # Unlock function
+
+# --------------------------------------------------------------------------------------
+
+def UpdateAttributeSize(self, index):
+    setattr(self, 'attribsize%d' % index, 3 if getattr(self, 'vbf%d' % index)==VBF_POS else 4)
+
+# --------------------------------------------------------------------------------------
+
+def ClampAttributeSize(self, index):
+    if self.mutex:  # Lock access to function if mutex is active
+        return
+    
+    self.mutex = True   # Lock function to prevent recursion
+    setattr(self, 'attribsize%d' % index, 
+        min(getattr(self, 'attribsize%d' % index), 3 if getattr(self, 'vbf%d' % index)==VBF_POS else 4)
+        )
     self.mutex = False  # Unlock function
 
 # --------------------------------------------------------------------------------------
@@ -423,11 +477,16 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     
     # Vertex Attributes
     VbfProp = lambda i,key: bpy.props.EnumProperty(name="Attribute %d" % i, 
-        description='Data to write for each vertex', items=Items_VBF, default=key)
+        description='Data to write for each vertex', items=Items_VBF, default=key, 
+        update=lambda s,c: UpdateAttributeSize(s, i))
+    AttributeSizeProp = lambda i,default: bpy.props.IntProperty(name="Attribute Size", 
+        description='Number of floats to write for this attribute.\n\nFor Position: 3 = XYZ, 2 = XY\nFor Colors, 4 = RGBA, 3 = RGB, 2 = RG, 1 = R', min=1, max=4, default=default,
+        update=lambda s,c: ClampAttributeSize(s, i))
     VClyrProp = lambda i: bpy.props.EnumProperty(name="Color Layer", 
         description='Color layer to reference', items=Items_VCLayers, default=0)
     UVlyrProp = lambda i: bpy.props.EnumProperty(name="UV Layer", 
         description='UV layer to reference', items=Items_UVLayers, default=0)
+    
     vbf0 : VbfProp(0, VBF_POS)
     vbf1 : VbfProp(1, VBF_RGB)
     vbf2 : VbfProp(2, VBF_UVS)
@@ -436,6 +495,15 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     vbf5 : VbfProp(5, VBF_000)
     vbf6 : VbfProp(6, VBF_000)
     vbf7 : VbfProp(7, VBF_000)
+    
+    attribsize0 : AttributeSizeProp(0, 3)
+    attribsize1 : AttributeSizeProp(1, 4)
+    attribsize2 : AttributeSizeProp(2, 4)
+    attribsize3 : AttributeSizeProp(3, 4)
+    attribsize4 : AttributeSizeProp(4, 4)
+    attribsize5 : AttributeSizeProp(5, 4)
+    attribsize6 : AttributeSizeProp(6, 4)
+    attribsize7 : AttributeSizeProp(7, 4)
     
     vclyr0 : VClyrProp(0)
     vclyr1 : VClyrProp(1)
@@ -527,22 +595,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
         print('> Beginning ExportVB to rootpath: "%s"' % path)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
-        mattran = GetCorrectiveMatrix(self, context)
-        
-        settings = {
-            'format' : format,
-            'edgesonly' : self.edges_only,
-            'applyarmature' : self.apply_armature,
-            'deformonly' : self.deform_only,
-            'uvlayertarget': self.uv_layer_target == 'render',
-            'colorlayertarget': self.color_layer_target == 'render',
-            'matrix': mattran,
-            'maxsubdivisions': self.max_subdivisions,
-            'flipnormals': self.flip_normals,
-            'reversewinding': self.reverse_winding,
-            'flipuvs': self.flip_uvs,
-            'floattype': self.float_type,
-        }
+        settings = GenerateSettings(self, context, format)
         
         RemoveTempObjects()
         
@@ -697,21 +750,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         print('> Beginning ExportVBM to rootpath: "%s"' % path)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
-        mattran = GetCorrectiveMatrix(self, context)
-        
-        settings = {
-            'format' : format,
-            'edgesonly' : self.edges_only,
-            'applyarmature' : self.apply_armature,
-            'modifierpick': self.modifier_target,
-            'maxsubdivisions': self.max_subdivisions,
-            'deformonly' : self.deform_only,
-            'matrix': mattran,
-            'flipnormals': self.flip_normals,
-            'reversewinding': self.reverse_winding,
-            'flipuvs': self.flip_uvs,
-            'floattype': self.float_type,
-        }
+        settings = GenerateSettings(self, context)
         
         RemoveTempObjects()
         
