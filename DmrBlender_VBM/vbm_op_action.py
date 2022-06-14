@@ -179,6 +179,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     else:
         actionrange = (sc.frame_start, sc.frame_end)
     
+    if range_type == 'MARKER' and not sourceaction.pose_markers:
+        print('> WARNING: No markers found for action "%s". Defaulting to scene range.' % sourceaction.name)
+    
     if marker_frames_only:
         actionrange = (
             max(actionrange[0], min([m.frame for m in sourceaction.pose_markers])),
@@ -330,7 +333,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     
     # Only Markers' Frames
     if marker_frames_only:
-        netframes = tuple([m.frame for m in sourceaction.pose_markers if (m.frame >= actionrange[0] and m.frame <= actionrange[1])])
+        netframes = tuple([m.frame*pmod for m in sourceaction.pose_markers if (m.frame >= actionrange[0] and m.frame <= actionrange[1])])
         duration = len(netframes)
     
     netframes = list(set(netframes))
@@ -364,7 +367,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     if matrix_space != 'NONE':
         print('> Writing Matrices...');
         
-        # Use convert_space()
+        # Use convert_space() --------------------------------------------------------------------
         if matrix_space != 'EVALUATED':
             evalbones = [x for x in workingobj.pose.bones if x.name in pbonesnames]
             pbonesenumerated = enumerate(pboneslist)
@@ -385,7 +388,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                     )
             outtrk += outtrkchunk
         
-        # Evaluate final transforms
+        # Evaluate final transforms --------------------------------------------------------------------
         else:
             bmatrix = {b: (mattran @ b.matrix_local.copy()) for b in bones.values()}
             bmatlocal = {
@@ -400,7 +403,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             for f in netframes:
                 outtrkchunk = b''
                 
-                sc.frame_set(round(f))
+                sc.frame_set(round(f/pmod))
                 dg = context.evaluated_depsgraph_get()
                 evaluatedobj = workingobj.evaluated_get(dg)
                 evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
@@ -524,7 +527,8 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
     
     bake_steps: bpy.props.IntProperty(
         name="Bake Steps", default=1, min=-1,
-        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking.\nSet to -1 for all frames (Good for Pose Libraries)\nPositive value needed for constraints",
+        description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking."
+        +"\nSet to -1 for all frames (Good for Pose Libraries)\nPositive value needed for constraints",
     )
     
     scale: bpy.props.FloatProperty(

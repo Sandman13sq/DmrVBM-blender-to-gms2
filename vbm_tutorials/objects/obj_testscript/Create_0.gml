@@ -217,7 +217,7 @@ trk_poses = new TRKData();
 OpenTRK(trk_poses, dir+"test/poses-all.trk");
 
 trk_gun = new TRKData();
-OpenTRK(trk_gun, dir+"test/gun.trk");
+OpenTRK(trk_gun, dir+"test/hip.trk");
 
 poseindex = 0;
 playbackactive = true;
