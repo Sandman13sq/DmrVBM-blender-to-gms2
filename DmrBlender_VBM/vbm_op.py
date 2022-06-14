@@ -47,7 +47,8 @@ except:
         mat4 (16f)
 """
 
-EXPORTLISTHEADER = '<exportlist>'
+EXPORTLISTHEADER = "|"
+
 ActiveExportDialog = None
 
 # Float type to use for Packing
@@ -101,7 +102,7 @@ def DrawCommonProps(self, context):
     b = c.box()
     r = b.row(align=1)
     r.alignment = 'CENTER'
-    r.prop(self, 'more_options', text='== Show More Options ==')
+    r.prop(self, 'more_options', text='== Show More Options ==', icon='PREFERENCES')
     
     if self.more_options:
         c = b.column_flow(align=1)
@@ -164,11 +165,11 @@ def DrawAttributes(self, context):
         sizelist += [VBFSize[vbfkey]]
         
         if vbfkey == VBF_COL or vbfkey == VBF_RGB:
-            split = c.split(factor=0.25)
+            split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'vclyr%d' % i, text='Layer')
         elif vbfkey == VBF_UVS:
-            split = c.split(factor=0.25)
+            split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'uvlyr%d' % i, text='Layer')
     sizestring = ''

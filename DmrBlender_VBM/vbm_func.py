@@ -35,7 +35,7 @@ Items_FloatChoice = (
     ('e', 'Binary16 (16bit)', 'Write floating point data using binary16 (16 bits)'),
 )
 
-VBF_000 = '0'
+VBF_000 = ''
 VBF_POS = 'POSITION'
 VBF_UVS = 'UV'
 VBF_NOR = 'NORMAL'
@@ -98,9 +98,9 @@ Items_LayerChoice = (
     ('active', 'Active Layer', 'Use the layer that is active (highlighted)', 'RESTRICT_SELECT_OFF', 1),
 )
 
-LYR_GLOBAL = '<__global__>'
-LYR_RENDER = '<__render__>'
-LYR_SELECT = '<__select__>'
+LYR_GLOBAL = '<GLOBAL>'
+LYR_RENDER = '<RENDER>'
+LYR_SELECT = '<SELECT>'
 
 MTY_VIEW = 'VIEWPORT'
 MTY_RENDER = 'RENDER'
