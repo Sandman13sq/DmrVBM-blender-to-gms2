@@ -25,15 +25,23 @@ tutorialnames = [
 	"Test Script",
 ];
 
+extraobjects = [
+	0,
+	obj_extra_normalmap,
+	obj_extra_outline,
+	obj_extra_prm,
+]
+
 tutorialindex = 1;
 tutorialactive = instance_create_depth(0, 0, 0, tutorialobjects[tutorialindex]);
+showextras = false;
 
 lastfullscreen = window_get_fullscreen();
 lastwindowsize = [0, 0];
 
-function ChangeTutorial(index)
+function ChangeTutorial(index, extra)
 {
-	if (index > 0 && index < array_length(tutorialobjects))
+	if (index > 0 && index < array_length(extra? extraobjects: tutorialobjects))
 	{
 		if (tutorialactive)
 		{
@@ -42,8 +50,16 @@ function ChangeTutorial(index)
 		}
 		
 		tutorialindex = index;
-		tutorialactive = instance_create_depth(0, 0, 0, tutorialobjects[tutorialindex]);
 		
-		window_set_caption("VBM Tutorial " + string(tutorialindex));
+		if (extra)
+		{
+			tutorialactive = instance_create_depth(0, 0, 0, extraobjects[tutorialindex]);
+			window_set_caption("Extra " + string(tutorialindex));
+		}
+		else
+		{
+			tutorialactive = instance_create_depth(0, 0, 0, tutorialobjects[tutorialindex]);
+			window_set_caption("VBM Tutorial " + string(tutorialindex));
+		}
 	}
 }
