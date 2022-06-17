@@ -30,8 +30,8 @@
   "properties": [],
   "overriddenProperties": [],
   "parent": {
-    "name": "Objects",
-    "path": "folders/Objects.yy",
+    "name": "Tutorials",
+    "path": "folders/Objects/Tutorials.yy",
   },
   "resourceVersion": "1.0",
   "name": "obj_tutorial02_loadingVB",

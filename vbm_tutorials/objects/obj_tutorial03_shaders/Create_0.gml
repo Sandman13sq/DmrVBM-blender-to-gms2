@@ -1,10 +1,10 @@
 /// @desc Initializing Variables
 
 // *Camera ----------------------------------------------
-cameraposition = [0, 0, 8];	// Location to point the camera at
-cameraxrot = -10;	// Camera's vertical rotation
-camerazrot = 10;	// Camera's horizontal rotation
-cameradistance = 24;	// Distance from camera position
+viewposition = [0, 0, 8];	// Location to point the camera at
+viewxrot = -10;	// Camera's vertical rotation
+viewzrot = 10;	// Camera's horizontal rotation
+viewdistance = 24;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 1;	// Clipping distance for close triangles
@@ -16,10 +16,15 @@ matproj = matrix_build_projection_perspective_fov(
 matview = matrix_build_identity();
 mattran = matrix_build_identity();
 
+viewforward = [0, -1, 0]
+viewright = [1, 0, 0]
+viewup = [0, 0, 1];
+
 // Camera Controls
 mouseanchor = [window_mouse_get_x(), window_mouse_get_y()];
-cameraxrotanchor = cameraxrot;	// Updated when middle mouse is pressed
-camerazrotanchor = camerazrot;	// Updated when middle mouse is pressed
+viewpositionanchor = [0, 0, 0]
+viewxrotanchor = viewxrot;	// Updated when middle mouse is pressed
+viewzrotanchor = viewzrot;	// Updated when middle mouse is pressed
 movingcamera = false;	// Middle mouse or left mouse + alt is held
 movingcameralast = false;	// Used to check when middle has been pressed
 
