@@ -1,7 +1,7 @@
 bl_info = {
-    'name': 'DmrBlender Vertex Buffer Model Export',
+    'name': 'DmrVBM Vertex Buffer Model Export',
     'category': 'Import-Export',
-    'version': (0, 1),
+    'version': (1, 1),
     'blender': (3, 0, 0)
 }
  
