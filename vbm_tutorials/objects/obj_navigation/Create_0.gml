@@ -27,8 +27,8 @@ tutorialnames = [
 
 extraobjects = [
 	0,
-	obj_extra_normalmap,
 	obj_extra_outline,
+	obj_extra_normalmap,
 	obj_extra_prm,
 ]
 

@@ -6,6 +6,9 @@ event_inherited();
 vbm_curly_prm = new VBMData();
 vbm_curly_prm.Open("extra/curly_prm.vbm");
 
+vbm_world.Clear();
+vbm_world.Open("extra/world_moon.vbm");
+
 // Open TRK -------------------------------------------
 trk_gun = new TRKData();
 trk_gun.Open("extra/gun_idle.trk");

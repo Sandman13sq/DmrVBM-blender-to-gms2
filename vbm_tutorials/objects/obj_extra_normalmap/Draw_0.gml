@@ -21,12 +21,10 @@ matrix_set(matrix_projection, matproj);
 matrix_set(matrix_view, matview);
 matrix_set(matrix_world, mattran); // Transform matrix
 
-shader_set(shd_simple);
-vbm_world.Submit();
-
 shader_set(shd_normalmap);
 shader_set_uniform_f_array(u_normalmap_lightpos, lightpos);
 
+vbm_world.Submit(pr_trianglelist, tex_normalmap);
 vbm_curly_normalmap.Submit(pr_trianglelist, tex_normalmap);
 
 shader_reset();

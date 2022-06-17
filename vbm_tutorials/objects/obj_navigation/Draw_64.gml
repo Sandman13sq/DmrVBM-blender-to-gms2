@@ -23,7 +23,7 @@ if (!showextras)
 else
 {
 	draw_text(_w-16, _h-48, "Use number keys to navigate extra. Press 0 to switch to tutorials");
-	draw_text(_w-16, _h-32, object_get_name(tutorialactive));
+	draw_text(_w-16, _h-32, object_get_name(tutorialactive.object_index));
 	
 	draw_set_halign(fa_center);
 	var n = array_length(extraobjects);
