@@ -691,8 +691,8 @@ def GetVBData(
                 sourceobj=inst, 
                 format=format, 
                 settings=settings, 
-                uvtarget=uvtarget, 
-                vctarget=vctarget, 
+                uvtargets=uvtargets,
+                vctargets=vctargets, 
                 instancerun=True
                 )
             for k in instvbytes.keys():
