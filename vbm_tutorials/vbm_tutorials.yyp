@@ -112,12 +112,12 @@
     {"CopyToMask":-1,"filePath":"datafiles/wiz","resourceVersion":"1.0","name":"curly_prm.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"curly_normalmap.png","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"world.vbm","resourceType":"GMIncludedFile",},
-    {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"curly_col.png","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"curly_nor.png","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"world_moon.vbm","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"world_sand.vbm","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"world_training.vbm","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"world_training_normalmap.vbm","resourceType":"GMIncludedFile",},
+    {"CopyToMask":-1,"filePath":"datafiles/extra","resourceVersion":"1.0","name":"curly_col.png","resourceType":"GMIncludedFile",},
   ],
   "MetaData": {
     "IDEVersion": "2022.5.1.16",
