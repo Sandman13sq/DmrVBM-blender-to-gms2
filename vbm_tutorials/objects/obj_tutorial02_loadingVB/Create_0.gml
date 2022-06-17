@@ -1,7 +1,7 @@
 /// @desc Initializing Variables
 
 // *Camera ----------------------------------------------
-cameraposition = [1, 4, 4]; // Camera position
+viewposition = [1, 4, 4]; // Camera position
 cameralookat = [0, 0, 0];	// Camera eye target
 
 fieldofview = 50;	// Angle of vision
@@ -17,7 +17,7 @@ matproj = matrix_build_projection_perspective_fov(
 	);
 // View Matrix maps world to camera eye
 matview = matrix_build_lookat(
-	cameraposition[0], cameraposition[1], cameraposition[2],	// Camera location 
+	viewposition[0], viewposition[1], viewposition[2],	// Camera location 
 	cameralookat[0], cameralookat[1], cameralookat[2],			// Camera eye target
 	0, 0, 1														// "Up" orientation of camera
 	);

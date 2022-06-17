@@ -1,5 +1,8 @@
 /*
-	Toon-like shading
+	Supports skeletal animation
+	
+	NOTE: If you don't see any vertices rendering at all, 
+	check that u_matpose is populated with some valid matrices.
 */
 
 // Varyings - Passed in from vertex shader

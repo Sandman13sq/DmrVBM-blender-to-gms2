@@ -16,7 +16,7 @@ PackVector = lambda f, v: struct.pack(f*len(v), *(v[:]))
 PackMatrix = lambda f, m: b''.join( [struct.pack(f*4, *x) for x in m.copy().transposed()] )
 QuatValid = lambda q: q if q.magnitude != 0.0 else [1.0, 0.0, 0.0, 0.00001]
 
-def PrintStatus(msg, clear=1, buffersize=40):
+def PrintStatus(msg, clear=1, buffersize=30):
     msg = msg + (' '*buffersize*clear)
     sys.stdout.write(msg + (chr(8) * len(msg) * clear))
     sys.stdout.flush()
@@ -26,9 +26,6 @@ def PrintStatus(msg, clear=1, buffersize=40):
 VBMVERSION = 1
 FCODE = 'f'
 
-# This is more for loading files outside of GMS
-# If you don't mind longer load times for converting numbers to floats,
-# get some more accuracy with doubles or save some space with binary16s
 Items_FloatChoice = (
     ('f', 'Float (32bit) *GMS*', 'Write floating point data using floats (32 bits)\n***Use for Game Maker Studio***'),
     ('d', 'Double (64bit)', 'Write floating point data using doubles (64 bits)'),
@@ -47,6 +44,7 @@ VBF_BON = 'BONE'
 VBF_BOI = 'BONEBYTES'
 VBF_WEI = 'WEIGHT'
 VBF_WEB = 'WEIGHTBYTES'
+VBF_GRO = 'VERTEXGROUP'
 
 VBFSize = {
     VBF_000: 0,
@@ -60,7 +58,8 @@ VBFSize = {
     VBF_BON: 4,
     VBF_BOI: 1,
     VBF_WEI: 4, 
-    VBF_WEB: 4, 
+    VBF_WEB: 4,
+    VBF_GRO: 1,
     }
 
 Items_VBF = (
@@ -76,6 +75,7 @@ Items_VBF = (
     (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'BONE_DATA', 9),
     (VBF_WEI, 'Weights', '4 Floats', 'MOD_VERTEX_WEIGHT', 10),
     (VBF_WEB, 'Weight Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'MOD_VERTEX_WEIGHT', 11),
+    (VBF_GRO, 'Vertex Group', '1 Float', 'GROUP_VERTEX', 12),
 )
 
 VBFType = {x[1]: x[0] for x in enumerate([
@@ -91,6 +91,7 @@ VBFType = {x[1]: x[0] for x in enumerate([
     VBF_BOI,
     VBF_TAN,
     VBF_BTN,
+    VBF_GRO,
     ])}
 
 Items_LayerChoice = (
@@ -98,9 +99,9 @@ Items_LayerChoice = (
     ('active', 'Active Layer', 'Use the layer that is active (highlighted)', 'RESTRICT_SELECT_OFF', 1),
 )
 
-LYR_GLOBAL = '<__global__>'
-LYR_RENDER = '<__render__>'
-LYR_SELECT = '<__select__>'
+LYR_GLOBAL = '<GLOBAL>'
+LYR_RENDER = '<RENDER>'
+LYR_SELECT = '<SELECT>'
 
 MTY_VIEW = 'VIEWPORT'
 MTY_RENDER = 'RENDER'
@@ -137,46 +138,64 @@ Items_ForwardAxis = (
 # ---------------------------------------------------------------------------------------
 
 def Items_UVLayers(self, context):
-    items = []
-    items.append( (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" in ==Show More Options==') )
-    items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
-    items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') )
+    items = [
+        (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" in ==Show More Options==', 'PREFERENCES', 0),
+        (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object', 'RESTRICT_RENDER_OFF', 1),
+        (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object', 'RESTRICT_SELECT_OFF', 2),
+    ]
     
-    objects = [x for x in context.selected_objects if (x and x.type == 'MESH')]
-    lyrnames = []
+    lyrnames = [
+        lyr.name
+        for obj in context.scene.objects if (obj and obj.type == 'MESH')
+        for lyr in obj.data.uv_layers
+    ]
     
-    for obj in objects:
-        for lyr in obj.data.uv_layers:
-            lyrnames.append(lyr.name)
-    
+    # Sort by number of entries
     lyrnames.sort(key=lambda x: lyrnames.count(x))
     lyrnames = list(set(lyrnames))
     
-    for i,name in enumerate(lyrnames):
-        items.append( (name, name, 'Use "%s" layer for uv data' % name, 'GROUP_UVS', i+3) )
+    items += [(name, name, 'Use "%s" layer for color data' % name, 'GROUP_UVS', i+3) for i,name in enumerate(lyrnames)]
     
     return items
 
 # --------------------------------------------------------------------------------------------------
 
 def Items_VCLayers(self, context):
-    items = []
-    items.append( (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" in ==Show More Options==') )
-    items.append( (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object') )
-    items.append( (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object') )
+    items = [
+        (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" in ==Show More Options==', 'PREFERENCES', 0),
+        (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object', 'RESTRICT_RENDER_OFF', 1),
+        (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object', 'RESTRICT_SELECT_OFF', 2),
+    ]
     
-    objects = [x for x in context.selected_objects if (x and x.type == 'MESH')]
-    lyrnames = []
+    lyrnames = [
+        lyr.name
+        for obj in context.scene.objects if (obj and obj.type == 'MESH')
+        for lyr in obj.data.vertex_colors
+    ]
     
-    for obj in objects:
-        for lyr in obj.data.vertex_colors:
-            lyrnames.append(lyr.name)
-    
+    # Sort by number of entries
     lyrnames.sort(key=lambda x: lyrnames.count(x))
     lyrnames = list(set(lyrnames))
     
-    for i,name in enumerate(lyrnames):
-        items.append( (name, name, 'Use "%s" layer for color data' % name, 'GROUP_VCOL', i+3) )
+    items += [(name, name, 'Use "%s" layer for color data' % name, 'GROUP_VCOL', i+3) for i,name in enumerate(lyrnames)]
+    
+    return items
+
+# --------------------------------------------------------------------------------------------------
+
+def Items_VertexGroups(self, context):
+    names = [
+        vg.name
+        for obj in context.scene.objects if (obj and obj.type == 'MESH')
+        for vg in obj.vertex_groups
+    ]
+    
+    # Sort by number of entries
+    names.sort(key=lambda x: names.count(x))
+    names = list(set(names))
+    
+    items = [('---', '---', 'Null Group', 'NONE', 0)] + \
+        [(name, name, 'Export vertices from group "%s"' % name, 'GROUP_VERTEX', i+1) for i,name in enumerate(names)]
     
     return items
 
@@ -215,7 +234,18 @@ def ComposeOutFormat(self, format = -1):
 # Returns tuple of (outbytes, outcounts)
 # materialvbytes = {materialname: vertexbytedata}
 # materialvcounts = {materialname: vertexcount}
-def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GLOBAL], vctarget = [LYR_GLOBAL], instancerun=False):
+def GetVBData(
+    context, 
+    sourceobj, 
+    format = [], 
+    settings = {}, 
+    uvtargets = [LYR_GLOBAL], 
+    vctargets = [LYR_GLOBAL], 
+    instancerun=False
+    ):
+    
+    tstart = time.time()
+    
     format = tuple(format)
     formatsize = len(format)
     
@@ -230,6 +260,12 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
     settingsmatrix = settings.get('matrix', mathutils.Matrix())
     FCODE = settings.get('floattype', 'f')
     colordefault = settings.get('defaultcolor', (1.0, 1.0, 1.0, 1.0))
+    attribsizes = settings.get('attribsizes', [3]+[4]*7)
+    vgrouptargets = settings.get('vgrouptargets', ['']*8)
+    vgroupdefaultweight = settings.get('vgroupdefaultweight', 0.0)
+    
+    process_bones = True if sum([1 for k in format if k in [VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]]) > 0 else False
+    process_tangents = True if sum([1 for k in format if k in [VBF_TAN, VBF_BTN]]) > 0 else False
     
     if not instancerun:
         PrintStatus('> Composing data for \"%s\":' % sourceobj.name, 0)
@@ -331,16 +367,20 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                 else:
                     out += [[x.active_render for x in layers].index(True)]
             
-            return tuple(out)
+            return (tuple(out), lyrnames)
         
-        uvattriblyr = GetAttribLayers(workingmesh.uv_layers, uvtarget) # list of layer indices to use for attribute
-        vcattriblyr = GetAttribLayers(workingmesh.vertex_colors, vctarget)
+        uvattriblyr, uvtargets = GetAttribLayers(workingmesh.uv_layers, uvtargets) # list of layer indices to use for attribute
+        vcattriblyr, vctargets = GetAttribLayers(workingmesh.vertex_colors, vctargets)
+        targetvgroups = [
+            workingobj.vertex_groups[vgname] if vgname in workingobj.vertex_groups.keys() else None
+            for vgname in vgrouptargets
+        ]
         
         voffset = 0
         loffset = 0
         
         vertexmeta = ()
-        loopmeta = ()
+        loopmeta = []
         targetpolys = ()
         
         vertcooriginal = {v: v.co for v in workingmesh.vertices}
@@ -356,11 +396,14 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
             # Vertices ------------------------------------------------------------------------
             PrintStatus(statusheader+'Setting up vertex data...')
             
+            workingvertices = tuple(workingmesh.vertices)
             voffset = len(vertexmeta)
-            for v in workingmesh.vertices:
+            for v in workingvertices:
                 v.co = vertcooriginal[v]
             
             vgroups = workingobj.vertex_groups
+            weightdefaults = (1,1,1,1) if len(vgroups) == 0 else (0,0,0,0)
+            
             validvgroups = tuple(vg.index for vg in vgroups)
             vgremap = {vg.index: vg.index for vg in vgroups}
             
@@ -375,39 +418,68 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
             worldmat = settingsmatrix @ matrix
             loc, rot, sca = worldmat.decompose()
             
-            def VEntry(v):
-                validvges = [vge for vge in v.groups if vge.group in validvgroups]
-                validvges.sort(key=weightsortkey, reverse=True)
-                validvges = validvges[:4]
-                
-                boneindices = tuple(vgremap[vge.group] for vge in validvges)
-                weights = tuple(vge.weight for vge in validvges)
-                wlength = sum(weights)
-                
-                if wlength > 0.0:
-                    weights = tuple(x/wlength for x in weights)
-                
-                co = v.co.copy()
-                co.rotate(rot)
-                co *= sca
-                co += loc
-                
-                return (
-                    tuple(co)[:4], 
-                    tuple(boneindices+(0,0,0,0))[:4], 
-                    tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
-                    tuple(weights+(0,0,0,0))[:4],
-                    tuple([int(x*255.0) for x in weights+(0,0,0,0)])[:4], 
+            if process_bones:
+                def VEntry(v):
+                    co = v.co.copy()
+                    co.rotate(rot)
+                    co *= sca
+                    co += loc
+                    
+                    # Get VGEs
+                    validvges = [vge for vge in v.groups if vge.group in validvgroups]
+                    validvges.sort(key=weightsortkey, reverse=True)
+                    validvges = validvges[:4]
+                    
+                    boneindices = tuple(vgremap[vge.group] for vge in validvges)
+                    weights = tuple(vge.weight for vge in validvges)
+                    wlength = sum(weights)
+                    
+                    if wlength > 0.0:
+                        weights = tuple(x/wlength for x in weights)
+                    
+                    return (
+                        tuple(co),
+                        tuple( (vg.weight(v.index) if vg != None else vgroupdefaultweight for vg in targetvgroups) ),
+                        tuple(boneindices+(0,0,0,0))[:4], 
+                        tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
+                        tuple(weights+weightdefaults)[:4],
+                        tuple([int(x*255.0) for x in weights+weightdefaults])[:4], 
                     )
-                
-            vertices = {v.index:v for v in workingmesh.vertices}
+            else:
+                def VEntry(v):
+                    co = v.co.copy()
+                    co.rotate(rot)
+                    co *= sca
+                    co += loc
+                    
+                    return [
+                        tuple(co),
+                        tuple( (vg.weight(v.index) if (vg != None and vg.index in [vge.group for vge in v.groups]) else vgroupdefaultweight for vg in targetvgroups) ),
+                    ]
+            
+            vertices = {v.index:v for v in workingvertices}
             vertexmeta += tuple(
                 tuple(VEntry(v))
-                for v in workingmesh.vertices
+                for v in workingvertices
             )
             
             # Loops ------------------------------------------------------------------------------
             PrintStatus(statusheader+'Setting up loop data...')
+            
+            '''
+                LoopMeta for each loop:
+                    normal,
+                    tangent,
+                    bitangent,
+                    uvs[numuvlayers]
+                        lyr: uv for loop
+                    colors[numvclayers]
+                        lyr: color for loop
+                    colorbytes[numvclayers]
+                        lyr: color for loop
+            '''
+            
+            t = time.time()
             
             workingmesh.calc_loop_triangles()
             workingmesh.calc_normals_split()
@@ -416,30 +488,48 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
             for l in workingmesh.loops:
                 l.normal *= sca
             
-            if not edgesonly and workingmesh.polygons:
+            if not edgesonly and workingmesh.polygons and process_tangents:
                 workingmesh.calc_tangents()
             workingmesh.update()
             
-            vclayers = tuple(workingmesh.vertex_colors)
-            uvlayers = tuple(workingmesh.uv_layers)
+            targetlayers = set([lyr for i,lyr in enumerate(workingmesh.vertex_colors) if i in vcattriblyr])
+            vclayers = tuple([
+                [lyr.data[i].color for i in range(0, len(lyr.data))] if lyr in targetlayers else 0
+                for lyr in workingmesh.vertex_colors
+                ])
+            targetlayers = set([lyr for i,lyr in enumerate(workingmesh.uv_layers) if i in uvattriblyr])
+            uvlayers = tuple([
+                [lyr.data[i].uv for i in range(0, len(lyr.data))] if lyr in targetlayers else 0
+                for lyr in workingmesh.uv_layers
+                ])
             
-            vclayers_enumerated = tuple(enumerate(vclayers))
-            uvlayers_enumerated = tuple(enumerate(uvlayers))
+            if process_tangents:
+                loopmeta += [tuple((
+                        tuple(l.normal.normalized()),
+                        tuple(l.tangent),
+                        tuple(l.bitangent),
+                        tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
+                        tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
+                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
+                    ))
+                    for l in workingmesh.loops
+                ]
+            else:
+                loopmeta += [tuple((
+                        tuple(l.normal.normalized()),
+                        0,
+                        0,
+                        tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
+                        tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
+                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
+                    ))
+                    for l in workingmesh.loops
+                ]
             
-            loopmeta += tuple(
-                (
-                    tuple(l.normal.normalized()),
-                    tuple(l.tangent),
-                    tuple(l.bitangent),
-                    tuple( tuple(lyr.data[l.index].uv) for lyr in uvlayers),
-                    tuple( tuple(lyr.data[l.index].color) for lyr in vclayers),
-                    tuple( [int(x*255.0) for x in lyr.data[l.index].color] for lyr in vclayers),
-                )
-                for l in workingmesh.loops
-            )
+            tt = time.time()-t
             
             # Poly data -----------------------------------------------------------------------------------------
-            #PrintStatus(statusheader+'Setting up poly data...')
+            PrintStatus(statusheader+'Setting up poly data...')
             
             if workingmesh.polygons:
                 if not edgesonly: # Triangles
@@ -516,30 +606,42 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
         PrintStatus(' Creating byte data...')
         
         # Triangles
-        def out_pos(out, attribindex): out.append(Pack(3*FCODE, *vmeta[0][:3]));
-        def out_nor(out, attribindex): out.append(Pack(3*FCODE, *lmeta[0][:3]));
-        def out_tan(out, attribindex): out.append(Pack(3*FCODE, *lmeta[1][:3]));
-        def out_btn(out, attribindex): out.append(Pack(3*FCODE, *lmeta[2][:3]));
-        def out_tex(out, attribindex): out.append(Pack(2*FCODE, *lmeta[3][uvattriblyr[attribindex]]));
-        def out_col(out, attribindex): out.append(Pack(4*FCODE, *lmeta[4][vcattriblyr[attribindex]]));
-        def out_rgb(out, attribindex): out.append(Pack('4B', *lmeta[5][vcattriblyr[attribindex]]));
-        def out_bon(out, attribindex): out.append(Pack(4*FCODE, *vmeta[1][:4]));
-        def out_boi(out, attribindex): out.append(Pack('4B', *vmeta[2]));
-        def out_wei(out, attribindex): out.append(Pack(4*FCODE, *vmeta[3][:4]));
-        def out_web(out, attribindex): out.append(Pack('4B', *vmeta[4]));
+        def out_pos(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[0][:size]));
+        def out_nor(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[0][:3]));
+        def out_tan(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[1][:3]));
+        def out_btn(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[2][:3]));
+        def out_tex(out, attribindex, size): out.append(Pack(2*FCODE, *lmeta[3][uvattriblyr[attribindex]]));
+        def out_col(out, attribindex, size): out.append(Pack(size*FCODE, *lmeta[4][vcattriblyr[attribindex]][:size]));
+        def out_rgb(out, attribindex, size): out.append(Pack(size*'B', *lmeta[5][vcattriblyr[attribindex]][:size]));
+        def out_bon(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[2][:4][:size]));
+        def out_boi(out, attribindex, size): out.append(Pack(size*'B', *vmeta[3][:size]));
+        def out_wei(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[4][:4][:size]));
+        def out_web(out, attribindex, size): out.append(Pack(size*'B', *vmeta[5][:size]));
+        def out_gro(out, attribindex, size): out.append(Pack(FCODE, vmeta[1][attribindex]));
         
         outwritemap = {
-            VBF_POS: out_pos, VBF_NOR: out_nor, VBF_TAN: out_tan, VBF_BTN: out_btn,
-            VBF_UVS: out_tex, VBF_COL: out_col, VBF_RGB: out_rgb, 
-            VBF_BON: out_bon, VBF_BOI: out_boi, VBF_WEI: out_wei, VBF_WEB: out_web
+            VBF_POS: out_pos, 
+            VBF_NOR: out_nor, 
+            VBF_TAN: out_tan, 
+            VBF_BTN: out_btn,
+            VBF_UVS: out_tex, 
+            VBF_COL: out_col, 
+            VBF_RGB: out_rgb, 
+            VBF_BON: out_bon, 
+            VBF_BOI: out_boi, 
+            VBF_WEI: out_wei, 
+            VBF_WEB: out_web,
+            VBF_GRO: out_gro,
         }
         
         format_enumerated = tuple(enumerate(format))
         
         t = time.time()
         
+        # Write data
         for p in targetpolys:
             matkey = p[2]
+            
             if matkey not in materialvbytes.keys():
                 materialvbytes[matkey] = []
                 materialvcounts[matkey] = 0
@@ -550,11 +652,13 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                 vmeta = vertexmeta[p[3][li]]
                 lmeta = loopmeta[p[4][li]]
                 
-                [outwritemap[attribkey](outblock, attribindex) for attribindex, attribkey in format_enumerated]
+                [outwritemap[attribkey](outblock, attribindex, attribsizes[attribindex]) for attribindex, attribkey in format_enumerated]
             materialvbytes[matkey] += outblock
         
         t = time.time()-t
-        PrintStatus(' Complete (%s Vertices, Byte Exec time: %.6f sec)' % (sum(materialvcounts.values()), t) )
+        #print('%s:\t%.6f %.6f' % (workingobj.name, tt, t))
+        
+        PrintStatus(' Complete (%s Vertices, %.6f sec)' % (sum(materialvcounts.values()), time.time()-tstart) )
         PrintStatus('\n')
     else:
         PrintStatus(' Object is instancer and hidden. Moving to instances.')
@@ -587,8 +691,8 @@ def GetVBData(context, sourceobj, format = [], settings = {}, uvtarget = [LYR_GL
                 sourceobj=inst, 
                 format=format, 
                 settings=settings, 
-                uvtarget=uvtarget, 
-                vctarget=vctarget, 
+                uvtargets=uvtargets,
+                vctargets=vctargets, 
                 instancerun=True
                 )
             for k in instvbytes.keys():

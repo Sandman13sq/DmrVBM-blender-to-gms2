@@ -29,13 +29,7 @@ shader_set(shd_rigged);
 shader_set_uniform_f_array(u_rigged_light, lightpos);
 shader_set_uniform_matrix_array(u_rigged_matpose, matpose);
 
-for (var i = 0; i < vbm_curly.vbcount; i++)
-{
-	if (meshvisible & (1 << i))
-	{
-		vbm_curly.SubmitVBIndex(i, pr_trianglelist, -1);
-	}
-}
+vbm_curly.Submit(pr_trianglelist, -1);
 
 shader_reset();
 

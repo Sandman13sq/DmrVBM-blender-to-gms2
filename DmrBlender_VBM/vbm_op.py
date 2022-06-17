@@ -47,7 +47,8 @@ except:
         mat4 (16f)
 """
 
-EXPORTLISTHEADER = '<exportlist>'
+EXPORTLISTHEADER = "|"
+
 ActiveExportDialog = None
 
 # Float type to use for Packing
@@ -101,7 +102,7 @@ def DrawCommonProps(self, context):
     b = c.box()
     r = b.row(align=1)
     r.alignment = 'CENTER'
-    r.prop(self, 'more_options', text='== Show More Options ==')
+    r.prop(self, 'more_options', text='== Show More Options ==', icon='PREFERENCES')
     
     if self.more_options:
         c = b.column_flow(align=1)
@@ -111,9 +112,7 @@ def DrawCommonProps(self, context):
         c.prop(self, 'reverse_winding', text='Flip Normals')
         c.prop(self, 'flip_uvs', text='Flip UVs')
         
-        r = c.row(align=1)
-        r.prop(self, 'up_axis', text='')
-        r.prop(self, 'forward_axis', text='')
+        c.prop(self, 'vertex_group_default_weight', text='Default Weight')
         
         rr = c.row()
         cc = rr.column(align=1)
@@ -128,6 +127,9 @@ def DrawCommonProps(self, context):
         
         r = c.row()
         r.prop(self, 'scale', text='Scale')
+        rr = c.row().row(align=1)
+        rr.prop(self, 'up_axis', text='')
+        rr.prop(self, 'forward_axis', text='')
         c.prop(self, 'max_subdivisions', text='Max Subdivisions')
         c.prop(self, 'compression_level', text='Compression')
 
@@ -157,20 +159,35 @@ def DrawAttributes(self, context):
         
         r = c.row(align=1)
         r.prop(self, 'vbf%d' % i, text='')
-        r.prop(self, 'moveattribup%d' % i, text='', icon='TRIA_UP')
-        r.prop(self, 'moveattribdown%d' % i, text='', icon='TRIA_DOWN')
         
         vbfkey = getattr(self, 'vbf%d' % i)
         sizelist += [VBFSize[vbfkey]]
         
+        # Attribute Size
+        if vbfkey in [VBF_POS, VBF_COL, VBF_BON, VBF_WEI]:
+            rr = r.row(align=1)
+            rr.scale_x = 0.4
+            rr.prop(self, 'attribsize%d' % i, text='', icon_only=True)
+        
+        r.prop(self, 'moveattribup%d' % i, text='', icon='TRIA_UP')
+        r.prop(self, 'moveattribdown%d' % i, text='', icon='TRIA_DOWN')
+        
+        # Vertex Colors
         if vbfkey == VBF_COL or vbfkey == VBF_RGB:
-            split = c.split(factor=0.25)
+            split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'vclyr%d' % i, text='Layer')
+        # UVs
         elif vbfkey == VBF_UVS:
-            split = c.split(factor=0.25)
+            split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'uvlyr%d' % i, text='Layer')
+        elif vbfkey == VBF_GRO:
+            split = c.split(factor=0.16)
+            split.label(text='')
+            #split.prop(self, 'vgroup%d' % i, text='VGroup')
+            split.prop_search(self, 'vgroup%d' % i, context.active_object, 'vertex_groups')
+    
     sizestring = ''
     if len(sizelist) > 1:
         for x in sizelist[:-2]:
@@ -222,6 +239,27 @@ def GetCorrectiveMatrix(self, context):
     mattran = mathutils.Matrix.LocRotScale(None, None, self.scale) @ mattran
     
     return mattran
+
+# --------------------------------------------------------------------------------------------------
+
+def GenerateSettings(self, context, format):
+    return {
+        'format' : format,
+        'edgesonly' : self.edges_only,
+        'applyarmature' : self.apply_armature,
+        'deformonly' : self.deform_only,
+        'uvlayertarget': self.uv_layer_target == 'render',
+        'colorlayertarget': self.color_layer_target == 'render',
+        'matrix': GetCorrectiveMatrix(self, context),
+        'maxsubdivisions': self.max_subdivisions,
+        'flipnormals': self.flip_normals,
+        'reversewinding': self.reverse_winding,
+        'flipuvs': self.flip_uvs,
+        'floattype': self.float_type,
+        'attributesizes': [getattr(self, 'attribsize%d' % i) for i in range(0, 8)],
+        'vgrouptargets': [getattr(self, 'vgroup%d' % i) for i in range(0, 8)],
+        'vgroupdefaultweight': self.vertex_group_default_weight,
+    }
 
 # --------------------------------------------------------------------------------------------------
 
@@ -289,19 +327,46 @@ def MoveAttribute(self, index, moveup=False):
     if self.mutex:  # Lock access to function if mutex is active
         return
     
-    indices = [index, (0 if index==0 else index-1) if moveup else index+1]
+    indexpair = [index, (0 if index==0 else index-1) if moveup else index+1]
     
-    def SwapAttrib(formatstring):
-        values = [getattr(self, formatstring % x) for x in indices]
-        setattr(self, formatstring % indices[0], values[1])
-        setattr(self, formatstring % indices[1], values[0])
+    def SwapAttrib(formatstring, handlesizes=False):
+        values = [getattr(self, formatstring % i) for i in indexpair]
+        
+        # Move attribute sizes
+        if handlesizes:
+            sizes = [getattr(self, 'attribsize%d' % i) for i in indexpair]
+        
+        setattr(self, formatstring % indexpair[0], values[1])
+        setattr(self, formatstring % indexpair[1], values[0])
+        
+        if handlesizes:
+            setattr(self, 'attribsize%d' % indexpair[0], sizes[1])
+            setattr(self, 'attribsize%d' % indexpair[1], sizes[0])
     
-    SwapAttrib('vbf%d')
+    SwapAttrib('vbf%d', True)
     SwapAttrib('uvlyr%d')
     SwapAttrib('vclyr%d')
+    SwapAttrib('vgroup%d')
     
     self.mutex = True   # Lock function to prevent recursion
     setattr(self, ('moveattribup%d' if moveup else 'moveattribdown%d') % index, False)
+    self.mutex = False  # Unlock function
+
+# --------------------------------------------------------------------------------------
+
+def UpdateAttributeSize(self, index):
+    setattr(self, 'attribsize%d' % index, 3 if getattr(self, 'vbf%d' % index)==VBF_POS else 4)
+
+# --------------------------------------------------------------------------------------
+
+def ClampAttributeSize(self, index):
+    if self.mutex:  # Lock access to function if mutex is active
+        return
+    
+    self.mutex = True   # Lock function to prevent recursion
+    setattr(self, 'attribsize%d' % index, 
+        min(getattr(self, 'attribsize%d' % index), 3 if getattr(self, 'vbf%d' % index)==VBF_POS else 4)
+        )
     self.mutex = False  # Unlock function
 
 # --------------------------------------------------------------------------------------
@@ -420,13 +485,25 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         items=Items_FloatChoice, default='f'
     )
     
+    vertex_group_default_weight : bpy.props.FloatProperty(
+        name="Vertex Group Default Weight", default=0.0, soft_min=0.0, soft_max=1.0,
+        description='Default weight for Vertex Group attribute when an object does not contain the selected group.',
+    )
+    
     # Vertex Attributes
     VbfProp = lambda i,key: bpy.props.EnumProperty(name="Attribute %d" % i, 
-        description='Data to write for each vertex', items=Items_VBF, default=key)
+        description='Data to write for each vertex', items=Items_VBF, default=key, 
+        update=lambda s,c: UpdateAttributeSize(s, i))
+    AttributeSizeProp = lambda i,default: bpy.props.IntProperty(name="Attribute Size", 
+        description='Number of floats to write for this attribute.\n\nFor Position: 3 = XYZ, 2 = XY\nFor Colors, 4 = RGBA, 3 = RGB, 2 = RG, 1 = R', min=1, max=4, default=default,
+        update=lambda s,c: ClampAttributeSize(s, i))
     VClyrProp = lambda i: bpy.props.EnumProperty(name="Color Layer", 
         description='Color layer to reference', items=Items_VCLayers, default=0)
     UVlyrProp = lambda i: bpy.props.EnumProperty(name="UV Layer", 
         description='UV layer to reference', items=Items_UVLayers, default=0)
+    VertexGroupProp = lambda i: bpy.props.EnumProperty(name="Vertex Group",
+        description='Vertex Group to reference', items=Items_VertexGroups, default=0)
+    
     vbf0 : VbfProp(0, VBF_POS)
     vbf1 : VbfProp(1, VBF_RGB)
     vbf2 : VbfProp(2, VBF_UVS)
@@ -435,6 +512,15 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     vbf5 : VbfProp(5, VBF_000)
     vbf6 : VbfProp(6, VBF_000)
     vbf7 : VbfProp(7, VBF_000)
+    
+    attribsize0 : AttributeSizeProp(0, 3)
+    attribsize1 : AttributeSizeProp(1, 4)
+    attribsize2 : AttributeSizeProp(2, 4)
+    attribsize3 : AttributeSizeProp(3, 4)
+    attribsize4 : AttributeSizeProp(4, 4)
+    attribsize5 : AttributeSizeProp(5, 4)
+    attribsize6 : AttributeSizeProp(6, 4)
+    attribsize7 : AttributeSizeProp(7, 4)
     
     vclyr0 : VClyrProp(0)
     vclyr1 : VClyrProp(1)
@@ -453,6 +539,15 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     uvlyr5 : UVlyrProp(5)
     uvlyr6 : UVlyrProp(6)
     uvlyr7 : UVlyrProp(7)
+    
+    vgroup0 : VertexGroupProp(0)
+    vgroup1 : VertexGroupProp(1)
+    vgroup2 : VertexGroupProp(2)
+    vgroup3 : VertexGroupProp(3)
+    vgroup4 : VertexGroupProp(4)
+    vgroup5 : VertexGroupProp(5)
+    vgroup6 : VertexGroupProp(6)
+    vgroup7 : VertexGroupProp(7)
     
     # Fake buttons
     mutex : bpy.props.BoolProperty(default=False, options={'SKIP_SAVE', 'HIDDEN'})
@@ -477,9 +572,9 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
 
 # =============================================================================
 
-class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
+class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
     """Exports selected objects as one compressed vertex buffer"""
-    bl_idname = "dmr.vbm_export_vb"
+    bl_idname = "vbm.export_vb"
     bl_label = "Export VB"
     bl_options = {'PRESET'}
     
@@ -516,38 +611,24 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
         DrawAttributes(self, context)
 
     def execute(self, context):
-        path = self.filepath
+        path = bpy.path.abspath(self.filepath)
         
         if not os.path.exists(os.path.dirname(path)):
-            self.info({'WARNING'}, 'Invalid path specified: "%s"' % path)
+            self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
             return {'FINISHED'}
         
         print('='*80)
         print('> Beginning ExportVB to rootpath: "%s"' % path)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
-        mattran = GetCorrectiveMatrix(self, context)
-        
-        settings = {
-            'format' : format,
-            'edgesonly' : self.edges_only,
-            'applyarmature' : self.apply_armature,
-            'deformonly' : self.deform_only,
-            'uvlayertarget': self.uv_layer_target == 'render',
-            'colorlayertarget': self.color_layer_target == 'render',
-            'matrix': mattran,
-            'maxsubdivisions': self.max_subdivisions,
-            'flipnormals': self.flip_normals,
-            'reversewinding': self.reverse_winding,
-            'flipuvs': self.flip_uvs,
-            'floattype': self.float_type,
-        }
+        settings = GenerateSettings(self, context, format)
         
         RemoveTempObjects()
         
         # Get list of selected objects
         objects = CollectionToObjectList(self, context)
         targetobjects = [x for x in objects if x.type in VALIDOBJTYPES]
+        
         if len(targetobjects) == 0:
             self.report({'WARNING'}, 'No valid objects selected')
             return {'FINISHED'}
@@ -621,13 +702,13 @@ class DMR_OP_ExportVB(ExportVBSuper, ExportHelper):
             context.view_layer.objects.active = bpy.data.objects[activename]
         
         return {'FINISHED'}
-classlist.append(DMR_OP_ExportVB)
+classlist.append(VBM_OT_ExportVB)
 
 # =============================================================================
 
-class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
+class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
     """Exports selected objects as vbm data"""
-    bl_idname = "dmr.vbm_export_vbm"
+    bl_idname = "vbm.export_vbm"
     bl_label = "Export VBM"
     bl_options = {'PRESET'}
 
@@ -685,31 +766,17 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         DrawAttributes(self, context)
         
     def execute(self, context):
-        path = self.filepath
+        path = bpy.path.abspath(self.filepath)
         
         if not os.path.exists(os.path.dirname(path)):
-            self.info({'WARNING'}, 'Invalid path specified: "%s"' % path)
+            self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
             return {'FINISHED'}
         
         print('='*80)
         print('> Beginning ExportVBM to rootpath: "%s"' % path)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
-        mattran = GetCorrectiveMatrix(self, context)
-        
-        settings = {
-            'format' : format,
-            'edgesonly' : self.edges_only,
-            'applyarmature' : self.apply_armature,
-            'modifierpick': self.modifier_target,
-            'maxsubdivisions': self.max_subdivisions,
-            'deformonly' : self.deform_only,
-            'matrix': mattran,
-            'flipnormals': self.flip_normals,
-            'reversewinding': self.reverse_winding,
-            'flipuvs': self.flip_uvs,
-            'floattype': self.float_type,
-        }
+        settings = GenerateSettings(self, context, format)
         
         RemoveTempObjects()
         
@@ -923,7 +990,7 @@ class DMR_OP_ExportVBM(ExportVBSuper, bpy.types.Operator):
         self.report({'INFO'}, 'VBM export complete')
         
         return {'FINISHED'}
-classlist.append(DMR_OP_ExportVBM)
+classlist.append(VBM_OT_ExportVBM)
 
 # =============================================================================
 

@@ -11,12 +11,21 @@ enum TRK_Intrpl
 	smooth = 2,
 }
 
+enum TRK_Space
+{
+	none = 0,
+	local = 1,
+	pose = 2,
+	world = 3,
+	evaluated = 4
+}
+
 function TRKData() constructor
 {
-	matrixspace = 0; // 0 = None, 1 = Local, 2 = Pose, 3 = World, 4 = Evaluated
+	matrixspace = TRK_Space.none; // 0 = None, 1 = Local, 2 = Pose, 3 = World, 4 = Evaluated
 	framematrices = []; // Array of flat matrix arrays for each frame
 	
-	trackspace = 0; // 0 = None, 1 = Local, 2 = Pose, 3 = World
+	trackspace = TRK_Space.none; // 0 = None, 1 = Local, 2 = Pose, 3 = World
 	tracks = []; // array of TRKData_Track
 	tracknames = [];	// (bone) names for each track
 	trackmap = {}; // {trackname: track} for each track
@@ -35,6 +44,102 @@ function TRKData() constructor
 	framespersecond = 1;
 	duration = 0;
 	flag = 0;
+	
+	// Accessors -------------------------------------------------------------------
+	
+	static Flags = function() {return flag;}
+	static Duration = function() {return duration;}
+	static PositionStep = function() {return positionstep;}
+	
+	static CalculateTimeStep = function(fps) {return (framespersecond/fps)/duration;}
+	
+	static MatrixSpace = function() {return matrixspace;}
+	static TrackSpace = function() {return trackspace;}
+	
+	static FrameCount = function() {return framecount;}
+	static FrameMatrices = function() {return framematrices;}
+	static GetFrameMatrices = function(index) {return framematrices[index];}
+	static GetFrameMatricesByPosition = function(pos) 
+		{return framematrices[clamp(round(pos*framecount), 0, framecount-1)];}
+	static GetFrameMatricesByMarker = function(marker_index) 
+		{return framematrices[round(markerpositions[clamp(marker_index, 0, markercount-1)]*(framecount-1))];}
+	
+	static Tracks = function() {return tracks;}
+	static TrackCount = function() {return trackcount;}
+	static TrackNames = function() {return tracknames;}
+	static GetTrack = function(index) {return tracks[index];}
+	static GetTrackName = function(index) {return tracknames[index];}
+	
+	static MarkerCount = function() {return markercount;}
+	static MarkerPositions = function() {return markerpositions;}
+	static MarkerNames = function() {return markernames;}
+	static GetMarkerPosition = function(index) {return markerpositions[index];}
+	static GetMarkerName = function(index) {return markernames[index];}
+	
+	// Methods -------------------------------------------------------------------
+	
+	static toString = function()
+	{
+		return "TRKData: {" + 
+			"Duration: " + string(duration) + ", " +
+			"Frames: " + string(framecount) + ", " +
+			"Tracks: " + string(trackcount) + ", " +
+			"Markers: " + string(markercount) + "}";
+	}
+	
+	// Returns trk with same data
+	static Copy = function()
+	{
+		var trk = new TRKData();
+		
+		var i, j, k;
+		
+		trk.framecount = framecount;
+		trk.trackcount = trackcount;
+		trk.markercount = markercount;
+		trk.framespersecond = framespersecond;
+		trk.duration = duration;
+		trk.flag = flag;
+		trk.positionrange = [positionrange[0], positionrange[1]];
+		trk.positionstep = positionstep;
+		
+		trk.matrixspace = matrixspace;
+		trk.trackspace = trackspace;
+		
+		// Frame Matrices
+		array_resize(trk.framematrices, framecount);
+		i = 0;
+		repeat(framecount)
+		{
+			trk.framematrices[@ i] = array_create(trackcount*16);
+			array_copy(trk.framematrices[@ i], 0, framematrices[i], 0, trackcount*16);
+			i++;
+		}
+		
+		// Tracks
+		array_resize(trk.tracks, trackcount);
+		i = 0;
+		repeat(framecount)
+		{
+			trk.framematrices[@ i] = array_create(trackcount*16);
+			array_copy(trk.framematrices[@ i], 0, framematrices[i], 0, trackcount*16);
+			i++;
+		}
+	}
+	
+	// Reads TRK data from file
+	static Open = function(path)
+	{
+		OpenTRK(self, path);
+		return self;
+	}
+	
+	// Returns array of flat matrices with indices mapped to bone names
+	function FitFrameMatrices(bonenames)
+	{
+		
+	}
+
 }
 
 function TRKData_Track() constructor
@@ -56,6 +161,13 @@ function OpenTRK(outtrk, path)
 	if filename_ext(path) == ""
 	{
 		path = filename_change_ext(path, ".trk");	
+	}
+	
+	// File doesn't exist
+	if ( !file_exists(path) )
+	{
+		show_debug_message("OpenTRK(): File does not exist. \"" + path + "\"");
+		return -1;
 	}
 	
 	var bzipped = buffer_load(path);
@@ -191,7 +303,6 @@ function __TRKOpen_v1(b, outtrk)
 	var trackindex;
 	var transformindex;
 	var matarray;
-	var m;
 	
 	var i, v, f, n;
 	
@@ -253,6 +364,7 @@ function __TRKOpen_v1(b, outtrk)
 	
 	// Read tracks
 	outtrk.trackspace = buffer_read(b, buffer_u8);
+	
 	if (outtrk.trackspace > 0)
 	{
 		trackindex = 0;
@@ -330,6 +442,7 @@ function __TRKOpen_v1(b, outtrk)
 		{
 			name += chr( buffer_read(b, buffer_u8) );
 		}
+		
 		outtrk.markernames[i++] = name;
 	}
 	

@@ -27,11 +27,11 @@ matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_style);
 
-shader_set_uniform_f_array(u_style_light, lightpos);
+shader_set_uniform_f_array(u_style_lightpos, lightpos);
 
 if (vbm_curly)
 {
-	for (var i = 0; i < vbm_curly.vbcount; i++) // Iterate through vb indices
+	for (var i = 0; i < vbm_curly.Count(); i++) // Iterate through vb indices
 	{
 		if ( meshvisible & (1 << i) ) // Check if bit is set for mesh index
 		{

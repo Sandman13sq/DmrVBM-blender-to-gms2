@@ -1,10 +1,13 @@
 /*
+	Supports skeletal animation
 	
+	NOTE: If you don't see any vertices rendering at all, 
+	check that u_matpose is populated with some valid matrices.
 */
 
 // Vertex Attributes - From vertex buffer
 attribute vec3 in_Position;     // (x,y,z)
-attribute vec3 in_Normal;       // (x,y,z)
+attribute vec3 in_Normal;       // (nx,ny,nz)
 attribute vec4 in_Colour;       // (r,g,b,a)
 attribute vec2 in_TextureCoord; // (u,v)
 attribute vec4 in_Bone;		// (b0,b1,b2,b3)
