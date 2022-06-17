@@ -26,9 +26,6 @@ def PrintStatus(msg, clear=1, buffersize=30):
 VBMVERSION = 1
 FCODE = 'f'
 
-# This is more for loading files outside of GMS
-# If you don't mind longer load times for converting numbers to floats,
-# get some more accuracy with doubles or save some space with binary16s
 Items_FloatChoice = (
     ('f', 'Float (32bit) *GMS*', 'Write floating point data using floats (32 bits)\n***Use for Game Maker Studio***'),
     ('d', 'Double (64bit)', 'Write floating point data using doubles (64 bits)'),
@@ -47,6 +44,7 @@ VBF_BON = 'BONE'
 VBF_BOI = 'BONEBYTES'
 VBF_WEI = 'WEIGHT'
 VBF_WEB = 'WEIGHTBYTES'
+VBF_GRO = 'VERTEXGROUP'
 
 VBFSize = {
     VBF_000: 0,
@@ -60,7 +58,8 @@ VBFSize = {
     VBF_BON: 4,
     VBF_BOI: 1,
     VBF_WEI: 4, 
-    VBF_WEB: 4, 
+    VBF_WEB: 4,
+    VBF_GRO: 1,
     }
 
 Items_VBF = (
@@ -76,6 +75,7 @@ Items_VBF = (
     (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'BONE_DATA', 9),
     (VBF_WEI, 'Weights', '4 Floats', 'MOD_VERTEX_WEIGHT', 10),
     (VBF_WEB, 'Weight Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'MOD_VERTEX_WEIGHT', 11),
+    (VBF_GRO, 'Vertex Group', '1 Float', 'GROUP_VERTEX', 12),
 )
 
 VBFType = {x[1]: x[0] for x in enumerate([
@@ -91,6 +91,7 @@ VBFType = {x[1]: x[0] for x in enumerate([
     VBF_BOI,
     VBF_TAN,
     VBF_BTN,
+    VBF_GRO,
     ])}
 
 Items_LayerChoice = (
@@ -138,7 +139,7 @@ Items_ForwardAxis = (
 
 def Items_UVLayers(self, context):
     items = [
-        (LYR_GLOBAL, '<Color Source>', 'Use setting "Color Source" in ==Show More Options==', 'PREFERENCES', 0),
+        (LYR_GLOBAL, '<UV Source>', 'Use setting "UV Source" in ==Show More Options==', 'PREFERENCES', 0),
         (LYR_RENDER, '<Render Layer>', 'Use Render Layer of object', 'RESTRICT_RENDER_OFF', 1),
         (LYR_SELECT, '<Selected Layer>', 'Use Selected Layer of object', 'RESTRICT_SELECT_OFF', 2),
     ]
@@ -177,6 +178,24 @@ def Items_VCLayers(self, context):
     lyrnames = list(set(lyrnames))
     
     items += [(name, name, 'Use "%s" layer for color data' % name, 'GROUP_VCOL', i+3) for i,name in enumerate(lyrnames)]
+    
+    return items
+
+# --------------------------------------------------------------------------------------------------
+
+def Items_VertexGroups(self, context):
+    names = [
+        vg.name
+        for obj in context.scene.objects if (obj and obj.type == 'MESH')
+        for vg in obj.vertex_groups
+    ]
+    
+    # Sort by number of entries
+    names.sort(key=lambda x: names.count(x))
+    names = list(set(names))
+    
+    items = [('---', '---', 'Null Group', 'NONE', 0)] + \
+        [(name, name, 'Export vertices from group "%s"' % name, 'GROUP_VERTEX', i+1) for i,name in enumerate(names)]
     
     return items
 
@@ -242,8 +261,10 @@ def GetVBData(
     FCODE = settings.get('floattype', 'f')
     colordefault = settings.get('defaultcolor', (1.0, 1.0, 1.0, 1.0))
     attribsizes = settings.get('attribsizes', [3]+[4]*7)
+    vgrouptargets = settings.get('vgrouptargets', ['']*8)
+    vgroupdefaultweight = settings.get('vgroupdefaultweight', 0.0)
     
-    process_groups = True if sum([1 for k in format if k in [VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]]) > 0 else False
+    process_bones = True if sum([1 for k in format if k in [VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]]) > 0 else False
     process_tangents = True if sum([1 for k in format if k in [VBF_TAN, VBF_BTN]]) > 0 else False
     
     if not instancerun:
@@ -350,6 +371,10 @@ def GetVBData(
         
         uvattriblyr, uvtargets = GetAttribLayers(workingmesh.uv_layers, uvtargets) # list of layer indices to use for attribute
         vcattriblyr, vctargets = GetAttribLayers(workingmesh.vertex_colors, vctargets)
+        targetvgroups = [
+            workingobj.vertex_groups[vgname] if vgname in workingobj.vertex_groups.keys() else None
+            for vgname in vgrouptargets
+        ]
         
         voffset = 0
         loffset = 0
@@ -371,8 +396,9 @@ def GetVBData(
             # Vertices ------------------------------------------------------------------------
             PrintStatus(statusheader+'Setting up vertex data...')
             
+            workingvertices = tuple(workingmesh.vertices)
             voffset = len(vertexmeta)
-            for v in workingmesh.vertices:
+            for v in workingvertices:
                 v.co = vertcooriginal[v]
             
             vgroups = workingobj.vertex_groups
@@ -392,7 +418,7 @@ def GetVBData(
             worldmat = settingsmatrix @ matrix
             loc, rot, sca = worldmat.decompose()
             
-            if process_groups:
+            if process_bones:
                 def VEntry(v):
                     co = v.co.copy()
                     co.rotate(rot)
@@ -412,7 +438,8 @@ def GetVBData(
                         weights = tuple(x/wlength for x in weights)
                     
                     return (
-                        tuple(co)[:4], 
+                        tuple(co),
+                        tuple( (vg.weight(v.index) if vg != None else vgroupdefaultweight for vg in targetvgroups) ),
                         tuple(boneindices+(0,0,0,0))[:4], 
                         tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
                         tuple(weights+weightdefaults)[:4],
@@ -426,13 +453,14 @@ def GetVBData(
                     co += loc
                     
                     return [
-                        tuple(co[:4])
+                        tuple(co),
+                        tuple( (vg.weight(v.index) if (vg != None and vg.index in [vge.group for vge in v.groups]) else vgroupdefaultweight for vg in targetvgroups) ),
                     ]
             
-            vertices = {v.index:v for v in workingmesh.vertices}
+            vertices = {v.index:v for v in workingvertices}
             vertexmeta += tuple(
                 tuple(VEntry(v))
-                for v in workingmesh.vertices
+                for v in workingvertices
             )
             
             # Loops ------------------------------------------------------------------------------
@@ -471,7 +499,7 @@ def GetVBData(
                 ])
             targetlayers = set([lyr for i,lyr in enumerate(workingmesh.uv_layers) if i in uvattriblyr])
             uvlayers = tuple([
-                [lyr.data[i].uv for i in range(0, len(lyr.data))] if lyr in uvattriblyr else 0
+                [lyr.data[i].uv for i in range(0, len(lyr.data))] if lyr in targetlayers else 0
                 for lyr in workingmesh.uv_layers
                 ])
             
@@ -585,10 +613,11 @@ def GetVBData(
         def out_tex(out, attribindex, size): out.append(Pack(2*FCODE, *lmeta[3][uvattriblyr[attribindex]]));
         def out_col(out, attribindex, size): out.append(Pack(size*FCODE, *lmeta[4][vcattriblyr[attribindex]][:size]));
         def out_rgb(out, attribindex, size): out.append(Pack(size*'B', *lmeta[5][vcattriblyr[attribindex]][:size]));
-        def out_bon(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[1][:4][:size]));
-        def out_boi(out, attribindex, size): out.append(Pack(size*'B', *vmeta[2][:size]));
-        def out_wei(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[3][:4][:size]));
-        def out_web(out, attribindex, size): out.append(Pack(size*'B', *vmeta[4][:size]));
+        def out_bon(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[2][:4][:size]));
+        def out_boi(out, attribindex, size): out.append(Pack(size*'B', *vmeta[3][:size]));
+        def out_wei(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[4][:4][:size]));
+        def out_web(out, attribindex, size): out.append(Pack(size*'B', *vmeta[5][:size]));
+        def out_gro(out, attribindex, size): out.append(Pack(FCODE, vmeta[1][attribindex]));
         
         outwritemap = {
             VBF_POS: out_pos, 
@@ -601,7 +630,8 @@ def GetVBData(
             VBF_BON: out_bon, 
             VBF_BOI: out_boi, 
             VBF_WEI: out_wei, 
-            VBF_WEB: out_web
+            VBF_WEB: out_web,
+            VBF_GRO: out_gro,
         }
         
         format_enumerated = tuple(enumerate(format))

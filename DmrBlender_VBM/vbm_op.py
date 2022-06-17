@@ -112,9 +112,7 @@ def DrawCommonProps(self, context):
         c.prop(self, 'reverse_winding', text='Flip Normals')
         c.prop(self, 'flip_uvs', text='Flip UVs')
         
-        r = c.row(align=1)
-        r.prop(self, 'up_axis', text='')
-        r.prop(self, 'forward_axis', text='')
+        c.prop(self, 'vertex_group_default_weight', text='Default Weight')
         
         rr = c.row()
         cc = rr.column(align=1)
@@ -129,6 +127,9 @@ def DrawCommonProps(self, context):
         
         r = c.row()
         r.prop(self, 'scale', text='Scale')
+        rr = c.row().row(align=1)
+        rr.prop(self, 'up_axis', text='')
+        rr.prop(self, 'forward_axis', text='')
         c.prop(self, 'max_subdivisions', text='Max Subdivisions')
         c.prop(self, 'compression_level', text='Compression')
 
@@ -163,7 +164,7 @@ def DrawAttributes(self, context):
         sizelist += [VBFSize[vbfkey]]
         
         # Attribute Size
-        if vbfkey in [VBF_POS, VBF_COL, VBF_RGB, VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]:
+        if vbfkey in [VBF_POS, VBF_COL, VBF_BON, VBF_WEI]:
             rr = r.row(align=1)
             rr.scale_x = 0.4
             rr.prop(self, 'attribsize%d' % i, text='', icon_only=True)
@@ -181,6 +182,12 @@ def DrawAttributes(self, context):
             split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'uvlyr%d' % i, text='Layer')
+        elif vbfkey == VBF_GRO:
+            split = c.split(factor=0.16)
+            split.label(text='')
+            #split.prop(self, 'vgroup%d' % i, text='VGroup')
+            split.prop_search(self, 'vgroup%d' % i, context.active_object, 'vertex_groups')
+    
     sizestring = ''
     if len(sizelist) > 1:
         for x in sizelist[:-2]:
@@ -235,7 +242,7 @@ def GetCorrectiveMatrix(self, context):
 
 # --------------------------------------------------------------------------------------------------
 
-def GenerateSettings(self, context):
+def GenerateSettings(self, context, format):
     return {
         'format' : format,
         'edgesonly' : self.edges_only,
@@ -250,6 +257,8 @@ def GenerateSettings(self, context):
         'flipuvs': self.flip_uvs,
         'floattype': self.float_type,
         'attributesizes': [getattr(self, 'attribsize%d' % i) for i in range(0, 8)],
+        'vgrouptargets': [getattr(self, 'vgroup%d' % i) for i in range(0, 8)],
+        'vgroupdefaultweight': self.vertex_group_default_weight,
     }
 
 # --------------------------------------------------------------------------------------------------
@@ -337,6 +346,7 @@ def MoveAttribute(self, index, moveup=False):
     SwapAttrib('vbf%d', True)
     SwapAttrib('uvlyr%d')
     SwapAttrib('vclyr%d')
+    SwapAttrib('vgroup%d')
     
     self.mutex = True   # Lock function to prevent recursion
     setattr(self, ('moveattribup%d' if moveup else 'moveattribdown%d') % index, False)
@@ -475,6 +485,11 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         items=Items_FloatChoice, default='f'
     )
     
+    vertex_group_default_weight : bpy.props.FloatProperty(
+        name="Vertex Group Default Weight", default=0.0, soft_min=0.0, soft_max=1.0,
+        description='Default weight for Vertex Group attribute when an object does not contain the selected group.',
+    )
+    
     # Vertex Attributes
     VbfProp = lambda i,key: bpy.props.EnumProperty(name="Attribute %d" % i, 
         description='Data to write for each vertex', items=Items_VBF, default=key, 
@@ -486,6 +501,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         description='Color layer to reference', items=Items_VCLayers, default=0)
     UVlyrProp = lambda i: bpy.props.EnumProperty(name="UV Layer", 
         description='UV layer to reference', items=Items_UVLayers, default=0)
+    VertexGroupProp = lambda i: bpy.props.EnumProperty(name="Vertex Group",
+        description='Vertex Group to reference', items=Items_VertexGroups, default=0)
     
     vbf0 : VbfProp(0, VBF_POS)
     vbf1 : VbfProp(1, VBF_RGB)
@@ -522,6 +539,15 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     uvlyr5 : UVlyrProp(5)
     uvlyr6 : UVlyrProp(6)
     uvlyr7 : UVlyrProp(7)
+    
+    vgroup0 : VertexGroupProp(0)
+    vgroup1 : VertexGroupProp(1)
+    vgroup2 : VertexGroupProp(2)
+    vgroup3 : VertexGroupProp(3)
+    vgroup4 : VertexGroupProp(4)
+    vgroup5 : VertexGroupProp(5)
+    vgroup6 : VertexGroupProp(6)
+    vgroup7 : VertexGroupProp(7)
     
     # Fake buttons
     mutex : bpy.props.BoolProperty(default=False, options={'SKIP_SAVE', 'HIDDEN'})
@@ -750,7 +776,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         print('> Beginning ExportVBM to rootpath: "%s"' % path)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
-        settings = GenerateSettings(self, context)
+        settings = GenerateSettings(self, context, format)
         
         RemoveTempObjects()
         
