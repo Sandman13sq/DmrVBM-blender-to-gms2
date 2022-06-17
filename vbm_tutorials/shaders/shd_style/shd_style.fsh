@@ -39,7 +39,7 @@ void main()
 	// Output
 	vec4 basecolor = (v_vColour * texture2D( gm_BaseTexture, v_vTexcoord ));
 	
-	gl_FragColor.rgb = ColorBurn(basecolor.rgb, vec3(0.2, 0.1, 1.0), (1.0-dp)*0.5);
+	gl_FragColor.rgb = ColorBurn(basecolor.rgb, vec3(0.5, 0.2, 1.0), (1.0-dp)*0.5) * (dp*0.2+0.8);
 	
 	gl_FragColor.rgb *= vec3(1.0+spe);
 	gl_FragColor.rgb += vec3(rim);
