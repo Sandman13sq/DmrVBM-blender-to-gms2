@@ -1,11 +1,11 @@
 /*
 	All types of attributes in one shader.
-	NOTE: Normal mapping is a little strange after applying pse transform
+	NOTE: Normal mapping is a little strange after applying pose transform
 */
 
 // Vertex Attributes - From vertex buffer
 attribute vec3 in_Position;     // (x,y,z)
-attribute vec3 in_Normal;       // (x,y,z)
+attribute vec3 in_Normal;       // (nx,ny,nz)
 attribute vec3 in_Tangent;		// (nx,ny,nz)
 attribute vec3 in_Bitangent;	// (nx,ny,nz)
 attribute vec4 in_Colour;       // (r,g,b,a)
