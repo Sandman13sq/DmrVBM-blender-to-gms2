@@ -36,6 +36,7 @@ enum VBM_AttributeType
 	bonebytes = 9,
 	tangent = 10,
 	bitangent = 11,
+	vertexgroup = 12,
 }
 
 /*
@@ -238,6 +239,13 @@ function OpenVertexBuffer(path, format, freeze=true)
 	var bzipped = buffer_load(path);
 	var b = bzipped;
 	
+	// File doesn't exist
+	if ( !file_exists(path) )
+	{
+		show_debug_message("OpenVertexBuffer(): File does not exist. \"" + path + "\"");
+		return -1;
+	}
+	
 	// error reading file
 	if (bzipped < 0)
 	{
@@ -274,6 +282,13 @@ function OpenVBM(outvbm, path, format=-1, freeze=true, merge=false)
 	if (filename_ext(path) == "")
 	{
 		path = filename_change_ext(path, ".vbm");	
+	}
+	
+	// File doesn't exist
+	if ( !file_exists(path) )
+	{
+		show_debug_message("OpenVBM(): File does not exist. \"" + path + "\"");
+		return -1;
 	}
 	
 	var bzipped = buffer_load(path);

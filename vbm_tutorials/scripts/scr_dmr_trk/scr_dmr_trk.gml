@@ -59,11 +59,10 @@ function TRKData() constructor
 	static FrameCount = function() {return framecount;}
 	static FrameMatrices = function() {return framematrices;}
 	static GetFrameMatrices = function(index) {return framematrices[index];}
-	static GetFrameMatricesByPosition = function(pos) {return framematrices[clamp(round(pos*framecount), 0, framecount-1)];}
+	static GetFrameMatricesByPosition = function(pos) 
+		{return framematrices[clamp(round(pos*framecount), 0, framecount-1)];}
 	static GetFrameMatricesByMarker = function(marker_index) 
-	{
-		return framematrices[round(markerpositions[clamp(marker_index, 0, markercount-1)]*(framecount-1))];
-	}
+		{return framematrices[round(markerpositions[clamp(marker_index, 0, markercount-1)]*(framecount-1))];}
 	
 	static Tracks = function() {return tracks;}
 	static TrackCount = function() {return trackcount;}
@@ -162,6 +161,13 @@ function OpenTRK(outtrk, path)
 	if filename_ext(path) == ""
 	{
 		path = filename_change_ext(path, ".trk");	
+	}
+	
+	// File doesn't exist
+	if ( !file_exists(path) )
+	{
+		show_debug_message("OpenTRK(): File does not exist. \"" + path + "\"");
+		return -1;
 	}
 	
 	var bzipped = buffer_load(path);
