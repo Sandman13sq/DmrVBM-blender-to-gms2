@@ -64,16 +64,16 @@ VBFSize = {
 
 Items_VBF = (
     (VBF_000, '---', 'No Data', 'BLANK1', 0),
-    (VBF_POS, 'Position', '3 Floats', 'VERTEXSEL', 1),
+    (VBF_POS, 'Position', '3* Floats', 'VERTEXSEL', 1),
     (VBF_UVS, 'UVs', '2 Floats', 'UV', 2),
     (VBF_NOR, 'Normal', '3 Floats', 'NORMALS_VERTEX', 3),
     (VBF_TAN, 'Tangents', '3 Floats', 'NORMALS_VERTEX_FACE', 4),
     (VBF_BTN, 'Bitangents', '3 Floats', 'NORMALS_VERTEX_FACE', 5),
-    (VBF_COL, 'Color (RGBA)', '4 Floats', 'COLOR', 6),
+    (VBF_COL, 'Color (RGBA)', '4* Floats', 'COLOR', 6),
     (VBF_RGB, 'Color Bytes (RGBA)', '4 Bytes = Size of 1 Float in format 0xRRGGBBAA', 'RESTRICT_COLOR_OFF', 7),
-    (VBF_BON, 'Bone Indices', '4 Floats (Use with Weights)', 'BONE_DATA', 8),
+    (VBF_BON, 'Bone Indices', '4* Floats (Use with Weights)', 'BONE_DATA', 8),
     (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'BONE_DATA', 9),
-    (VBF_WEI, 'Weights', '4 Floats', 'MOD_VERTEX_WEIGHT', 10),
+    (VBF_WEI, 'Weights', '4* Floats', 'MOD_VERTEX_WEIGHT', 10),
     (VBF_WEB, 'Weight Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'MOD_VERTEX_WEIGHT', 11),
     (VBF_GRO, 'Vertex Group', '1 Float', 'GROUP_VERTEX', 12),
 )
