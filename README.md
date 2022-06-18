@@ -28,6 +28,23 @@ The example model's character is of Curly Brace from Cave Story. I own nothing r
 * Navigate to the `DmrVBM.yymps` file. Select the file and click `Open`
 * Choose which scripts to import into the project
     * *scr_dmr_vbm* is written to be independent of any other script. The other scripts use elements from all scripts.
+
+### Supported Attributes
+- Position - Location of vertex.
+- UV - Texture coordinate per loop. 
+- Normal - Surface orientation of vertex
+- Tangent - Vector perpendicular to the normal.
+- Bitangent - Cross product of normal and tangent.
+- Color - Vertex colors as floats.
+- Color Bytes - Vertex colors as 4 bytes
+- Bone Indices - Index of bone from deform vertex groups.
+- Bone Index Bytes - Above as 4 bytes
+- Weights - Weight from deform vertex groups.
+- Weight Bytes - Above as 4 bytes
+- Vertex Group - Vertex weight value from named vertex group.  
+
+Game Maker's default format is [Position, Color Bytes, UV]
+
 -----------------------------------------------------------------------------------------------
 
 ![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/addon.png)
