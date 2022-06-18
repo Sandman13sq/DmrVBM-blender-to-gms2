@@ -28,8 +28,13 @@ The example model's character is of Curly Brace from Cave Story. I own nothing r
 * Navigate to the `DmrVBM.yymps` file. Select the file and click `Open`
 * Choose which scripts to import into the project
     * *scr_dmr_vbm* is written to be independent of any other script. The other scripts use elements from all scripts.
+-----------------------------------------------------------------------------------------------
 
-=================================================================================================
+![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/vbmpanel.png)
+![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/vbmexport.png)
+![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/trkexport.png)
+
+-----------------------------------------------------------------------------------------------
 
 # CHANGELOG
 
@@ -47,7 +52,10 @@ The example model's character is of Curly Brace from Cave Story. I own nothing r
 	- Added methods and functions to TRKData struct for accessing struct data.
 	- Opening TRK files checks for compression headers.
 - General
-	- Updated vbm_tutorials with 3 new examples and better camera.
+	- Updated vbm_tutorials with Blender-like camera controls and 3 new shader examples.
+		- Outline: Makes use of exported weights from a Vertex Group for model outline position
+		- Normal Map: Uses tangent and bitangent data to calculate normals from a texture.
+		- PRM: A shader setup similar to games like Smash Bros. Makes use of several textures for styled shading.
 	- Removed vbm_demo
 
 ## v1.0
