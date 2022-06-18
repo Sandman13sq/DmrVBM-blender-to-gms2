@@ -30,9 +30,7 @@ The example model's character is of Curly Brace from Cave Story. I own nothing r
     * *scr_dmr_vbm* is written to be independent of any other script. The other scripts use elements from all scripts.
 -----------------------------------------------------------------------------------------------
 
-![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/vbmpanel.png)
-![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/vbmexport.png)
-![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/trkexport.png)
+![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/addon.png)
 
 -----------------------------------------------------------------------------------------------
 
