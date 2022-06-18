@@ -1,3 +1,5 @@
+![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/banner.png)
+
 # Vertex Buffer Model Exporter by Dreamer13sq
 ### Import/Export tools for loading .vb and .vbm vertex buffer data out of Blender and in to Game Maker Studio 2
 #### .vb is Game Maker Studio's **vertex buffer data** format used in functions like `vertex_submit()`.
