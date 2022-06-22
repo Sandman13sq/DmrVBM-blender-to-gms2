@@ -1,5 +1,8 @@
 /*
 	Industry-style shading (approximately)
+	
+	Made from the information on this site:
+	https://scanmountgoat.github.io/Smush-Material-Research/
 */
 
 // Varyings - Passed in from vertex shader

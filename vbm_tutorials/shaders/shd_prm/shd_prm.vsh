@@ -1,6 +1,9 @@
 /*
 	Industry-style shading (approximately)
 	
+	Made from the information on this site:
+	https://scanmountgoat.github.io/Smush-Material-Research/
+	
 	NOTE: If you don't see any vertices rendering at all, 
 	check that u_matpose is populated with some valid matrices.
 */
