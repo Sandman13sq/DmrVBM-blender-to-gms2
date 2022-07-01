@@ -979,7 +979,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
             # Export each data as individual files
             if dooutexport:
                 for name, outgroup in outgroups.items():
-                    FinishVBM(outgroup[0], outgroup[1], rootpath + name + self.filename_ext)
+                    FinishVBM({name: outgroup[0]}, outgroup[1], [name], rootpath + name + self.filename_ext)
         
         # Restore State --------------------------------------------------------
         RemoveTempObjects()
