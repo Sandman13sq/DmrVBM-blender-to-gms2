@@ -477,9 +477,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         print('> Writing Markers...');
         
         if marker_frames_only:
-            markers = [(x.name, i/(duration-1.0)) for i,x in enumerate(sourceaction.pose_markers)]
+            markers = [(x.name, i/max(1, duration-1.0)) for i,x in enumerate(sourceaction.pose_markers)]
         else:
-            markers = [(x.name, (x.frame-actionrange[0])*scale/(duration-1.0)) for x in sourceaction.pose_markers]
+            markers = [(x.name, (x.frame-actionrange[0])*scale/max(1, duration-1.0)) for x in sourceaction.pose_markers]
         
         outtrk += Pack('I', len(markers))
         outtrk += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
