@@ -611,7 +611,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
         DrawAttributes(self, context)
 
     def execute(self, context):
-        path = bpy.path.abspath(self.filepath)
+        path = os.path.realpath(bpy.path.abspath(self.filepath))
         
         if not os.path.exists(os.path.dirname(path)):
             self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
@@ -766,7 +766,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         DrawAttributes(self, context)
         
     def execute(self, context):
-        path = bpy.path.abspath(self.filepath)
+        path = os.path.realpath(bpy.path.abspath(self.filepath))
         
         if not os.path.exists(os.path.dirname(path)):
             self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
@@ -899,7 +899,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
             
             return (vbgroups, vbnumber, vbkeys)
         
-        def FinishVBM(vbgroups, vbnumbers, groupkeys, path=self.filepath):
+        def FinishVBM(vbgroups, vbnumbers, groupkeys, path=path):
             out_vb = b''
             out_vb += Pack('I', len(vbgroups)) # Number of groups
             out_vb += b''.join( [PackString(name) for name in groupkeys] ) # Group Names

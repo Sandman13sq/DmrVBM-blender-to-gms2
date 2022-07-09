@@ -689,7 +689,7 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
         c.prop(self, 'compression_level')
         
     def execute(self, context):
-        path = bpy.path.abspath(self.filepath)
+        path = os.path.realpath(bpy.path.abspath(self.filepath))
         
         if not os.path.exists(os.path.dirname(path)):
             self.report({'WARNING'}, 'Invalid path specified: "%s"' % path)
