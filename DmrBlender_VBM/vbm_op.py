@@ -316,9 +316,11 @@ def CollectionToObjectList(self, context):
 
 # ---------------------------------------------------------------------------------------
 
-def FixName(name, delimiter):
-    if delimiter in name:
-        return name[:name.find(delimiter)]
+def FixName(name, delimiter, header=""):
+    if header != "" and header in name:
+        name = name[name.find(header)+1:]
+    if delimiter != "" and delimiter in name:
+        name = name[:name.find(delimiter)]
     return name
 
 # ---------------------------------------------------------------------------------------
@@ -395,8 +397,13 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
         description='Collection to export objects from',
     )
     
+    header: bpy.props.StringProperty(
+        name="Header Char", default="",
+        description='Grouping will ignore parts of names before and including this character. \nEx: if delimiter = ".", "model_body.head" -> "head"',
+    )
+    
     delimiter: bpy.props.StringProperty(
-        name="Delimiter Char", default='.',
+        name="Delimiter Char", default="",
         description='Grouping will ignore parts of names past this character. \nEx: if delimiter = ".", "model_body.head" -> "model_body"',
     )
     
@@ -605,6 +612,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
         c = layout.column_flow(align=1)
         c.prop(self, 'collection_name', text='Collection')
         c.prop(self, 'batch_export', text='Batching')
+        c.prop(self, 'header', text='Header')
         c.prop(self, 'delimiter', text='Delimiter')
         
         DrawCommonProps(self, context)
@@ -667,7 +675,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
                 if batchexport in ['OBJECT', 'MESH']:
                     if vertexcount:
                         k = obj.name if batchexport == 'OBJECT' else obj.data.name
-                        name = FixName(k, self.delimiter)
+                        name = FixName(k, self.delimiter, self.header)
                         if name not in vbkeys:
                             vbkeys.append(name)
                             outgroups[name] = [b'', {name: 0}]
@@ -678,7 +686,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
                 elif batchexport == 'MATERIAL':
                     for k, d in vbytes.items():
                         if vcounts[k]:
-                            name = FixName(k, self.delimiter)
+                            name = FixName(k, self.delimiter, self.header)
                             if name not in vbkeys:
                                 vbkeys.append(name)
                                 outgroups[name] = [b'', {name: 0}]
@@ -757,6 +765,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         c.prop(self, 'collection_name', text='Collection')
         c.prop(self, 'batch_export', text='Batching')
         c.prop(self, 'grouping', text='Grouping')
+        c.prop(self, 'header', text='Header')
         c.prop(self, 'delimiter', text='Delimiter')
         
         r = layout.column_flow(align=1)
@@ -876,7 +885,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 # Group by Object
                 if grouping == 'OBJECT':
                     name = obj.name
-                    name = FixName(name, self.delimiter)
+                    name = FixName(name, self.delimiter, self.header)
                     if sum( [len(x) for x in vbytes.values()] ) >= 0:
                         if name not in vbkeys:
                             vbkeys.append(name)
@@ -888,7 +897,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 elif grouping == 'MATERIAL':
                     for name, vbdata in vbytes.items():
                         vcount = vcounts[name]
-                        name = FixName(name, self.delimiter)
+                        name = FixName(name, self.delimiter, self.header)
                         if len(vbdata) > 0:
                             if name not in vbkeys:
                                 vbkeys.append(name)
@@ -941,7 +950,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                     if batchexport in ['OBJECT', 'MESH']:
                         if vertexcount:
                             k = obj.name if batchexport == 'OBJECT' else obj.data.name
-                            name = FixName(k, self.delimiter)
+                            name = FixName(k, self.delimiter, self.header)
                             if name not in vbkeys:
                                 vbkeys.append(name)
                                 outgroups[name] = [b'', {name: 0}]
@@ -952,7 +961,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                     elif batchexport == 'MATERIAL':
                         for k, d in vbytes.items():
                             if vcounts[k]:
-                                name = FixName(k, self.delimiter)
+                                name = FixName(k, self.delimiter, self.header)
                                 if name not in vbkeys:
                                     vbkeys.append(name)
                                     outgroups[name] = [b'', {name: 0}]
@@ -966,7 +975,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 
                 for armobj in arms:
                     name = armobj.name
-                    name = FixName(name, self.delimiter)
+                    name = FixName(name, self.delimiter, self.header)
                     if name not in vbkeys:
                         vbkeys.append(name)
                     children = [x for x in armobj.children if ((self.export_hidden and not x.hide_get()) or not self.hidden)]
