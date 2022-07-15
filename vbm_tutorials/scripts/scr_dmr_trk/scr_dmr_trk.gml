@@ -171,6 +171,7 @@ function OpenTRK(outtrk, path)
 	}
 	
 	var bzipped = buffer_load(path);
+	var b = bzipped;
 	
 	// error reading file
 	if bzipped < 0
@@ -187,7 +188,7 @@ function OpenTRK(outtrk, path)
 		(_header & 0xDA78) == 0xDA78
 		)
 	{
-		var b = buffer_decompress(bzipped);
+		b = buffer_decompress(bzipped);
 		buffer_delete(bzipped);
 	}
 	
@@ -207,6 +208,8 @@ function OpenTRK(outtrk, path)
 	{
 		default:
 		
+		// Version 2 (Sparse Matrices)
+		case(2): 
 		// Version 1
 		case(1): 
 			return __TRKOpen_v1(b, outtrk);
@@ -290,6 +293,10 @@ function __TRKOpen_v1(b, outtrk)
 	// Position Step
 	outtrk.positionstep = buffer_read(b, buffer_f32);
 	
+	var float_type = buffer_f32;
+	if ( flag & (1<<2) ) {float_type = buffer_f16;}
+	else if ( flag & (1<<3) ) {float_type = buffer_f64;}
+	
 	// Transforms -------------------------------------------------
 	
 	var transformtracks;
@@ -335,30 +342,51 @@ function __TRKOpen_v1(b, outtrk)
 		array_resize(outtrk.framematrices, numframes);
 		
 		f = 0;
-		repeat(numframes)
+		
+		// Compressed Matrices
+		if ( flag & (1 << 1) )
 		{
-			matarray = array_create(n);
-			
-			i = 0;
-			repeat(n)
+			var mpos;
+			printf("> Reading Compressed Matrices")
+			// For each frame...
+			repeat(numframes)
 			{
-				matarray[i++] = buffer_read(b, buffer_f32);
-			}
-			
-			/*
-			matarray = array_create(numtracks);
-			for (trackindex = 0; trackindex < numtracks; trackindex++)
-			{
-				m = matrix_build_identity();
-				for (var i = 0; i < 16; i++)
+				matarray = array_create(n);
+				
+				i = 0;
+				// For each bone...
+				repeat(numtracks)
 				{
-					m[i] = buffer_read(b, buffer_f32);
+					repeat( buffer_peek(b, buffer_tell(b), buffer_u8) >> 4 )
+					{
+						mpos = buffer_read(b, buffer_u8) & 0xF;
+						matarray[i+mpos] = buffer_read(b, float_type);
+					}
+					
+					i += 16;
 				}
-				matarray[@ trackindex] = m;
+				
+				outtrk.framematrices[@ f++] = matarray;
 			}
-			*/
+			printf("> Reading Complete")
+		}
+		// Uncompressed Matrices
+		else
+		{
+			// For each frame...
+			repeat(numframes)
+			{
+				matarray = array_create(n);
+				
+				// For each value in all matrices for frame
+				i = 0;
+				repeat(n)
+				{
+					matarray[i++] = buffer_read(b, float_type);
+				}
 			
-			outtrk.framematrices[@ f++] = matarray;
+				outtrk.framematrices[@ f++] = matarray;
+			}
 		}
 	}
 	
@@ -388,7 +416,7 @@ function __TRKOpen_v1(b, outtrk)
 				f = 0;
 				repeat(numframes)
 				{
-					trackframes[f++] = buffer_read(b, buffer_f32);
+					trackframes[f++] = buffer_read(b, float_type);
 				}
 			
 				if numframes > 0
@@ -406,7 +434,7 @@ function __TRKOpen_v1(b, outtrk)
 					v = 0;
 					repeat(vectorsize)
 					{
-						vector[v++] = buffer_read(b, buffer_f32);
+						vector[v++] = buffer_read(b, float_type);
 					}
 				
 					trackvectors[f++] = vector; // Vector
@@ -450,7 +478,7 @@ function __TRKOpen_v1(b, outtrk)
 	i = 0;
 	repeat(nummarkers)
 	{
-		outtrk.markerpositions[i] = buffer_read(b, buffer_f32);
+		outtrk.markerpositions[i] = buffer_read(b, float_type);
 		outtrk.markermap[$ outtrk.markernames[i] ] = outtrk.markerpositions[i];
 		i++;
 	}

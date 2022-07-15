@@ -13,7 +13,11 @@ try:
 except:
     from vbm_func import *
 
-TRKVERSION = 1
+TRKVERSION = 2
+
+FL_TRK_SPARSE = 1<<1
+FL_TRK_FLOAT16 = 1<<2
+FL_TRK_FLOAT64 = 1<<3
 
 # TRK format
 '''
@@ -152,6 +156,7 @@ def BoneFindParent(b, check_select, check_deform):
 
 def GetTRKData(context, sourceobj, sourceaction, settings):
     # Settings
+    float_type = settings["float_type"]
     track_space = settings["track_space"]
     matrix_space = settings["matrix_space"]
     deform_only = settings["deform_only"]
@@ -163,6 +168,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     mattran = settings["mattran"]
     selected_bones_only = settings["selected_bones_only"]
     marker_frames_only = settings["marker_frames_only"]
+    compress_matrices = settings["compress_matrices"]
+    compress_matrices_threshold = settings["compress_matrices_threshold"]
+    compress_matrices_threshold *= compress_matrices_threshold
     
     vl = context.view_layer
     sc = context.scene
@@ -350,6 +358,13 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     outtrk += b'TRK' + Pack('B', TRKVERSION)    # Signature
     
     flags = 0
+    if compress_matrices:
+        flags |= FL_TRK_SPARSE
+    if float_type == 'e':
+        flags |= FL_TRK_FLOAT16
+    if float_type == 'd':
+        flags |= FL_TRK_FLOAT64
+    
     outtrk += Pack('B', flags)     # Flags
     
     outtrk += Pack('f', rd.fps)     # fps
@@ -364,6 +379,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     
     # Matrices ----------------------------------------------------------------------
     outtrk += Pack('B', SpaceID[matrix_space])
+    
     if matrix_space != 'NONE':
         print('> Writing Matrices...');
         
@@ -377,15 +393,27 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             for f in netframes:
                 sc.frame_set(round(f/pmod))
                 
-                outtrkchunk += b''.join(
-                    Pack('f', x)
-                    
-                    for i in pbonesrange
-                    for v in workingobj.convert_space(
-                        pose_bone=evalbones[i], matrix=mattran @ evalbones[i].matrix, from_space='WORLD', to_space=matrix_space
-                        ).transposed()
-                    for x in v
-                    )
+                if compress_matrices:
+                    outtrkchunk += b''.join(
+                        Pack('B', (len([x for vec in m for x in vec if x*x > compress_matrices_threshold]) << 4) | int(c*4+r) )+Pack(float_type, x)
+                        
+                        for i in pbonesrange
+                        for m in tuple(workingobj.convert_space(
+                            pose_bone=evalbones[i], matrix=mattran @ evalbones[i].matrix, from_space='WORLD', to_space=matrix_space
+                            ))
+                        for r, vec in enumerate(m)
+                        for c, x in enumerate(vec) if x*x > compress_matrices_threshold
+                        )
+                else:
+                    outtrkchunk += b''.join(
+                        Pack(float_type, x)
+                        
+                        for i in pbonesrange
+                        for vec in workingobj.convert_space(
+                            pose_bone=evalbones[i], matrix=mattran @ evalbones[i].matrix, from_space='WORLD', to_space=matrix_space
+                            ).transposed()
+                        for x in vec
+                        )
             outtrk += outtrkchunk
         
         # Evaluate final transforms --------------------------------------------------------------------
@@ -424,12 +452,23 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                     for pb in pboneslist
                 }
                 
-                outtrk += b''.join(
-                    Pack('f', x)
-                    for pb in pboneslist
-                    for v in (finaltransforms[pb]).transposed()
-                    for x in v
-            )
+                if compress_matrices:
+                    outtrk += b''.join(
+                        Pack('B', (len([x for vec in m for x in vec if x*x > compress_matrices_threshold]) << 4) | int(c*4+r) )+Pack(float_type, x)
+                        
+                        for pb in pboneslist
+                        for m in [finaltransforms[pb]]
+                        for r,vec in enumerate(m)
+                        for c,x in enumerate(vec) if x*x > compress_matrices_threshold
+                        )
+                else:
+                    outtrk += b''.join(
+                        Pack(float_type, x)
+                        
+                        for pb in pboneslist
+                        for v in (finaltransforms[pb]).transposed()
+                        for x in v
+                        )
     
     # Tracks -------------------------------------------------------------------
     outtrk += Pack('B', SpaceID[track_space])
@@ -452,7 +491,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                 vecpositions = tuple(vecpositions)
                 
                 outtrkchunk += Pack('I', len(vecpositions)) # Num Frames
-                outtrkchunk += b''.join([Pack('f', x*scale+foffset) for x in vecpositions]) # Frame Positions 
+                outtrkchunk += b''.join([Pack(float_type, x*scale+foffset) for x in vecpositions]) # Frame Positions 
                 
                 # Vectors
                 for f in vecpositions:
@@ -469,7 +508,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                             ).decompose()
                             for i, x in enumerate(pbones.values())
                         }
-                    outtrkchunk += b''.join( Pack('f', x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
+                    outtrkchunk += b''.join( Pack(float_type, x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
             outtrk += outtrkchunk
     
     # Markers ----------------------------------------------------------------
@@ -483,7 +522,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         
         outtrk += Pack('I', len(markers))
         outtrk += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
-        outtrk += b''.join([Pack('f', x[1]) for x in markers]) # Frames
+        outtrk += b''.join([Pack(float_type, x[1]) for x in markers]) # Frames
     else:
         outtrk += Pack('I', 0)
     
@@ -512,6 +551,14 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
             ('KEYFRAME', 'Clamp To Keyframes', 'Export keyframes from starting keyframe to end keyframe'),
             ('MARKER', 'Clamp To Markers', 'Export keyframes from first marker to last'),
             ('CUSTOM', 'Custom Range', 'Define custom frame range'),
+        )
+    )
+    
+    float_type: bpy.props.EnumProperty(
+        name='Range Type', default=0, items=(
+            ('f', "Float32", "Float32"),
+            ('d', "Float64", "Float64"),
+            ('e', "Float16", "Float16"),
         )
     )
     
@@ -558,6 +605,16 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
     export_matrices: bpy.props.BoolProperty(
         name="Export Matrices", default=False,
         description="Export matrices to file",
+    )
+    
+    compress_matrices: bpy.props.BoolProperty(
+        name="Compress Matrices", default=True,
+        description="Store only the non-zero values of matrices.\nSmaller file size but slightly longer read times",
+    )
+    
+    compress_matrices_threshold: bpy.props.FloatProperty(
+        name="Matrix Non-zero Threshold", default=0.0001,
+        description="Amount to compare matrix values to when storing non-zeroes",
     )
     
     matrix_space: bpy.props.EnumProperty(
@@ -677,7 +734,12 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
         r = b.row()
         r.label(text='Matrix Space:')
         r.prop(self, 'matrix_space', text='')
+        r = b.row()
+        r.active = self.matrix_space != 'NONE'
+        r.label(text="")
+        r.prop(self, 'compress_matrices')
         
+        b.label(text="Coordinates:")
         r = b.row(align=1)
         r.prop(self, 'up_axis', text='')
         r.prop(self, 'forward_axis', text='')
@@ -696,6 +758,7 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
             return {'FINISHED'}
         
         settings = {
+            'float_type': self.float_type,
             'matrix_space': self.matrix_space,
             'track_space': self.track_space,
             'deform_only': self.deform_only,
@@ -708,6 +771,8 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
             'selected_bones_only': self.selected_bones_only,
             'frame_range': self.frame_range,
             'marker_frames_only': self.marker_frames_only,
+            'compress_matrices': self.compress_matrices,
+            'compress_matrices_threshold': self.compress_matrices_threshold,
         }
         
         if self.lastsimplify == -1:
