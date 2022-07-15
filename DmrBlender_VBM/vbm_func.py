@@ -23,7 +23,7 @@ def PrintStatus(msg, clear=1, buffersize=30):
 
 # ================================================================================
 
-VBMVERSION = 1
+VBMVERSION = 2
 FCODE = 'f'
 
 Items_FloatChoice = (
@@ -217,17 +217,6 @@ def ComposeOutFlag(self):
     elif self.floattype == 'e':
         flag |= 1 << 1
     return Pack('B', flag)
-
-def ComposeOutFormat(self, format = -1):
-    if format == -1:
-        format = self.format
-    
-    out_format = b''
-    out_format += Pack('B', len(format)) # Format length
-    for f in format:
-        out_format += Pack('B', VBFType[f]) # Attribute Type
-        out_format += Pack('B', VBFSize[f]) # Attribute Float Size
-    return Pack('B', out_format)
 
 # ==================================================================================================
 

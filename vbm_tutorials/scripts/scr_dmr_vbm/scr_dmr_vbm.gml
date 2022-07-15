@@ -81,6 +81,7 @@ function VBMData() constructor
 	static BoneLocalMatrices = function() {return bone_localmatricies;}
 	static BoneInverseMatrices = function() {return bone_inversematricies;}
 	static GetBoneName = function(index) {return bonenames[index];}
+	static GetBoneIndex = function(name) {return bonemap[$ name];}
 	
 	static Format = function() {return vertexformat;}
 	
@@ -261,7 +262,7 @@ function OpenVertexBuffer(path, format, freeze=true)
 		(_header & 0xDA78) == 0xDA78
 		)
 	{
-		var b = buffer_decompress(bzipped);
+		b = buffer_decompress(bzipped);
 		buffer_delete(bzipped);
 	}
 	
@@ -345,6 +346,8 @@ function OpenVBM(outvbm, path, format=-1, freeze=true, merge=false)
 	{
 		default:
 		
+		// Version 2 (Fixed Non-color byte data)
+		case(2): 
 		// Version 1
 		case(1): 
 			return __VBMOpen_v1(outvbm, b, format, freeze, merge);
@@ -370,7 +373,7 @@ function BufferIsVBM(b, offset=0)
 }
 
 // Returns vbm format from buffer
-function GetVBMFormat(b, offset)
+function GetVBMFormat(b, offset, version1=false)
 {
 	var numattributes = buffer_peek(b, offset, buffer_u8);
 	offset += 1;
@@ -379,6 +382,8 @@ function GetVBMFormat(b, offset)
 	
 	var attributetype;
 	var attributesize;
+	
+	var bytesum = 0;
 	
 	repeat(numattributes)
 	{
@@ -399,7 +404,13 @@ function GetVBMFormat(b, offset)
 			case(VBM_AttributeType.colorbytes):
 			case(VBM_AttributeType.bonebytes):
 			case(VBM_AttributeType.weightbytes):
-				vertex_format_add_color(); break;
+				if ( ((bytesum + attributesize) div 4) > bytesum div 4 ) || version1
+				{
+					vertex_format_add_color();
+				}
+				
+				bytesum += attributesize;
+				break;
 			
 			// Non native types
 			default:
@@ -422,7 +433,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 {
 	/* Vertex Buffer Collection v1 File spec:
 		'VBM' (3B)
-		VBM version = 1 (1B)
+		VBM version (1B)
     
 		flags (1B)
 
@@ -453,6 +464,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 		    mat4 (16f)
 	*/
 	
+	var version;
 	var flag;
 	var bonecount;
 	var vbcount;
@@ -466,14 +478,14 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 	var noformatgiven = format < 0;
 	
 	// Header
-	buffer_read(b, buffer_u32);
+	version = buffer_read(b, buffer_u32) >> 24;
 	
 	flag = buffer_read(b, buffer_u8);
 	
 	// Vertex Format
 	if (noformatgiven)
 	{
-		format = GetVBMFormat(b, buffer_tell(b));
+		format = GetVBMFormat(b, buffer_tell(b), version==1);
 	}
 	
 	buffer_seek(b, buffer_seek_relative, buffer_read(b, buffer_u8)*2);
@@ -525,7 +537,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 		{
 			var vbuffersize = buffer_read(b, buffer_u32);
 			var numvertices = buffer_read(b, buffer_u32);
-		
+			
 			// Create vb
 			vb = vertex_create_buffer_from_buffer_ext(b, format, buffer_tell(b), numvertices);
 		
