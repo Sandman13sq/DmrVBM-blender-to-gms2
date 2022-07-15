@@ -671,7 +671,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
             self.report({'INFO'}, 'VB data written to \"%s\"' % path)
         # Batch Export
         else:
-            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path
+            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else (path + "/")
             outgroups = {} # {groupname: vertexdata}
             vbkeys = []
             
@@ -944,7 +944,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
             vbgroups, vertexcount, vbkeys = GetVBGroupSorted(targetobjects)
             FinishVBM(vbgroups, vertexcount, vbkeys)
         else:
-            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else path
+            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else (path + "/")
             outgroups = {} # {groupname: vertexdata}
             vbkeys = []
             dooutexport = True
