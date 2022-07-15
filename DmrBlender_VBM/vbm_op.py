@@ -151,8 +151,9 @@ def DrawAttributes(self, context):
             l = i+2;
     l = max(l, 1)
     
-    stride = 0
+    stride = 0.0
     sizelist = []
+    sizelistchar = []
     
     for i in range(0, min(l, 8)):
         c = b.row().column(align=1)
@@ -161,10 +162,19 @@ def DrawAttributes(self, context):
         r.prop(self, 'vbf%d' % i, text='')
         
         vbfkey = getattr(self, 'vbf%d' % i)
-        sizelist += [VBFSize[vbfkey]]
+        asize = getattr(self, 'attribsize%d' % i)
+        
+        if vbfkey != VBF_000:
+            stride += asize / (4.0 if vbfkey in [VBF_RGB, VBF_BOI, VBF_WEB] else 1.0)
+            sizelist.append(asize / (4.0 if vbfkey in [VBF_RGB, VBF_BOI, VBF_WEB] else 1.0))
+            
+            if vbfkey in [VBF_RGB, VBF_BOI, VBF_WEB]:
+                sizelistchar.append(str(asize)+"B")
+            else:
+                sizelistchar.append(str(asize))
         
         # Attribute Size
-        if vbfkey in [VBF_POS, VBF_COL, VBF_BON, VBF_WEI]:
+        if vbfkey in [VBF_POS, VBF_COL, VBF_RGB, VBF_BON, VBF_WEI, VBF_BOI, VBF_WEB]:
             rr = r.row(align=1)
             rr.scale_x = 0.4
             rr.prop(self, 'attribsize%d' % i, text='', icon_only=True)
@@ -188,12 +198,12 @@ def DrawAttributes(self, context):
             #split.prop(self, 'vgroup%d' % i, text='VGroup')
             split.prop_search(self, 'vgroup%d' % i, context.active_object, 'vertex_groups')
     
-    sizestring = ''
-    if len(sizelist) > 1:
-        for x in sizelist[:-2]:
-            sizestring += '%d + ' % x
-        sizestring += '%d'%sizelist[-2]    
-    layout.label(text='Stride: %d (%s)' % (sum(sizelist), sizestring))
+    sizestring = ""
+    if len(sizelistchar) > 0:
+        for x in sizelistchar[:-1]:
+            sizestring += x + " + "
+        sizestring += sizelistchar[-1] # No plus sign  
+    layout.label(text='Stride: %df (%dB) [%s]' % (stride, stride*4, sizestring))
 
 # ---------------------------------------------------------------------------------------
 
@@ -216,7 +226,7 @@ def ParseAttribFormat(self, context):
             format.append(slot)
             vclayertarget.append(vctarget)
             uvlayertarget.append(uvtarget)
-    print('> Format:', format)
+    print('> Format:', [(f, getattr(self, 'attribsize%d' % i)) for i,f in enumerate(format)])
     return (format, vclayertarget, uvlayertarget)
 
 # ---------------------------------------------------------------------------------------
@@ -825,9 +835,9 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         # Vertex Format
         out_format = b''
         out_format += Pack('B', len(format)) # Format length
-        for f in format:
+        for i,f in enumerate(format):
             out_format += Pack('B', VBFType[f]) # Attribute Type
-            out_format += Pack('B', VBFSize[f]) # Attribute Float Size
+            out_format += Pack('B', getattr(self, 'attribsize%d' % i)) # Attribute Float Size
         
         out_header = b'VBM' + Pack('B', VBMVERSION)
         out_header += Pack('B', flag)

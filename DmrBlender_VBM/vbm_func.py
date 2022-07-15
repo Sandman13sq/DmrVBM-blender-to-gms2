@@ -260,7 +260,7 @@ def GetVBData(
     settingsmatrix = settings.get('matrix', mathutils.Matrix())
     FCODE = settings.get('floattype', 'f')
     colordefault = settings.get('defaultcolor', (1.0, 1.0, 1.0, 1.0))
-    attribsizes = settings.get('attribsizes', [3]+[4]*7)
+    attributesizes = settings.get('attributesizes', [3]+[4]*7)
     vgrouptargets = settings.get('vgrouptargets', ['']*8)
     vgroupdefaultweight = settings.get('vgroupdefaultweight', 0.0)
     
@@ -652,7 +652,7 @@ def GetVBData(
                 vmeta = vertexmeta[p[3][li]]
                 lmeta = loopmeta[p[4][li]]
                 
-                [outwritemap[attribkey](outblock, attribindex, attribsizes[attribindex]) for attribindex, attribkey in format_enumerated]
+                [outwritemap[attribkey](outblock, attribindex, attributesizes[attribindex]) for attribindex, attribkey in format_enumerated]
             materialvbytes[matkey] += outblock
         
         t = time.time()-t
