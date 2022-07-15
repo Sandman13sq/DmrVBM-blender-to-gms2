@@ -284,9 +284,15 @@ function Mat4Rotate(xrot, yrot, zrot)
 }
 
 // Returns translation component from matrix [x,y,z]
-function Mat4GetTranslation(mat4)
+function Mat4ExtractTranslation(mat4)
 {
 	return [mat4[12], mat4[13], mat4[14]];
+}
+
+// Returns pitch angle from mat4
+function Mat4ExtractRotationX(mat4)
+{
+	return darctan(mat4[1]/mat4[0]);
 }
 
 // Sets translation in matrix
@@ -342,18 +348,7 @@ function Mat4RotVector(dirx, diry, dirz, up_x, up_y, up_z, out = matrix_build_id
 	
 	return out;
 }
-	
-function Mat4PointAt(x1, y1, z1, x2, y2, z2)
-{
-	return matrix_build(
-		0, 0, 0,
-		0,
-		LineToAngle(x1, z1, x2, z2),
-		point_direction(x1, y1, x2, y2),
-		1, 1, 1
-		);
-}
-	
+
 function Mat4RotateAxisAngle(angle, _x, _y, _z)
 {
 	var _c = dcos(angle), _s = dsin(angle), _t = 1 - _c;
