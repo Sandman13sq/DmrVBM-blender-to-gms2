@@ -4,6 +4,34 @@
 
 #macro TRKHEADERCODE 0x004b5254
 
+#region // Fast Quaternion Constants. Used in EvaluateAnimationTracks()
+
+/*
+	Sourced from this paper by David Eberly, licensed under CC 4.0.
+	Paper: https://www.geometrictools.com/Documentation/FastAndAccurateSlerp.pdf
+	CC License: https://creativecommons.org/licenses/by/4.0/
+*/
+
+#macro QUATSLERP_MU 1.85298109240830
+#macro QUATSLERP_U0 1/(1*3)
+#macro QUATSLERP_U1 1/(2*5)
+#macro QUATSLERP_U2 1/(3*7)
+#macro QUATSLERP_U3 1/(4*9)
+#macro QUATSLERP_U4 1/(5*11)
+#macro QUATSLERP_U5 1/(6*13)
+#macro QUATSLERP_U6 1/(7*15)
+#macro QUATSLERP_U7 QUATSLERP_MU/(8*17)
+#macro QUATSLERP_V0 1/(3)
+#macro QUATSLERP_V1 2/(5)
+#macro QUATSLERP_V2 3/(7)
+#macro QUATSLERP_V3 4/(9)
+#macro QUATSLERP_V4 5/(11)
+#macro QUATSLERP_V5 6/(13)
+#macro QUATSLERP_V6 7/(15)
+#macro QUATSLERP_V7 QUATSLERP_MU/(8*17)
+
+#endregion --------------------------------------------------------
+
 enum TRK_Intrpl
 {
 	constant = 0,
@@ -504,10 +532,9 @@ function EvaluateAnimationTracks(
 	var b, bonename, outposematrix;
 	var t, track, trackframes, trackvectors;
 	var transformtracks;
-	var posnext, poscurr;
-	var findexcurr, findexnext, findexmax, blendamt;
-	var veccurr, vecnext;
-	var quat = [0.0, 0.0, 0.0, 1.0];
+	var posnext, posprev;
+	var findexprev, findexnext, findexmax, blendamt;
+	var vecprev, vecnext;
 	
 	var possearchstart;
 	var ttype;
@@ -515,19 +542,20 @@ function EvaluateAnimationTracks(
 	// Quat Slerp
 	var q1_0, q1_1, q1_2, q1_3,
 		q2_0, q2_1, q2_2, q2_3,
-		cosHalfTheta, reverse_q1, halfTheta, sinHalfTheta,
-		ratioA, ratioB;
+		qOut0, qOut1, qOut2, qOut3,
+		bT0, bT1, bT2, bT3, bT4, bT5, bT6, bT7,
+		bD0, bD1, bD2, bD3, bD4, bD5, bD6, bD7,
+		xml, d, sqrD, sqrT, f0, f1;
 	// Quat to Mat4
 	var q_length, q_hyp_sqr,
 		q_c, q_s, q_omc;
 	
-	if pos < 0.5 {possearchstart = 0;}
-	else {possearchstart = 1.0;}
-	
 	var mm = matrix_build_identity();
+	var mmscale = array_create(16);
+	mmscale[15] = 1;
 	
 	var _lastepsilon = math_get_epsilon();
-	math_set_epsilon(0.00000000000000001);
+	math_set_epsilon(0.000000000000001);
 	
 	// Map tracks
 	if bonekeys == 0 // Bone Indices
@@ -578,35 +606,28 @@ function EvaluateAnimationTracks(
 			// Single Keyframe
 			if (findexmax == 0)
 			{
-				veccurr = trackvectors[0];
+				vecprev = trackvectors[0];
 				switch(ttype)
 				{
 					case(0): // Transform
-						array_copy(outposematrix, 12, veccurr, 12, 3);
+						// Only copy to the location values (indices 12 to 15)
+						array_copy(outposematrix, 12, vecprev, 12, 3);
 						break;
 					
 					case(2): // Scale
-						array_copy(
-							outposematrix, 
-							0,
-							matrix_multiply(
-								matrix_build(0,0,0, 0,0,0,
-									veccurr[0],
-									veccurr[1],
-									veccurr[2]
-									),
-								outposematrix),
-							0, 16
-							);
+						// Update the diagonal values of the temporary scale matrix
+						mmscale[0] = vecprev[0];
+						mmscale[5] = vecprev[1];
+						mmscale[10] = vecprev[2];
+						array_copy( outposematrix, 0, matrix_multiply(mmscale, outposematrix), 0, 16);
 						break;
 				
 					case(1): // Quaternion
-						//QuatToMat4_r( veccurr, outposematrix );
 						// Quaternion to Mat4 ===================================================
-						q1_0 = veccurr[0]; q1_1 = veccurr[1]; q1_2 = veccurr[2]; q1_3 = veccurr[3];
-						//q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
-						q_length = point_distance_3d(0,0,0, q1_1, q1_2, q1_3);
-						if q_length == 0
+						q1_0 = vecprev[0]; q1_1 = vecprev[1]; q1_2 = vecprev[2]; q1_3 = vecprev[3];
+						q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
+						
+						if (q_length == 0)
 						{
 							outposematrix[@ 0] = 1; outposematrix[@ 1] = 0; outposematrix[@ 2] = 0; //out[@ 3] = 0;
 							outposematrix[@ 4] = 0; outposematrix[@ 5] = 1; outposematrix[@ 6] = 0; //out[@ 7] = 0;
@@ -615,13 +636,13 @@ function EvaluateAnimationTracks(
 						else
 						{
 							q_hyp_sqr = q_length*q_length + q1_0*q1_0;
-							//Calculate trig coefficients
+							// Calculate trig coefficients
 							q_c   = 2*q1_0*q1_0 / q_hyp_sqr - 1;
 							q_s   = 2*q_length*q1_0*q_hyp_sqr;
 							q_omc = 1 - q_c;
-							//Normalize the input vector
+							// Normalize the input vector
 							q1_1 /= q_length; q1_2 /= q_length; q1_3 /= q_length;
-							//Build matrix
+							// Build matrix
 							outposematrix[@ 0] = q_omc*q1_1*q1_1 + q_c;
 							outposematrix[@ 1] = q_omc*q1_1*q1_2 + q_s*q1_3;
 							outposematrix[@ 2] = q_omc*q1_1*q1_3 - q_s*q1_2;
@@ -639,139 +660,99 @@ function EvaluateAnimationTracks(
 			else if (findexmax > 0)
 			{
 				// Guess initial position
-				findexcurr = clamp( floor(pos*findexmax), 0, findexmax);
-				possearchstart = trackframes[findexcurr];
+				findexprev = clamp( floor(pos*findexmax), 0, findexmax);
+				possearchstart = trackframes[findexprev];
 				
 				if (possearchstart < pos) // Search starting from beginning moving forwards
 				{
-					findexnext = findexcurr;
+					findexnext = findexprev;
 					while (pos >= trackframes[findexnext] && findexnext < findexmax) {findexnext++;}
-					findexcurr = max(findexnext - 1, 0);
+					findexprev = max(findexnext - 1, 0);
 				}
 				else // Search starting from end moving backwards
 				{
-					while (pos <= trackframes[findexcurr] && findexcurr > 0) {findexcurr--;}
-					findexnext = min(findexcurr + 1, findexmax);
+					while (pos <= trackframes[findexprev] && findexprev > 0) {findexprev--;}
+					findexnext = min(findexprev + 1, findexmax);
 				}
 				
-				poscurr = trackframes[findexcurr];	// Position of keyframe that "pos" is ahead of
+				posprev = trackframes[findexprev];	// Position of keyframe that "pos" is ahead of
 				posnext = trackframes[findexnext];	// Position of next keyframe
 			
 				// Find Blend amount (Map "pos" distance to [0-1] value)
-				if poscurr >= posnext {blendamt = 1;} // Same frame
-				else {blendamt = (pos - poscurr) / (posnext - poscurr);} // More than one unit difference
-				
+				blendamt = (pos - posprev) / (posnext - posprev); // More than one unit difference
 				blendamt = clamp(blendamt, 0.0, 1.0);
 				
 				// Apply Interpolation
-				switch(interpolationtype)
-				{
-					case(TRK_Intrpl.constant): blendamt = blendamt >= 0.99; break;
-					//case(TRK_Intrpl.linear): blendamt = blendamt; break;
-					case(TRK_Intrpl.smooth): blendamt = 0.5*(1-cos(pi*blendamt)); break;
-				}
+				if (interpolationtype == TRK_Intrpl.constant) {blendamt = blendamt >= 0.99;}
+				else if (interpolationtype == TRK_Intrpl.smooth) {blendamt = 0.5*(1-cos(pi*blendamt));}
 				
 				// Apply Transform
-				veccurr = trackvectors[findexcurr];
+				vecprev = trackvectors[findexprev];
 				vecnext = trackvectors[findexnext];
 				
 				switch(ttype)
 				{
 					case(0): // Transform
-						outposematrix[@ 12] = lerp(veccurr[0], vecnext[0], blendamt);
-						outposematrix[@ 13] = lerp(veccurr[1], vecnext[1], blendamt);
-						outposematrix[@ 14] = lerp(veccurr[2], vecnext[2], blendamt);
+						// Only copy to the location values (indices 12 to 15)
+						outposematrix[@ 12] = lerp(vecprev[0], vecnext[0], blendamt);
+						outposematrix[@ 13] = lerp(vecprev[1], vecnext[1], blendamt);
+						outposematrix[@ 14] = lerp(vecprev[2], vecnext[2], blendamt);
 						break;
 					
 					case(2): // Scale
-						mm = matrix_multiply(
-							matrix_build(0,0,0, 0,0,0,
-								lerp(veccurr[0], vecnext[0], blendamt),
-								lerp(veccurr[1], vecnext[1], blendamt),
-								lerp(veccurr[2], vecnext[2], blendamt)
-								),
-							outposematrix);
+						// Update the diagonal values of the temporary scale matrix
+						mmscale[0] = lerp(vecprev[0], vecnext[0], blendamt);
+						mmscale[5] = lerp(vecprev[1], vecnext[1], blendamt);
+						mmscale[10] = lerp(vecprev[2], vecnext[2], blendamt);
+						mm = matrix_multiply(mmscale, outposematrix);
 						array_copy(outposematrix, 0, mm, 0, 16);
-						//outposematrix[@  0] = lerp(veccurr[0], vecnext[0], blendamt);
-						//outposematrix[@  5] = lerp(veccurr[1], vecnext[1], blendamt);
-						//outposematrix[@ 10] = lerp(veccurr[2], vecnext[2], blendamt);
 						break;
 					
 					case(1): // Quaternion
-						//QuatSlerp_r(veccurr, vecnext, blendamt, quat);
-						// Quaternion Slerp =====================================================
-						q1_0 = veccurr[0]; q1_1 = veccurr[1]; q1_2 = veccurr[2]; q1_3 = veccurr[3];
+						// Fast Quaternion Slerp =====================================================
+						/*
+							Sourced from this paper by David Eberly, licensed under CC 4.0.
+							Paper: https://www.geometrictools.com/Documentation/FastAndAccurateSlerp.pdf
+							CC License: https://creativecommons.org/licenses/by/4.0/
+						*/
+						
+						q1_0 = vecprev[0]; q1_1 = vecprev[1]; q1_2 = vecprev[2]; q1_3 = vecprev[3];
 						q2_0 = vecnext[0]; q2_1 = vecnext[1]; q2_2 = vecnext[2]; q2_3 = vecnext[3];
 						
-						// Calculate angle between them.
-						cosHalfTheta = q1_3 * q2_3 + q1_0 * q2_0 + q1_1 * q2_1 + q1_2 * q2_2;
-						// if q1=q2 or q1=-q2 then theta = 0 and we can return q1
-						if (abs(cosHalfTheta) >= 1.0)
-						{
-							quat[@ 3] = q1_3;
-							quat[@ 0] = q1_0;
-							quat[@ 1] = q1_1;
-							quat[@ 2] = q1_2;
-						}
-						else
-						{
-							// Follow shortest path
-							reverse_q1 = 0;
-							if (cosHalfTheta < 0.0)
-							{
-								reverse_q1 = 1;
-								cosHalfTheta = -cosHalfTheta;
-							}
+						xml = (q1_0*q2_0 + q1_1*q2_1 + q1_2*q2_2 + q1_3*q2_3)-1;
+						d = 1-blendamt; 
+						sqrT = sqr(blendamt);
+						sqrD = sqr(d);
 						
-							// Calculate temporary values.
-							halfTheta = arccos(cosHalfTheta);
-							sinHalfTheta = sqrt(1.0 - cosHalfTheta*cosHalfTheta);
-							// if theta = 180 degrees then result is not fully defined
-							// we could rotate around any axis normal to q1 or q2
-							if (abs(sinHalfTheta) < 0.000001)
-							{
-								if !reverse_q1
-								{
-									quat[@ 3] = (q1_3 * 0.5 + q2_3 * 0.5);
-									quat[@ 0] = (q1_0 * 0.5 + q2_0 * 0.5);
-									quat[@ 1] = (q1_1 * 0.5 + q2_1 * 0.5);
-									quat[@ 2] = (q1_2 * 0.5 + q2_2 * 0.5);
-								}
-								else
-								{
-									quat[@ 3] = (q1_3 * 0.5 - q2_3 * 0.5);
-									quat[@ 0] = (q1_0 * 0.5 - q2_0 * 0.5);
-									quat[@ 1] = (q1_1 * 0.5 - q2_1 * 0.5);
-									quat[@ 2] = (q1_2 * 0.5 - q2_2 * 0.5);
-								}
-							}
-							else
-							{
-								ratioA = sin((1.0 - blendamt) * halfTheta) / sinHalfTheta;
-								ratioB = sin(blendamt * halfTheta) / sinHalfTheta; 
-								// calculate Quaternion.
-								if !reverse_q1
-								{
-									quat[@ 3] = (q1_3 * ratioA + q2_3 * ratioB);
-									quat[@ 0] = (q1_0 * ratioA + q2_0 * ratioB);
-									quat[@ 1] = (q1_1 * ratioA + q2_1 * ratioB);
-									quat[@ 2] = (q1_2 * ratioA + q2_2 * ratioB);
-								}
-								else
-								{
-									quat[@ 3] = (q1_3 * ratioA - q2_3 * ratioB);
-									quat[@ 0] = (q1_0 * ratioA - q2_0 * ratioB);
-									quat[@ 1] = (q1_1 * ratioA - q2_1 * ratioB);
-									quat[@ 2] = (q1_2 * ratioA - q2_2 * ratioB);
-								}
-							}
-						}
-						//QuatToMat4_r( quat, outposematrix );
+						bT7 = (QUATSLERP_U7 * sqrT - QUATSLERP_V7) * xml;
+						bT6 = (QUATSLERP_U6 * sqrT - QUATSLERP_V6) * xml;
+						bT5 = (QUATSLERP_U5 * sqrT - QUATSLERP_V5) * xml;
+						bT4 = (QUATSLERP_U4 * sqrT - QUATSLERP_V4) * xml;
+						bT3 = (QUATSLERP_U3 * sqrT - QUATSLERP_V3) * xml;
+						bT2 = (QUATSLERP_U2 * sqrT - QUATSLERP_V2) * xml;
+						bT1 = (QUATSLERP_U1 * sqrT - QUATSLERP_V1) * xml;
+						bT0 = (QUATSLERP_U0 * sqrT - QUATSLERP_V0) * xml;
+						bD7 = (QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml;
+						bD6 = (QUATSLERP_U6 * sqrD - QUATSLERP_V6) * xml;
+						bD5 = (QUATSLERP_U5 * sqrD - QUATSLERP_V5) * xml;
+						bD4 = (QUATSLERP_U4 * sqrD - QUATSLERP_V4) * xml;
+						bD3 = (QUATSLERP_U3 * sqrD - QUATSLERP_V3) * xml;
+						bD2 = (QUATSLERP_U2 * sqrD - QUATSLERP_V2) * xml;
+						bD1 = (QUATSLERP_U1 * sqrD - QUATSLERP_V1) * xml;
+						bD0 = (QUATSLERP_U0 * sqrD - QUATSLERP_V0) * xml;
+						
+						f0 = blendamt * (1+bT0*(1+bT1*(1+bT2*(1+bT3*(1+bT4*(1+bT5*(1+bT6*1+bT7)))))));
+						f1 = d *		(1+bD0*(1+bD1*(1+bD2*(1+bD3*(1+bD4*(1+bD5*(1+bD6*1+bD7)))))));
+						
+						qOut0 = f0 * q1_0 + f1 * q2_0;
+						qOut1 = f0 * q1_1 + f1 * q2_1;
+						qOut2 = f0 * q1_2 + f1 * q2_2;
+						qOut3 = f0 * q1_3 + f1 * q2_3;
+						
 						// Quaternion to Mat4 ===================================================
-						q1_0 = quat[0]; q1_1 = quat[1]; q1_2 = quat[2]; q1_3 = quat[3];
-						//q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
-						q_length = point_distance_3d(0,0,0, q1_1, q1_2, q1_3)
-						if q_length == 0
+						q_length = sqrt(qOut1*qOut1 + qOut2*qOut2 + qOut3*qOut3);
+						
+						if (q_length == 0)
 						{
 							outposematrix[@ 0] = 1; outposematrix[@ 1] = 0; outposematrix[@ 2] = 0; //out[@ 3] = 0;
 							outposematrix[@ 4] = 0; outposematrix[@ 5] = 1; outposematrix[@ 6] = 0; //out[@ 7] = 0;
@@ -779,23 +760,23 @@ function EvaluateAnimationTracks(
 						}
 						else
 						{
-							q_hyp_sqr = q_length*q_length + q1_0*q1_0;
-							//Calculate trig coefficients
-							q_c   = 2*q1_0*q1_0 / q_hyp_sqr - 1;
-							q_s   = 2*q_length*q1_0*q_hyp_sqr;
+							q_hyp_sqr = q_length*q_length + qOut0*qOut0;
+							// Calculate trig coefficients
+							q_c   = 2*qOut0*qOut0 / q_hyp_sqr - 1;
+							q_s   = 2*q_length*qOut0*q_hyp_sqr;
 							q_omc = 1 - q_c;
-							//Normalise the input vector
-							q1_1 /= q_length; q1_2 /= q_length; q1_3 /= q_length;
-							//Build matrix
-							outposematrix[@ 0] = q_omc*q1_1*q1_1 + q_c;
-							outposematrix[@ 1] = q_omc*q1_1*q1_2 + q_s*q1_3;
-							outposematrix[@ 2] = q_omc*q1_1*q1_3 - q_s*q1_2;
-							outposematrix[@ 4] = q_omc*q1_1*q1_2 - q_s*q1_3;
-							outposematrix[@ 5] = q_omc*q1_2*q1_2 + q_c;
-							outposematrix[@ 6] = q_omc*q1_2*q1_3 + q_s*q1_1;
-							outposematrix[@ 8] = q_omc*q1_1*q1_3 + q_s*q1_2;
-							outposematrix[@ 9] = q_omc*q1_2*q1_3 - q_s*q1_1;
-							outposematrix[@10] = q_omc*q1_3*q1_3 + q_c;
+							// Normalize the input vector
+							qOut1 /= q_length; qOut2 /= q_length; qOut3 /= q_length;
+							// Build matrix
+							outposematrix[@ 0] = q_omc*qOut1*qOut1 + q_c;
+							outposematrix[@ 1] = q_omc*qOut1*qOut2 + q_s*qOut3;
+							outposematrix[@ 2] = q_omc*qOut1*qOut3 - q_s*qOut2;
+							outposematrix[@ 4] = q_omc*qOut1*qOut2 - q_s*qOut3;
+							outposematrix[@ 5] = q_omc*qOut2*qOut2 + q_c;
+							outposematrix[@ 6] = q_omc*qOut2*qOut3 + q_s*qOut1;
+							outposematrix[@ 8] = q_omc*qOut1*qOut3 + q_s*qOut2;
+							outposematrix[@ 9] = q_omc*qOut2*qOut3 - q_s*qOut1;
+							outposematrix[@10] = q_omc*qOut3*qOut3 + q_c;
 						}
 						
 						break;
@@ -804,8 +785,6 @@ function EvaluateAnimationTracks(
 			
 			ttype++;
 		}
-		
-		
 	}
 	
 	math_set_epsilon(_lastepsilon);
@@ -852,8 +831,7 @@ function CalculateAnimationPose(
 	// Compute final matrix for bone
 	i = 0; repeat(n)
 	{
-		m = matrix_multiply(bone_inversemodelmatrices[i], outbonetransform[i]);
-		array_copy(outposetransform, (i++)*16, m, 0, 16);
+		array_copy(outposetransform, (i++)*16, matrix_multiply(bone_inversemodelmatrices[i], outbonetransform[i]), 0, 16);
 	}
 }
 
