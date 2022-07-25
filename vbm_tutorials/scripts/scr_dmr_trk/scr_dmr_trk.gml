@@ -101,8 +101,10 @@ function TRKData() constructor
 	static MarkerCount = function() {return markercount;}
 	static MarkerPositions = function() {return markerpositions;}
 	static MarkerNames = function() {return markernames;}
-	static GetMarkerPosition = function(index) {return markerpositions[index];}
+	static GetMarkerPositionIndex = function(index) {return markerpositions[index];}
+	static GetMarkerPositionKey = function(key) {return markermap[$ key];}
 	static GetMarkerName = function(index) {return markernames[index];}
+	static MarkerExists = function(key) {return variable_struct_exists(markermap, key);}
 	
 	// Methods -------------------------------------------------------------------
 	
@@ -375,7 +377,7 @@ function __TRKOpen_v1(b, outtrk)
 		if ( flag & (1 << 1) )
 		{
 			var mpos;
-			printf("> Reading Compressed Matrices")
+			
 			// For each frame...
 			repeat(numframes)
 			{
@@ -396,7 +398,6 @@ function __TRKOpen_v1(b, outtrk)
 				
 				outtrk.framematrices[@ f++] = matarray;
 			}
-			printf("> Reading Complete")
 		}
 		// Uncompressed Matrices
 		else
@@ -474,10 +475,12 @@ function __TRKOpen_v1(b, outtrk)
 				transformtracks[transformindex++] = track;
 			}
 			
-			name = outtrk.tracknames[trackindex++];
+			name = outtrk.tracknames[trackindex];
 			
 			outtrk.tracks[trackindex] = transformtracks;
 			outtrk.trackmap[$ name] = transformtracks;
+			
+			trackindex++;
 		}
 	}
 	
