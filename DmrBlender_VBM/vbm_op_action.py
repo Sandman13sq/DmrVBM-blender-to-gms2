@@ -170,6 +170,8 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     marker_frames_only = settings["marker_frames_only"]
     compress_matrices = settings["compress_matrices"]
     compress_matrices_threshold = settings["compress_matrices_threshold"]
+    clean_threshold = settings["clean_threshold"]
+    
     compress_matrices_threshold *= compress_matrices_threshold
     
     vl = context.view_layer
@@ -250,6 +252,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         dataactions = set([x for x in bpy.data.actions])
         lastaction = sourceaction
         
+        # Bake keyframes
         bpy.ops.nla.bake(
             frame_start=actionrange[0], 
             frame_end=actionrange[1], 
@@ -262,6 +265,14 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             clean_curves=False, 
             bake_types={'POSE'}
             );
+        
+        # Clean keyframes
+        if clean_threshold > 0.0:
+            for b in workingobj.data.bones:
+                b.select = True
+            
+            bpy.context.area.ui_type = 'FCURVES'
+            bpy.ops.graph.clean(threshold = clean_threshold, channels=True)
         
         bpy.context.area.type = contexttype
         
@@ -277,8 +288,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     netframes = ()
     markerframes = [m.frame for m in sourceaction.pose_markers]
     
-    duration = actionrange[1]-actionrange[0]+1
-    pmod = 1.0/duration
+    duration = actionrange[1]-actionrange[0]
+    pmod = 1.0/max(1, duration)
+    foffset = -actionrange[0]*pmod # Frame offset
     
     # Parse curve positions ----------------------------------------------------------------
     if bakesteps >= 0:
@@ -302,12 +314,12 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                     
                     if not marker_frames_only:
                         keyframes = tuple([
-                            (k.co[0]*pmod, k.co[1]) 
+                            ((k.co[0]-actionrange[0])*pmod, k.co[1]) 
                             for k in fc.keyframe_points if (k.co[0] >= actionrange[0] and k.co[0] <= actionrange[1])
                             ])
                     else:
                         keyframes = tuple([
-                            (k.co[0]*pmod, k.co[1]) 
+                            ((k.co[0]-actionrange[0])*pmod, k.co[1]) 
                             for k in fc.keyframe_points if round(k.co[0]) in markerframes
                             ])
                     bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
@@ -347,8 +359,6 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     netframes = list(set(netframes))
     netframes.sort()
     
-    foffset = -actionrange[0]*pmod # Frame offset
-    
     dg = context.evaluated_depsgraph_get()
     
     # Output ================================================================================
@@ -369,11 +379,11 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     
     outtrk += Pack('f', rd.fps)     # fps
     outtrk += Pack('I', len(netframes) ) # Frame Count
-    outtrk += Pack('I', len(pbones) ) # Num tracks
+    outtrk += Pack('I', len(bonenames) ) # Num tracks
     outtrk += Pack('f', duration*scale ) # Duration
-    outtrk += Pack('f', timestep/(duration*scale) ) # Position Step
+    outtrk += Pack('f', timestep/(max(1, duration)*scale) ) # Position Step
     
-    print('Length:', duration*scale)
+    print('Length:', (duration+1)*scale)
     
     outtrk += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in bonenames]) # Track Names
     
@@ -516,9 +526,9 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         print('> Writing Markers...');
         
         if marker_frames_only:
-            markers = [(x.name, i/max(1, duration-1.0)) for i,x in enumerate(sourceaction.pose_markers)]
+            markers = [(x.name, i/max(1, duration)) for i,x in enumerate(sourceaction.pose_markers)]
         else:
-            markers = [(x.name, (x.frame-actionrange[0])*scale/max(1, duration-1.0)) for x in sourceaction.pose_markers]
+            markers = [(x.name, (x.frame-actionrange[0])*scale/max(1, duration)) for x in sourceaction.pose_markers]
         
         outtrk += Pack('I', len(markers))
         outtrk += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
@@ -576,6 +586,11 @@ class ExportActionSuper(bpy.types.Operator, ExportHelper):
         name="Bake Steps", default=1, min=-1,
         description="Sample curves so that every nth frame has a vector.\nSet to 0 for no baking."
         +"\nSet to -1 for all frames (Good for Pose Libraries)\nPositive value needed for constraints",
+    )
+    
+    clean_threshold: bpy.props.FloatProperty(
+        name="Clean Threshold", default=0.0002, min=0.0, precision=4, step=1,
+        description="Threshold to use for cleaning keyframes after baking.\nReduces file size at the cost of quality",
     )
     
     scale: bpy.props.FloatProperty(
@@ -722,6 +737,7 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
         cc = b.column()
         cc.prop(self, 'marker_frames_only')
         cc.prop(self, 'bake_steps')
+        cc.prop(self, 'clean_threshold')
         r = cc.row(align=1)
         r.prop(self, 'scale', text='Scale')
         r.prop(self, 'time_step')
@@ -773,6 +789,7 @@ class VBM_OT_ExportTRK(ExportActionSuper, ExportHelper):
             'marker_frames_only': self.marker_frames_only,
             'compress_matrices': self.compress_matrices,
             'compress_matrices_threshold': self.compress_matrices_threshold,
+            'clean_threshold': self.clean_threshold,
         }
         
         if self.lastsimplify == -1:

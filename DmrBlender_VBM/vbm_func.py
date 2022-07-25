@@ -35,6 +35,7 @@ Items_FloatChoice = (
 VBF_000 = '0'
 VBF_POS = 'POSITION'
 VBF_UVS = 'UV'
+VBF_UVB = 'UVBYTES'
 VBF_NOR = 'NORMAL'
 VBF_TAN = 'TANGENT'
 VBF_BTN = 'BITANGENT'
@@ -50,6 +51,7 @@ VBFSize = {
     VBF_000: 0,
     VBF_POS: 3, 
     VBF_UVS: 2, 
+    VBF_UVB: 2, 
     VBF_NOR: 3, 
     VBF_TAN: 3,
     VBF_BTN: 3,
@@ -66,16 +68,17 @@ Items_VBF = (
     (VBF_000, '---', 'No Data', 'BLANK1', 0),
     (VBF_POS, 'Position', '3* Floats', 'VERTEXSEL', 1),
     (VBF_UVS, 'UVs', '2 Floats', 'UV', 2),
-    (VBF_NOR, 'Normal', '3 Floats', 'NORMALS_VERTEX', 3),
-    (VBF_TAN, 'Tangents', '3 Floats', 'NORMALS_VERTEX_FACE', 4),
-    (VBF_BTN, 'Bitangents', '3 Floats', 'NORMALS_VERTEX_FACE', 5),
-    (VBF_COL, 'Color (RGBA)', '4* Floats', 'COLOR', 6),
-    (VBF_RGB, 'Color Bytes (RGBA)', '4 Bytes = Size of 1 Float in format 0xRRGGBBAA', 'RESTRICT_COLOR_OFF', 7),
-    (VBF_BON, 'Bone Indices', '4* Floats (Use with Weights)', 'BONE_DATA', 8),
-    (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'BONE_DATA', 9),
-    (VBF_WEI, 'Weights', '4* Floats', 'MOD_VERTEX_WEIGHT', 10),
-    (VBF_WEB, 'Weight Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'MOD_VERTEX_WEIGHT', 11),
-    (VBF_GRO, 'Vertex Group', '1 Float', 'GROUP_VERTEX', 12),
+    (VBF_UVB, 'UV Bytes', '2 Bytes = Half size of 1 float', 'UV', 3),
+    (VBF_NOR, 'Normal', '3 Floats', 'NORMALS_VERTEX', 4),
+    (VBF_TAN, 'Tangents', '3 Floats', 'NORMALS_VERTEX_FACE', 5),
+    (VBF_BTN, 'Bitangents', '3 Floats', 'NORMALS_VERTEX_FACE', 6),
+    (VBF_COL, 'Color (RGBA)', '4* Floats', 'COLOR', 7),
+    (VBF_RGB, 'Color Bytes (RGBA)', '4 Bytes = Size of 1 Float in format 0xRRGGBBAA', 'RESTRICT_COLOR_OFF', 8),
+    (VBF_BON, 'Bone Indices', '4* Floats (Use with Weights)', 'BONE_DATA', 9),
+    (VBF_BOI, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'BONE_DATA', 10),
+    (VBF_WEI, 'Weights', '4* Floats', 'MOD_VERTEX_WEIGHT', 11),
+    (VBF_WEB, 'Weight Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'MOD_VERTEX_WEIGHT', 12),
+    (VBF_GRO, 'Vertex Group', '1 Float', 'GROUP_VERTEX', 13),
 )
 
 VBFType = {x[1]: x[0] for x in enumerate([
@@ -92,6 +95,7 @@ VBFType = {x[1]: x[0] for x in enumerate([
     VBF_TAN,
     VBF_BTN,
     VBF_GRO,
+    VBF_UVB,
     ])}
 
 Items_LayerChoice = (
@@ -332,7 +336,7 @@ def GetVBData(
     if instancemats:
         PrintStatus(' Setting up data...')
         
-        matnames = tuple(x.name for x in workingobj.data.materials)
+        matnames = tuple(x.name if x else "" for x in workingobj.data.materials)
         
         if flipuvs:
             for uv in (uv for lyr in workingmesh.uv_layers for uv in lyr.data):
@@ -500,6 +504,7 @@ def GetVBData(
                         tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
                         tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
                         tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
+                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0) for lyr in uvlayers ),
                     ))
                     for l in workingmesh.loops
                 ]
@@ -511,6 +516,7 @@ def GetVBData(
                         tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
                         tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
                         tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
+                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0) for lyr in uvlayers ),
                     ))
                     for l in workingmesh.loops
                 ]
@@ -582,6 +588,7 @@ def GetVBData(
                     tuple( (0,0) for lyr in uvlayers),
                     tuple( (1,1,1,1) for lyr in vclayers),
                     tuple( (1,1,1,1) for lyr in vclayers),
+                    tuple( (0,0) for lyr in uvlayers),
                 )
                 for v in workingmesh.vertices
             )
@@ -607,6 +614,7 @@ def GetVBData(
         def out_wei(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[4][:4][:size]));
         def out_web(out, attribindex, size): out.append(Pack(size*'B', *vmeta[5][:size]));
         def out_gro(out, attribindex, size): out.append(Pack(FCODE, vmeta[1][attribindex]));
+        def out_uvb(out, attribindex, size): out.append(Pack(size*'B', *lmeta[6][uvattriblyr[attribindex]][:size]));
         
         outwritemap = {
             VBF_POS: out_pos, 
@@ -621,6 +629,7 @@ def GetVBData(
             VBF_WEI: out_wei, 
             VBF_WEB: out_web,
             VBF_GRO: out_gro,
+            VBF_UVB: out_uvb,
         }
         
         format_enumerated = tuple(enumerate(format))

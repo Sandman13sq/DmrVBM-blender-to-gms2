@@ -188,7 +188,7 @@ def DrawAttributes(self, context):
             split.label(text='')
             split.prop(self, 'vclyr%d' % i, text='Layer')
         # UVs
-        elif vbfkey == VBF_UVS:
+        elif vbfkey in [VBF_UVS, VBF_UVB]:
             split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'uvlyr%d' % i, text='Layer')
@@ -367,7 +367,13 @@ def MoveAttribute(self, index, moveup=False):
 # --------------------------------------------------------------------------------------
 
 def UpdateAttributeSize(self, index):
-    setattr(self, 'attribsize%d' % index, 3 if getattr(self, 'vbf%d' % index)==VBF_POS else 4)
+    formatkey = getattr(self, 'vbf%d' % index)
+    if formatkey == VBF_POS:
+        setattr(self, 'attribsize%d' % index, 3)
+    elif formatkey in [VBF_UVS, VBF_UVB]:
+        setattr(self, 'attribsize%d' % index, 2)
+    else:
+        setattr(self, 'attribsize%d' % index, 4)
 
 # --------------------------------------------------------------------------------------
 

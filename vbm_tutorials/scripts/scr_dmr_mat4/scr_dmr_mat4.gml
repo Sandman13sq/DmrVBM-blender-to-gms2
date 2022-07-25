@@ -195,7 +195,6 @@ function Mat4Multiply2()
 		
 	return _mat;
 }
-	
 
 // Does Scale > Rotate > Translate
 function Mat4Transform(x, y, z, xrot, yrot, zrot, xscale, yscale, zscale)

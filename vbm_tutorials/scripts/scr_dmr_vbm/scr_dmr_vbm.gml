@@ -37,6 +37,7 @@ enum VBM_AttributeType
 	tangent = 10,
 	bitangent = 11,
 	vertexgroup = 12,
+	uvbytes = 13,
 }
 
 /*
@@ -404,6 +405,7 @@ function GetVBMFormat(b, offset, version1=false)
 			case(VBM_AttributeType.colorbytes):
 			case(VBM_AttributeType.bonebytes):
 			case(VBM_AttributeType.weightbytes):
+			case(VBM_AttributeType.uvbytes):
 				if ( ((bytesum + attributesize) div 4) > bytesum div 4 ) || version1
 				{
 					vertex_format_add_color();
