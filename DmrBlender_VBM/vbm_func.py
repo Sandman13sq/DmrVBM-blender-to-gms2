@@ -47,18 +47,23 @@ VBF_WEI = 'WEIGHT'
 VBF_WEB = 'WEIGHTBYTES'
 VBF_GRO = 'VERTEXGROUP'
 
+VBFByteType = [VBF_UVB, VBF_RGB, VBF_BOI, VBF_WEB]
+VBFSizeControl = [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_COL, VBF_RGB, VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]
+VBFUseVCLayer = [VBF_COL, VBF_RGB]
+VBFUseUVLayer = [VBF_UVS, VBF_UVB]
+
 VBFSize = {
     VBF_000: 0,
-    VBF_POS: 3, 
+    VBF_POS: 3,
     VBF_UVS: 2, 
     VBF_UVB: 2, 
     VBF_NOR: 3, 
     VBF_TAN: 3,
     VBF_BTN: 3,
     VBF_COL: 4, 
-    VBF_RGB: 1, 
+    VBF_RGB: 4,
     VBF_BON: 4,
-    VBF_BOI: 1,
+    VBF_BOI: 4,
     VBF_WEI: 4, 
     VBF_WEB: 4,
     VBF_GRO: 1,
@@ -139,6 +144,8 @@ Items_ForwardAxis = (
     ('-z', '-Z Forward', 'Export model(s) with -Z Forward axis'),
 )
 
+VERTEXGROUPNULL = '---'
+
 # ---------------------------------------------------------------------------------------
 
 def Items_UVLayers(self, context):
@@ -198,7 +205,7 @@ def Items_VertexGroups(self, context):
     names.sort(key=lambda x: names.count(x))
     names = list(set(names))
     
-    items = [('---', '---', 'Null Group', 'NONE', 0)] + \
+    items = [(VERTEXGROUPNULL, '---', 'Null Group', 'NONE', 0)] + \
         [(name, name, 'Export vertices from group "%s"' % name, 'GROUP_VERTEX', i+1) for i,name in enumerate(names)]
     
     return items
@@ -432,7 +439,7 @@ def GetVBData(
                     
                     return (
                         tuple(co),
-                        tuple( (vg.weight(v.index) if vg != None else vgroupdefaultweight for vg in targetvgroups) ),
+                        tuple( (vgroupdefaultweight if vg == None else 0 if vg.index not in [vge.group for vge in v.groups] else vg.weight(v.index) for vg in targetvgroups) ),
                         tuple(boneindices+(0,0,0,0))[:4], 
                         tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
                         tuple(weights+weightdefaults)[:4],
@@ -447,7 +454,7 @@ def GetVBData(
                     
                     return [
                         tuple(co),
-                        tuple( (vg.weight(v.index) if (vg != None and vg.index in [vge.group for vge in v.groups]) else vgroupdefaultweight for vg in targetvgroups) ),
+                        tuple( (vgroupdefaultweight if vg == None else 0 if vg.index not in [vge.group for vge in v.groups] else vg.weight(v.index) for vg in targetvgroups) ),
                     ]
             
             vertices = {v.index:v for v in workingvertices}
