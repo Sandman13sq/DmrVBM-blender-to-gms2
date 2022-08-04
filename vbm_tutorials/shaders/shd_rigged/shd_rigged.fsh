@@ -27,31 +27,19 @@ void main()
 	vec3 e = normalize(v_dirtocamera_cs);	// Camera Direction
 	vec3 r = reflect(-l, n);				// Reflect Angle
 	
-	// Shadow value
-	float dp = dot(n, l);
-	dp = (dp+1.0)*0.5; // Map to 0-1 range
-	dp = pow(dp, 1.0); // Soften shadows
-	dp = float(dp > 0.5);
+	// Light value
+	float dp = clamp( dot(n, l), 0.0, 1.0 );
+	dp = sqrt(dp);
 	
-	// Specular/Shine Value
-	float spe = clamp(dot(e, r), 0.0, 1.0);
-	spe = float(spe >= 0.9)*0.04;
+	// Shine Value
+	float roughness = 0.5;
+	float shine = clamp(dot(e, r), 0.0, 1.0);
+	shine = pow(shine, 1.0/roughness);
 	
-	// Rimlight Value
-	float rim = clamp(dot(normalize(n*vec3(1.0,2.0,1.0)), e), 0.0, 1.0);
-	rim = float(rim < 0.3);
-	
-	// Output
-	vec4 basecolor = (v_vColour * texture2D( gm_BaseTexture, v_vTexcoord ));
-	
-	float burnstrength = (basecolor.r*0.2126+basecolor.g*0.7152+basecolor.b*0.0722); // RGB to BW
-	vec3 burnbase = basecolor.rgb*vec3(0.9, 0.9, 1.0);
-	vec3 burnactive = vec3(0.0, 0.0, 1.0);
-	vec3 burnedcolor = ColorBurn(burnbase, burnactive, burnstrength*0.5);
-	
-	gl_FragColor.rgb = mix(burnedcolor, basecolor.rgb, dp);
-	gl_FragColor.rgb = mix(gl_FragColor.rgb, basecolor.rgb+vec3(0.2), rim);
-	gl_FragColor.rgb = mix(gl_FragColor.rgb, basecolor.rgb, 1.0-basecolor.a);
+	gl_FragColor.rgb = v_vColour.rgb;
+	gl_FragColor.rgb *= mix(vec3(0.8, 0.8, 1.0), vec3(1.0), float(dp >= 0.7));
+	gl_FragColor.rgb *= mix(vec3(0.8, 0.7, 0.9), vec3(1.0), float(dp >= 0.25));
+	gl_FragColor.rgb += vec3(0.02) * float(shine >= 0.5);
 	
 	gl_FragColor.a = 1.0;
 }
