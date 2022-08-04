@@ -83,32 +83,32 @@ playbackactive ^= keyboard_check_pressed(vk_space);
 
 if (playbackactive)
 {
-	playbackposition = (playbackposition+trk_gun.CalculateTimeStep(60)) mod 1;
+	playbackposition = (playbackposition+trk_prm.CalculateTimeStep(60)) mod 1;
 	
 	localpose = Mat4Array(VBM_MATPOSEMAX);
 	matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 	
 	EvaluateAnimationTracks(
-		trk_gun,
+		trk_prm,
 		playbackposition,
 		TRK_Intrpl.linear,
-		vbm_curly_exportlist.BoneNames(),
+		vbm_kindle_exportlist.BoneNames(),
 		localpose
 		);
 	
 	CalculateAnimationPose(
-		vbm_curly_exportlist.BoneParentIndices(),
-		vbm_curly_exportlist.BoneLocalMatrices(),
-		vbm_curly_exportlist.BoneInverseMatrices(),
+		vbm_kindle_exportlist.BoneParentIndices(),
+		vbm_kindle_exportlist.BoneLocalMatrices(),
+		vbm_kindle_exportlist.BoneInverseMatrices(),
 		localpose,
 		matpose
 		);
 	
 	CalculateAnimationPose(
-		vbm_curly_complete.BoneParentIndices(),
-		vbm_curly_complete.BoneLocalMatrices(),
-		vbm_curly_complete.BoneInverseMatrices(),
-		Mat4ArrayPartition(trk_gun.GetFrameMatricesByPosition(playbackposition)),
+		vbm_kindle_complete.BoneParentIndices(),
+		vbm_kindle_complete.BoneLocalMatrices(),
+		vbm_kindle_complete.BoneInverseMatrices(),
+		Mat4ArrayPartition(trk_prm.GetFrameMatricesByPosition(playbackposition)),
 		matpose2
 		);
 }

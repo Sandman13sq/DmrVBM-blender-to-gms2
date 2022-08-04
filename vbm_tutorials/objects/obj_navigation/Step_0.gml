@@ -26,4 +26,4 @@ else
 }
 
 
-if ( keyboard_check(vk_tab) && keyboard_check_pressed(ord("T")) ) {ChangeTutorial(6);}
+//if ( keyboard_check(vk_tab) && keyboard_check_pressed(ord("T")) ) {ChangeTutorial(6);}

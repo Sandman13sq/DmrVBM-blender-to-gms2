@@ -9,13 +9,16 @@ if (keyboard_check(vk_subtract) || keyboard_check(189)) {transitionblend = max(0
 if (keyboard_check_pressed(vk_space)) {playbackmode ^= 1;}
 
 // Progress Playback
-playbackposition = (playbackposition+trk_gun.CalculateTimeStep(game_get_speed(gamespeed_fps))) mod 1;
+playbackposition = (playbackposition+trk_prm.CalculateTimeStep(game_get_speed(gamespeed_fps))) mod 1;
+
+if (trk_prm.MatrixSpace() == TRK_Space.none) {playbackmode = 1;}
+if (trk_prm.TrackSpace() == TRK_Space.none) {playbackmode = 0;}
 
 // Use pre-evaluated matrices
 if (playbackmode == 0)
 {
 	// Use matrices for given frame
-	matpose = trk_gun.GetFrameMatricesByPosition(playbackposition);
+	matpose = trk_prm.GetFrameMatricesByPosition(playbackposition);
 }
 // Evaluate matrices on the fly
 else
@@ -24,19 +27,18 @@ else
 	matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 	
 	EvaluateAnimationTracks(
-		trk_gun,				// TRK data
+		trk_prm,			// TRK data
 		playbackposition,	// Position in animation ([0-1] range)
 		TRK_Intrpl.linear,	// Type of interpolation for blending transforms
-		vbm_curly_prm.BoneNames(),	// Keys for mapping tracks to indices. 0 for index only
+		vbm_kindle_prm.BoneNames(),	// Keys for mapping tracks to indices. 0 for index only
 		localpose			// 2D Array of matrices to write local transforms to
 		);
 	
 	CalculateAnimationPose(
-		vbm_curly_prm.BoneParentIndices(),	// Indices of parent bones for each bone
-		vbm_curly_prm.BoneLocalMatrices(),	// Bind pose local matrices for each bone
-		vbm_curly_prm.BoneInverseMatrices(),	// Inverse model matrices for each bone
+		vbm_kindle_prm.BoneParentIndices(),	// Indices of parent bones for each bone
+		vbm_kindle_prm.BoneLocalMatrices(),	// Bind pose local matrices for each bone
+		vbm_kindle_prm.BoneInverseMatrices(),	// Inverse model matrices for each bone
 		localpose,	// 2D Array of local transform matrices
 		matpose		// 1D Flat Array of object space transform matrices to give to shader
 		);
-		
 }

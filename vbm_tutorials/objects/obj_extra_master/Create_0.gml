@@ -3,7 +3,7 @@
 // Camera ----------------------------------------------
 viewposition = [0, 0, 10];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
-viewzrot = 10;	// Camera's horizontal rotation
+viewzrot = -10;	// Camera's horizontal rotation
 viewdistance = 24;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
@@ -34,4 +34,4 @@ lightpos = [8, 32, 48];	// Light position to pass to shader
 lightmode = 1;
 
 vbm_world = new VBMData();
-vbm_world.Open("extra/world.vbm");
+vbm_world.Open("assets/world_lab.vbm");

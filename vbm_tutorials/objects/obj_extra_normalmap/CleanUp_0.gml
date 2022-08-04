@@ -2,5 +2,5 @@
 
 event_inherited();
 
-VBMFree(vbm_curly_normalmap);
+VBMFree(vbm_kindle_normalmap);
 sprite_delete(spr_normalmap);

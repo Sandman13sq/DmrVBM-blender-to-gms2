@@ -3,7 +3,7 @@
 // Camera ----------------------------------------------
 viewposition = [0, 0, 8];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
-viewzrot = 10;	// Camera's horizontal rotation
+viewzrot = 0;	// Camera's horizontal rotation
 viewdistance = 24;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
@@ -43,12 +43,12 @@ vertex_format_add_texcoord();
 vbf_normal = vertex_format_end();
 
 // *Load Vertex Buffers --------------------------------
-vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
-vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
+vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_simple);
+vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_simple);
 
 // *Open VBM -------------------------------------------
-vbm_curly = new VBMData();	// Initialize new VBM data
-OpenVBM(vbm_curly, "curly_normal.vbm", vbf_normal);	// Read in VBM from file
+vbm_kindle = new VBMData();	// Initialize new VBM data
+OpenVBM(vbm_kindle, "assets/model_normal.vbm", vbf_normal);	// Read in VBM from file
 
 // *Model Controls -------------------------------------
 zrot = 0;

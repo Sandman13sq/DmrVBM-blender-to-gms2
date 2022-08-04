@@ -19,10 +19,13 @@ gpu_set_tex_filter(true);	// Smooth pixels
 // Set camera matrices
 matrix_set(matrix_projection, matproj);
 matrix_set(matrix_view, matview);
-matrix_set(matrix_world, mattran); // Transform matrix
+matrix_set(matrix_world, matrix_build_identity()); // Transform matrix
 
-shader_set(shd_simple);
+shader_set(shd_style);
+shader_set_uniform_f_array(u_style_lightpos, lightpos);
 vbm_world.Submit();
+
+matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_prm);
 shader_set_uniform_f_array(u_prm_lightpos, lightpos);
@@ -35,12 +38,12 @@ texture_set_stage(u_prm_prm, tex_prm);
 
 // Non-Skin
 shader_set_uniform_f_array(u_prm_skinparams, [0, 0, 0, 0]);
-vbm_curly_prm.SubmitVBIndex(0, pr_trianglelist, -1);
+vbm_kindle_prm.SubmitVBIndex(0, pr_trianglelist, -1);
 
 // Skin
 shader_set_uniform_f_array(u_prm_skincolor, skincolor);
 shader_set_uniform_f_array(u_prm_skinparams, skinparams);
-vbm_curly_prm.SubmitVBIndex(1, pr_trianglelist, -1);
+vbm_kindle_prm.SubmitVBIndex(1, pr_trianglelist, -1);
 
 shader_reset();
 

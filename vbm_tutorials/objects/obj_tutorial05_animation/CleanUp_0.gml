@@ -9,7 +9,7 @@ if (vb_axis >= 0) {vertex_delete_buffer(vb_axis);}
 if (vb_grid >= 0) {vertex_delete_buffer(vb_grid);}
 
 // VBM
-VBMFree(vbm_curly);
+VBMFree(vbm_kindle);
 
 // TRK
-TRKFree(trk_wave);
+TRKFree(trk_animation);

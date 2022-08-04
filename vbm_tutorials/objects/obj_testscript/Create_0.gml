@@ -108,33 +108,33 @@ Report("Wrong File Type: "+string(time)+"ms, return: "+string(vb_notcurly));
 
 // Uncompressed buffer
 time = get_timer();
-vb_curly_nocompression = OpenVertexBuffer(dir+"test/curly_comp0.vb", vbf_simple);
+vb_kindle_nocompression = OpenVertexBuffer(dir+"test/model_comp0.vb", vbf_simple);
 time = get_timer()-time;
-Report("Non-Compressed VB: "+string(time)+"ms, return: "+string(vb_curly_nocompression));
+Report("Non-Compressed VB: "+string(time)+"ms, return: "+string(vb_kindle_nocompression));
 
 // Compressed buffer
 time = get_timer();
-vb_curly_fullcompression = OpenVertexBuffer(dir+"test/curly_comp9.vb", vbf_simple);
+vb_kindle_fullcompression = OpenVertexBuffer(dir+"test/model_comp9.vb", vbf_simple);
 time = get_timer()-time;
-Report("Compressed VB: "+string(time)+"ms, return: "+string(vb_curly_fullcompression));
+Report("Compressed VB: "+string(time)+"ms, return: "+string(vb_kindle_fullcompression));
 
 // Wrong Format
 time = get_timer();
-vb_curly_floatcolors = OpenVertexBuffer(dir+"test/curly_floatcolors.vb", vbf_simple);
+vb_kindle_floatcolors = OpenVertexBuffer(dir+"test/model_floatcolors.vb", vbf_simple);
 time = get_timer()-time;
-Report("Wrong Format VB: "+string(time)+"ms, return: "+string(vb_curly_floatcolors));
+Report("Wrong Format VB: "+string(time)+"ms, return: "+string(vb_kindle_floatcolors));
 
 // Edges Only
 time = get_timer();
-vb_curly_edgesonly = OpenVertexBuffer(dir+"test/curly_edgesonly.vb", vbf_simple);
+vb_kindle_edgesonly = OpenVertexBuffer(dir+"test/model_edgesonly.vb", vbf_simple);
 time = get_timer()-time;
-Report("Edges Only VB: "+string(time)+"ms, return: "+string(vb_curly_edgesonly));
+Report("Edges Only VB: "+string(time)+"ms, return: "+string(vb_kindle_edgesonly));
 
 // Scaled
 time = get_timer();
-vb_curly_scaled = OpenVertexBuffer(dir+"test/curly_scaled.vb", vbf_normal);
+vb_kindle_scaled = OpenVertexBuffer(dir+"test/model_scaled.vb", vbf_normal);
 time = get_timer()-time;
-Report("Scaled VB: "+string(time)+"ms, return: "+string(vb_curly_scaled));
+Report("Scaled VB: "+string(time)+"ms, return: "+string(vb_kindle_scaled));
 
 // Instancing
 time = get_timer();
@@ -164,44 +164,44 @@ Report("Wrong Filetype: "+string(time)+"ms, return: "+string(vbm_wrongfiletype))
 
 // Uncompressed
 time = get_timer();
-vbm_curly_uncompressed = new VBMData();
-vbm_curly_uncompressed.Open(dir+"test/curly_uncompressed.vbm");
+vbm_kindle_uncompressed = new VBMData();
+vbm_kindle_uncompressed.Open(dir+"test/model_uncompressed.vbm");
 time = get_timer()-time;
-Report("Uncompressed: "+string(time)+"ms, return: "+string(vbm_curly_uncompressed));
+Report("Uncompressed: "+string(time)+"ms, return: "+string(vbm_kindle_uncompressed));
 
 // Compressed
 time = get_timer();
-vbm_curly_compressed = new VBMData();
-vbm_curly_compressed.Open(dir+"test/curly_compressed.vbm");
+vbm_kindle_compressed = new VBMData();
+vbm_kindle_compressed.Open(dir+"test/model_compressed.vbm");
 time = get_timer()-time;
-Report("Compressed: "+string(time)+"ms, return: "+string(vbm_curly_compressed));
+Report("Compressed: "+string(time)+"ms, return: "+string(vbm_kindle_compressed));
 
 // Vertex Buffer, no format given (Not VBM)
 time = get_timer();
-vbm_curly_vb = new VBMData();
-vbm_curly_vb.Open(dir+"test/curly_comp0.vb");
+vbm_kindle_vb = new VBMData();
+vbm_kindle_vb.Open(dir+"test/model_comp0.vb");
 time = get_timer()-time;
-Report("Vertex Buffer, No Format Given (Not VBM): "+string(time)+"ms, return: "+string(vbm_curly_vb));
+Report("Vertex Buffer, No Format Given (Not VBM): "+string(time)+"ms, return: "+string(vbm_kindle_vb));
 
 // Format Given
 time = get_timer();
-vbm_curly_vb.Open(dir+"test/curly_vb.vbm", vbf_normal);
+vbm_kindle_vb.Open(dir+"test/model_vb.vbm", vbf_normal);
 time = get_timer()-time;
-Report("Vertex Buffer (Not VBM): "+string(time)+"ms, return: "+string(vbm_curly_vb));
+Report("Vertex Buffer (Not VBM): "+string(time)+"ms, return: "+string(vbm_kindle_vb));
 
 // Export List
 time = get_timer();
-vbm_curly_exportlist = new VBMData();
-vbm_curly_exportlist.Open(dir+"test/curly_exportlist.vbm", vbf_rigged, true, true);
+vbm_kindle_exportlist = new VBMData();
+vbm_kindle_exportlist.Open(dir+"test/model_exportlist.vbm", vbf_rigged, true, true);
 time = get_timer()-time;
-Report("Export List: "+string(time)+"ms, return: "+string(vbm_curly_exportlist));
+Report("Export List: "+string(time)+"ms, return: "+string(vbm_kindle_exportlist));
 
 // Tangents
 time = get_timer();
-vbm_curly_complete = new VBMData();
-vbm_curly_complete.Open(dir+"test/curly_complete.vbm");
+vbm_kindle_complete = new VBMData();
+vbm_kindle_complete.Open(dir+"test/model_complete.vbm");
 time = get_timer()-time;
-Report("Complete: "+string(time)+"ms, return: "+string(vbm_curly_complete));
+Report("Complete: "+string(time)+"ms, return: "+string(vbm_kindle_complete));
 
 // Instanced
 time = get_timer();
@@ -216,8 +216,8 @@ normalmap = sprite_add(dir+"test/curly-def-normal.png", 1, 0, 0, 0, 0);
 trk_poses = new TRKData();
 OpenTRK(trk_poses, dir+"test/poses-all.trk");
 
-trk_gun = new TRKData();
-OpenTRK(trk_gun, dir+"test/hip.trk");
+trk_prm = new TRKData();
+OpenTRK(trk_prm, dir+"test/hip.trk");
 
 poseindex = 0;
 playbackactive = true;

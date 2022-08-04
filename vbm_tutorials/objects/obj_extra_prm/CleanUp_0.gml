@@ -2,8 +2,8 @@
 
 event_inherited();
 
-VBMFree(vbm_curly_prm);
-TRKFree(trk_gun);
+VBMFree(vbm_kindle_prm);
+TRKFree(trk_prm);
 
 sprite_delete(spr_col);
 sprite_delete(spr_nor);

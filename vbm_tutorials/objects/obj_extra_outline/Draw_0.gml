@@ -17,10 +17,13 @@ gpu_set_zwriteenable(true);	// Enable depth writing per pixel
 matrix_set(matrix_projection, matproj);
 matrix_set(matrix_view, matview);
 
-matrix_set(matrix_world, mattran); // Transform matrix
+matrix_set(matrix_world, matrix_build_identity()); // Transform matrix
 
-shader_set(shd_simple);
+shader_set(shd_style);
+shader_set_uniform_f_array(u_style_lightpos, lightpos);
 vbm_world.Submit();
+
+matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_outline);
 shader_set_uniform_f_array(u_outline_lightpos, lightpos);
@@ -28,11 +31,12 @@ shader_set_uniform_f_array(u_outline_lightpos, lightpos);
 // Outline Pass
 gpu_set_cullmode(cull_counterclockwise);
 shader_set_uniform_f(u_outline_outline, outlinestrength);
-vbm_curly_outline.Submit();
+vbm_kindle_outline.Submit();
+
 // Non-Outline Pass
 gpu_set_cullmode(cull_clockwise);
 shader_set_uniform_f(u_outline_outline, 0);
-vbm_curly_outline.Submit();
+vbm_kindle_outline.Submit();
 
 shader_reset();
 

@@ -29,7 +29,7 @@ shader_set(shd_rigged);
 shader_set_uniform_f_array(u_rigged_light, lightpos);
 shader_set_uniform_matrix_array(u_rigged_matpose, matpose);
 
-vbm_curly.Submit(pr_trianglelist, -1);
+vbm_kindle.Submit(pr_trianglelist, -1);
 
 shader_reset();
 

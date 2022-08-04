@@ -3,7 +3,7 @@
 // Camera ----------------------------------------------
 viewposition = [0, 0, 8];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
-viewzrot = 10;	// Camera's horizontal rotation
+viewzrot = 0;	// Camera's horizontal rotation
 viewdistance = 24;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
@@ -45,20 +45,20 @@ vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); // Bone Wei
 vbf_rigged = vertex_format_end();	// For shd_rigged
 
 // Load Vertex Buffers ---------------------------------
-vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
-vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
+vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_simple);
+vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_simple);
 
 // *Open VBM -------------------------------------------
-vbm_curly = new VBMData();
-OpenVBM(vbm_curly, "curly_rigged.vbm", vbf_rigged);	// VBM with bone index and weight attributes
+vbm_kindle = new VBMData();
+OpenVBM(vbm_kindle, "assets/model_rigged.vbm", vbf_rigged);	// VBM with bone index and weight attributes
 
 // *Open TRK -------------------------------------------
-trk_wave = new TRKData();	// Initialize new TRK data
-OpenTRK(trk_wave, "wave.trk");	// Read in TRK from file
+trk_animation = new TRKData();	// Initialize new TRK data
+OpenTRK(trk_animation, "assets/tutorial5.trk");	// Read in TRK from file
 
 // *Model Controls -------------------------------------
 zrot = 0;
-lightpos = [8, 32, 48]
+lightpos = [8, 32, 32];
 localpose = Mat4Array(VBM_MATPOSEMAX);	// Array of matrices to be populated by EvaluateAnimationTracks()
 matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);	// Flat array of matrices to pass into the shader
 

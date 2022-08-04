@@ -3,7 +3,7 @@
 // *Camera ----------------------------------------------
 viewposition = [0, 0, 8];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
-viewzrot = 10;	// Camera's horizontal rotation
+viewzrot = 0;	// Camera's horizontal rotation
 viewdistance = 24;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
@@ -43,10 +43,10 @@ vertex_format_add_texcoord();
 vbf_normal = vertex_format_end();	// For shd_normal
 
 // *Load Vertex Buffers --------------------------------
-vb_grid = OpenVertexBuffer("grid.vb", vbf_simple);
-vb_axis = OpenVertexBuffer("axis.vb", vbf_simple);
-vb_curly_simple = OpenVertexBuffer("curly_simple.vb", vbf_simple);
-vb_curly_normal = OpenVertexBuffer("curly_normal.vb", vbf_normal);
+vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_simple);
+vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_simple);
+vb_kindle_simple = OpenVertexBuffer("assets/model_simple.vb", vbf_simple);
+vb_kindle_normal = OpenVertexBuffer("assets/model_normal.vb", vbf_normal);
 
 // *Model Controls
 zrot = 0;	// Model rotation

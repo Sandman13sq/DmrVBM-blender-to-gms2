@@ -2,4 +2,4 @@
 
 event_inherited();
 
-VBMFree(vbm_curly_outline);
+VBMFree(vbm_kindle_outline);

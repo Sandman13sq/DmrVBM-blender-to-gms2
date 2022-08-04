@@ -29,13 +29,13 @@ shader_set(shd_style);
 
 shader_set_uniform_f_array(u_style_lightpos, lightpos);
 
-if (vbm_curly)
+if (vbm_kindle)
 {
-	for (var i = 0; i < vbm_curly.Count(); i++) // Iterate through vb indices
+	for (var i = 0; i < vbm_kindle.Count(); i++) // Iterate through vb indices
 	{
 		if ( meshvisible & (1 << i) ) // Check if bit is set for mesh index
 		{
-			vbm_curly.SubmitVBIndex(i, pr_trianglelist, -1); // Send indexed vb to GPU
+			vbm_kindle.SubmitVBIndex(i, pr_trianglelist, -1); // Send indexed vb to GPU
 		}
 	}
 }

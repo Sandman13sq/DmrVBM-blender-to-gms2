@@ -4,13 +4,13 @@
 if (keyboard_check_pressed(vk_space)) {playbackmode ^= 1;}
 
 // Progress Playback
-playbackposition = (playbackposition+trk_wave.CalculateTimeStep(game_get_speed(gamespeed_fps))) mod 1;
+playbackposition = (playbackposition+trk_animation.CalculateTimeStep(game_get_speed(gamespeed_fps))) mod 1;
 
 // Use pre-evaluated matrices
 if (playbackmode == 0)
 {
 	// Use matrices for given frame
-	matpose = trk_wave.GetFrameMatricesByPosition(playbackposition);
+	matpose = trk_animation.GetFrameMatricesByPosition(playbackposition);
 }
 // Evaluate matrices on the fly
 else
@@ -19,17 +19,17 @@ else
 	matpose = Mat4ArrayFlat(VBM_MATPOSEMAX);
 	
 	EvaluateAnimationTracks(
-		trk_wave,				// TRK data
+		trk_animation,				// TRK data
 		playbackposition,	// Position in animation ([0-1] range)
 		TRK_Intrpl.linear,	// Type of interpolation for blending transforms
-		vbm_curly.BoneNames(),	// Keys for mapping tracks to indices. 0 for index only
+		vbm_kindle.BoneNames(),	// Keys for mapping tracks to indices. 0 for index only
 		localpose			// 2D Array of matrices to write local transforms to
 		);
 	
 	CalculateAnimationPose(
-		vbm_curly.BoneParentIndices(),	// Indices of parent bones for each bone
-		vbm_curly.BoneLocalMatrices(),	// Bind pose local matrices for each bone
-		vbm_curly.BoneInverseMatrices(),	// Inverse model matrices for each bone
+		vbm_kindle.BoneParentIndices(),	// Indices of parent bones for each bone
+		vbm_kindle.BoneLocalMatrices(),	// Bind pose local matrices for each bone
+		vbm_kindle.BoneInverseMatrices(),	// Inverse model matrices for each bone
 		localpose,	// 2D Array of local transform matrices
 		matpose		// 1D Flat Array of object space transform matrices to give to shader
 		);

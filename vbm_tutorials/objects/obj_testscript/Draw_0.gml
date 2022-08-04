@@ -37,25 +37,25 @@ if (mode == 0)
 	vertex_submit(vb_instanced, pr_trianglelist, -1);
 
 	matrix_set(matrix_world, Mat4Translate(x+0, y-sep, 0));
-	vertex_submit(vb_curly_scaled, pr_trianglelist, -1);
+	vertex_submit(vb_kindle_scaled, pr_trianglelist, -1);
 	DrawModelDesc("Scaled");
 	
 	shader_set(shd_simple);
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
-	vertex_submit(vb_curly_nocompression, pr_trianglelist, -1);
+	vertex_submit(vb_kindle_nocompression, pr_trianglelist, -1);
 	DrawModelDesc("No Compression");
 
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
-	vertex_submit(vb_curly_fullcompression, pr_trianglelist, -1);
+	vertex_submit(vb_kindle_fullcompression, pr_trianglelist, -1);
 	DrawModelDesc("Full Compression");
 
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 1));
-	vertex_submit(vb_curly_floatcolors, pr_trianglelist, -1);
+	vertex_submit(vb_kindle_floatcolors, pr_trianglelist, -1);
 	DrawModelDesc("Float Colors");
 
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 1));
-	vertex_submit(vb_curly_edgesonly, pr_linelist, -1);
+	vertex_submit(vb_kindle_edgesonly, pr_linelist, -1);
 	DrawModelDesc("Edges Only");
 }
 // VBMs
@@ -71,15 +71,15 @@ else if (mode == 1)
 	shader_set_uniform_f_array(u_style_lightpos, lightpos);
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
-	vbm_curly_uncompressed.Submit();
+	vbm_kindle_uncompressed.Submit();
 	DrawModelDesc("Uncompressed");
 
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
-	vbm_curly_compressed.Submit();
+	vbm_kindle_compressed.Submit();
 	DrawModelDesc("Compressed");
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
-	vbm_curly_vb.Submit();
+	vbm_kindle_vb.Submit();
 	DrawModelDesc("VB (Not VBM)");
 }
 // Animations
@@ -96,7 +96,7 @@ else
 	shader_set_uniform_f_array(u_rigged_matpose, matpose);
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
-	vbm_curly_exportlist.Submit();
+	vbm_kindle_exportlist.Submit();
 	DrawModelDesc("Export List");
 	
 	shader_set(shd_complete);
@@ -105,7 +105,7 @@ else
 	
 	matrix_set(matrix_world, Mat4Translate(x+(sep*i++), y+0, 0));
 	texture_set_stage(u_complete_normalmap, sprite_get_texture(normalmap, 0));
-	vbm_curly_complete.Submit();
+	vbm_kindle_complete.Submit();
 	DrawModelDesc("Complete");
 }
 

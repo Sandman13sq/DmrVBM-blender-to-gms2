@@ -31,4 +31,4 @@ vertex_format_add_texcoord();
 vbf_simple = vertex_format_end();
 
 // *Load Vertex Buffer ----------------------------------
-vb_axis = OpenVertexBuffer("axis.vb", vbf_simple); // Load "axis.vb" from file
+vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_simple); // Load "axis.vb" from file
