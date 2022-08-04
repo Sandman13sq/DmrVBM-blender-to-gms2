@@ -165,16 +165,16 @@ def DrawAttributes(self, context):
         asize = getattr(self, 'attribsize%d' % i)
         
         if vbfkey != VBF_000:
-            stride += asize / (4.0 if vbfkey in [VBF_RGB, VBF_BOI, VBF_WEB] else 1.0)
-            sizelist.append(asize / (4.0 if vbfkey in [VBF_RGB, VBF_BOI, VBF_WEB] else 1.0))
+            stride += asize / (4.0 if vbfkey in VBFByteType else 1.0)
+            sizelist.append(asize / (4.0 if vbfkey in VBFByteType else 1.0))
             
-            if vbfkey in [VBF_RGB, VBF_BOI, VBF_WEB]:
+            if vbfkey in VBFByteType:
                 sizelistchar.append(str(asize)+"B")
             else:
                 sizelistchar.append(str(asize))
         
         # Attribute Size
-        if vbfkey in [VBF_POS, VBF_COL, VBF_RGB, VBF_BON, VBF_WEI, VBF_BOI, VBF_WEB]:
+        if vbfkey in VBFSizeControl:
             rr = r.row(align=1)
             rr.scale_x = 0.4
             rr.prop(self, 'attribsize%d' % i, text='', icon_only=True)
@@ -183,7 +183,7 @@ def DrawAttributes(self, context):
         r.prop(self, 'moveattribdown%d' % i, text='', icon='TRIA_DOWN')
         
         # Vertex Colors
-        if vbfkey == VBF_COL or vbfkey == VBF_RGB:
+        if vbfkey in [VBF_COL, VBF_RGB]:
             split = c.split(factor=0.16)
             split.label(text='')
             split.prop(self, 'vclyr%d' % i, text='Layer')
@@ -308,9 +308,7 @@ def CollectionToObjectList(self, context):
         exportlists = list(context.scene.vbm_exportlists)
         listnames = [x.name for x in exportlists]
         if exportlistname in listnames:
-            blendobjects = bpy.data.objects
-            exportlist = exportlists[listnames.index(exportlistname)]
-            objs = [blendobjects[x.objname] for x in exportlist.entries if x.objname in blendobjects.keys()]
+            objs = exportlists[listnames.index(exportlistname)].GetObjects()
     # Collections
     if not objs:
         if name in [x.name for x in bpy.data.collections]:
@@ -382,8 +380,9 @@ def ClampAttributeSize(self, index):
         return
     
     self.mutex = True   # Lock function to prevent recursion
-    setattr(self, 'attribsize%d' % index, 
-        min(getattr(self, 'attribsize%d' % index), 3 if getattr(self, 'vbf%d' % index)==VBF_POS else 4)
+    key = getattr(self, 'vbf%d' % index)
+    setattr(self, 'attribsize%d' % index,
+        min(getattr(self, 'attribsize%d' % index), VBFSize[key])
         )
     self.mutex = False  # Unlock function
 
@@ -395,6 +394,53 @@ def BoneDeformParent(b):
     while (b.parent != None and b.parent.use_deform == False):
         b = b.parent
     return b.parent
+
+# --------------------------------------------------------------------------------------
+
+def ParseFormatStrings(self, context):
+    n = 8
+    
+    # Format Keys
+    split = self.format.upper().split()
+    if len(split):
+        [ setattr(self, 'vbf%d' % i, VBF_000) for i in range(0, n)]
+        for i, value in enumerate(split):
+            setattr(self, 'vbf%d' % i, split[i])
+    
+    # Attribute Sizes
+    split = self.attribute_size.upper().split()
+    if len(split):
+        [ setattr(self, 'attribsize%d' % i, 0) for i in range(0, n)]
+        for i, value in enumerate(split):
+            setattr(self, 'attribsize%d' % i, int(split[i]))
+    
+    def ParseOrderedFormat(splitstring, splitchar, attribnamef, default_value, keylist):
+        split = splitstring.replace(", ", ",").split(splitchar)
+        
+        if len(split):
+            [ setattr(self, attribnamef % i, default_value) for i in range(0, n)]
+            splitindex = 0
+            for i in range(0, 8):
+                while splitindex < len(split) and split[splitindex] == "":
+                    splitindex += 1
+                
+                if splitindex == len(split):
+                    break
+                
+                if getattr(self, "vbf%d" % i) in keylist:
+                    setattr(self, attribnamef % i, split[splitindex])
+                    splitindex += 1
+                    if splitindex == len(split):
+                        break
+    
+    # VC Layer Targets
+    ParseOrderedFormat(self.vc_layer, ",", 'vclyr%d', LYR_GLOBAL, VBFUseVCLayer)
+    
+    # UV Layer Targets
+    ParseOrderedFormat(self.uv_layer, ",", 'uvlyr%d', LYR_GLOBAL, VBFUseUVLayer)
+    
+    # Vertex Group
+    ParseOrderedFormat(self.vertex_group, " ", 'vgroup%d', VERTEXGROUPNULL, [VBF_GRO])
 
 # =============================================================================
 
@@ -527,6 +573,11 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     VertexGroupProp = lambda i: bpy.props.EnumProperty(name="Vertex Group",
         description='Vertex Group to reference', items=Items_VertexGroups, default=0)
     
+    StringDefProp = lambda name, attribname: bpy.props.StringProperty(
+        name=name, default="",
+        description="Alternative method to defining format.\nIf not an empty string, the indexed values (%s0, %s1, ...) will be ignored" % (attribname, attribname)
+        )
+    
     vbf0 : VbfProp(0, VBF_POS)
     vbf1 : VbfProp(1, VBF_RGB)
     vbf2 : VbfProp(2, VBF_UVS)
@@ -535,6 +586,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     vbf5 : VbfProp(5, VBF_000)
     vbf6 : VbfProp(6, VBF_000)
     vbf7 : VbfProp(7, VBF_000)
+    
+    format : StringDefProp("Vertex Format String", "vbf")
     
     attribsize0 : AttributeSizeProp(0, 3)
     attribsize1 : AttributeSizeProp(1, 4)
@@ -545,6 +598,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     attribsize6 : AttributeSizeProp(6, 4)
     attribsize7 : AttributeSizeProp(7, 4)
     
+    attribute_size : StringDefProp("Attribute Size String", "attribsize")
+    
     vclyr0 : VClyrProp(0)
     vclyr1 : VClyrProp(1)
     vclyr2 : VClyrProp(2)
@@ -553,6 +608,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     vclyr5 : VClyrProp(5)
     vclyr6 : VClyrProp(6)
     vclyr7 : VClyrProp(7)
+    
+    vc_layer : StringDefProp("Vertex Color Layer String", "vclyr")
     
     uvlyr0 : UVlyrProp(0)
     uvlyr1 : UVlyrProp(1)
@@ -563,6 +620,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     uvlyr6 : UVlyrProp(6)
     uvlyr7 : UVlyrProp(7)
     
+    uv_layer : StringDefProp("UV Layer String", "uvlyr")
+    
     vgroup0 : VertexGroupProp(0)
     vgroup1 : VertexGroupProp(1)
     vgroup2 : VertexGroupProp(2)
@@ -571,6 +630,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     vgroup5 : VertexGroupProp(5)
     vgroup6 : VertexGroupProp(6)
     vgroup7 : VertexGroupProp(7)
+    
+    vertex_group : StringDefProp("Attribute Size String", "attribsize")
     
     # Fake buttons
     mutex : bpy.props.BoolProperty(default=False, options={'SKIP_SAVE', 'HIDDEN'})
@@ -643,6 +704,8 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
         
         print('='*80)
         print('> Beginning ExportVB to rootpath: "%s"' % path)
+        
+        ParseFormatStrings(self, context)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
         settings = GenerateSettings(self, context, format)
@@ -799,6 +862,8 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         
         print('='*80)
         print('> Beginning ExportVBM to rootpath: "%s"' % path)
+        
+        ParseFormatStrings(self, context)
         
         format, vclayertarget, uvlayertarget = ParseAttribFormat(self, context)
         settings = GenerateSettings(self, context, format)
