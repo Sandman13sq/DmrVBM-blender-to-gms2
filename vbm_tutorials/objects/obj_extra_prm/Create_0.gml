@@ -49,9 +49,3 @@ skinparams = [0.5, 1.5, 1.0, 1.0]
 transitionblend = 0;
 
 event_perform(ev_step, 0);	// Force an update
-
-for (var i = 0; i < vbm_kindle_prm.bonecount; i++)
-{
-	show_debug_message(vbm_kindle_prm.GetBoneName(i));
-}
-show_debug_message(vbm_kindle_prm.bonecount);
