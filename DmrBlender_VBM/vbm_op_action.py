@@ -285,12 +285,13 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     workingobj.animation_data.action = action
     
     fcurves = action.fcurves
-    netframes = ()
+    netframes = []
+    netpositions = []
     markerframes = [m.frame for m in sourceaction.pose_markers]
     
     duration = actionrange[1]-actionrange[0]
-    pmod = 1.0/max(1, duration)
-    foffset = -actionrange[0]*pmod # Frame offset
+    pnormalize = 1.0/max(1, duration)
+    foffset = -actionrange[0]*pnormalize # Frame offset
     
     # Parse curve positions ----------------------------------------------------------------
     if bakesteps >= 0:
@@ -314,16 +315,16 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                     
                     if not marker_frames_only:
                         keyframes = tuple([
-                            ((k.co[0]-actionrange[0])*pmod, k.co[1]) 
+                            ((k.co[0]), k.co[1]) 
                             for k in fc.keyframe_points if (k.co[0] >= actionrange[0] and k.co[0] <= actionrange[1])
                             ])
                     else:
                         keyframes = tuple([
-                            ((k.co[0]-actionrange[0])*pmod, k.co[1]) 
+                            ((k.co[0]), k.co[1]) 
                             for k in fc.keyframe_points if round(k.co[0]) in markerframes
                             ])
                     bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
-                    netframes += tuple(k[0] for k in keyframes)
+                    netframes += [k[0] for k in keyframes]
     # Fill for all positions ----------------------------------------------------------------
     else:
         poslist = [x for x in range(actionrange[0], actionrange[1]+1)]
@@ -346,18 +347,21 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                 if transformtype >= 0:
                     vecvalueindex = fc.array_index
                     keyframes = tuple(
-                        [(x*pmod, 0) for x in poslist if (x >= actionrange[0] and x <= actionrange[1])]
+                        [(x, 0) for x in poslist if (x >= actionrange[0] and x <= actionrange[1])]
                         )
                     bonecurves[pbones[bonename]][transformtype][vecvalueindex] = keyframes
-                    netframes += tuple(x[0] for x in keyframes)
+                    netframes += [k[0] for k in keyframes]
     
     # Only Markers' Frames
     if marker_frames_only:
-        netframes = tuple([m.frame*pmod for m in sourceaction.pose_markers if (m.frame >= actionrange[0] and m.frame <= actionrange[1])])
+        netframes = tuple([m.frame for m in sourceaction.pose_markers if (m.frame >= actionrange[0] and m.frame <= actionrange[1])])
         duration = len(netframes)
     
     netframes = list(set(netframes))
     netframes.sort()
+    netframes = tuple(netframes)
+    netframes = [int(x) for x in netframes]
+    netframesmod = 1.0/max(1, max(netframes)-min(netframes))
     
     dg = context.evaluated_depsgraph_get()
     
@@ -401,7 +405,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             outtrkchunk = b''
             
             for f in netframes:
-                sc.frame_set(round(f/pmod))
+                sc.frame_set(f)
                 
                 if compress_matrices:
                     outtrkchunk += b''.join(
@@ -441,7 +445,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             for f in netframes:
                 outtrkchunk = b''
                 
-                sc.frame_set(round(f/pmod))
+                sc.frame_set(f)
                 dg = context.evaluated_depsgraph_get()
                 evaluatedobj = workingobj.evaluated_get(dg)
                 evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
@@ -496,18 +500,18 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             for tindex in (0, 1, 2):
                 targetvecs = thisbonecurves[tindex]
                 veckeyframes = list(set(k for v in targetvecs for k in v))
-                vecpositions = list(set(x[0] for x in veckeyframes))
+                vecpositions = list(set(int(x[0]) for x in veckeyframes))
                 vecpositions.sort(key=lambda x: x)
                 vecpositions = tuple(vecpositions)
                 
                 outtrkchunk += Pack('I', len(vecpositions)) # Num Frames
-                outtrkchunk += b''.join([Pack(float_type, x*scale+foffset) for x in vecpositions]) # Frame Positions 
+                outtrkchunk += b''.join([Pack(float_type, (p-actionrange[0])*netframesmod) for p in vecpositions]) # Frame Positions 
                 
                 # Vectors
                 for f in vecpositions:
                     # Generate pose snap of matrices
                     if f not in posesnap:
-                        sc.frame_set(round(f/pmod))
+                        sc.frame_set(f)
                         dg = context.evaluated_depsgraph_get()
                         evaluatedobj = workingobj.evaluated_get(dg)
                         evalbones = [x for x in evaluatedobj.pose.bones if x.name in pbonesnames]
@@ -518,6 +522,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
                             ).decompose()
                             for i, x in enumerate(pbones.values())
                         }
+                    # Write vector values
                     outtrkchunk += b''.join( Pack(float_type, x) for x in posesnap[f][pb][tindex][:] ) # Vector Values
             outtrk += outtrkchunk
     
@@ -528,7 +533,7 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         if marker_frames_only:
             markers = [(x.name, i/max(1, duration)) for i,x in enumerate(sourceaction.pose_markers)]
         else:
-            markers = [(x.name, (x.frame-actionrange[0])*scale/max(1, duration)) for x in sourceaction.pose_markers]
+            markers = [(x.name, (x.frame-actionrange[0])*scale*netframesmod) for x in sourceaction.pose_markers]
         
         outtrk += Pack('I', len(markers))
         outtrk += b''.join([Pack('B', len(x[0])) + Pack('B'*len(x[0]), *[ord(c) for c in x[0]]) for x in markers]) # Names
