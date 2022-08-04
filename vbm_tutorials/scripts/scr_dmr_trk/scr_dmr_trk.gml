@@ -546,8 +546,6 @@ function EvaluateAnimationTracks(
 	var q1_0, q1_1, q1_2, q1_3,
 		q2_0, q2_1, q2_2, q2_3,
 		qOut0, qOut1, qOut2, qOut3,
-		bT0, bT1, bT2, bT3, bT4, bT5, bT6, bT7,
-		bD0, bD1, bD2, bD3, bD4, bD5, bD6, bD7,
 		xml, d, sqrD, sqrT, f0, f1;
 	// Quat to Mat4
 	var q_length, q_hyp_sqr,
@@ -558,7 +556,7 @@ function EvaluateAnimationTracks(
 	mmscale[15] = 1;
 	
 	var _lastepsilon = math_get_epsilon();
-	math_set_epsilon(0.000000000000001);
+	math_set_epsilon(0.0000000000001);
 	
 	// Map tracks
 	if bonekeys == 0 // Bone Indices
@@ -614,7 +612,7 @@ function EvaluateAnimationTracks(
 				{
 					case(0): // Transform
 						// Only copy to the location values (indices 12 to 15)
-						array_copy(outposematrix, 12, vecprev, 12, 3);
+						array_copy(outposematrix, 12, vecprev, 0, 3);
 						break;
 					
 					case(2): // Scale
@@ -658,6 +656,7 @@ function EvaluateAnimationTracks(
 						}
 						break;
 				}
+				
 			}
 			// Multiple Keyframes
 			else if (findexmax > 0)
@@ -682,8 +681,7 @@ function EvaluateAnimationTracks(
 				posnext = trackframes[findexnext];	// Position of next keyframe
 			
 				// Find Blend amount (Map "pos" distance to [0-1] value)
-				blendamt = (pos - posprev) / (posnext - posprev); // More than one unit difference
-				blendamt = clamp(blendamt, 0.0, 1.0);
+				blendamt = clamp((pos - posprev) / (posnext - posprev), 0.0, 1.0);
 				
 				// Apply Interpolation
 				if (interpolationtype == TRK_Intrpl.constant) {blendamt = blendamt >= 0.99;}
@@ -722,30 +720,32 @@ function EvaluateAnimationTracks(
 						q1_0 = vecprev[0]; q1_1 = vecprev[1]; q1_2 = vecprev[2]; q1_3 = vecprev[3];
 						q2_0 = vecnext[0]; q2_1 = vecnext[1]; q2_2 = vecnext[2]; q2_3 = vecnext[3];
 						
-						xml = (q1_0*q2_0 + q1_1*q2_1 + q1_2*q2_2 + q1_3*q2_3)-1;
-						d = 1-blendamt; 
-						sqrT = sqr(blendamt);
-						sqrD = sqr(d);
+						xml = (q1_0*q2_0 + q1_1*q2_1 + q1_2*q2_2 + q1_3*q2_3)-1.0;
+						d = 1.0-blendamt; 
+						sqrT = blendamt*blendamt;
+						sqrD = d*d;
 						
-						bT7 = (QUATSLERP_U7 * sqrT - QUATSLERP_V7) * xml;
-						bT6 = (QUATSLERP_U6 * sqrT - QUATSLERP_V6) * xml;
-						bT5 = (QUATSLERP_U5 * sqrT - QUATSLERP_V5) * xml;
-						bT4 = (QUATSLERP_U4 * sqrT - QUATSLERP_V4) * xml;
-						bT3 = (QUATSLERP_U3 * sqrT - QUATSLERP_V3) * xml;
-						bT2 = (QUATSLERP_U2 * sqrT - QUATSLERP_V2) * xml;
-						bT1 = (QUATSLERP_U1 * sqrT - QUATSLERP_V1) * xml;
-						bT0 = (QUATSLERP_U0 * sqrT - QUATSLERP_V0) * xml;
-						bD7 = (QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml;
-						bD6 = (QUATSLERP_U6 * sqrD - QUATSLERP_V6) * xml;
-						bD5 = (QUATSLERP_U5 * sqrD - QUATSLERP_V5) * xml;
-						bD4 = (QUATSLERP_U4 * sqrD - QUATSLERP_V4) * xml;
-						bD3 = (QUATSLERP_U3 * sqrD - QUATSLERP_V3) * xml;
-						bD2 = (QUATSLERP_U2 * sqrD - QUATSLERP_V2) * xml;
-						bD1 = (QUATSLERP_U1 * sqrD - QUATSLERP_V1) * xml;
-						bD0 = (QUATSLERP_U0 * sqrD - QUATSLERP_V0) * xml;
+						f0 = blendamt * (
+							1+((QUATSLERP_U0 * sqrT - QUATSLERP_V0) * xml)*(
+							1+((QUATSLERP_U1 * sqrT - QUATSLERP_V1) * xml)*(
+							1+((QUATSLERP_U2 * sqrT - QUATSLERP_V2) * xml)*(
+							1+((QUATSLERP_U3 * sqrT - QUATSLERP_V3) * xml)*(
+							1+((QUATSLERP_U4 * sqrT - QUATSLERP_V4) * xml)*(
+							1+((QUATSLERP_U5 * sqrT - QUATSLERP_V5) * xml)*(
+							1+((QUATSLERP_U6 * sqrT - QUATSLERP_V6) * xml)*(
+							1+((QUATSLERP_U7 * sqrT - QUATSLERP_V7) * xml)
+							))))))));
 						
-						f0 = blendamt * (1+bT0*(1+bT1*(1+bT2*(1+bT3*(1+bT4*(1+bT5*(1+bT6*1+bT7)))))));
-						f1 = d *		(1+bD0*(1+bD1*(1+bD2*(1+bD3*(1+bD4*(1+bD5*(1+bD6*1+bD7)))))));
+						f1 = d * (
+							1+((QUATSLERP_U0 * sqrD - QUATSLERP_V0) * xml)*(
+							1+((QUATSLERP_U1 * sqrD - QUATSLERP_V1) * xml)*(
+							1+((QUATSLERP_U2 * sqrD - QUATSLERP_V2) * xml)*(
+							1+((QUATSLERP_U3 * sqrD - QUATSLERP_V3) * xml)*(
+							1+((QUATSLERP_U4 * sqrD - QUATSLERP_V4) * xml)*(
+							1+((QUATSLERP_U5 * sqrD - QUATSLERP_V5) * xml)*(
+							1+((QUATSLERP_U6 * sqrD - QUATSLERP_V6) * xml)*(
+							1+((QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml)
+							))))))));
 						
 						qOut0 = f0 * q1_0 + f1 * q2_0;
 						qOut1 = f0 * q1_1 + f1 * q2_1;
