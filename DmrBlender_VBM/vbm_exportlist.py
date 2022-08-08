@@ -130,8 +130,7 @@ class DMR_OP_VBMExportList_FromSelection(bpy.types.Operator):
     
     def execute(self, context):
         for obj in context.selected_objects:
-            ActiveList(self, context).Add(obj, True)
-        
+            ActiveList(self, context).Add(obj, False)
         return {'FINISHED'}
 classlist.append(DMR_OP_VBMExportList_FromSelection)
 
@@ -203,9 +202,9 @@ class VBMExportList(bpy.types.PropertyGroup):
     def GetObjects(self):
         return [x.object for x in self.entries]
     
-    def Add(self, object, ignore_duplicates=False):
+    def Add(self, object, allow_duplicates=False):
         e = self.entries.add()
-        if not ignore_duplicates or object not in [x.object for x in self.entries]:
+        if allow_duplicates or object not in [x.object for x in self.entries]:
             e.object = object
             self.size = len(self.entries)
             self.entryindex = self.size-1
@@ -289,7 +288,7 @@ class DMR_PT_VBMExportList(bpy.types.Panel):
                 
                 col.separator()
                 col.operator("dmr.vbm_exportlist_entry_fromselection", icon='RESTRICT_SELECT_OFF', text="")
-                col.operator("dmr.vbm_exportlist_clean", icon='HELP', text="")
+                #col.operator("dmr.vbm_exportlist_clean", icon='HELP', text="")
                 
                 col.separator()
                 col.operator("dmr.vbm_exportlist_entry_move", icon='TRIA_UP', text="").direction = 'UP'

@@ -274,11 +274,11 @@ def GenerateSettings(self, context, format):
 # --------------------------------------------------------------------------------------------------
 
 def Items_Collections(self, context):
-    out = [('<selected>', '(Selected Objects)', 'Export selected objects', 'RESTRICT_SELECT_OFF', 0)]
+    out = [('<SELECTED>', '(Selected Objects)', 'Export selected objects', 'RESTRICT_SELECT_OFF', 0)]
     
     # Export Lists
     for i, x in enumerate(context.scene.vbm_exportlists):
-        out += [(EXPORTLISTHEADER+'%s' % x.name, x.name, 'Export from export list "%s"' % x.name, 'PRESET', len(out))]
+        out += [(EXPORTLISTHEADER + x.name, x.name, 'Export from export list "%s"' % x.name, 'PRESET', len(out))]
     
     # Iterate through scene collections
     def ColLoop(c, out, depth=0):
