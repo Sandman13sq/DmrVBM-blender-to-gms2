@@ -103,7 +103,6 @@
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"model_simple.vb","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles","resourceVersion":"1.0","name":"datafiles-curly.7z","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"animation.trk","resourceType":"GMIncludedFile",},
-    {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"kindle_col.png","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"kindle_nor.png","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"kindle_transition.png","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"kindle_cavity.png","resourceType":"GMIncludedFile",},
@@ -115,6 +114,7 @@
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"world_lab_normalmap.vbm","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"extra_prm.trk","resourceType":"GMIncludedFile",},
     {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"world_lab_normal.vbm","resourceType":"GMIncludedFile",},
+    {"CopyToMask":-1,"filePath":"datafiles/assets","resourceVersion":"1.0","name":"kindle_col.png","resourceType":"GMIncludedFile",},
   ],
   "MetaData": {
     "IDEVersion": "2022.6.1.26",
