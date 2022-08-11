@@ -1,9 +1,9 @@
 /// @desc 
 
 // Camera ----------------------------------------------
-viewposition = [0, 0, 10];	// Location to point the camera at
+viewposition = [0, 0, 9];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
-viewzrot = -10;	// Camera's horizontal rotation
+viewzrot = -2;	// Camera's horizontal rotation
 viewdistance = 24;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision

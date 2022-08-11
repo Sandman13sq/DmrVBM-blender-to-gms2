@@ -15,6 +15,6 @@ u_style_lightpos = shader_get_uniform(shd_style, "u_lightpos");
 u_outline_lightpos = shader_get_uniform(shd_outline, "u_lightpos");
 u_outline_outline = shader_get_uniform(shd_outline, "u_outline");
 
-outlinestrength = 0.5;
+outlinestrength = 0.3;
 
 event_perform(ev_step, 0);	// Force an update

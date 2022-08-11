@@ -125,6 +125,10 @@ def DrawCommonProps(self, context):
         cc.prop(self, 'uv_layer_target', text='')
         cc.prop(self, 'modifier_target', text='')
         
+        rr = c.row()
+        rr.active = bpy.app.version >= (3,2,2)
+        rr.prop(self, 'vc_linear_to_srgb')
+        
         r = c.row()
         r.prop(self, 'scale', text='Scale')
         rr = c.row().row(align=1)
@@ -226,7 +230,13 @@ def ParseAttribFormat(self, context):
             format.append(slot)
             vclayertarget.append(vctarget)
             uvlayertarget.append(uvtarget)
-    print('> Format:', [(f, getattr(self, 'attribsize%d' % i)) for i,f in enumerate(format)])
+    
+    print('> Format:', [
+        (f, getattr(self, 'attribsize%d' % i), getattr(self, 'vclyr%d' % i)) if format[i] in VBFUseVCLayer else
+        (f, getattr(self, 'attribsize%d' % i), getattr(self, 'uvlyr%d' % i)) if format[i] in VBFUseUVLayer else
+        (f, getattr(self, 'attribsize%d' % i))
+        for i,f in enumerate(format)
+        ])
     return (format, vclayertarget, uvlayertarget)
 
 # ---------------------------------------------------------------------------------------
@@ -269,6 +279,7 @@ def GenerateSettings(self, context, format):
         'attributesizes': [getattr(self, 'attribsize%d' % i) for i in range(0, 8)],
         'vgrouptargets': [getattr(self, 'vgroup%d' % i) for i in range(0, 8)],
         'vgroupdefaultweight': self.vertex_group_default_weight,
+        'vc_linear_to_srgb': self.vc_linear_to_srgb,
     }
 
 # --------------------------------------------------------------------------------------------------
@@ -557,6 +568,11 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     vertex_group_default_weight : bpy.props.FloatProperty(
         name="Vertex Group Default Weight", default=0.0, soft_min=0.0, soft_max=1.0,
         description='Default weight for Vertex Group attribute when an object does not contain the selected group.',
+    )
+    
+    vc_linear_to_srgb: bpy.props.BoolProperty(
+        name="VC Linear to SRGB", default=bpy.app.version >= (3,2,2),
+        description="Converts vertex color values from linear to srgb. (For Blender 3.2.2)",
     )
     
     # Vertex Attributes

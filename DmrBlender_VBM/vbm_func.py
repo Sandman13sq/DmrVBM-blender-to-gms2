@@ -11,6 +11,8 @@ import numpy
 from bpy_extras.io_utils import ExportHelper
 from struct import pack as Pack
 
+USE_ATTRIBUTES = bpy.app.version >= (3,2,2)
+
 PackString = lambda x: b'%c%s' % (len(x), str.encode(x))
 PackVector = lambda f, v: struct.pack(f*len(v), *(v[:]))
 PackMatrix = lambda f, m: b''.join( [struct.pack(f*4, *x) for x in m.copy().transposed()] )
@@ -181,7 +183,7 @@ def Items_VCLayers(self, context):
     lyrnames = [
         lyr.name
         for obj in context.scene.objects if (obj and obj.type == 'MESH')
-        for lyr in obj.data.vertex_colors
+        for lyr in (obj.data.color_attributes if USE_ATTRIBUTES else obj.data.vertex_colors)
     ]
     
     # Sort by number of entries
@@ -229,6 +231,9 @@ def ComposeOutFlag(self):
         flag |= 1 << 1
     return Pack('B', flag)
 
+def FixColorSpace(color, do_convert):
+    return color if not do_convert else list(mathutils.Color(color[:3]).from_scene_linear_to_srgb())+[color[3]]
+
 # ==================================================================================================
 
 # Returns tuple of (outbytes, outcounts)
@@ -263,6 +268,7 @@ def GetVBData(
     attributesizes = settings.get('attributesizes', [3]+[4]*7)
     vgrouptargets = settings.get('vgrouptargets', ['']*8)
     vgroupdefaultweight = settings.get('vgroupdefaultweight', 0.0)
+    vc_linear_to_srgb = settings.get('vc_linear_to_srgb', USE_ATTRIBUTES)
     
     process_bones = True if sum([1 for k in format if k in [VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]]) > 0 else False
     process_tangents = True if sum([1 for k in format if k in [VBF_TAN, VBF_BTN]]) > 0 else False
@@ -318,12 +324,20 @@ def GetVBData(
     # Invoke to_mesh() for evaluated object.
     workingobj = dupobj.evaluated_get(dg)
     workingmesh = workingobj.evaluated_get(dg).to_mesh()
+    workingvclayers = workingmesh.color_attributes if USE_ATTRIBUTES else workingmesh.vertex_colors
+    workinguvlayers = workingmesh.uv_layers
     
     # Create missing data
-    if len(workingmesh.vertex_colors) == 0:
-        workingmesh.vertex_colors.new()
-    if len(workingmesh.uv_layers) == 0:
-        workingmesh.uv_layers.new()
+    if bpy.app.version >= (3, 2, 2):
+        if len(workingvclayers) == 0:
+            workingvclayers.new("New Layer", 'BYTE_COLOR', 'CORNER')
+        if len(workinguvlayers) == 0:
+            workinguvlayers.new()
+    else:
+        if len(workingvclayers) == 0:
+            workingvclayers.new()
+        if len(workinguvlayers) == 0:
+            workinguvlayers.new()
     
     instancemats = []
     if instancerun:
@@ -346,10 +360,10 @@ def GetVBData(
         matnames = tuple(x.name if x else "" for x in workingobj.data.materials)
         
         if flipuvs:
-            for uv in (uv for lyr in workingmesh.uv_layers for uv in lyr.data):
+            for uv in (uv for lyr in workinguvlayers for uv in lyr.data):
                 uv.uv[1] = 1.0-uv.uv[1]
         
-        def GetAttribLayers(layers, targets):
+        def GetAttribLayers(layers, targets, is_color=False):
             targets = targets[:]
             if not targets:
                 targets = [LYR_RENDER]
@@ -363,14 +377,15 @@ def GetVBData(
                 if tar in lyrnames:
                     out += [lyrnames.index(tar)]
                 elif tar == LYR_SELECT:
-                    out += [layers.active_index]
+                    out += [layers.active_color_index if (USE_ATTRIBUTES and is_color) else layers.active_index]
                 else:
-                    out += [[x.active_render for x in layers].index(True)]
+                    out += [layers.active_index if (USE_ATTRIBUTES and is_color) else [x.active_render for x in layers].index(True)]
             
             return (tuple(out), lyrnames)
         
-        uvattriblyr, uvtargets = GetAttribLayers(workingmesh.uv_layers, uvtargets) # list of layer indices to use for attribute
-        vcattriblyr, vctargets = GetAttribLayers(workingmesh.vertex_colors, vctargets)
+        uvattriblyr, uvtargets = GetAttribLayers(workinguvlayers, uvtargets) # list of layer indices to use for attribute
+        vcattriblyr, vctargets = GetAttribLayers(workingmesh.color_attributes if USE_ATTRIBUTES else workingvclayers, vctargets, True)
+        
         targetvgroups = [
             workingobj.vertex_groups[vgname] if vgname in workingobj.vertex_groups.keys() else None
             for vgname in vgrouptargets
@@ -492,15 +507,15 @@ def GetVBData(
                 workingmesh.calc_tangents()
             workingmesh.update()
             
-            targetlayers = set([lyr for i,lyr in enumerate(workingmesh.vertex_colors) if i in vcattriblyr])
+            targetlayers = set([lyr for i,lyr in enumerate(workingvclayers) if i in vcattriblyr])
             vclayers = tuple([
                 [lyr.data[i].color for i in range(0, len(lyr.data))] if lyr in targetlayers else 0
-                for lyr in workingmesh.vertex_colors
+                for lyr in workingvclayers
                 ])
-            targetlayers = set([lyr for i,lyr in enumerate(workingmesh.uv_layers) if i in uvattriblyr])
+            targetlayers = set([lyr for i,lyr in enumerate(workinguvlayers) if i in uvattriblyr])
             uvlayers = tuple([
                 [lyr.data[i].uv for i in range(0, len(lyr.data))] if lyr in targetlayers else 0
-                for lyr in workingmesh.uv_layers
+                for lyr in workinguvlayers
                 ])
             
             if process_tangents:
@@ -509,8 +524,8 @@ def GetVBData(
                         tuple(l.tangent),
                         tuple(l.bitangent),
                         tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
-                        tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
-                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
+                        tuple( (FixColorSpace(lyr[l.index], vc_linear_to_srgb) if lyr else (0,0,0,0) for lyr in vclayers ) ),
+                        tuple( tuple(int(x*255.0) for x in FixColorSpace(lyr[l.index], vc_linear_to_srgb)) if lyr else (0,0,0,0) for lyr in vclayers ),
                         tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0) for lyr in uvlayers ),
                     ))
                     for l in workingmesh.loops
@@ -521,8 +536,8 @@ def GetVBData(
                         0,
                         0,
                         tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
-                        tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
-                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
+                        tuple( (FixColorSpace(lyr[l.index], vc_linear_to_srgb) if lyr else (0,0,0,0) for lyr in vclayers ) ),
+                        tuple( tuple(int(x*255.0) for x in FixColorSpace(lyr[l.index], vc_linear_to_srgb)) if lyr else (0,0,0,0) for lyr in vclayers ),
                         tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0) for lyr in uvlayers ),
                     ))
                     for l in workingmesh.loops
