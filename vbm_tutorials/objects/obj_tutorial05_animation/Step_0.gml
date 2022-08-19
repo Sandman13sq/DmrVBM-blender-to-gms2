@@ -33,7 +33,6 @@ else
 		localpose,	// 2D Array of local transform matrices
 		matpose		// 1D Flat Array of object space transform matrices to give to shader
 		);
-		
 }
 
 #region Camera =============================================================
