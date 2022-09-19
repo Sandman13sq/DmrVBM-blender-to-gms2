@@ -357,6 +357,8 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
         netframes = tuple([m.frame for m in sourceaction.pose_markers if (m.frame >= actionrange[0] and m.frame <= actionrange[1])])
         duration = len(netframes)
     
+    if len(netframes) == 0:
+        netframes = [actionrange[0]]
     netframes = list(set(netframes))
     netframes.sort()
     netframes = tuple(netframes)
