@@ -328,7 +328,7 @@ def GetVBData(
     workinguvlayers = workingmesh.uv_layers
     
     # Create missing data
-    if bpy.app.version >= (3, 2, 2):
+    if USE_ATTRIBUTES:
         if len(workingvclayers) == 0:
             workingvclayers.new("New Layer", 'BYTE_COLOR', 'CORNER')
         if len(workinguvlayers) == 0:
@@ -338,6 +338,18 @@ def GetVBData(
             workingvclayers.new()
         if len(workinguvlayers) == 0:
             workinguvlayers.new()
+    
+    # Convert Point Data to Corner Data
+    if USE_ATTRIBUTES:
+        for lyr in workingvclayers:
+            if lyr.domain == 'POINT':
+                cornerdata = tuple([lyr.data[l.vertex_index].color for l in workingmesh.loops])
+                name = lyr.name
+                type = lyr.data_type
+                workingvclayers.remove(lyr)
+                for corner in enumerate(workingvclayers.new(name, type, 'CORNER').data):
+                    corner.color = cornerdata[i]
+        
     
     instancemats = []
     if instancerun:
