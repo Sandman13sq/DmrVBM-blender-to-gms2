@@ -9,8 +9,6 @@
 NOTE: If cloned straight from GitHub not all features are guranteed to work correctly.  
 For stable versions see the **Releases** on the GitHub page (when they're ready).
 
-The example model's character is of Curly Brace from Cave Story. I own nothing related to Cave Story.
-
 # [Quick Start Guide](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/wiki/Quick-Start-Guide)
 
 -----
