@@ -386,12 +386,15 @@ def GetVBData(
             lyrnames = list(layers.keys())
             for i in range(0, formatsize):
                 tar = targets[i]
+                # Named layer
                 if tar in lyrnames:
                     out += [lyrnames.index(tar)]
+                # Selected layer
                 elif tar == LYR_SELECT:
                     out += [layers.active_color_index if (USE_ATTRIBUTES and is_color) else layers.active_index]
+                # Render layer
                 else:
-                    out += [layers.active_index if (USE_ATTRIBUTES and is_color) else [x.active_render for x in layers].index(True)]
+                    out += [layers.render_color_index if (USE_ATTRIBUTES and is_color) else [x.active_render for x in layers].index(True)]
             
             return (tuple(out), lyrnames)
         
