@@ -146,10 +146,10 @@ class DMR_OP_VBMExportList_MoveEntry(bpy.types.Operator):
         name="Direction",
         description='Direction to move layer',
         items=(
-            ('UP', 'Up', 'Move vertex color layer up'),
-            ('DOWN', 'Down', 'Move vertex color layer down'),
-            ('TOP', 'Top', 'Move vertex color layer to top of list'),
-            ('BOTTOM', 'Bottom', 'Move vertex color layer to bottom of list'),
+            ('UP', 'Up', 'Move entry up'),
+            ('DOWN', 'Down', 'Moveentry down'),
+            ('TOP', 'Top', 'Move entry to top of list'),
+            ('BOTTOM', 'Bottom', 'Move entry to bottom of list'),
         )
     )
     
