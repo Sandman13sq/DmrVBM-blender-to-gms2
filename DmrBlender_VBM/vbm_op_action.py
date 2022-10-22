@@ -242,6 +242,8 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     pbonesnames = [x.name for x in pboneslist]
     bonenames = [x for x in pbones.keys()]
     
+    workingobj.data.pose_position = 'POSE'
+    
     # Baking ----------------------------------------------------------------
     if bakesteps > 0:
         print('> Baking animation...');
