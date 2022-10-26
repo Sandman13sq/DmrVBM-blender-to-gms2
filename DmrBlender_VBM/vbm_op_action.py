@@ -219,29 +219,6 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
     sc.frame_set(sc.frame_current)
     vl.update()
     
-    bones = {b.name: b for b in workingobj.data.bones}
-    
-    # Make dict of selected bones
-    if selected_bones_only:
-        bones = {b.name: b for b in bones.values() if b.select}
-    
-    boneparents = {b: BoneFindParent(b, selected_bones_only, deform_only) for b in bones.values()}
-    pbones = [workingobj.pose.bones[b.name] for b in bones.values()]
-    
-    # Make dict of deform bones
-    if deform_only:
-        pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
-        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones.values() if b.use_deform}
-    # Make dict of all bones
-    else:
-        pbones = {x.name: x for x in pbones}
-        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones.values()}
-    
-    bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
-    pboneslist = [x for x in pbones.values()]
-    pbonesnames = [x.name for x in pboneslist]
-    bonenames = [x for x in pbones.keys()]
-    
     workingobj.data.pose_position = 'POSE'
     
     # Baking ----------------------------------------------------------------
@@ -283,7 +260,69 @@ def GetTRKData(context, sourceobj, sourceaction, settings):
             x.name += '__temp'
         action = dataactions[-1]
         action.name = lastaction.name + '__temp'
+    
+    # Relink armature (Rigify)
+    bpy.ops.object.select_all(action='DESELECT')
+    workingobj.select_set(True)
+    
+    bpy.ops.object.mode_set(mode='EDIT')
+    
+    ebones = workingobj.data.edit_bones
+    deformebones = [b for b in ebones if b.use_deform]
+    nondeformebones = [b for b in ebones if not b.use_deform]
+    
+    def FindFirstDeform(b, usedbones=[]):
+        if not b.parent:
+            return None
         
+        usedbones.append(b)
+        basename = b.name[b.name.find("-")+1:]
+        
+        nextdeforms = [x for x in deformebones 
+            if (x not in usedbones and x.name[-len(basename):] == basename)]
+        if nextdeforms:
+            return nextdeforms[0]
+        return FindFirstDeform(b.parent)
+    
+    for b in deformebones:
+        if not b.parent:
+            continue
+        
+        if b.parent not in deformebones:
+            b.parent = FindFirstDeform(b.parent, [b])
+    
+    bpy.ops.armature.layers_show_all()
+    bpy.ops.armature.reveal()
+    for eb in workingobj.data.edit_bones:
+        eb.select = not eb.use_deform
+    bpy.ops.armature.delete()
+    
+    bpy.ops.object.mode_set(mode='OBJECT')
+    
+    bones = {b.name: b for b in workingobj.data.bones}
+    
+    # Make dict of selected bones
+    if selected_bones_only:
+        bones = {b.name: b for b in bones.values() if b.select}
+    
+    boneparents = {b: b.parent for b in bones.values()}
+    pbones = [workingobj.pose.bones[b.name] for b in bones.values()]
+    
+    # Make dict of deform bones
+    if deform_only:
+        pbones = {x.name: x for x in pbones if bones[x.name].use_deform}
+        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones.values() if b.use_deform}
+    # Make dict of all bones
+    else:
+        pbones = {x.name: x for x in pbones}
+        pboneparents = {pbones[b.name]: pbones[boneparents[b].name] if boneparents[b] else None for b in bones.values()}
+    
+    bonecurves = {pbones[x]: [ [(),(),()], [(),(),(),()], [(),(),()] ] for x in pbones}
+    pboneslist = [x for x in pbones.values()]
+    pbonesnames = [x.name for x in pboneslist]
+    bonenames = [x for x in pbones.keys()]
+    
+    # Action Details
     workingobj.animation_data.action = action
     
     fcurves = action.fcurves

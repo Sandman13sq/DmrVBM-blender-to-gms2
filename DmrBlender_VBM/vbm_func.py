@@ -434,13 +434,17 @@ def GetVBData(
             vgroups = workingobj.vertex_groups
             weightdefaults = (1,1,1,1) if len(vgroups) == 0 else (0,0,0,0)
             
+            # Map Vertex Groups to Armature Indices
             validvgroups = tuple(vg.index for vg in vgroups)
-            vgremap = {vg.index: vg.index for vg in vgroups}
+            vgroupremap = {vg.index: vg.index for vg in vgroups}
             
             if armature:
-                bonenames = tuple([b.name for b in armature.data.bones if ((deformonly and b.use_deform) or not deformonly)])
+                bonenames = settings.get('bonenames', None)
+                if not bonenames:
+                    bonenames = tuple([b.name for b in armature.data.bones if ((deformonly and b.use_deform) or not deformonly)])
+                
                 validvgroups = tuple([vg.index for vg in vgroups if vg.name in bonenames])
-                vgremap = {vg.index: (bonenames.index(vg.name) if vg.name in bonenames else -1) for vg in vgroups}
+                vgroupremap = {vg.index: (bonenames.index(vg.name) if vg.name in bonenames else -1) for vg in vgroups}
             
             weightsortkey = lambda x: x.weight
             
@@ -460,7 +464,7 @@ def GetVBData(
                     validvges.sort(key=weightsortkey, reverse=True)
                     validvges = validvges[:4]
                     
-                    boneindices = tuple(vgremap[vge.group] for vge in validvges)
+                    boneindices = tuple(vgroupremap[vge.group] for vge in validvges)
                     weights = tuple(vge.weight for vge in validvges)
                     wlength = sum(weights)
                     

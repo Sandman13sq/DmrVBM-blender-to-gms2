@@ -941,7 +941,48 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 
                 bones = workingarmature.bones[:]
                 if settings.get('deformonly', False):
+                    context.scene.collection.objects.link(workingobj)
+                    context.view_layer.objects.active = workingobj
+                    bpy.ops.object.select_all(action='DESELECT')
+                    workingobj.select_set(True)
+                    
+                    # Relink armature (Rigify)
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    
+                    ebones = workingobj.data.edit_bones
+                    deformebones = [b for b in ebones if b.use_deform]
+                    nondeformebones = [b for b in ebones if not b.use_deform]
+                    
+                    def FindFirstDeform(b, usedbones=[]):
+                        if not b.parent:
+                            return None
+                        
+                        usedbones.append(b)
+                        basename = b.name[b.name.find("-")+1:]
+                        
+                        nextdeforms = [x for x in deformebones 
+                            if (x not in usedbones and x.name[-len(basename):] == basename)]
+                        if nextdeforms:
+                            return nextdeforms[0]
+                        return FindFirstDeform(b.parent)
+                    
+                    for b in deformebones:
+                        if not b.parent:
+                            continue
+                        
+                        if b.parent not in deformebones:
+                            b.parent = FindFirstDeform(b.parent, [b])
+                    
+                    bpy.ops.armature.layers_show_all()
+                    bpy.ops.armature.reveal()
+                    for eb in workingobj.data.edit_bones:
+                        eb.select = not eb.use_deform
+                    bpy.ops.armature.delete()
+                    
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                    
                     bones = [b for b in workingarmature.bones if b.use_deform]
+                
                 bonemat = {b: (settingsmatrix @ b.matrix_local.copy()) for b in bones}
                 
                 # Write Data
@@ -949,11 +990,13 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                 
                 out_bone += Pack('I', len(bones)) # Bone count
                 out_bone += b''.join( [PackString(b.name) for b in bones] ) # Bone names
-                out_bone += b''.join( [Pack('I', bones.index(BoneDeformParent(b)) if BoneDeformParent(b) else 0) for b in bones] ) # Bone parent index
+                out_bone += b''.join( [Pack('I', bones.index(b.parent) if b.parent else 0) for b in bones] ) # Bone parent index
                 out_bone += b''.join( [PackMatrix('f',
-                    (bonemat[BoneDeformParent(b)].inverted() @ bonemat[b]) # local matrices
-                    if BoneDeformParent(b) else bonemat[b]) for b in bones] )
+                    (bonemat[b.parent].inverted() @ bonemat[b]) # local matrices
+                    if b.parent else bonemat[b]) for b in bones] )
                 out_bone += b''.join( [PackMatrix('f', bonemat[b].inverted()) for b in bones] ) # inverse matrices
+                
+                settings['bonenames'] = [b.name for b in bones]
                 
                 # Delete Temporary
                 bpy.data.objects.remove(workingobj)
@@ -966,7 +1009,6 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         out_bone = ComposeBoneData(armature)
         
         # Compose Vertex Buffer Data ================================================
-        
         def GetVBGroupSorted(objlist):
             vbgroups = {}
             vbkeys = []
