@@ -234,6 +234,9 @@ def ComposeOutFlag(self):
 def FixColorSpace(color, do_convert):
     return color if not do_convert else list(mathutils.Color(color[:3]).from_scene_linear_to_srgb())+[color[3]]
 
+def FixColorSpaceByte(color, do_convert):
+    return color if not do_convert else [int(x*255.0) for x in FixColorSpace([x/255.0 for x in color], True)]
+
 # ==================================================================================================
 
 # Returns tuple of (outbytes, outcounts)
@@ -266,9 +269,9 @@ def GetVBData(
     FCODE = settings.get('floattype', 'f')
     colordefault = settings.get('defaultcolor', (1.0, 1.0, 1.0, 1.0))
     attributesizes = settings.get('attributesizes', [3]+[4]*7)
+    gammacorrect = settings.get('gammacorrect', [USE_ATTRIBUTES]*8)
     vgrouptargets = settings.get('vgrouptargets', ['']*8)
     vgroupdefaultweight = settings.get('vgroupdefaultweight', 0.0)
-    vc_linear_to_srgb = settings.get('vc_linear_to_srgb', USE_ATTRIBUTES)
     
     process_bones = True if sum([1 for k in format if k in [VBF_BON, VBF_BOI, VBF_WEI, VBF_WEB]]) > 0 else False
     process_tangents = True if sum([1 for k in format if k in [VBF_TAN, VBF_BTN]]) > 0 else False
@@ -526,11 +529,14 @@ def GetVBData(
                 workingmesh.calc_tangents()
             workingmesh.update()
             
+            # Size = Number of attributes that use colors
             targetlayers = set([lyr for i,lyr in enumerate(workingvclayers) if i in vcattriblyr])
             vclayers = tuple([
-                [lyr.data[i].color for i in range(0, len(lyr.data))] if lyr in targetlayers else 0
+                tuple([lyr.data[i].color for i in range(0, len(lyr.data))]) if lyr in targetlayers else 0
                 for lyr in workingvclayers
                 ])
+            
+            # Size = Number of attributes that use uvs
             targetlayers = set([lyr for i,lyr in enumerate(workinguvlayers) if i in uvattriblyr])
             uvlayers = tuple([
                 [lyr.data[i].uv for i in range(0, len(lyr.data))] if lyr in targetlayers else 0
@@ -543,8 +549,8 @@ def GetVBData(
                         tuple(l.tangent),
                         tuple(l.bitangent),
                         tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
-                        tuple( (FixColorSpace(lyr[l.index], vc_linear_to_srgb) if lyr else (0,0,0,0) for lyr in vclayers ) ),
-                        tuple( tuple(int(x*255.0) for x in FixColorSpace(lyr[l.index], vc_linear_to_srgb)) if lyr else (0,0,0,0) for lyr in vclayers ),
+                        tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
+                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
                         tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0) for lyr in uvlayers ),
                     ))
                     for l in workingmesh.loops
@@ -555,8 +561,8 @@ def GetVBData(
                         0,
                         0,
                         tuple( (lyr[l.index] if lyr else (0,0) for lyr in uvlayers ) ),
-                        tuple( (FixColorSpace(lyr[l.index], vc_linear_to_srgb) if lyr else (0,0,0,0) for lyr in vclayers ) ),
-                        tuple( tuple(int(x*255.0) for x in FixColorSpace(lyr[l.index], vc_linear_to_srgb)) if lyr else (0,0,0,0) for lyr in vclayers ),
+                        tuple( (lyr[l.index] if lyr else (0,0,0,0) for lyr in vclayers ) ),
+                        tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0,0,0) for lyr in vclayers ),
                         tuple( tuple(int(x*255.0) for x in lyr[l.index]) if lyr else (0,0) for lyr in uvlayers ),
                     ))
                     for l in workingmesh.loops
@@ -643,13 +649,15 @@ def GetVBData(
         PrintStatus(' Creating byte data...')
         
         # Triangles
+        # Anything PER ATTRIBUTE is handled here
+        
         def out_pos(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[0][:size]));
         def out_nor(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[0][:3]));
         def out_tan(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[1][:3]));
         def out_btn(out, attribindex, size): out.append(Pack(3*FCODE, *lmeta[2][:3]));
         def out_tex(out, attribindex, size): out.append(Pack(2*FCODE, *lmeta[3][uvattriblyr[attribindex]]));
-        def out_col(out, attribindex, size): out.append(Pack(size*FCODE, *lmeta[4][vcattriblyr[attribindex]][:size]));
-        def out_rgb(out, attribindex, size): out.append(Pack(size*'B', *lmeta[5][vcattriblyr[attribindex]][:size]));
+        def out_col(out, attribindex, size): out.append(Pack(size*FCODE, *(FixColorSpace(lmeta[4][vcattriblyr[attribindex]], gammacorrect[attribindex]))[:size]));
+        def out_rgb(out, attribindex, size): out.append(Pack(size*'B', *(FixColorSpaceByte(lmeta[5][vcattriblyr[attribindex]], gammacorrect[attribindex]))[:size]));
         def out_bon(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[2][:4][:size]));
         def out_boi(out, attribindex, size): out.append(Pack(size*'B', *vmeta[3][:size]));
         def out_wei(out, attribindex, size): out.append(Pack(size*FCODE, *vmeta[4][:4][:size]));
@@ -695,7 +703,6 @@ def GetVBData(
             materialvbytes[matkey] += outblock
         
         t = time.time()-t
-        #print('%s:\t%.6f %.6f' % (workingobj.name, tt, t))
         
         PrintStatus(' Complete (%s Vertices, %.6f sec)' % (sum(materialvcounts.values()), time.time()-tstart) )
         PrintStatus('\n')

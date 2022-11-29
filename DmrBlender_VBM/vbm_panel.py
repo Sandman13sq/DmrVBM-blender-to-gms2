@@ -13,10 +13,18 @@ def DrawVBMPanel(self, context):
     
     section = layout.box().column()
     section.column().label(text='-- Animations --')
-    section.operator("vbm.export_trk", text='Export Armature Tracks', icon='ACTION')
+    
+    r = section.row()
+    r.operator("vbm.export_trk", text='Export TRK', icon='ACTION')
+    bb = section.box()
+    last = context.scene.get('LastTRKExport', None)
+    bb.enabled = last != None
+    op = bb.operator("vbm.export_trk_repeat", text=('...'+last['filepath'][-32:]) if last != None else 'Repeat Last', icon='FILE_REFRESH')
+
+# ---------------------------------------------------------------------------------
 
 class VBM_PT_ExportVBPanel_Scene(bpy.types.Panel):
-    bl_label = 'Vertex Buffer Export'
+    bl_label = 'VBM / TRK Export'
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = 'scene'

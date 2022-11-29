@@ -188,9 +188,12 @@ def DrawAttributes(self, context):
         
         # Vertex Colors
         if vbfkey in [VBF_COL, VBF_RGB]:
-            split = c.split(factor=0.16)
-            split.label(text='')
+            split = c.row(align=1)
+            rr = split.row(align=1)
+            rr.scale_x = 0.32
+            rr.label(text='')
             split.prop(self, 'vclyr%d' % i, text='Layer')
+            split.prop(self, 'vcsrgb', text='', index=i, toggle=False, icon='BRUSHES_ALL' if getattr(self, 'vcsrgb')[i] else 'IPO_SINE')
         # UVs
         elif vbfkey in [VBF_UVS, VBF_UVB]:
             split = c.split(factor=0.16)
@@ -211,6 +214,56 @@ def DrawAttributes(self, context):
 
 # ---------------------------------------------------------------------------------------
 
+def ParseFormatStrings(self, context):
+    n = 8
+    
+    # Format Keys
+    split = self.format.upper().split()
+    if len(split):
+        [ setattr(self, 'vbf%d' % i, VBF_000) for i in range(0, n)]
+        for i, value in enumerate(split):
+            setattr(self, 'vbf%d' % i, split[i])
+    
+    # Attribute Sizes
+    split = self.attribute_size.upper().split()
+    if len(split):
+        [ setattr(self, 'attribsize%d' % i, 0) for i in range(0, n)]
+        for i, value in enumerate(split):
+            setattr(self, 'attribsize%d' % i, int(split[i]))
+    
+    def ParseOrderedFormat(splitstring, splitchar, attribnamef, default_value, keylist):
+        if len(splitstring) == 0:
+            return
+        
+        split = splitstring.replace(", ", ",").split(splitchar)
+        
+        if len(split):
+            [ setattr(self, attribnamef % i, default_value) for i in range(0, n)]
+            splitindex = 0
+            for i in range(0, 8):
+                while splitindex < len(split) and split[splitindex] == "":
+                    splitindex += 1
+                
+                if splitindex == len(split):
+                    break
+                
+                if getattr(self, "vbf%d" % i) in keylist:
+                    setattr(self, attribnamef % i, split[splitindex])
+                    splitindex += 1
+                    if splitindex == len(split):
+                        break
+    
+    # VC Layer Targets
+    ParseOrderedFormat(self.vc_layer, ",", 'vclyr%d', LYR_GLOBAL, VBFUseVCLayer)
+    
+    # UV Layer Targets
+    ParseOrderedFormat(self.uv_layer, ",", 'uvlyr%d', LYR_GLOBAL, VBFUseUVLayer)
+    
+    # Vertex Group
+    ParseOrderedFormat(self.vertex_group, " ", 'vgroup%d', VERTEXGROUPNULL, [VBF_GRO])
+
+# ---------------------------------------------------------------------------------------
+
 def ParseAttribFormat(self, context):
     format = []
     vclayertarget = []
@@ -220,6 +273,8 @@ def ParseAttribFormat(self, context):
         slot = getattr(self, 'vbf%d' % i)
         vctarget = getattr(self, 'vclyr%d' % i)
         uvtarget = getattr(self, 'uvlyr%d' % i)
+        
+        print(i, vctarget)
         
         if slot != VBF_000:
             if vctarget == LYR_GLOBAL:
@@ -232,9 +287,9 @@ def ParseAttribFormat(self, context):
             uvlayertarget.append(uvtarget)
     
     print('> Format:', [
-        (f, getattr(self, 'attribsize%d' % i), getattr(self, 'vclyr%d' % i)) if format[i] in VBFUseVCLayer else
-        (f, getattr(self, 'attribsize%d' % i), getattr(self, 'uvlyr%d' % i)) if format[i] in VBFUseUVLayer else
-        (f, getattr(self, 'attribsize%d' % i))
+        (f, getattr(self, 'attribsize%d' % i), getattr(self, 'vclyr%d' % i)) if format[i] in VBFUseVCLayer else # Print VC Attribute
+        (f, getattr(self, 'attribsize%d' % i), getattr(self, 'uvlyr%d' % i)) if format[i] in VBFUseUVLayer else # Print UV Attribute
+        (f, getattr(self, 'attribsize%d' % i)) # Print Float Attribute
         for i,f in enumerate(format)
         ])
     return (format, vclayertarget, uvlayertarget)
@@ -277,6 +332,7 @@ def GenerateSettings(self, context, format):
         'flipuvs': self.flip_uvs,
         'floattype': self.float_type,
         'attributesizes': [getattr(self, 'attribsize%d' % i) for i in range(0, 8)],
+        'gammacorrect': tuple(getattr(self, 'vcsrgb')),
         'vgrouptargets': [getattr(self, 'vgroup%d' % i) for i in range(0, 8)],
         'vgroupdefaultweight': self.vertex_group_default_weight,
         'vc_linear_to_srgb': self.vc_linear_to_srgb,
@@ -367,6 +423,7 @@ def MoveAttribute(self, index, moveup=False):
     SwapAttrib('vbf%d', True)
     SwapAttrib('uvlyr%d')
     SwapAttrib('vclyr%d')
+    SwapAttrib('vcsrgb%d')
     SwapAttrib('vgroup%d')
     
     self.mutex = True   # Lock function to prevent recursion
@@ -408,52 +465,9 @@ def BoneDeformParent(b):
 
 # --------------------------------------------------------------------------------------
 
-def ParseFormatStrings(self, context):
-    n = 8
-    
-    # Format Keys
-    split = self.format.upper().split()
-    if len(split):
-        [ setattr(self, 'vbf%d' % i, VBF_000) for i in range(0, n)]
-        for i, value in enumerate(split):
-            setattr(self, 'vbf%d' % i, split[i])
-    
-    # Attribute Sizes
-    split = self.attribute_size.upper().split()
-    if len(split):
-        [ setattr(self, 'attribsize%d' % i, 0) for i in range(0, n)]
-        for i, value in enumerate(split):
-            setattr(self, 'attribsize%d' % i, int(split[i]))
-    
-    def ParseOrderedFormat(splitstring, splitchar, attribnamef, default_value, keylist):
-        split = splitstring.replace(", ", ",").split(splitchar)
-        
-        if len(split):
-            [ setattr(self, attribnamef % i, default_value) for i in range(0, n)]
-            splitindex = 0
-            for i in range(0, 8):
-                while splitindex < len(split) and split[splitindex] == "":
-                    splitindex += 1
-                
-                if splitindex == len(split):
-                    break
-                
-                if getattr(self, "vbf%d" % i) in keylist:
-                    setattr(self, attribnamef % i, split[splitindex])
-                    splitindex += 1
-                    if splitindex == len(split):
-                        break
-    
-    # VC Layer Targets
-    ParseOrderedFormat(self.vc_layer, ",", 'vclyr%d', LYR_GLOBAL, VBFUseVCLayer)
-    
-    # UV Layer Targets
-    ParseOrderedFormat(self.uv_layer, ",", 'uvlyr%d', LYR_GLOBAL, VBFUseUVLayer)
-    
-    # Vertex Group
-    ParseOrderedFormat(self.vertex_group, " ", 'vgroup%d', VERTEXGROUPNULL, [VBF_GRO])
-
-# =============================================================================
+# ==========================================================================================================================
+# OPERATORS
+# ==========================================================================================================================
 
 classlist = []
 
@@ -627,6 +641,8 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     
     vc_layer : StringDefProp("Vertex Color Layer String", "vclyr")
     
+    vcsrgb : bpy.props.BoolVectorProperty(name="Is SRGB", description='Convert color values from linear to SRGB', size=8, default=[True]*8)
+    
     uvlyr0 : UVlyrProp(0)
     uvlyr1 : UVlyrProp(1)
     uvlyr2 : UVlyrProp(2)
@@ -670,7 +686,7 @@ class ExportVBSuper(bpy.types.Operator, ExportHelper):
     moveattribdown6 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,6,False), options={'SKIP_SAVE', 'HIDDEN'})
     moveattribdown7 : bpy.props.BoolProperty(default=False, update=lambda s,c: MoveAttribute(s,7,False), options={'SKIP_SAVE', 'HIDDEN'})
 
-# =============================================================================
+# ---------------------------------------------------------------------------------
 
 class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
     """Exports selected objects as one compressed vertex buffer"""
@@ -807,7 +823,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
         return {'FINISHED'}
 classlist.append(VBM_OT_ExportVB)
 
-# =============================================================================
+# ---------------------------------------------------------------------------------
 
 class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
     """Exports selected objects as vbm data"""
@@ -961,9 +977,14 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                         basename = b.name[b.name.find("-")+1:]
                         
                         nextdeforms = [x for x in deformebones 
-                            if (x not in usedbones and x.name[-len(basename):] == basename)]
+                            if (x not in usedbones and x.name[-len(basename):] == basename and x.use_deform)]
+                        
+                        print("   ", b.name, [x.name for x in nextdeforms])
+                        
                         if nextdeforms:
                             return nextdeforms[0]
+                        if b.use_deform:
+                            return b
                         return FindFirstDeform(b.parent)
                     
                     for b in deformebones:
@@ -971,6 +992,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
                             continue
                         
                         if b.parent not in deformebones:
+                            print(b.name)
                             b.parent = FindFirstDeform(b.parent, [b])
                     
                     bpy.ops.armature.layers_show_all()
@@ -1132,6 +1154,9 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         # Restore State --------------------------------------------------------
         RemoveTempObjects()
         
+        for obj in targetobjects:
+            obj.select_set(True)
+        
         if activename in [x.name for x in bpy.context.selected_objects]:
             context.view_layer.objects.active = bpy.data.objects[activename]
         
@@ -1140,13 +1165,14 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(VBM_OT_ExportVBM)
 
-# =============================================================================
+# ==========================================================================================================================
+# ==========================================================================================================================
 
 def register():
     for c in classlist:
         bpy.utils.register_class(c)
 
 def unregister():
-    for c in reversed(classlist):
+    for c in classlist[::-1]:
         bpy.utils.unregister_class(c)
 
