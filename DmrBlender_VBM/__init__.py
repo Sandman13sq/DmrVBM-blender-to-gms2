@@ -6,13 +6,14 @@ bl_info = {
 }
  
 modulesNames = [
-    'utilities',
-    'vbm_func',
-    'vbm_presets',
     'vbm_op',
-    'vbm_op_action',
-    'vbm_panel',
+    'vbm_func',
     'vbm_exportlist',
+    
+    'trk_op',
+    'trk_func',
+    
+    'vbm_panel'
     ]
 
 import sys
