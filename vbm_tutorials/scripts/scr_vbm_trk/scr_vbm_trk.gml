@@ -60,6 +60,12 @@ function TRKData() constructor
 	trackindices = {};	// {trackname: index} for each track
 	trackcount = 0;
 	
+	curvedata = [];	// array of array of TRKData_FCurve for Non-bone curves
+	curvenames = [];	// Names for each curve
+	curvemap = {}; // {curvename: curve group} for each curve
+	curveindices = {};	// {curvename: index} for each curve
+	curvecount = 0;
+	
 	markerpositions = []; // Frame positions in animation
 	markermap = {};	// {markername: framepos} for each marker
 	markernames = []; // names for markers
@@ -86,7 +92,7 @@ function TRKData() constructor
 	
 	static FrameCount = function() {return framecount;}
 	static FrameMatrices = function() {return framematrices;}
-	static GetFrameMatrices = function(index) {return framematrices[index];}
+	static GetFrameMatrices = function(index) {return framematrices[clamp(index, 0, framecount-1)];}
 	static GetFrameMatricesByPosition = function(pos) 
 		{return framematrices[clamp(round(pos*framecount), 0, framecount-1)];}
 	static GetFrameMatricesByMarker = function(marker_index) 
@@ -117,65 +123,26 @@ function TRKData() constructor
 			"Markers: " + string(markercount) + "}";
 	}
 	
-	// Returns trk with same data
-	static Copy = function()
-	{
-		var trk = new TRKData();
-		
-		var i, j, k;
-		
-		trk.framecount = framecount;
-		trk.trackcount = trackcount;
-		trk.markercount = markercount;
-		trk.framespersecond = framespersecond;
-		trk.duration = duration;
-		trk.flag = flag;
-		trk.positionrange = [positionrange[0], positionrange[1]];
-		trk.positionstep = positionstep;
-		
-		trk.matrixspace = matrixspace;
-		trk.trackspace = trackspace;
-		
-		// Frame Matrices
-		array_resize(trk.framematrices, framecount);
-		i = 0;
-		repeat(framecount)
-		{
-			trk.framematrices[@ i] = array_create(trackcount*16);
-			array_copy(trk.framematrices[@ i], 0, framematrices[i], 0, trackcount*16);
-			i++;
-		}
-		
-		// Tracks
-		array_resize(trk.tracks, trackcount);
-		i = 0;
-		repeat(framecount)
-		{
-			trk.framematrices[@ i] = array_create(trackcount*16);
-			array_copy(trk.framematrices[@ i], 0, framematrices[i], 0, trackcount*16);
-			i++;
-		}
-	}
-	
 	// Reads TRK data from file
 	static Open = function(path)
 	{
 		OpenTRK(self, path);
 		return self;
 	}
-	
-	// Returns array of flat matrices with indices mapped to bone names
-	function FitFrameMatrices(bonenames)
-	{
-		
-	}
-
 }
 
 function TRKData_Track() constructor
 {
 	frames = [];
 	vectors = [];
+	count = 0;
+}
+
+function TRKData_FCurve() constructor
+{
+	array_index = -1;
+	frames = [];
+	values = [];
 	count = 0;
 }
 
@@ -213,9 +180,9 @@ function OpenTRK(outtrk, path)
 	// Check for compression headers
 	var _header = buffer_peek(bzipped, 0, buffer_u8) | (buffer_peek(bzipped, 1, buffer_u8) << 8);
 	if (
-		(_header & 0x0178) == 0x0178 ||
-		(_header & 0x9C78) == 0x9C78 ||
-		(_header & 0xDA78) == 0xDA78
+		( _header == 0x0178 ) ||
+		( _header == 0x9C78 ) ||
+		( _header == 0xDA78 )
 		)
 	{
 		b = buffer_decompress(bzipped);
@@ -238,10 +205,12 @@ function OpenTRK(outtrk, path)
 	{
 		default:
 		
+		// Version 3 (FCurves)
+		case(3): 
 		// Version 2 (Sparse Matrices)
 		case(2): 
 		// Version 1
-		case(1): 
+		case(1):
 			return __TRKOpen_v1(b, outtrk);
 	}
 	
@@ -307,7 +276,7 @@ function __TRKOpen_v1(b, outtrk)
 	var name;
 	
 	// Header
-	buffer_read(b, buffer_u32);
+	var version = (buffer_read(b, buffer_u32) >> 24) & 0xFF;
 	
 	// Flag
 	flag = buffer_read(b, buffer_u8);
@@ -318,6 +287,11 @@ function __TRKOpen_v1(b, outtrk)
 	outtrk.framecount = buffer_read(b, buffer_u32);
 	// Track/Bone Count
 	outtrk.trackcount = buffer_read(b, buffer_u32);
+	// Non-Bone Curve Count
+	if (version >= 3)
+	{
+		outtrk.curvecount = buffer_read(b, buffer_u32);
+	}
 	// Duration
 	outtrk.duration = buffer_read(b, buffer_f32);
 	// Position Step
@@ -340,6 +314,9 @@ function __TRKOpen_v1(b, outtrk)
 	var trackindex;
 	var transformindex;
 	var matarray;
+	var curve;
+	var curveframes;
+	var curvevalues;
 	
 	var i, v, f, n;
 	
@@ -468,7 +445,7 @@ function __TRKOpen_v1(b, outtrk)
 				
 					trackvectors[f++] = vector; // Vector
 				}
-			
+				
 				track.count = numframes;
 				track.frames = trackframes;
 				track.vectors = trackvectors;
@@ -482,6 +459,69 @@ function __TRKOpen_v1(b, outtrk)
 			
 			trackindex++;
 		}
+	}
+	
+	// Curve Names
+	var numcurves = outtrk.curvecount;
+	
+	trackindex = 0;
+	repeat(numcurves)
+	{
+		name = "";
+		namelength = buffer_read(b, buffer_u8);
+		repeat(namelength)
+		{
+			name += chr( buffer_read(b, buffer_u8) );
+		}
+		outtrk.curvenames[trackindex] = name;
+		outtrk.curveindices[$ name] = trackindex;
+		trackindex++;
+	}
+	
+	// Read Curves
+	trackindex = 0;
+	repeat(numcurves)
+	{
+		// Values
+		vectorsize = buffer_read(b, buffer_u8);
+		transformtracks = array_create(vectorsize);
+		transformindex = 0;
+		
+		repeat(vectorsize)
+		{
+			curve = new TRKData_FCurve();
+						
+			curve.array_index = buffer_read(b, buffer_u32);
+			numframes = buffer_read(b, buffer_u32); // Frame Count
+			
+			curveframes = array_create(numframes);
+			curvevalues = array_create(numframes);
+			
+			// Frame Positions
+			f = 0;
+			repeat(numframes)
+			{
+				curveframes[f++] = buffer_read(b, float_type);
+			}
+			
+			// Frame Values
+			f = 0;
+			repeat(numframes)
+			{
+				curvevalues[f++] = buffer_read(b, float_type);
+			}
+			
+			curve.count = numframes;
+			curve.frames = curveframes;
+			curve.values = curvevalues;
+			transformtracks[transformindex++] = curve;
+		}
+		
+		name = outtrk.curvenames[trackindex];
+		outtrk.curvedata[trackindex] = transformtracks;
+		outtrk.curvemap[$ name] = transformtracks;
+			
+		trackindex++;
 	}
 	
 	// Markers -----------------------------------------------------
@@ -525,15 +565,15 @@ function EvaluateAnimationTracks(
 	trackdata,	// TRK struct for animation
 	pos,	// 0-1 Value for animation position
 	interpolationtype,	// Interpolation method for blending keyframes
-	bonekeys,	// Bone names to map tracks to bones. 0 for track indices
+	bonemap,	// Bone names to map tracks to bones. 0 for track indices
 	outpose
 	)
 {
 	// ~16% of original time / ~625% speed increase with the YYC compiler
 	
-	var tracklist, tracklistmax;
+	var tracknames, tracklist, tracklistmax;
 	var b, bonename, outposematrix;
-	var t, track, trackframes, trackvectors;
+	var t, trackindex, track, trackframes, trackvectors;
 	var transformtracks;
 	var posnext, posprev;
 	var findexprev, findexnext, findexmax, blendamt;
@@ -552,54 +592,54 @@ function EvaluateAnimationTracks(
 		q_c, q_s, q_omc;
 	
 	var mm = matrix_build_identity();
-	var mmscale = array_create(16);
+	var mmscale = Mat4();
 	mmscale[15] = 1;
+	
+	pos = clamp(pos, 0, 1);
 	
 	var _lastepsilon = math_get_epsilon();
 	math_set_epsilon(0.0000000000001);
 	
-	// Map tracks
-	if bonekeys == 0 // Bone Indices
-	{
-		tracklist = trackdata.tracks;
-		tracklistmax = array_length(tracklist);
-	}
-	else // Bone Names
-	{
-		var trackmap = trackdata.trackmap;
-		tracklistmax = array_length(bonekeys);
-		tracklist = array_create(tracklistmax, 0);
-		
-		b = 0; repeat(tracklistmax)
-		{
-			bonename = bonekeys[b]; 
-			
-			// Matching bone name
-			if variable_struct_exists(trackmap, bonename)
-			{
-				tracklist[b] = trackmap[$ bonename];
-			}
-			
-			b++;
-		}
-	}
+	// Trk values
+	tracklist = trackdata.tracks;
+	tracklistmax = array_length(tracklist);
+	tracknames = trackdata.tracknames;
+	
+	var transformorder = [1,2,0] // Performs in this order: Rotation, Scale, Translation
 	
 	// For each track
-	t = 0; repeat(tracklistmax)
+	trackindex = 0; repeat(tracklistmax)
 	{
-		transformtracks = tracklist[t]; // [frames[], vectors[]]
+		transformtracks = tracklist[trackindex]; // [frames[], vectors[]]
 		
-		if transformtracks == 0 {t++; continue;}
+		if transformtracks == 0 {trackindex++; continue;}
+		
+		// Switch to correct index in outpose
+		if ( bonemap != 0 )
+		{
+			if ( variable_struct_exists(bonemap, tracknames[trackindex]) )
+			{
+				t = bonemap[$ tracknames[trackindex]];
+			}
+			else
+			{
+				trackindex++; 
+				continue;
+			}
+		}
+		else
+		{
+			t = trackindex;
+		}
 		
 		outposematrix = outpose[@ t]; // Target Bone Matrix
-		t++;
 		
 		// For each transform (location, scale, rotation)
-		// Performs in this order: Translation, Rotation, Scale
+		// Performs in this order: Rotation, Scale, Translation
 		ttype = 0;
 		repeat(3)
 		{
-			track = transformtracks[ttype]; // TRKData_Track
+			track = transformtracks[transformorder[ttype]]; // TRKData_Track
 			trackframes = track.frames;
 			trackvectors = track.vectors;
 			findexmax = track.count - 1;
@@ -608,7 +648,7 @@ function EvaluateAnimationTracks(
 			if (findexmax == 0)
 			{
 				vecprev = trackvectors[0];
-				switch(ttype)
+				switch(transformorder[ttype])
 				{
 					case(0): // Transform
 						// Only copy to the location values (indices 12 to 15)
@@ -691,7 +731,7 @@ function EvaluateAnimationTracks(
 				vecprev = trackvectors[findexprev];
 				vecnext = trackvectors[findexnext];
 				
-				switch(ttype)
+				switch(transformorder[ttype])
 				{
 					case(0): // Transform
 						// Only copy to the location values (indices 12 to 15)
@@ -707,6 +747,7 @@ function EvaluateAnimationTracks(
 						mmscale[10] = lerp(vecprev[2], vecnext[2], blendamt);
 						mm = matrix_multiply(mmscale, outposematrix);
 						array_copy(outposematrix, 0, mm, 0, 16);
+						
 						break;
 					
 					case(1): // Quaternion
@@ -721,36 +762,55 @@ function EvaluateAnimationTracks(
 						q2_0 = vecnext[0]; q2_1 = vecnext[1]; q2_2 = vecnext[2]; q2_3 = vecnext[3];
 						
 						xml = (q1_0*q2_0 + q1_1*q2_1 + q1_2*q2_2 + q1_3*q2_3)-1.0;
-						d = 1.0-blendamt; 
-						sqrT = blendamt*blendamt;
-						sqrD = d*d;
 						
-						f0 = blendamt * (
-							1+((QUATSLERP_U0 * sqrT - QUATSLERP_V0) * xml)*(
-							1+((QUATSLERP_U1 * sqrT - QUATSLERP_V1) * xml)*(
-							1+((QUATSLERP_U2 * sqrT - QUATSLERP_V2) * xml)*(
-							1+((QUATSLERP_U3 * sqrT - QUATSLERP_V3) * xml)*(
-							1+((QUATSLERP_U4 * sqrT - QUATSLERP_V4) * xml)*(
-							1+((QUATSLERP_U5 * sqrT - QUATSLERP_V5) * xml)*(
-							1+((QUATSLERP_U6 * sqrT - QUATSLERP_V6) * xml)*(
-							1+((QUATSLERP_U7 * sqrT - QUATSLERP_V7) * xml)
-							))))))));
+						if ( xml == 0 )
+						{
+							qOut0 = q1_0;
+							qOut1 = q1_1;
+							qOut2 = q1_2;
+							qOut3 = q1_3;
+						}
+						else
+						{
+							d = 1.0-blendamt; 
+							sqrT = blendamt*blendamt;
+							sqrD = d*d;
 						
-						f1 = d * (
-							1+((QUATSLERP_U0 * sqrD - QUATSLERP_V0) * xml)*(
-							1+((QUATSLERP_U1 * sqrD - QUATSLERP_V1) * xml)*(
-							1+((QUATSLERP_U2 * sqrD - QUATSLERP_V2) * xml)*(
-							1+((QUATSLERP_U3 * sqrD - QUATSLERP_V3) * xml)*(
-							1+((QUATSLERP_U4 * sqrD - QUATSLERP_V4) * xml)*(
-							1+((QUATSLERP_U5 * sqrD - QUATSLERP_V5) * xml)*(
-							1+((QUATSLERP_U6 * sqrD - QUATSLERP_V6) * xml)*(
-							1+((QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml)
-							))))))));
+							f0 = blendamt * (
+								1+((QUATSLERP_U0 * sqrT - QUATSLERP_V0) * xml)*(
+								1+((QUATSLERP_U1 * sqrT - QUATSLERP_V1) * xml)*(
+								1+((QUATSLERP_U2 * sqrT - QUATSLERP_V2) * xml)*(
+								1+((QUATSLERP_U3 * sqrT - QUATSLERP_V3) * xml)*(
+								1+((QUATSLERP_U4 * sqrT - QUATSLERP_V4) * xml)*(
+								1+((QUATSLERP_U5 * sqrT - QUATSLERP_V5) * xml)*(
+								1+((QUATSLERP_U6 * sqrT - QUATSLERP_V6) * xml)*(
+								1+((QUATSLERP_U7 * sqrT - QUATSLERP_V7) * xml)
+								))))))));
 						
-						qOut0 = f0 * q1_0 + f1 * q2_0;
-						qOut1 = f0 * q1_1 + f1 * q2_1;
-						qOut2 = f0 * q1_2 + f1 * q2_2;
-						qOut3 = f0 * q1_3 + f1 * q2_3;
+							f1 = d * (
+								1+((QUATSLERP_U0 * sqrD - QUATSLERP_V0) * xml)*(
+								1+((QUATSLERP_U1 * sqrD - QUATSLERP_V1) * xml)*(
+								1+((QUATSLERP_U2 * sqrD - QUATSLERP_V2) * xml)*(
+								1+((QUATSLERP_U3 * sqrD - QUATSLERP_V3) * xml)*(
+								1+((QUATSLERP_U4 * sqrD - QUATSLERP_V4) * xml)*(
+								1+((QUATSLERP_U5 * sqrD - QUATSLERP_V5) * xml)*(
+								1+((QUATSLERP_U6 * sqrD - QUATSLERP_V6) * xml)*(
+								1+((QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml)
+								))))))));
+						
+							qOut0 = f0 * q1_0 + f1 * q2_0;
+							qOut1 = f0 * q1_1 + f1 * q2_1;
+							qOut2 = f0 * q1_2 + f1 * q2_2;
+							qOut3 = f0 * q1_3 + f1 * q2_3;
+						}
+						
+						var qOut = [0,0,0,0]
+						QuatSlerp_r(vecprev, vecnext, blendamt, qOut);
+						
+						qOut0 = qOut[0];
+						qOut1 = qOut[1];
+						qOut2 = qOut[2];
+						qOut3 = qOut[3];
 						
 						// Quaternion to Mat4 ===================================================
 						q_length = sqrt(qOut1*qOut1 + qOut2*qOut2 + qOut3*qOut3);
@@ -788,11 +848,109 @@ function EvaluateAnimationTracks(
 			
 			ttype++;
 		}
+		
+		trackindex++;
 	}
 	
 	math_set_epsilon(_lastepsilon);
 	
 	return outpose;
+}
+
+// Evaluates animation at given position and fills "outvalues" with evaluated values/vectors
+function EvaluateAnimationCurves(
+	trk,		// TRK struct for animation
+	pos,		// 0-1 Value for animation position
+	outvalues={}	// A struct to store evaluated values in. Creates entries if not present
+	)
+{
+	var outvector;
+	var curvedata = trk.curvedata;
+	var curvedatacount = trk.curvecount;
+	var curvenames = trk.curvenames;
+	var activecurvebundle;
+	var curve;
+	var curvename;
+	var curvearrayindex;
+	var curvefrequency;
+	var curveentryindex;
+	var t, trackframes, trackvalues;
+	
+	var possearchstart;
+	var posnext, posprev;
+	var findexprev, findexnext, findexmax, blendamt;
+	
+	pos = clamp(pos, 0, 1);
+	
+	var _lastepsilon = math_get_epsilon();
+	math_set_epsilon(0.0000000000001);
+	
+	// For each track
+	t = 0; repeat(curvedatacount)
+	{
+		activecurvebundle = curvedata[t]; // [curve, curve, ...]
+		
+		curvefrequency = array_length(activecurvebundle);
+		curvename = curvenames[t];
+		
+		// For each transform
+		curveentryindex = 0;
+		
+		if ( !variable_struct_exists(outvalues, curvename) )
+		{
+			variable_struct_set(outvalues, curvename, []);
+		}
+		
+		repeat(curvefrequency)
+		{
+			curve = activecurvebundle[curveentryindex]; // TRKData_FCurve
+			curvearrayindex = curve.array_index;
+			
+			trackframes = curve.frames;
+			trackvalues = curve.values;
+			findexmax = curve.count - 1;
+			
+			// Single Keyframe
+			if (findexmax == 0)
+			{
+				outvalues[$ curvename][curvearrayindex] = trackvalues[0];
+			}
+			// Multiple Keyframes
+			else if (findexmax > 0)
+			{
+				// Guess initial position
+				findexprev = clamp( floor(pos*findexmax), 0, findexmax);
+				possearchstart = trackframes[findexprev];
+				
+				if (possearchstart < pos) // Search starting from beginning moving forwards
+				{
+					findexnext = findexprev;
+					while (pos >= trackframes[findexnext] && findexnext < findexmax) {findexnext++;}
+					findexprev = max(findexnext - 1, 0);
+				}
+				else // Search starting from end moving backwards
+				{
+					while (pos <= trackframes[findexprev] && findexprev > 0) {findexprev--;}
+					findexnext = min(findexprev + 1, findexmax);
+				}
+				
+				posprev = trackframes[findexprev];	// Position of keyframe that "pos" is ahead of
+				posnext = trackframes[findexnext];	// Position of next keyframe
+			
+				// Find Blend amount (Map "pos" distance to [0-1] value)
+				blendamt = clamp((pos - posprev) / (posnext - posprev), 0.0, 1.0);
+				
+				// Apply Transform
+				outvalues[$ curvename][curvearrayindex] = lerp(trackvalues[findexprev], trackvalues[findexnext], blendamt);
+			}
+			
+			curveentryindex += 1;
+		}
+		
+		t++;
+	}
+	
+	math_set_epsilon(_lastepsilon);
 }
 
 // Fills outtransform with calculated animation pose

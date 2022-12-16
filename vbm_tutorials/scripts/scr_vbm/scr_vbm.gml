@@ -257,10 +257,11 @@ function OpenVertexBuffer(path, format, freeze=true)
 	
 	// Check for compression headers
 	var _header = buffer_peek(bzipped, 0, buffer_u8) | (buffer_peek(bzipped, 1, buffer_u8) << 8);
+	
 	if (
-		(_header & 0x0178) == 0x0178 ||
-		(_header & 0x9C78) == 0x9C78 ||
-		(_header & 0xDA78) == 0xDA78
+		( _header == 0x0178 ) ||
+		( _header == 0x9C78 ) ||
+		( _header == 0xDA78 )
 		)
 	{
 		b = buffer_decompress(bzipped);

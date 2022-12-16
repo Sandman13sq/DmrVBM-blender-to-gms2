@@ -1,8 +1,8 @@
 /*
-	Operations and functions for 4x4 Matrices
-*/
-
-/*
+	Operations and functions for 4x4 Matrices.
+	ALL functions are Y-corrected, 
+	meaning they use Blender's coordinate system, not GMS2's
+	
 	GM matrix index ref:
 	[
 		 0,  4,  8, 12,	| (x)
@@ -44,12 +44,12 @@ function Mat4ArrayFlat(nummatrices, m = matrix_build_identity())
 {
 	var out = array_create(nummatrices*16);
 	
-	if nummatrices > 0
+	if (nummatrices > 0)
 	{
 		// Set first entry
 		array_copy(out, 0, m, 0, 16);
 	
-		if nummatrices > 1
+		if (nummatrices > 1)
 		{
 			// Copy section of copied matrices to index of non-copied position
 			/*
@@ -73,7 +73,7 @@ function Mat4ArrayFlat(nummatrices, m = matrix_build_identity())
 			}
 			
 			// Fill in leftoveer
-			if nn < nummatrices
+			if (nn < nummatrices)
 			{
 				array_copy(out, (nummatrices-nn)*16, out, 0, nn*16);
 			}
@@ -88,9 +88,12 @@ function Mat4ArrayFlatten(mat4array)
 {
 	var n = array_length(mat4array) * 16;
 	var out = array_create(n, 0);
-	for (var i = 0; i < n; i += 16)
+	
+	var i = 0;
+	repeat(n/16)
 	{
 		array_copy(out, i, mat4array[i div 16], 0, 16); // Copy default array to position
+		i += 16;
 	}
 	
 	return out;
@@ -101,10 +104,13 @@ function Mat4ArrayPartition(flatarray)
 {
 	var n = array_length(flatarray);
 	var out = array_create(n/16);
-	for (var i = 0; i < n; i += 16)
+	
+	var i = 0;
+	repeat(n/16)
 	{
 		out[i div 16] = array_create(16);
 		array_copy(out[i div 16], 0, flatarray, i, 16);
+		i += 16;
 	}
 	
 	return out;
@@ -129,12 +135,12 @@ function Mat4ArrayFlatClear(flatarray, m)
 {
 	var n = array_length(flatarray) div 16;
 	
-	if n > 0
+	if (n > 0)
 	{
 		// Set first entry
 		array_copy(flatarray, 0, m, 0, 16);
 	
-		if n > 1
+		if (n > 1)
 		{
 			var nn = 1; // Number of copied matrices
 			
@@ -146,7 +152,7 @@ function Mat4ArrayFlatClear(flatarray, m)
 			}
 			
 			// Fill in leftover
-			if nn < n
+			if (nn < n)
 			{
 				array_copy(flatarray, (n-nn)*16, flatarray, 0, nn*16);
 			}
@@ -175,6 +181,18 @@ function Mat4ArrayFlatClearExt(flatarray, m, startindex = 0, endindex = -1)
 	}
 }
 
+// Sets all matrices in array to "m"
+function Mat4ArrayClear(mat4array, m)
+{
+	var n = array_length(mat4array);
+	var i = 0;
+	
+	repeat(n)
+	{
+		array_copy(mat4array[i], 0, m, 0, 16);
+		i++;
+	}
+}
 #endregion
 
 // ====================================================================
@@ -231,7 +249,20 @@ function Mat4ScaleXYZ(xscale, yscale, zscale)
 		0, 0, 0, 1
 		];
 }
+
+// Returns scale matrix using x, y, and z values in given array
+function Mat4ScaleVec3(scale_vec)
+{
+	gml_pragma("forceinline");
+	return [
+		scale_vec[0], 0, 0, 0,
+		0, scale_vec[1], 0, 0,
+		0, 0, scale_vec[2], 0,
+		0, 0, 0, 1
+		];
+}
 	
+// Returns translation matrix
 function Mat4Translate(x, y, z)
 {
 	gml_pragma("forceinline");
@@ -242,7 +273,8 @@ function Mat4Translate(x, y, z)
 		x, y, z, 1
 		];
 }
-	
+
+// Returns translation and scale matrix
 function Mat4TranslateScale(x, y, z, scale)
 {
 	gml_pragma("forceinline");
@@ -253,7 +285,8 @@ function Mat4TranslateScale(x, y, z, scale)
 		x, y, z, 1
 		];
 }
-	
+
+// Returns translation and scale matrix with individual scale parameters
 function Mat4TranslateScaleXYZ(x, y, z, xscale, yscale, zscale)
 {
 	gml_pragma("forceinline");
@@ -264,7 +297,8 @@ function Mat4TranslateScaleXYZ(x, y, z, xscale, yscale, zscale)
 		x, y, z, 1
 		];
 }
-	
+
+// Returns translation matrix using vector
 function Mat4TranslateVec3(vec3)
 {
 	gml_pragma("forceinline");
@@ -275,7 +309,8 @@ function Mat4TranslateVec3(vec3)
 		vec3[0], vec3[1], vec3[2], 1
 		];
 }
-	
+
+// Returns rotation matrix
 function Mat4Rotate(xrot, yrot, zrot)
 {
 	gml_pragma("forceinline");
@@ -304,6 +339,56 @@ function Mat4TranslateSet(mat4, x, y, z)
 function Mat4TranslateClear(mat4)
 {
 	mat4[@ 12] = 0; mat4[@ 13] = 0; mat4[@ 14] = 0;
+}
+
+// Returns 
+function Mat4Compose(translation_vector, rotation_quat, scale_vector, outmat4=Mat4())
+{
+	// Scale
+	array_copy( outmat4, 0, matrix_multiply(Mat4Scale(scale_vector), outmat4), 0, 16);
+	
+	// Quaternion to Mat4 ===================================================
+	var q1_0 = translation_vector[0], 
+		q1_1 = translation_vector[1], 
+		q1_2 = translation_vector[2], 
+		q1_3 = translation_vector[3];
+	
+	var q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
+						
+	if (q_length == 0)
+	{
+		outmat4[@ 0] = 1; outmat4[@ 1] = 0; outmat4[@ 2] = 0; //out[@ 3] = 0;
+		outmat4[@ 4] = 0; outmat4[@ 5] = 1; outmat4[@ 6] = 0; //out[@ 7] = 0;
+		outmat4[@ 8] = 0; outmat4[@ 9] = 0; outmat4[@10] = 1; //out[@11] = 0;
+	}
+	else
+	{
+		var q_hyp_sqr = q_length*q_length + q1_0*q1_0;
+		
+		// Calculate trig coefficients
+		var q_c   = 2*q1_0*q1_0 / q_hyp_sqr - 1;
+		var q_s   = 2*q_length*q1_0*q_hyp_sqr;
+		var q_omc = 1 - q_c;
+		
+		// Normalize the input vector
+		q1_1 /= q_length; q1_2 /= q_length; q1_3 /= q_length;
+		
+		// Build matrix
+		outmat4[@ 0] = q_omc*q1_1*q1_1 + q_c;
+		outmat4[@ 1] = q_omc*q1_1*q1_2 + q_s*q1_3;
+		outmat4[@ 2] = q_omc*q1_1*q1_3 - q_s*q1_2;
+		outmat4[@ 4] = q_omc*q1_1*q1_2 - q_s*q1_3;
+		outmat4[@ 5] = q_omc*q1_2*q1_2 + q_c;
+		outmat4[@ 6] = q_omc*q1_2*q1_3 + q_s*q1_1;
+		outmat4[@ 8] = q_omc*q1_1*q1_3 + q_s*q1_2;
+		outmat4[@ 9] = q_omc*q1_2*q1_3 - q_s*q1_1;
+		outmat4[@10] = q_omc*q1_3*q1_3 + q_c;
+	}
+	
+	// Translation
+	array_copy(outmat4, 12, translation_vector, 0, 3);
+	
+	return outmat4;
 }
 
 #endregion
@@ -557,3 +642,5 @@ function DrawMatrix(_x, _y, _matrix)
 }
 
 #endregion
+
+
