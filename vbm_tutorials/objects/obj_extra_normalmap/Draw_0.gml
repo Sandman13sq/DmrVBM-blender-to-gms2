@@ -9,7 +9,7 @@ var roommatrices = [
 
 // GPU State
 gpu_push_state();
-gpu_set_cullmode(cull_clockwise);	// Don't draw triangless facing away from camera
+gpu_set_cullmode(cull_clockwise);	// Don't draw triangles facing away from camera
 gpu_set_ztestenable(true);	// Enable depth checking per pixel
 gpu_set_zwriteenable(true);	// Enable depth writing per pixel
 
@@ -27,7 +27,7 @@ shader_set_uniform_f_array(u_normalmap_lightpos, lightpos);
 vbm_world.Submit(pr_trianglelist, tex_normalmap);
 
 matrix_set(matrix_world, mattran); // Transform matrix
-vbm_kindle_normalmap.Submit(pr_trianglelist, tex_normalmap);
+vbm_starcie_normalmap.Submit(pr_trianglelist, tex_normalmap);
 
 shader_reset();
 

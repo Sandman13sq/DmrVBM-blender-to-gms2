@@ -9,9 +9,15 @@ draw_text(16, 64, "Camera Position: " + string(viewposition));
 draw_text(16, 80, "Z Rotation: " + string(zrot));
 draw_text(16, 112, "Use +/- to change mesh index, SPACE to toggle visibility");
 
-var _name;
-for (var i = 0; i < vbm_kindle.Count(); i++)
+var _name, _color;
+for (var i = 0; i < vbm_starcie.Count(); i++)
 {
-	_name = vbm_kindle.GetName(i);
-	draw_text(16, 128+i*16, (i==meshindex)? ("["+_name+"]"): (" "+_name));
+	_name = vbm_starcie.GetName(i);
+	_color = (meshvisible & (1<<i))? c_white: c_gray;
+	
+	draw_text_color(16, 128+i*16, 
+		( (meshvisible & (1<<i))? "O ": "X " ) + 
+		( (i==meshindex)? ("["+_name+"]"): (" "+_name) ),
+		_color, _color, _color, _color, 1
+		);
 }

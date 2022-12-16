@@ -1,5 +1,9 @@
 /// @desc 
 
+/*
+	NOT UPDATED FOR v1.3
+*/
+
 time = 0;
 report = "";
 
@@ -108,33 +112,33 @@ Report("Wrong File Type: "+string(time)+"ms, return: "+string(vb_notcurly));
 
 // Uncompressed buffer
 time = get_timer();
-vb_kindle_nocompression = OpenVertexBuffer(dir+"test/model_comp0.vb", vbf_simple);
+vb_starcie_nocompression = OpenVertexBuffer(dir+"test/model_comp0.vb", vbf_simple);
 time = get_timer()-time;
-Report("Non-Compressed VB: "+string(time)+"ms, return: "+string(vb_kindle_nocompression));
+Report("Non-Compressed VB: "+string(time)+"ms, return: "+string(vb_starcie_nocompression));
 
 // Compressed buffer
 time = get_timer();
-vb_kindle_fullcompression = OpenVertexBuffer(dir+"test/model_comp9.vb", vbf_simple);
+vb_starcie_fullcompression = OpenVertexBuffer(dir+"test/model_comp9.vb", vbf_simple);
 time = get_timer()-time;
-Report("Compressed VB: "+string(time)+"ms, return: "+string(vb_kindle_fullcompression));
+Report("Compressed VB: "+string(time)+"ms, return: "+string(vb_starcie_fullcompression));
 
 // Wrong Format
 time = get_timer();
-vb_kindle_floatcolors = OpenVertexBuffer(dir+"test/model_floatcolors.vb", vbf_simple);
+vb_starcie_floatcolors = OpenVertexBuffer(dir+"test/model_floatcolors.vb", vbf_simple);
 time = get_timer()-time;
-Report("Wrong Format VB: "+string(time)+"ms, return: "+string(vb_kindle_floatcolors));
+Report("Wrong Format VB: "+string(time)+"ms, return: "+string(vb_starcie_floatcolors));
 
 // Edges Only
 time = get_timer();
-vb_kindle_edgesonly = OpenVertexBuffer(dir+"test/model_edgesonly.vb", vbf_simple);
+vb_starcie_edgesonly = OpenVertexBuffer(dir+"test/model_edgesonly.vb", vbf_simple);
 time = get_timer()-time;
-Report("Edges Only VB: "+string(time)+"ms, return: "+string(vb_kindle_edgesonly));
+Report("Edges Only VB: "+string(time)+"ms, return: "+string(vb_starcie_edgesonly));
 
 // Scaled
 time = get_timer();
-vb_kindle_scaled = OpenVertexBuffer(dir+"test/model_scaled.vb", vbf_normal);
+vb_starcie_scaled = OpenVertexBuffer(dir+"test/model_scaled.vb", vbf_normal);
 time = get_timer()-time;
-Report("Scaled VB: "+string(time)+"ms, return: "+string(vb_kindle_scaled));
+Report("Scaled VB: "+string(time)+"ms, return: "+string(vb_starcie_scaled));
 
 // Instancing
 time = get_timer();
@@ -164,44 +168,44 @@ Report("Wrong Filetype: "+string(time)+"ms, return: "+string(vbm_wrongfiletype))
 
 // Uncompressed
 time = get_timer();
-vbm_kindle_uncompressed = new VBMData();
-vbm_kindle_uncompressed.Open(dir+"test/model_uncompressed.vbm");
+vbm_starcie_uncompressed = new VBMData();
+vbm_starcie_uncompressed.Open(dir+"test/model_uncompressed.vbm");
 time = get_timer()-time;
-Report("Uncompressed: "+string(time)+"ms, return: "+string(vbm_kindle_uncompressed));
+Report("Uncompressed: "+string(time)+"ms, return: "+string(vbm_starcie_uncompressed));
 
 // Compressed
 time = get_timer();
-vbm_kindle_compressed = new VBMData();
-vbm_kindle_compressed.Open(dir+"test/model_compressed.vbm");
+vbm_starcie_compressed = new VBMData();
+vbm_starcie_compressed.Open(dir+"test/model_compressed.vbm");
 time = get_timer()-time;
-Report("Compressed: "+string(time)+"ms, return: "+string(vbm_kindle_compressed));
+Report("Compressed: "+string(time)+"ms, return: "+string(vbm_starcie_compressed));
 
 // Vertex Buffer, no format given (Not VBM)
 time = get_timer();
-vbm_kindle_vb = new VBMData();
-vbm_kindle_vb.Open(dir+"test/model_comp0.vb");
+vbm_starcie_vb = new VBMData();
+vbm_starcie_vb.Open(dir+"test/model_comp0.vb");
 time = get_timer()-time;
-Report("Vertex Buffer, No Format Given (Not VBM): "+string(time)+"ms, return: "+string(vbm_kindle_vb));
+Report("Vertex Buffer, No Format Given (Not VBM): "+string(time)+"ms, return: "+string(vbm_starcie_vb));
 
 // Format Given
 time = get_timer();
-vbm_kindle_vb.Open(dir+"test/model_vb.vbm", vbf_normal);
+vbm_starcie_vb.Open(dir+"test/model_vb.vbm", vbf_normal);
 time = get_timer()-time;
-Report("Vertex Buffer (Not VBM): "+string(time)+"ms, return: "+string(vbm_kindle_vb));
+Report("Vertex Buffer (Not VBM): "+string(time)+"ms, return: "+string(vbm_starcie_vb));
 
 // Export List
 time = get_timer();
-vbm_kindle_exportlist = new VBMData();
-vbm_kindle_exportlist.Open(dir+"test/model_exportlist.vbm", vbf_rigged, true, true);
+vbm_starcie_exportlist = new VBMData();
+vbm_starcie_exportlist.Open(dir+"test/model_exportlist.vbm", vbf_rigged, true, true);
 time = get_timer()-time;
-Report("Export List: "+string(time)+"ms, return: "+string(vbm_kindle_exportlist));
+Report("Export List: "+string(time)+"ms, return: "+string(vbm_starcie_exportlist));
 
 // Tangents
 time = get_timer();
-vbm_kindle_complete = new VBMData();
-vbm_kindle_complete.Open(dir+"test/model_complete.vbm");
+vbm_starcie_complete = new VBMData();
+vbm_starcie_complete.Open(dir+"test/model_complete.vbm");
 time = get_timer()-time;
-Report("Complete: "+string(time)+"ms, return: "+string(vbm_kindle_complete));
+Report("Complete: "+string(time)+"ms, return: "+string(vbm_starcie_complete));
 
 // Instanced
 time = get_timer();

@@ -9,7 +9,7 @@ var roommatrices = [
 
 // GPU State
 gpu_push_state();
-gpu_set_cullmode(cull_clockwise);	// Don't draw triangless facing away from camera
+gpu_set_cullmode(cull_clockwise);	// Don't draw triangles facing away from camera
 gpu_set_ztestenable(true);	// Enable depth checking per pixel
 gpu_set_zwriteenable(true);	// Enable depth writing per pixel
 
@@ -27,9 +27,9 @@ matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_rigged);
 shader_set_uniform_f_array(u_rigged_light, lightpos);
-shader_set_uniform_matrix_array(u_rigged_matpose, matpose);
+shader_set_uniform_matrix_array(u_rigged_matpose, trkanimator.OutputPose());	// Send final pose to shader
 
-vbm_kindle.Submit(pr_trianglelist, -1);
+vbm_starcie.Submit(pr_trianglelist, tex_col);	// Texture index is given
 
 shader_reset();
 

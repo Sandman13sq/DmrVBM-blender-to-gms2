@@ -9,7 +9,7 @@ var roommatrices = [
 
 // GPU State
 gpu_push_state();
-gpu_set_cullmode(cull_clockwise);	// Don't draw triangless facing away from camera
+gpu_set_cullmode(cull_clockwise);	// Don't draw triangles facing away from camera
 gpu_set_ztestenable(true);	// Enable depth checking per pixel
 gpu_set_zwriteenable(true);	// Enable depth writing per pixel
 
@@ -30,7 +30,7 @@ matrix_set(matrix_world, mattran); // Transform matrix
 shader_set(shd_prm);
 shader_set_uniform_f_array(u_prm_lightpos, lightpos);
 shader_set_uniform_f(u_prm_transitionblend, transitionblend);
-shader_set_uniform_matrix_array(u_prm_matpose, matpose);
+shader_set_uniform_matrix_array(u_prm_matpose, trkanimator.OutputPose());
 
 texture_set_stage(u_prm_col, tex_col);
 texture_set_stage(u_prm_nor, tex_nor);
@@ -38,12 +38,12 @@ texture_set_stage(u_prm_prm, tex_prm);
 
 // Non-Skin
 shader_set_uniform_f_array(u_prm_skinparams, [0, 0, 0, 0]);
-vbm_kindle_prm.SubmitVBIndex(0, pr_trianglelist, -1);
+vbm_starcie_prm.SubmitVBIndex(0, pr_trianglelist, -1);
 
 // Skin
 shader_set_uniform_f_array(u_prm_skincolor, skincolor);
 shader_set_uniform_f_array(u_prm_skinparams, skinparams);
-vbm_kindle_prm.SubmitVBIndex(1, pr_trianglelist, -1);
+vbm_starcie_prm.SubmitVBIndex(1, pr_trianglelist, -1);
 
 shader_reset();
 

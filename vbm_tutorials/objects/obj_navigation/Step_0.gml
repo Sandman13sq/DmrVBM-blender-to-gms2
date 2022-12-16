@@ -25,5 +25,5 @@ else
 	if ( keyboard_check_pressed(ord("5")) ) {ChangeTutorial(5, true);}
 }
 
-
+// Test Script
 //if ( keyboard_check(vk_tab) && keyboard_check_pressed(ord("T")) ) {ChangeTutorial(6);}

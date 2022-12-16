@@ -47,8 +47,8 @@ vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_simple);
 vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_simple);
 
 // *Open VBM -------------------------------------------
-vbm_kindle = new VBMData();	// Initialize new VBM data
-OpenVBM(vbm_kindle, "assets/model_normal.vbm", vbf_normal);	// Read in VBM from file
+vbm_starcie = new VBMData();	// Initialize new VBM data
+OpenVBM(vbm_starcie, "assets/starcie/model_normal.vbm", vbf_normal);	// Read in VBM from file
 
 // *Model Controls -------------------------------------
 zrot = 0;

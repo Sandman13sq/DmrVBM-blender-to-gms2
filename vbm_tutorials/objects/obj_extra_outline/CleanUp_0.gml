@@ -2,4 +2,4 @@
 
 event_inherited();
 
-VBMFree(vbm_kindle_outline);
+VBMFree(vbm_starcie_outline);

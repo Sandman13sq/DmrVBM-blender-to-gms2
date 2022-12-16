@@ -36,10 +36,14 @@ void main()
 	float shine = clamp(dot(e, r), 0.0, 1.0);
 	shine = pow(shine, 1.0/roughness);
 	
-	gl_FragColor.rgb = v_vColour.rgb;
-	gl_FragColor.rgb *= mix(vec3(0.8, 0.8, 1.0), vec3(1.0), float(dp >= 0.7));
-	gl_FragColor.rgb *= mix(vec3(0.8, 0.7, 0.9), vec3(1.0), float(dp >= 0.25));
-	gl_FragColor.rgb += vec3(0.02) * float(shine >= 0.5);
+	// Texture Color
+	vec4 texcolor = texture2D( gm_BaseTexture, v_vTexcoord );
+	float skinadd = float(texcolor.a < 0.99)*0.1;	// Alpha channel marks where skin is on the model.
+	
+	gl_FragColor.rgb = (v_vColour * texcolor).rgb;
+	gl_FragColor.rgb *= mix(vec3(0.8+skinadd, 0.8, 1.0), vec3(1.0), float(dp >= 0.7));
+	gl_FragColor.rgb *= mix(vec3(0.8+skinadd, 0.7, 0.9), vec3(1.0), float(dp >= 0.25));
+	gl_FragColor.rgb += vec3(0.02) * float(shine >= 0.9);
 	
 	gl_FragColor.a = 1.0;
 }

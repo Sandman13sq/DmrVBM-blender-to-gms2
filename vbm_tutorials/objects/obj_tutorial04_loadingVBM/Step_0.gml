@@ -8,9 +8,9 @@ if (keyboard_check_pressed(vk_space))
 
 // Navigate meshes
 if (keyboard_check_pressed(vk_add) || keyboard_check_pressed(187)) 
-{meshindex = (meshindex+1) mod vbm_kindle.Count();}
+{meshindex = (meshindex+1) mod vbm_starcie.Count();}
 if (keyboard_check_pressed(vk_subtract) || keyboard_check_pressed(189)) 
-{meshindex = meshindex==0? vbm_kindle.Count()-1: meshindex-1;}
+{meshindex = meshindex==0? vbm_starcie.Count()-1: meshindex-1;}
 
 #region Camera =============================================================
 

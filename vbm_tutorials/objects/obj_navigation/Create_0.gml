@@ -12,7 +12,6 @@ tutorialobjects = [
 	obj_tutorial03_shaders,
 	obj_tutorial04_loadingVBM,
 	obj_tutorial05_animation,
-	obj_testscript,
 ];
 
 tutorialnames = [

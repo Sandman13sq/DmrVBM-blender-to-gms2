@@ -9,7 +9,7 @@ var roommatrices = [
 
 // GPU State
 gpu_push_state();
-gpu_set_cullmode(cull_clockwise);	// Don't draw triangless facing away from camera
+gpu_set_cullmode(cull_clockwise);	// Don't draw triangles facing away from camera
 gpu_set_ztestenable(true);	// Enable depth checking per pixel
 gpu_set_zwriteenable(true);	// Enable depth writing per pixel
 
@@ -31,12 +31,12 @@ shader_set_uniform_f_array(u_outline_lightpos, lightpos);
 // Outline Pass
 gpu_set_cullmode(cull_counterclockwise);
 shader_set_uniform_f(u_outline_outline, outlinestrength);
-vbm_kindle_outline.Submit();
+vbm_starcie_outline.Submit();
 
 // Non-Outline Pass
 gpu_set_cullmode(cull_clockwise);
 shader_set_uniform_f(u_outline_outline, 0);
-vbm_kindle_outline.Submit();
+vbm_starcie_outline.Submit();
 
 shader_reset();
 
