@@ -8,7 +8,7 @@ viewdistance = 24;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 1;	// Clipping distance for close triangles
-zfar = 200;	// Clipping distance for far triangles
+zfar = 2000;	// Clipping distance for far triangles
 
 matproj = matrix_build_projection_perspective_fov(
 	fieldofview, window_get_width()/window_get_height(), znear, zfar);
@@ -34,4 +34,4 @@ lightpos = [8, 32, 48];	// Light position to pass to shader
 lightmode = 1;
 
 vbm_world = new VBMData();
-vbm_world.Open("assets/world_lab.vbm");
+

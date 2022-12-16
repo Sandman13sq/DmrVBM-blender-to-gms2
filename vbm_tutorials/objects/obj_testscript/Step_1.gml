@@ -92,22 +92,22 @@ if (playbackactive)
 		trk_prm,
 		playbackposition,
 		TRK_Intrpl.linear,
-		vbm_kindle_exportlist.BoneNames(),
+		vbm_starcie_exportlist.BoneNames(),
 		localpose
 		);
 	
 	CalculateAnimationPose(
-		vbm_kindle_exportlist.BoneParentIndices(),
-		vbm_kindle_exportlist.BoneLocalMatrices(),
-		vbm_kindle_exportlist.BoneInverseMatrices(),
+		vbm_starcie_exportlist.BoneParentIndices(),
+		vbm_starcie_exportlist.BoneLocalMatrices(),
+		vbm_starcie_exportlist.BoneInverseMatrices(),
 		localpose,
 		matpose
 		);
 	
 	CalculateAnimationPose(
-		vbm_kindle_complete.BoneParentIndices(),
-		vbm_kindle_complete.BoneLocalMatrices(),
-		vbm_kindle_complete.BoneInverseMatrices(),
+		vbm_starcie_complete.BoneParentIndices(),
+		vbm_starcie_complete.BoneLocalMatrices(),
+		vbm_starcie_complete.BoneInverseMatrices(),
 		Mat4ArrayPartition(trk_prm.GetFrameMatricesByPosition(playbackposition)),
 		matpose2
 		);

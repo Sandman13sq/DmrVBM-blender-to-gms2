@@ -1,21 +1,21 @@
 /// @desc 
 
 // VBs
-vertex_delete_buffer(vb_kindle_nocompression);
-vertex_delete_buffer(vb_kindle_fullcompression);
-vertex_delete_buffer(vb_kindle_floatcolors);
-vertex_delete_buffer(vb_kindle_edgesonly);
-vertex_delete_buffer(vb_kindle_scaled);
+vertex_delete_buffer(vb_starcie_nocompression);
+vertex_delete_buffer(vb_starcie_fullcompression);
+vertex_delete_buffer(vb_starcie_floatcolors);
+vertex_delete_buffer(vb_starcie_edgesonly);
+vertex_delete_buffer(vb_starcie_scaled);
 vertex_delete_buffer(vb_instanced);
 
 // VBMs
 VBMFree(vbm_wrongpath);
 VBMFree(vbm_wrongfiletype);
-VBMFree(vbm_kindle_uncompressed);
-VBMFree(vbm_kindle_compressed);
-VBMFree(vbm_kindle_vb);
-VBMFree(vbm_kindle_exportlist);
-VBMFree(vbm_kindle_complete);
+VBMFree(vbm_starcie_uncompressed);
+VBMFree(vbm_starcie_compressed);
+VBMFree(vbm_starcie_vb);
+VBMFree(vbm_starcie_exportlist);
+VBMFree(vbm_starcie_complete);
 VBMFree(vbm_instanced);
 VBMFree(vb_world);
 

@@ -2,14 +2,17 @@
 
 // Formats
 vertex_format_delete(vbf_simple);
-vertex_format_delete(vbf_rigged);
 
 // VBs
 if (vb_axis >= 0) {vertex_delete_buffer(vb_axis);}
 if (vb_grid >= 0) {vertex_delete_buffer(vb_grid);}
 
 // VBM
-VBMFree(vbm_kindle);
+VBMFree(vbm_starcie);
 
 // TRK
-TRKFree(trk_animation);
+TRKFree(trk_lean);
+TRKFree(trk_blink);
+
+// Sprite
+sprite_delete(spr_col);

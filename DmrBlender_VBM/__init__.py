@@ -1,18 +1,18 @@
 bl_info = {
     'name': 'DmrVBM Vertex Buffer Model Export',
     'category': 'Import-Export',
-    'version': (1, 1),
+    'version': (1, 2),
     'blender': (3, 0, 0)
 }
  
 modulesNames = [
-    'utilities',
-    'vbm_func',
-    'vbm_presets',
-    'vbm_op',
-    'vbm_op_action',
-    'vbm_panel',
+    'vbm_utils',
+    'vbm_format',
     'vbm_exportlist',
+    'vbm_master',
+    
+    'trk_bonesettings',
+    'trk_master',
     ]
 
 import sys
@@ -44,7 +44,7 @@ def register():
                 sys.modules[currentModuleName].register()
  
 def unregister():
-    for currentModuleName in reversed(modulesFullNames.values()):
+    for currentModuleName in list(modulesFullNames.values())[::-1]:
         if currentModuleName in sys.modules:
             if hasattr(sys.modules[currentModuleName], 'unregister'):
                 sys.modules[currentModuleName].unregister()

@@ -45,8 +45,8 @@ vbf_normal = vertex_format_end();	// For shd_normal
 // *Load Vertex Buffers --------------------------------
 vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_simple);
 vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_simple);
-vb_kindle_simple = OpenVertexBuffer("assets/model_simple.vb", vbf_simple);
-vb_kindle_normal = OpenVertexBuffer("assets/model_normal.vb", vbf_normal);
+vb_starcie_simple = OpenVertexBuffer("assets/starcie/model_simple.vb", vbf_simple);
+vb_starcie_normal = OpenVertexBuffer("assets/starcie/model_normal.vb", vbf_normal);
 
 // *Model Controls
 zrot = 0;	// Model rotation

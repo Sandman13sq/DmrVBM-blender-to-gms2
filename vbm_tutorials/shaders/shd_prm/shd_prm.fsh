@@ -44,6 +44,7 @@ void main()
 	float ao = tex_prm.b;
 	float specular = tex_prm.a;
 	
+	float is_skin = float(tex_col.a < 0.99);	// Alpha value on texture is used to mark skin
 	float skinstrength = u_skinparams.x;
 	float skinshape = u_skinparams.y;
 	
@@ -53,29 +54,28 @@ void main()
 	float skinshading = clamp(dp * (1.0/skinshape) * 0.5 + 0.5, 0.0, 1.0);
 	float lightvalue = 1.0 - mix(dp, skinshading, sssblend);
 	
-	float metallicamt = metallic * float(skinstrength < 0.01);
+	float metallicamt = metallic * float(skinstrength < 0.01) * (1.0-is_skin);
 	
 	float roughnesssq = max(0.0001, roughness*roughness);
 	float roughnesssqinvsq = 1.0/(roughnesssq*roughnesssq);
 	float roughnessshape = ( 1.0/(roughnesssq*roughnesssq) ) * ((1.0-specular) * 0.5 + 0.5);
 	float e_dot_r = dot(e, r);
 	float roughnesssqrtinvt = 1.0-sqrt(roughnesssq);
-	float specularamt = pow(roughnesssqrtinvt, 3.0) *
-		pow(clamp(e_dot_r*e_dot_r, 0.0, 1.0), roughnessshape) * ao;
+	float specularamt = clamp(roughnesssqrtinvt * pow(e_dot_r, roughnessshape) * ao, 0.0, 1.0);
 	
 	float rim = pow(1.0 - (dot(n, e) - roughnesssqrtinvt * 0.1), 8.0) * cavity;
 	
 	// Output ----------------------------------------------------------------
-	vec3 diffusecolor = mix(tex_col.rgb, u_skincolor.rgb, 0.5*sssblend*float(skinstrength > 0.01));	// Skin Mix
+	vec3 diffusecolor = mix(tex_col.rgb, u_skincolor.rgb, 0.5*sssblend*is_skin);	// Skin Mix
 	vec3 metalliccolor = mix(diffusecolor, diffusecolor*diffusecolor, metallicamt);	// Metallic Multiply
 	vec3 shadowcolor = mix(metalliccolor, metalliccolor * ao * 0.5, lightvalue);
-	vec3 specularcolor = mix(vec3(0.5), diffusecolor, metallic);
+	vec3 specularcolor = mix(vec3(0.1), diffusecolor, metallic);
 	
 	vec3 inkcolor = vec3(1.0, 0.4, 0.2) * (sqrt(dp)*0.5+0.5) + pow(max(e_dot_r, 0.0), 128.0) + rim;
 	
 	vec3 outcolor;
 	outcolor = shadowcolor + specularcolor * specularamt;
-	outcolor = outcolor + vec3(0.5) * rim;
+	outcolor = outcolor + vec3(0.25) * rim;
 	outcolor = mix(outcolor, inkcolor, float(u_transitionblend >= transition));
 	
     gl_FragColor = vec4(outcolor, 1.0);

@@ -1,314 +1,282 @@
 import bpy
-import uuid
+
+# Include
+try:
+    from .vbm_utils import *
+except:
+    from vbm_utils import *
 
 classlist = []
 
-def GetExportListItems(self, context):
-    return [
-        (str(i), '%s' % (x.name), x.name)
-        for i, x in enumerate(context.scene.vbm_exportlists)
-    ]
+'# =========================================================================================================================='
+'# PROPERTY GROUPS'
+'# =========================================================================================================================='
 
-def ActiveList(self, context):
-    sc = context.scene
+class VBM_ExportList_Entry(bpy.types.PropertyGroup):
+    def UpdateObjectName(self, context):
+        if self.name in [obj.name for obj in bpy.data.objects]:
+            self.name = self.object.name
     
-    if sc.vbm_exportlists:
-        return sc.vbm_exportlists[int(sc.vbm_exportlists_index)]
-    return None
-
-def UpdateListIndices(self, context):
-    sc = context.scene
-    if len(sc.vbm_exportlists) > 0:
-        for i, e in enumerate(sc.vbm_exportlists):
-            e.index = i
-        sc.vbm_exportlists_index = str(max(0, min(int(sc.vbm_exportlists_index), len(sc.vbm_exportlists)-1)))
-
-# =====================================================================================
-
-class DMR_OP_VBMExportList_AddList(bpy.types.Operator):
-    bl_idname = "dmr.vbm_exportlist_list_add"
-    bl_label = "Add Export List"
-    bl_description = "Adds export list"
-    bl_options = {'REGISTER', 'UNDO'}
+    def UpdateEntryName(self, context):
+        if self.name == "":
+            self.name = self.object.name
     
-    def execute(self, context):
-        sc = context.scene
-        
-        activelist = ActiveList(self, context)
-        newlist = sc.vbm_exportlists.add()
-        
-        # Copy from other list
-        if activelist:
-            listnames = [x.name for x in context.scene.vbm_exportlists]
-            newlist.name = activelist.name
-            dupindex = 0
-            while (newlist.name in listnames):
-                dupindex += 1
-                newlist.name = activelist.name+'.'+str(dupindex).rjust(3, '0')
-            
-            newlist.CopyFrom(activelist)
-        # Fresh list
-        else:
-            newlist.name = 'New Export List'
-        
-        UpdateListIndices(self, context)
-        
-        sc.vbm_exportlists_index = str(newlist.index)
-        
-        return {'FINISHED'}
-classlist.append(DMR_OP_VBMExportList_AddList)
+    name : bpy.props.StringProperty(name='Object Name', default="", update=UpdateEntryName)
+    object : bpy.props.PointerProperty(type=bpy.types.Object, update=UpdateEntryName)
+classlist.append(VBM_ExportList_Entry)
 
 # ---------------------------------------------------------------------------
 
-class DMR_OP_VBMExportList_RemoveList(bpy.types.Operator):
-    bl_idname = "dmr.vbm_exportlist_list_remove"
-    bl_label = "Remove Export List"
-    bl_description = "Removes export list"
-    bl_options = {'REGISTER', 'UNDO'}
+class VBM_ExportList_Objects(DMR_ItemGroup_Super, bpy.types.PropertyGroup):
+    items : bpy.props.CollectionProperty(type=VBM_ExportList_Entry)
     
-    @classmethod
-    def poll(self, context):
-        return ActiveList(self, context)
+    op_from_selected : bpy.props.BoolProperty(
+        name="Add Selected Objects To List",
+        description="Add selected objects to list",
+        default=False,
+        update=lambda s,c: s.UpdateSuper(c)
+        )
     
-    def execute(self, context):
-        sc = context.scene
-        activelist = ActiveList(self, context)
-        # Clamp BEFORE removing list
-        sc.vbm_exportlists_index = str(max(0, min(int(sc.vbm_exportlists_index)-1, len(sc.vbm_exportlists)-1)))
+    op_flush : bpy.props.BoolProperty(
+        name="Flush Items",
+        description="Remove entries with invalid objects",
+        default=False,
+        update=lambda s,c: s.UpdateSuper(c)
+        )
+    
+    def CopyFrom(self, other):
+        for e in other.items:
+            self.Add(e.object)
+    
+    def GetObjects(self):
+        return [x.object for x in self.items]
+    
+    def Add(self, object, allow_duplicates=False):
+        if allow_duplicates or object not in [x.object for x in self.items]:
+            e = self.items.add()
+            e.object = object
+            self.size = len(self.items)
+            self.item_index = self.size-1
+    
+    def Sort(self, type='NAME', reverse=False):
+        sorted = False
+        blenddataobjects = [obj.name for obj in bpy.data.objects]
+        vertexcounts = {obj: len(obj.data.vertices) if obj.type == 'MESH' else 0 for obj in bpy.data.objects}
         
-        context.scene.vbm_exportlists.remove(activelist.index)
-        UpdateListIndices(self, context)
+        while not sorted:
+            sorted = True
+            # By Name
+            if type == 'NAME':
+                for i, item1 in enumerate(self.items[:-1]):
+                    item2 = self.items[i+1]
+                    if (item2.name < item1.name) if not reverse else (item2.name > item1.name):
+                        self.items.move(i, i+1)
+                        sorted = False
+            # By Name
+            elif type == 'MATERIAL':
+                for i, item1 in enumerate(self.items[:-1]):
+                    item2 = self.items[i+1]
+                    if (item2.name < item1.name) if not reverse else (item2.name > item1.name):
+                        self.items.move(i, i+1)
+                        sorted = False
+            # By Data Index
+            elif type == 'DATA':
+                for i, item1 in enumerate(self.items[:-1]):
+                    item2 = self.items[i+1]
+                    if item1.object == None or (
+                        (blenddataobjects.index(item2.object.name) < blenddataobjects.index(item1.object.name)) if not reverse else
+                        (blenddataobjects.index(item2.object.name) > blenddataobjects.index(item1.object.name))
+                        ):
+                        self.items.move(i, i+1)
+                        sorted = False
+            # By Size
+            elif type == 'SIZE':
+                for i, item1 in enumerate(self.items[:-1]):
+                    item2 = self.items[i+1]
+                    if item1.object == None or (
+                        (vertexcounts[item2.object] < vertexcounts[item1.object]) if not reverse else
+                        (vertexcounts[item2.object] > vertexcounts[item1.object])
+                        ):
+                        self.items.move(i, i+1)
+                        sorted = False
+    
+    def Flush(self):
+        noneitems = [item for item in self.items if item.object == None]
+        [self.items.remove(list(self.items).index(item)) for item in noneitems[::-1]]
+        self.size = len(self.items)
+        self.item_index = max(0, min(self.item_index, self.size-1))
         
-        return {'FINISHED'}
-classlist.append(DMR_OP_VBMExportList_RemoveList)
+    def Clear(self):
+        while len(self.items) > 0:
+            self.items.remove(0)
+        
+        self.size = len(self.items)
+        self.item_index = max(0, min(self.item_index, self.size-1))
+    
+    def Update(self, context):
+        if self.op_from_selected:
+            self.op_from_selected = False
+            for obj in context.selected_objects:
+                self.Add(obj, False)
+        
+        if self.op_flush:
+            self.op_flush = False
+            self.Flush()
+    
+    def DrawPanel(self, context, layout, rows=4):
+        # Item List
+        r = layout.row()
+        c = r.column(align=1)
+        c.template_list(
+            "VBM_UL_ExportList_Entry", "", 
+            self, "items", 
+            self, "item_index", 
+            rows=rows)
+        
+        # List Control
+        c = r.column(align=1)
+        c.prop(self, 'reset_mutex', text="", icon='FILE_REFRESH')
+        c.separator()
+        c.prop(self, 'op_add_item', text="", icon='ADD')
+        c.prop(self, 'op_remove_item', text="", icon='REMOVE')
+        c.separator()
+        c.prop(self, 'op_move_up', text="", icon='TRIA_UP')
+        c.prop(self, 'op_move_down', text="", icon='TRIA_DOWN')
+        
+        return c
+classlist.append(VBM_ExportList_Objects)
 
 # ---------------------------------------------------------------------------
 
-class DMR_OP_VBMExportList_AddEntry(bpy.types.Operator):
-    bl_idname = "dmr.vbm_exportlist_entry_add"
-    bl_label = "Add Entry to Export List"
-    bl_description = "Adds entry to Export List"
+class VBM_ExportList_List(DMR_ItemGroup_Super, bpy.types.PropertyGroup):
+    items : bpy.props.CollectionProperty(type=VBM_ExportList_Objects)
+    
+    def Add(self):
+        item = self.items.add()
+        self.size += 1
+        item.name = "New Export List"
+        return item
+    
+    def Update(self, context):
+        # Add
+        if self.op_add_item:
+            self.op_add_item = False
+            if self.size > 0:
+                self.Add().CopyFromOther(self.GetActive())
+            else:
+                self.Add()
+            self.item_index = self.size-1
+    
+    def DrawPanel(self, context, layout, rows=4):
+        # List Items
+        r = layout.row()
+        c = r.column(align=1)
+        c.template_list(
+            "VBM_UL_ExportList_Objects", "", 
+            self, "items", 
+            self, "item_index", 
+            rows=rows)
+        
+        # List Control
+        c = r.column(align=1)
+        c.prop(self, 'reset_mutex', text="", icon='FILE_REFRESH')
+        c.separator()
+        c.prop(self, 'op_add_item', text="", icon='ADD')
+        c.prop(self, 'op_remove_item', text="", icon='REMOVE')
+        c.separator()
+        c.prop(self, 'op_move_up', text="", icon='TRIA_UP')
+        c.prop(self, 'op_move_down', text="", icon='TRIA_DOWN')
+        
+        return c
+classlist.append(VBM_ExportList_List)
+
+'# =========================================================================================================================='
+'# OPERATORS'
+'# =========================================================================================================================='
+
+class VBM_OT_ExportList_Sort(bpy.types.Operator):
+    bl_idname = "vbm.exportlist_entry_sort"
+    bl_label = "Sort Export List Entries"
+    bl_description = "Sorts entries by given type"
     bl_options = {'REGISTER', 'UNDO'}
     
-    @classmethod
-    def poll(self, context):
-        return ActiveList(self, context) != None
-    
-    def execute(self, context):
-        ActiveList(self, context).Add(context.active_object)
-        return {'FINISHED'}
-classlist.append(DMR_OP_VBMExportList_AddEntry)
-
-# ---------------------------------------------------------------------------
-
-class DMR_OP_VBMExportList_RemoveEntry(bpy.types.Operator):
-    bl_idname = "dmr.vbm_exportlist_entry_remove"
-    bl_label = "Remove Entry from Export List"
-    bl_description = "Removes entry from export list"
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    @classmethod
-    def poll(self, context):
-        return ActiveList(self, context)
-    
-    def execute(self, context):
-        ActiveList(self, context).RemoveAt()
-        return {'FINISHED'}
-classlist.append(DMR_OP_VBMExportList_RemoveEntry)
-
-# ---------------------------------------------------------------------------
-
-class DMR_OP_VBMExportList_FromSelection(bpy.types.Operator):
-    bl_idname = "dmr.vbm_exportlist_entry_fromselection"
-    bl_label = "Add Selection to Export List"
-    bl_description = "Adds selected objects to export list"
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    @classmethod
-    def poll(self, context):
-        return context.selected_objects and ActiveList(self, context)
-    
-    def execute(self, context):
-        for obj in context.selected_objects:
-            ActiveList(self, context).Add(obj, False)
-        return {'FINISHED'}
-classlist.append(DMR_OP_VBMExportList_FromSelection)
-
-# ---------------------------------------------------------------------------
-
-class DMR_OP_VBMExportList_MoveEntry(bpy.types.Operator):
-    bl_idname = "dmr.vbm_exportlist_entry_move"
-    bl_label = "Move Export List Entry"
-    bl_description = "Moves entry up or down on list"
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    direction : bpy.props.EnumProperty(
-        name="Direction",
+    type : bpy.props.EnumProperty(
+        name="Sorting Type",
         description='Direction to move layer',
         items=(
-            ('UP', 'Up', 'Move entry up'),
-            ('DOWN', 'Down', 'Moveentry down'),
-            ('TOP', 'Top', 'Move entry to top of list'),
-            ('BOTTOM', 'Bottom', 'Move entry to bottom of list'),
+            ('NAME', 'By Name', 'Sort by name'),
+            ('DATA', 'By Internal Index', 'Sort by position in blender data'),
+            ('SIZE', 'By Size', 'Sort by number of vertices'),
+            ('MATERIAL', 'By Material Name', 'Sort by material'),
         )
+    )
+    
+    reverse : bpy.props.BoolProperty(
+        name="Reverse",
+        default=False
     )
     
     @classmethod
     def poll(self, context):
-        return ActiveList(self, context)
+        return context.scene.vbm.export_lists.GetActive()
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
     
     def execute(self, context):
-        exportlist = ActiveList(self, context)
-        entryindex = exportlist.entryindex
-        newindex = entryindex
-        n = len(exportlist.entries)
-        
-        if self.direction == 'UP':
-            newindex = entryindex-1 if entryindex > 0 else n-1
-        elif self.direction == 'DOWN':
-            newindex = entryindex+1 if entryindex < n-1 else 0
-        elif self.direction == 'TOP':
-            newindex = 0
-        elif self.direction == 'BOTTOM':
-            newindex = n-1
-        
-        exportlist.entries.move(entryindex, newindex)
-        exportlist.entryindex = newindex
+        context.scene.vbm.export_lists.GetActive().Sort(self.type, self.reverse)
         
         return {'FINISHED'}
-classlist.append(DMR_OP_VBMExportList_MoveEntry)
+classlist.append(VBM_OT_ExportList_Sort)
 
-# =====================================================================================
+'# =========================================================================================================================='
+'# UI LIST'
+'# =========================================================================================================================='
 
-def UpdateEntryName(self, context):
-    self.name = self.object.name
-class VBMExportListEntry(bpy.types.PropertyGroup):
-    name : bpy.props.StringProperty(name='Object Name', default='<Object Name>')
-    object : bpy.props.PointerProperty(type=bpy.types.Object, update=UpdateEntryName)
-classlist.append(VBMExportListEntry)
-
-# ---------------------------------------------------------------------------
-
-class VBMExportList(bpy.types.PropertyGroup):
-    size : bpy.props.IntProperty()
-    entries : bpy.props.CollectionProperty(type=VBMExportListEntry)
-    entryindex : bpy.props.IntProperty()
-    index : bpy.props.IntProperty(default=0)
-    
-    def CopyFrom(self, other):
-        for e in other.entries:
-            self.Add(e.object)
-    
-    def GetObjects(self):
-        return [x.object for x in self.entries]
-    
-    def Add(self, object, allow_duplicates=False):
-        e = self.entries.add()
-        if allow_duplicates or object not in [x.object for x in self.entries]:
-            e.object = object
-            self.size = len(self.entries)
-            self.entryindex = self.size-1
-    
-    def Remove(self, object):
-        for i, e in enumerate(self.entries):
-            if e.name == object.name:
-                self.entries.remove(i)
-                break
+class VBM_UL_ExportList_Entry(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        r = layout.row(align=0)
         
-        self.size = len(self.entries)
-        self.entryindex = max(0, min(self.entryindex, self.size-1))
-    
-    def RemoveAt(self, index=None):
-        if index == None:
-            index = self.entryindex
+        rr = r.row()
+        rr.scale_x = 0.4
+        rr.label(text='[%d]' % index)
         
-        if index < self.size:
-            self.entries.remove(index)
+        #r.prop(item, "name", text="")
         
-        self.size = len(self.entries)
-        self.entryindex = max(0, min(self.entryindex, self.size-1))
-    
-    def Clear(self):
-        while len(self.entries) > 0:
-            self.entries.remove(0)
-        
-        self.size = len(self.entries)
-        self.entryindex = max(0, min(self.entryindex, self.size-1))
-classlist.append(VBMExportList)
+        if item.object != None:
+            r.prop(item, "object", text="", icon=item.object.type+'_DATA')
+        else:
+            r.prop(item, "object", text="", icon='QUESTION')
+classlist.append(VBM_UL_ExportList_Entry)
 
-# =====================================================================================
-
-class DMR_UL_VBMExportList(bpy.types.UIList):
+# ------------------------------------------------------------------------------------
+class VBM_UL_ExportList_Objects(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         r = layout.row(align=1)
-        if item.object != None:
-            r.prop(item, "object", text='[%d]' % index, icon=item.object.type+'_DATA')
-        else:
-            r.prop(item, "object", text='[%d]' % index, icon='QUESTION')
-classlist.append(DMR_UL_VBMExportList)
-
-# =====================================================================================
-
-class DMR_PT_VBMExportList(bpy.types.Panel):
-    bl_label = 'VBM Custom Export List'
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = 'scene'
-    
-    def draw(self, context):
-        layout = self.layout
         
-        exportlists = context.scene.vbm_exportlists
-        exportlist = ActiveList(self, context)
+        r.prop(item, 'name', text="", emboss=False)
         
-        if not exportlist:
-            layout.operator('dmr.vbm_exportlist_list_add', icon='ADD', text="New List")
-        else:
-            c = layout.column(align=1)
-            r = c.row(align=1)
-            r.prop(context.scene, 'vbm_exportlists_index', text='', icon='PRESET', icon_only=1)
-            r.prop(exportlist, 'name', text="")
-            r = r.row(align=1)
-            r.operator('dmr.vbm_exportlist_list_add', icon='ADD', text="")
-            r.operator('dmr.vbm_exportlist_list_remove', icon='REMOVE', text="")
-            
-            # Export List
-            if exportlist:
-                row = layout.row()
-                row.template_list(
-                    "DMR_UL_VBMExportList", "", 
-                    exportlist, "entries", 
-                    exportlist, "entryindex", 
-                    rows=5)
-                
-                col = row.column(align=True)
+        r.separator()
+        
+        rr = r.row(align=1)
+        op = rr.operator("vbm.export_vb", text='', icon='OBJECT_DATA')
+        op.export_list = item.name
+        op.collection = ""
+        op = rr.operator("vbm.export_vbm", text='', icon='MOD_ARRAY')
+        op.export_list = item.name
+        op.collection = ""
+classlist.append(VBM_UL_ExportList_Objects)
 
-                col.operator("dmr.vbm_exportlist_entry_add", icon='ADD', text="")
-                props = col.operator("dmr.vbm_exportlist_entry_remove", icon='REMOVE', text="")
-                
-                col.separator()
-                col.operator("dmr.vbm_exportlist_entry_fromselection", icon='RESTRICT_SELECT_OFF', text="")
-                #col.operator("dmr.vbm_exportlist_clean", icon='HELP', text="")
-                
-                col.separator()
-                col.operator("dmr.vbm_exportlist_entry_move", icon='TRIA_UP', text="").direction = 'UP'
-                col.operator("dmr.vbm_exportlist_entry_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
-classlist.append(DMR_PT_VBMExportList)
-
-# =====================================================================================
+'# =========================================================================================================================='
+'# REGISTER'
+'# =========================================================================================================================='
 
 def register():
     for c in classlist:
         bpy.utils.register_class(c)
-    
-    bpy.types.Scene.vbm_exportlists = bpy.props.CollectionProperty(
-        name='Export Lists', type=VBMExportList)
-    bpy.types.Scene.vbm_exportlists_index = bpy.props.EnumProperty(
-        name='Export List Index', default=0, items=GetExportListItems)
 
 def unregister():
-    for c in reversed(classlist):
+    for c in classlist[::-1]:
         bpy.utils.unregister_class(c)
-    del bpy.types.Scene.vbm_exportlists
-    del bpy.types.Scene.vbm_exportlists_index
-    
+
+

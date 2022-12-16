@@ -9,7 +9,7 @@ var roommatrices = [
 
 // GPU State
 gpu_push_state();
-gpu_set_cullmode(cull_clockwise);	// Don't draw triangless facing away from camera
+gpu_set_cullmode(cull_clockwise);	// Don't draw triangles facing away from camera
 gpu_set_ztestenable(true);	// Enable depth checking per pixel
 gpu_set_zwriteenable(true);	// Enable depth writing per pixel
 
@@ -29,13 +29,13 @@ shader_set(shd_style);
 
 shader_set_uniform_f_array(u_style_lightpos, lightpos);
 
-if (vbm_kindle)
+if (vbm_starcie)
 {
-	for (var i = 0; i < vbm_kindle.Count(); i++) // Iterate through vb indices
+	for (var i = 0; i < vbm_starcie.Count(); i++) // Iterate through vb indices
 	{
 		if ( meshvisible & (1 << i) ) // Check if bit is set for mesh index
 		{
-			vbm_kindle.SubmitVBIndex(i, pr_trianglelist, -1); // Send indexed vb to GPU
+			vbm_starcie.SubmitVBIndex(i, pr_trianglelist, -1); // Send indexed vb to GPU
 		}
 	}
 }
