@@ -537,6 +537,7 @@ class VBM_PT_ExportList_List(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context = 'scene'
     bl_parent_id = 'VBM_PT_VBMExport'
+    bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
         layout = self.layout
@@ -553,6 +554,7 @@ class VBM_PT_ExportList_Active(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context = 'scene'
     bl_parent_id = 'VBM_PT_ExportList_List'
+    bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
         layout = self.layout
@@ -1061,7 +1063,7 @@ def GetVBData(
         def out_gro(out, attribindex, size): out.append(Pack(FCODE, vmeta[1][attribindex]));
         def out_uvb(out, attribindex, size): out.append(Pack(size*'B', *lmeta[6][uvattriblyr[attribindex]][:size]));
         def out_pad(out, attribindex, size): out.append(Pack(size*FCODE, *paddingfloats[attribindex][:size]));
-        def out_pab(out, attribindex, size): out.append(Pack(size*FCODE, *paddingbytes[attribindex][:size]));
+        def out_pab(out, attribindex, size): out.append(Pack(size*'B', *paddingbytes[attribindex][:size]));
         
         outwritemap = {
             VBF_POS: out_pos, 
