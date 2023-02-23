@@ -697,7 +697,6 @@ def ExportTRK(
     deform_only=True,
     selected_bones_only=False,
 ):
-    
     # Settings --------------------------------------------------------------------------
     compress_matrices_threshold *= compress_matrices_threshold
     sourceobj = object
@@ -1161,6 +1160,8 @@ def ExportTRK(
     # Output to File
     oldlen = len(outtrk)
     
+    filepath = os.path.realpath(bpy.path.abspath(filepath))
+    
     if compression_level != 0:
         outtrk = zlib.compress(outtrk, level=compression_level)
     
@@ -1183,6 +1184,11 @@ def ExportTRK(
     for pb, mat in lastpose.items():
         pb.matrix_basis = mat
     
+    # Clear temporary data
+    [bpy.data.objects.remove(x, do_unlink=True) for x in bpy.data.objects if '__temp' in x.name]
+    [bpy.data.armatures.remove(x, do_unlink=True) for x in bpy.data.armatures if '__temp' in x.name]
+    [bpy.data.actions.remove(x, do_unlink=True) for x in bpy.data.actions if '__temp' in x.name]
+    
     return outtrk;
 
 # ---------------------------------------------------------------------------------
@@ -1198,6 +1204,9 @@ class TRK_Master(bpy.types.PropertyGroup):
         default=False,
         update=lambda s,c: s.Update(c)
         )
+    
+    Items_TrackSpace = Items_ExportSpace
+    Items_MatrixSpace = Items_ExportSpaceMatrix
     
     def Update(self, context):
         if self.op_refresh_strings:
