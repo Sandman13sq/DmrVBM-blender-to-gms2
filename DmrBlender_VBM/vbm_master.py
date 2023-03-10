@@ -348,7 +348,7 @@ class VBM_OT_ExportVB(ExportVBSuper, ExportHelper):
             return {'FINISHED'}
         
         context.scene.vbm.ExportVB(
-            self.format,
+            self.format if self.format else self.attribute_list_dialog,
             self.filepath,
             
             export_list=self.export_list,
@@ -433,7 +433,7 @@ class VBM_OT_ExportVBM(ExportVBSuper, bpy.types.Operator):
             return {'FINISHED'}
         
         context.scene.vbm.ExportVBM(
-            self.format,
+            self.format if self.format else self.attribute_list_dialog,
             self.filepath,
             
             export_list=self.export_list,
