@@ -38,6 +38,9 @@ enum VBM_AttributeType
 	bitangent = 11,
 	vertexgroup = 12,
 	uvbytes = 13,
+	
+	paddingfloats = 14,
+	paddingbytes = 15,
 }
 
 /*
@@ -52,13 +55,17 @@ enum VBM_AttributeType
 	]
 */
 
+// =================================================================================
+#region // Structs
+// =================================================================================
+
 function VBMData() constructor 
 {
-	vertexbuffers = [];	// Vertex buffers
-	vertexbuffermap = {};	// {vbname: vertex_buffer} for each vb
-	vertexbuffernames = [];	// Names corresponding to buffers
-	vertexbuffernamemap = {};	// Names to indices
-	vertexbuffercount = 0;
+	meshes = [];	// Array of VBMData_Mesh()
+	meshnames = [];	// Array of names for corresponding meshes
+	meshmap = {};	// {name: mesh} for each mesh
+	meshindexmap = {}	// {name: meshindex} for each mesh
+	meshcount = 0;
 	
 	bone_parentindices = [];	// Parent transform corresponding to each bone
 	bone_localmatricies = [];	// Local transform corresponding to each bone
@@ -68,13 +75,18 @@ function VBMData() constructor
 	bonecount = 0;
 	
 	vertexformat = -1;	// Vertex Buffer Format created in OpenVBM() (Don't touch!)
+	formatcode = [];	// Set from OpenVBM()
+	
+	pendingfreeze = true;
 	
 	// Accessors -------------------------------------------------------------------
 	
-	static Count = function() {return vertexbuffercount;}
-	static Names = function() {return vertexbuffernames;}
-	static GetVertexBuffer = function(index) {return vertexbuffers[index];}
-	static GetName = function(index) {return vertexbuffernames[index];}
+	static Count = function() {return meshcount;}
+	static Names = function() {return meshnames;}
+	static GetMesh = function(index) {return meshes[index];}
+	static GetVertexBuffer = function(index) {return meshes[index].vertexbuffer;}
+	static GetName = function(index) {return meshnames[index];}
+	static NameExists = function(name) {return variable_struct_exists(meshmap, name);}
 	
 	static BoneCount = function() {return bonecount;}
 	static BoneNames = function() {return bonenames;}
@@ -85,14 +97,130 @@ function VBMData() constructor
 	static GetBoneIndex = function(name) {return bonemap[$ name];}
 	
 	static Format = function() {return vertexformat;}
+	static FormatString = function()
+	{
+		var out = "";
+		var n = array_length(formatcode);
+		var att;
+		
+		for (var i = 0; i < n; i++)
+		{
+			att = formatcode[i];
+			switch(att[0])
+			{
+				default: out += "??? " + string(att[1]); break;
+				
+				case(VBM_AttributeType.position3d): out += "POS " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.uv): out += "UVS " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.normal): out += "NOR " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.color): out += "COL " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.colorbytes): out += "RGB " + string(att[1]) + "B"; break;
+				
+				case(VBM_AttributeType.weight): out += "WEI " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.weightbytes): out += "WEB " + string(att[1]) + "B"; break;
+				case(VBM_AttributeType.bone): out += "BON " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.bonebytes): out += "BOB " + string(att[1]) + "B"; break;
+				case(VBM_AttributeType.tangent): out += "TAN " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.bitangent): out += "BIT " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.vertexgroup): out += "VGR " + string(att[1]) + "f"; break;
+				case(VBM_AttributeType.uvbytes): out += "UVB " + string(att[1]) + "B"; break;
+				case(VBM_AttributeType.paddingfloats): out += "PAD " + string(att[1]) + "B"; break;
+				case(VBM_AttributeType.paddingbytes): out += "PAB " + string(att[1]) + "B"; break;
+			}
+			
+			if ( i < n-1 )
+			{
+				out += ", "
+			}
+		}
+		
+		return "{" + out + "}";
+	}
 	
 	// Methods -------------------------------------------------------------------
 	
+	// Used when struct is given to string() function
 	static toString = function()
 	{
-		return "VBMData: {" +string(vertexbuffercount)+" vbs, " + string(bonecount) + " bones" + "}";
+		return "VBMData: {" +string(meshcount)+" meshes, " + string(bonecount) + " bones" + "}";
 	}
 	
+	// Copies values from other vbm
+	static CopyFromOther = function(othervbm)
+	{
+		Clear();
+		
+		// Format
+		if ( array_length(othervbm.formatcode) > 0 )
+		{
+			vertex_format_begin();
+			
+			var n = array_length(othervbm.formatcode);
+			var bytesum = 0;
+			
+			for (var i = 0; i < n; i++)
+			{
+				formatcode[i] = [othervbm.formatcode[i][0], othervbm.formatcode[i][1]];
+				bytesum = VBMAttributeTypeToFormat(formatcode[i][0], formatcode[i][1], bytesum);
+			}
+			
+			vertexformat = vertex_format_end();
+		}
+		
+		// Buffers
+		var mesh;
+		var name;
+		
+		for (var i = 0; i < othervbm.meshcount; i++)
+		{
+			name = othervbm.meshnames[i];
+			
+			mesh = othervbm.meshes[i].Duplicate();
+			mesh.vertexformat = vertexformat;
+			
+			meshes[meshcount] = mesh;
+			meshnames[meshcount] = name;
+			meshmap[$ name] = meshes[meshcount];
+			meshindexmap[$ name] = meshcount;
+			
+			meshcount += 1;
+		}
+		
+		// Bones
+		bonecount = othervbm.bonecount;
+		bonemap = {};
+		array_resize(bonenames, bonecount);
+		array_resize(bone_parentindices, bonecount);
+		array_resize(bone_localmatricies, bonecount);
+		array_resize(bone_inversematricies, bonecount);
+		
+		array_copy(bone_parentindices, 0, othervbm.bone_parentindices, 0, array_length(bone_parentindices));
+		
+		for (var i = 0; i < bonecount; i++)
+		{
+			bonenames[i] = othervbm.bonenames[i];
+			bonemap[$ bonenames[i]] = i;
+			
+			bone_localmatricies[i] = matrix_build_identity();
+			array_copy(bone_localmatricies[i], 0, othervbm.bone_localmatricies[i], 0, 16);
+			
+			bone_inversematricies[i] = matrix_build_identity();
+			array_copy(bone_inversematricies[i], 0, othervbm.bone_inversematricies[i], 0, 16);
+		}
+		
+		return self;
+	}
+	
+	// Returns duplicate of this vbm
+	static Duplicate = function()
+	{
+		var outvbm = new VBMData();
+		outvbm.CopyFromOther(self);
+		
+		return outvbm;
+	}
+	
+	// Opens vbm from file
 	static Open = function(path, format=-1, freeze=true)
 	{
 		OpenVBM(self, path, format, freeze);
@@ -116,17 +244,20 @@ function VBMData() constructor
 	static ClearVertexBuffers = function()
 	{
 		// Free buffers
-		for (var i = 0; i < vertexbuffercount; i++)
+		for (var i = 0; i < meshcount; i++)
 		{
-			vertex_delete_buffer(vertexbuffers[i]);
+			vertex_delete_buffer(meshes[i].vertexbuffer);
+			buffer_delete(meshes[i].compressedbuffer);
+			
+			delete meshes[i];
 		}
 		
-		array_resize(vertexbuffers, 0);
-		array_resize(vertexbuffernames, 0);
+		array_resize(meshes, 0);
+		array_resize(meshnames, 0);
 		
-		vertexbuffermap = {};
-		vertexbuffernamemap = {};
-		vertexbuffercount = 0;
+		meshmap = {};
+		meshindexmap = {};
+		meshcount = 0;
 	}
 	
 	// Removes bone data
@@ -151,9 +282,9 @@ function VBMData() constructor
 	// Returns index of vb with given name. -1 if not found
 	static FindVBIndex = function(_name)
 	{
-		var i = 0; repeat(vertexbuffercount)
+		var i = 0; repeat(meshcount)
 		{
-			if vertexbuffernames[i] == _name {return i;}
+			if ( meshnames[i] == _name ) {return i;}
 			i++;
 		}
 		return -1;
@@ -162,9 +293,9 @@ function VBMData() constructor
 	// Returns index if vb contains given name. -1 if not found
 	static FindVBIndex_Contains = function(_name)
 	{
-		var i = 0; repeat(vertexbuffercount)
+		var i = 0; repeat(meshcount)
 		{
-			if string_pos(_name, vertexbuffernames[i]) {return i;}
+			if string_pos(_name, meshnames[i]) {return i;}
 			i++;
 		}
 		return -1;
@@ -177,57 +308,185 @@ function VBMData() constructor
 		return is_undefined(i)? -1: i;
 	}
 	
+	// Freezes vertex buffers and re-composes compressed buffer
+	static Freeze = function()
+	{
+		
+	}
+	
 	// Submits all vertex buffers
-	static Submit = function(prim=pr_trianglelist, texture=-1)
+	static Submit = function(prim=pr_trianglelist, texture=undefined)
 	{
 		var i = 0;
-		repeat(vertexbuffercount)
+		repeat(meshcount)
 		{
-			vertex_submit(vertexbuffers[i++], prim, texture);
+			meshes[i++].Submit(prim, texture);
 		}
 	}
 	
 	// Submits vertex buffer using index
-	static SubmitVBIndex = function(vbindex, prim=pr_trianglelist, texture=-1)
+	static SubmitVBIndex = function(vbindex, prim=pr_trianglelist, texture=undefined)
 	{
-		if (vertexbuffercount > 0)
+		if (meshcount > 0)
 		{
 			// Positive number, normal index
-			if (vbindex >= 0 && vbindex < vertexbuffercount)
+			if (vbindex >= 0 && vbindex < meshcount)
 			{
-				vertex_submit(vertexbuffers[vbindex], prim, texture);
+				meshes[vbindex].Submit(prim, texture);
 			}
 			// Negative number, start from end of list
-			else if (vbindex < 0 && (vertexbuffercount+vbindex) < vertexbuffercount)
+			else if (vbindex < 0 && (meshcount+vbindex) < meshcount)
 			{
-				vertex_submit(vertexbuffers[vertexbuffercount+vbindex], prim, texture);
+				meshes[meshcount + vbindex].Submit(prim, texture);
 			}
 		}
 	}
 	
 	// Submits vertex buffer using name
-	static SubmitVBKey = function(vbname, prim=pr_trianglelist, texture=-1)
+	static SubmitVBKey = function(name, prim=pr_trianglelist, texture=undefined)
 	{
-		if (vertexbuffercount > 0)
-		{
-			// Name exists
-			if ( variable_struct_exists(vertexbuffermap, vbname) )
-			{
-				vertex_submit(vertexbuffermap[$ vbname], prim, texture);
-			}
-		}
+		if ( NameExists(name) ) { meshmap[$ name].Submit(prim, texture) }
 	}
 	
-	static AddVB = function(vb, vbname)
+	// Adds vertex buffer to vbm
+	static AddVB = function(vb, meshname)
 	{
-		vertexbuffers[vertexbuffercount] = vb;
-		vertexbuffermap[$ vbname] = vb;
-		vertexbuffernames[vertexbuffercount] = vbname;
-		vertexbuffernamemap[$ vbname] = vertexbuffercount;
-		vertexbuffercount += 1;	
+		meshes[meshcount] = new VBMData_Mesh();
+		meshes[meshcount].SetVB(vb, meshname);
+		meshes[meshcount].vertexformat = vertexformat;
+		
+		meshnames[meshcount] = meshname;
+		meshmap[$ meshname] = meshname;
+		meshindexmap[$ meshname] = meshcount;
+		meshcount += 1;
+		
+		return self;
+	}
+	
+	// Adds all vertex buffers from other vbm
+	static AddVBM = function(othervbm)
+	{
+		var n = othervbm.meshcount;
+		
+		for (var i = 0; i < n; i++)
+		{
+			AddVB(othervbm.meshes[i], othervbm.meshnames[i]);
+		}
+		
+		return self;
 	}
 	
 }
+
+function VBMData_Mesh() constructor
+{
+	name = "";
+	vertexformat = -1;
+	vertexbuffer = -1;	// Vertex buffer used in rendering
+	compressedbuffer = -1;	// Compressed vertex buffer
+	
+	bounds = [ [0,0,0], [0,0,0] ];	// Min and max position of vertices
+	
+	isfrozen = 0;
+	iscompressed = 0;
+	
+	pendingfreeze = true;
+	pendingcompress = true;
+	
+	texture = -1;
+	
+	static CopyFromOther = function(othermesh)
+	{
+		var b, vb, vbcomp;
+		
+		if ( buffer_exists(compressedbuffer) ) {buffer_delete(compressedbuffer);}
+		
+		name = othermesh.name;
+		texture = othermesh.texture;
+		vertexformat = othermesh.vertexformat;
+		
+		vbcomp = othermesh.GetCompressedBuffer();
+		
+		pendingcompress = false;
+		compressedbuffer = buffer_create(buffer_get_size(vbcomp), buffer_fast, 1);
+		buffer_copy(othermesh.compressedbuffer, 0, buffer_get_size(compressedbuffer), compressedbuffer, 0);
+		
+		b = buffer_decompress(compressedbuffer);
+		vertexbuffer = vertex_create_buffer_from_buffer(b, vertexformat);
+		buffer_delete(b);
+		
+		return self;
+	}
+	
+	static GetCompressedBuffer = function()
+	{
+		Compress();
+		return compressedbuffer;
+	}
+	
+	static Duplicate = function()
+	{
+		var out = new VBMData_Mesh();
+		return out.CopyFromOther(self);
+	}
+	
+	static SetVB = function(vb, _name="")
+	{
+		if (_name != "") {name = _name;}
+		
+		pendingfreeze = true;
+		pendingcompress = true;
+		
+		vertexbuffer = vb;
+		
+		return self;
+	}
+	
+	static Compress = function()
+	{
+		if ( pendingcompress )
+		{
+			pendingcompress = false;
+			
+			var vb = vertexbuffer;
+			var vbbytes = vertex_get_buffer_size(vb);
+			var b = buffer_create(vbbytes, buffer_fast, 1);
+		
+			buffer_copy_from_vertex_buffer(vb, 0, vertex_get_number(vb), b, buffer_tell(b));
+			compressedbuffer = buffer_compress(b, 0, buffer_get_size(b));
+			buffer_delete(b);
+		}
+		
+		return self;
+	}
+	
+	static Freeze = function()
+	{
+		if ( pendingfreeze )
+		{
+			Compress();
+			
+			pendingfreeze = false;
+			
+			var err;
+			try {vertex_freeze(vertexbuffer);}
+		}
+		
+		return self;
+	}
+	
+	static Submit = function(prim=pr_trianglelist, _texture=undefined)
+	{
+		Freeze();
+		vertex_submit(vertexbuffer, prim, (_texture==undefined)? texture: _texture);
+	}
+}
+
+#endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+// =================================================================================
+#region // Functions
+// =================================================================================
 
 // Removes allocated memory from vbm
 function VBMFree(vbm)
@@ -358,6 +617,42 @@ function OpenVBM(outvbm, path, format=-1, freeze=true, merge=false)
 	return outvbm;
 }
 
+// Populates struct with {fname: VBMData}
+function OpenVBMDirectory(dir, outvbmstruct={})
+{
+	var _lastchar = string_char_at(dir, string_length(dir));
+	if ( _lastchar != "/" && _lastchar != "\\" )
+	{
+		dir += "\\";
+	}
+	
+	var err;
+	
+	var vbm;
+	var fname = file_find_first(dir + "*.vbm", 0);
+	
+	while (fname != "")
+	{
+		vbm = new VBMData();
+		try
+		{
+			vbm.Open(dir+fname);
+		}
+		catch (err)
+		{
+			show_debug_message(err);
+		}
+		
+		variable_struct_set(outvbmstruct, filename_change_ext(fname, ""), vbm);
+			
+		fname = file_find_next();
+	}
+	
+	file_find_close();
+	
+	return outvbmstruct;
+}
+
 // Returns true if buffer contains vbm header
 function BufferIsVBM(b, offset=0)
 {
@@ -374,8 +669,48 @@ function BufferIsVBM(b, offset=0)
 	return false;
 }
 
+// Adds attribute to vertex format using type. Returns new bytesum
+function VBMAttributeTypeToFormat(attribute_type, attribute_size, bytesum, version1=false)
+{
+	switch(attribute_type)
+	{
+		// Native types
+		case(VBM_AttributeType.position3d):
+			vertex_format_add_position_3d(); break;
+		case(VBM_AttributeType.uv):
+			vertex_format_add_texcoord(); break;
+		case(VBM_AttributeType.normal):
+			vertex_format_add_normal(); break;
+		case(VBM_AttributeType.colorbytes):
+		case(VBM_AttributeType.bonebytes):
+		case(VBM_AttributeType.weightbytes):
+		case(VBM_AttributeType.uvbytes):
+		case(VBM_AttributeType.paddingbytes):
+			if ( ((bytesum + attribute_size) div 4) > bytesum div 4 ) || version1
+			{
+				vertex_format_add_color();
+			}
+				
+			bytesum += attribute_size;
+			break;
+			
+		// Non native types
+		default:
+			switch(attribute_size)
+			{
+				case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
+				case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
+				case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
+				case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
+			}
+			break;
+	}
+	
+	return bytesum;
+}
+
 // Returns vbm format from buffer
-function GetVBMFormat(b, offset, version1=false)
+function GetVBMFormat(b, offset, version1=false, outputcode=[])
 {
 	var numattributes = buffer_peek(b, offset, buffer_u8);
 	offset += 1;
@@ -394,38 +729,8 @@ function GetVBMFormat(b, offset, version1=false)
 		attributesize = buffer_peek(b, offset, buffer_u8);
 		offset += 1;
 		
-		switch(attributetype)
-		{
-			// Native types
-			case(VBM_AttributeType.position3d):
-				vertex_format_add_position_3d(); break;
-			case(VBM_AttributeType.uv):
-				vertex_format_add_texcoord(); break;
-			case(VBM_AttributeType.normal):
-				vertex_format_add_normal(); break;
-			case(VBM_AttributeType.colorbytes):
-			case(VBM_AttributeType.bonebytes):
-			case(VBM_AttributeType.weightbytes):
-			case(VBM_AttributeType.uvbytes):
-				if ( ((bytesum + attributesize) div 4) > bytesum div 4 ) || version1
-				{
-					vertex_format_add_color();
-				}
-				
-				bytesum += attributesize;
-				break;
-			
-			// Non native types
-			default:
-				switch(attributesize)
-				{
-					case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
-					case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
-					case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
-					case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
-				}
-				break;
-		}
+		array_push(outputcode, [attributetype, attributesize]);
+		bytesum = VBMAttributeTypeToFormat(attributetype, attributesize, bytesum, version1);
 	}
 		
 	return vertex_format_end();
@@ -480,6 +785,8 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 	var i, j;
 	var noformatgiven = format < 0;
 	
+	var namelist = [];
+	
 	// Header
 	version = buffer_read(b, buffer_u32) >> 24;
 	
@@ -488,14 +795,24 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 	// Vertex Format
 	if (noformatgiven)
 	{
-		format = GetVBMFormat(b, buffer_tell(b), version==1);
+		format = GetVBMFormat(b, buffer_tell(b), version==1, outvbm.formatcode);
 	}
 	
 	buffer_seek(b, buffer_seek_relative, buffer_read(b, buffer_u8)*2);
 	
+	// Keep Temporary format
+	if (noformatgiven)
+	{
+		outvbm.vertexformat = format;
+		
+		// Apparently formats need to stay in memory...
+		//vertex_format_delete(format);
+	}
+	
 	#region // Vertex Buffers ==================================================
 	
 	vbcount = buffer_read(b, buffer_u32);
+	array_resize(namelist, vbcount);
 	
 	if (merge)
 	{
@@ -506,9 +823,6 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 		appendcount = vbcount;
 	}
 	
-	outvbm.vertexbuffercount += appendcount;
-	array_resize(outvbm.vertexbuffernames, outvbm.vertexbuffercount);
-	
 	// VB Names ------------------------------------------------------------
 	for (var i = 0; i < appendcount; i++) 
 	{
@@ -518,8 +832,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 		{
 			name += chr(buffer_read(b, buffer_u8));
 		}
-		outvbm.vertexbuffernames[i] = name;
-		outvbm.vertexbuffernamemap[$ name] = i;
+		namelist[i] = name;
 	}
 	
 	// Skip rest of names if merge is true
@@ -543,10 +856,8 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 			
 			// Create vb
 			vb = vertex_create_buffer_from_buffer_ext(b, format, buffer_tell(b), numvertices);
-		
-			if freeze {vertex_freeze(vb);}
-			outvbm.vertexbuffers[i] = vb;
-			outvbm.vertexbuffermap[$ outvbm.vertexbuffernames[i]] = vb;
+			
+			outvbm.AddVB(vb, namelist[i]);
 		
 			// move to next vb
 			buffer_seek(b, buffer_seek_relative, vbuffersize);
@@ -572,10 +883,7 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 		
 		vb = vertex_create_buffer_from_buffer(bb, format);
 		
-		outvbm.vertexbuffers[0] = vb;
-		outvbm.vertexbuffermap[$ outvbm.vertexbuffernames[0]] = vb;
-		
-		if freeze {vertex_freeze(vb);}
+		outvbm.AddVB(vb, namelist[0]);
 		
 		buffer_delete(bb);
 	}
@@ -639,15 +947,8 @@ function __VBMOpen_v1(outvbm, b, format, freeze, merge)
 	
 	buffer_delete(b);
 	
-	// Keep Temporary format
-	if (noformatgiven)
-	{
-		outvbm.vertexformat = format;
-		
-		// Apparently formats need to stay in memory...
-		//vertex_format_delete(format);
-	}
-	
 	return outvbm;
 }
+
+#endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

@@ -1,10 +1,10 @@
 /// @desc Initializing Variables
 
 // *Camera ----------------------------------------------
-viewposition = [0, 0, 8];	// Location to point the camera at
+viewposition = [0, 0, 0.8];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
 viewzrot = 0;	// Camera's horizontal rotation
-viewdistance = 24;	// Distance from camera position
+viewdistance = 2.4;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 1;	// Clipping distance for close triangles
@@ -51,7 +51,7 @@ vb_starcie_normal = OpenVertexBuffer("assets/starcie/model_normal.vb", vbf_norma
 // *Model Controls
 zrot = 0;	// Model rotation
 shadermode = 0;	// 0 = simple, 1 = normal
-lightpos = [8, 32, 48];	// Light position to pass to shader
+lightpos = [0.8, 3.2, 4.8];	// Light position to pass to shader
 
 // *Shader Uniforms
 u_normal_lightpos = shader_get_uniform(shd_normal, "u_lightpos"); // Get uniform handle of light position in shd_normal

@@ -13,6 +13,8 @@ VBMFree(vbm_starcie);
 // TRK
 TRKFree(trk_lean);
 TRKFree(trk_blink);
+TRKFree(trk_stand);
+TRKFree(trk_peace);
 
 // Sprite
 sprite_delete(spr_col);

@@ -1,10 +1,10 @@
 /// @desc Initializing Variables
 
 // Camera ----------------------------------------------
-viewposition = [0, 0, 8];	// Location to point the camera at
+viewposition = [0, 0, 0.8];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
 viewzrot = 0;	// Camera's horizontal rotation
-viewdistance = 24;	// Distance from camera position
+viewdistance = 2.4;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 1;	// Clipping distance for close triangles
@@ -52,7 +52,7 @@ OpenVBM(vbm_starcie, "assets/starcie/model_normal.vbm", vbf_normal);	// Read in 
 
 // *Model Controls -------------------------------------
 zrot = 0;
-lightpos = [8, 32, 48];
+lightpos = [0.8, 3.2, 4.8];
 meshindex = 0;	// Index of current vb
 meshvisible = ~0; // Bit field of all 1's
 

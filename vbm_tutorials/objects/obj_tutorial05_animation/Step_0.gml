@@ -1,16 +1,37 @@
 /// @desc Move camera + Toggle Shader
 
+// Navigate Animations
+if (keyboard_check_pressed(ord("Z"))) 
+{
+	playbackkeyindex = (playbackkeyindex+1) mod array_length(playbackkeys);
+	trkanimator.Layer(0).SetAnimationKey(playbackkeys[playbackkeyindex]);
+}
+
 // Switch between matrices and track evaluation
+if (keyboard_check_pressed(ord("X"))) 
+{
+	playbackmode = playbackmode > 0? playbackmode-1: 2;
+	trkanimator.calculationmode = playbackmode;
+}
+
+// Play/Pause
 if (keyboard_check_pressed(vk_space)) 
 {
-	playbackmode ^= 1;
-	trkanimator.forcematrices = playbackmode;
-	
 	trkanimator.Layer(0).enabled ^= 1;
 }
 
-// Update Animator
-trkanimator.UpdateAnimation(playbackspeed);
+// Playback Speed
+if (keyboard_check_pressed(vk_add) || keyboard_check_pressed(187)) 
+{
+	playbackspeed = min(10, (playbackspeed > 1)? playbackspeed+1: playbackspeed*2);
+	if ( abs(playbackspeed-1) <= 0.1 ) {playbackspeed = 1;}
+}
+
+if (keyboard_check_pressed(vk_subtract) || keyboard_check_pressed(189)) 
+{
+	playbackspeed = max(0.01, (playbackspeed > 1)? playbackspeed-1: playbackspeed/2);
+	if ( abs(playbackspeed-1) <= 0.1 ) {playbackspeed = 1;}
+}
 
 #region Camera =============================================================
 
@@ -39,6 +60,9 @@ else
 	if ( keyboard_check(vk_left) ) {viewzrot -= 1;}
 	if ( keyboard_check(vk_up) ) {viewdistance /= 1.01;}
 	if ( keyboard_check(vk_down) ) {viewdistance *= 1.01;}
+	
+	x += (keyboard_check(ord("D"))-keyboard_check(ord("A"))) * 0.1;
+	y += (keyboard_check(ord("W"))-keyboard_check(ord("S"))) * 0.1;
 }
 
 // Zoom with mouse wheel
@@ -89,6 +113,10 @@ matview = matrix_build_lookat(
 	0,0,1
 	);
 
-mattran = matrix_build(x, y, 0, 0, 0, zrot, 1, 1, 1);
-
 #endregion
+
+mattran = Mat4Transform(x, y, 0, 0, 0, zrot, 1, 1, 1);
+
+// Update Animator
+trkanimator.SetMatTransform(mattran);
+trkanimator.UpdateAnimation(playbackspeed);

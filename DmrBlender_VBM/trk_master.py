@@ -14,11 +14,17 @@ try:
 except:
     from trk_bonesettings import *
 
-TRKVERSION = 3
+TRKVERSION = 4
 
 FL_TRK_SPARSE = 1<<1
 FL_TRK_FLOAT16 = 1<<2
 FL_TRK_FLOAT64 = 1<<3
+
+FCURVEINTERPOLATION = {
+    'CONSTANT': 0,
+    'LINEAR': 1,
+    'BEZIER': 1
+}
 
 classlist = []
 
@@ -30,7 +36,6 @@ classlist = []
     flags (1B)
     
     fps (1f)
-    framecount (1I)
     numtracks (1I)
     numcurves (1I)
     duration (1f)
@@ -94,8 +99,10 @@ classlist = []
             arrayindex (1I)
             framepositions[numframes]
                 position (1f)
-            framevectors[numframes]
+            framevalues[numframes]
                 value (1f)
+            frameinterpolations[numframes]
+                interpolationtype (1B)
     
     nummarkers (1I)
     markernames[nummarkers]
@@ -240,7 +247,6 @@ def ParseDeformParents(armatureobj):
     sorted.sort(key=lambda x: bonenames.index(x[1]) if x[1] else 0)
     
     return outparents
-
 
 '# =========================================================================================================================='
 '# OPERATORS'
@@ -1108,6 +1114,7 @@ def ExportTRK(
                 outtrk_curves += Pack('I', len(kframes))   # Number of Frames
                 outtrk_curves += b''.join([Pack(float_type, (k.co[0]-actionrange[0])*scale*frames2position) for k in kframes]) # Positions
                 outtrk_curves += b''.join([Pack(float_type, k.co[1]) for k in kframes]) # Values
+                outtrk_curves += b''.join([Pack('B', FCURVEINTERPOLATION[k.interpolation]) for k in kframes]) # Interpolations
         
     # Markers ----------------------------------------------------------------
     outtrk_markers = b''
@@ -1144,10 +1151,10 @@ def ExportTRK(
     outtrk += Pack('B', flags)     # Flags
     
     outtrk += Pack('f', rd.fps)     # fps
-    outtrk += Pack('I', len(outputframes) ) # Frame Count
+    #outtrk += Pack('I', len(outputframes) ) # Frame Count
     outtrk += Pack('I', len(pbonestarget) ) # Num tracks
     outtrk += Pack('I', len(curvebundles) ) # Num curve bundles
-    outtrk += Pack('f', duration*scale ) # Duration
+    outtrk += Pack('f', duration*scale ) # Duration/Frame Count
     outtrk += Pack('f', time_step/(max(1, duration)*scale) ) # Position Step
     
     outtrk += b''.join([Pack('B', len(x)) + Pack('B'*len(x), *[ord(c) for c in x]) for x in pbonesnames]) # Bone Names

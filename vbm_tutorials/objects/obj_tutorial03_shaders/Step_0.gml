@@ -5,7 +5,7 @@ shadermode ^= keyboard_check_pressed(vk_space);
 
 #region Camera =============================================================
 
-var _spd = 0.2;
+var _spd = 0.1;
 
 var matviewrot = matrix_build(0,0,0, viewxrot,0,viewzrot, 1,1,1);
 viewforward = matrix_transform_vertex(matviewrot, 0,-1,0);

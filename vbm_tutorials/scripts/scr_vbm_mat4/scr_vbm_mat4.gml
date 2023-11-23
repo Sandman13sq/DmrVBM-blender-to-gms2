@@ -124,10 +124,10 @@ function Mat4ArrayFlatSet(flatarray, index, m)
 }
 
 // Returns matrix at index in flat array
-function Mat4ArrayFlatGet(flatarray, index, out = array_create(16))
+function Mat4ArrayFlatGet(flatarray, index, outmat4=matrix_build_identity())
 {
-	array_copy(out, 0, flatarray, index*16, 16);
-	return out;
+	array_copy(outmat4, 0, flatarray, index*16, 16);
+	return outmat4;
 }
 
 // Sets all matrices in flat array to matrix "m"
@@ -396,6 +396,16 @@ function Mat4Compose(translation_vector, rotation_quat, scale_vector, outmat4=Ma
 // ====================================================================
 #region // Mat4 Complex Operations
 // ====================================================================
+
+function Mat4TransformVertex(m, x, y, z, w=1)
+{
+	return [
+		x*m[ 0] + x*m[ 1] + x*m[ 2] + x*m[ 3],
+		y*m[ 4] + y*m[ 5] + y*m[ 6] + y*m[ 7],
+		z*m[ 8] + z*m[ 9] + z*m[10] + z*m[11],
+		w*m[12] + w*m[13] + w*m[14] + w*m[15],
+	];
+}
 
 function Mat4RotVector(dirx, diry, dirz, up_x, up_y, up_z, out = matrix_build_identity())
 {

@@ -106,9 +106,9 @@ Report("Invalid VB path: "+string(time)+"ms, return: "+string(vb_wrongpath));
 
 // Wrong File Type
 time = get_timer();
-vb_notcurly = OpenVertexBuffer(dir+"test/notcurly.png", vbf_simple);
+vb_notstarcie = OpenVertexBuffer(dir+"test/notstarcie.png", vbf_simple);
 time = get_timer()-time;
-Report("Wrong File Type: "+string(time)+"ms, return: "+string(vb_notcurly));
+Report("Wrong File Type: "+string(time)+"ms, return: "+string(vb_notstarcie));
 
 // Uncompressed buffer
 time = get_timer();
@@ -162,7 +162,7 @@ Report("Invalid VBM path: "+string(time)+"ms, return: "+string(vbm_wrongpath));
 // Wrong file type
 time = get_timer();
 vbm_wrongfiletype = new VBMData();
-vbm_wrongfiletype.Open(dir+"test/notcurly.png");
+vbm_wrongfiletype.Open(dir+"test/notstarcie.png");
 time = get_timer()-time;
 Report("Wrong Filetype: "+string(time)+"ms, return: "+string(vbm_wrongfiletype));
 
@@ -214,7 +214,7 @@ vbm_instanced.Open(dir+"test/instanced.vbm");
 time = get_timer()-time;
 Report("Instanced: "+string(time)+"ms, return: "+string(vbm_instanced));
 
-normalmap = sprite_add(dir+"test/curly-def-normal.png", 1, 0, 0, 0, 0);
+normalmap = sprite_add(dir+"test/starcie-def-normal.png", 1, 0, 0, 0, 0);
 
 // TRKs -------------------------------------------------------------------------
 trk_poses = new TRKData();

@@ -3,6 +3,7 @@
 		Quat Operations: https://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/code/index.htm
 		Extra functions: https://github.com/JujuAdams/basic-quaternions
 		Matrix to Quat: https://d3cw3dd2w32x2b.cloudfront.net/wp-content/uploads/2015/01/matrix-to-quat.pdf
+		Quaternion FromTo: https://web.archive.org/web/20210224054602/lolengine.net/blog/2014/02/24/quaternion-from-two-vectors-final
 */
 
 // Quaternions use the form <w,x,y,z>
@@ -235,7 +236,6 @@ function QuatSlerpFast(q1, q2, t, out)
 
 */
 
-
 function Mat4ToQuat(m)
 {
 	var q;
@@ -246,7 +246,9 @@ function Mat4ToQuat(m)
 		m10 = m[1], m11 = m[5], m12 = m[9],
 		m20 = m[2], m21 = m[6], m22 = m[10];
 	
-	if (m22 < y)
+	
+	
+	if (m22 < 0)
 	{
 		if (m00 > m11)
 		{
@@ -273,7 +275,10 @@ function Mat4ToQuat(m)
 		}
 	}
 	
-	q *= 0.5 / sqrt(t);
+	q[0] *= 0.5 / sqrt(t);
+	q[1] *= 0.5 / sqrt(t);
+	q[2] *= 0.5 / sqrt(t);
+	q[3] *= 0.5 / sqrt(t);
 	return q;
 }
 
@@ -373,4 +378,33 @@ function QuatRotateLocalX(q, angle)
 {
 	return QuatMultiply(argument0[0], argument0[1], argument0[2], argument0[3],
                            dcos(argument1/2), dsin(argument1/2), 0, 0);
+}
+
+// Returns quaternion that represents the rotation from vec3A to vec3B
+function QuatFromToRotation(vec3A, vec3B)
+{
+	var dot_uu = dot_product_3d(vec3A[0], vec3A[1], vec3A[2], vec3A[0], vec3A[1], vec3A[2]);
+	var dot_vv = dot_product_3d(vec3B[0], vec3B[1], vec3B[2], vec3B[0], vec3B[1], vec3B[2]);
+	var dot_uv = dot_product_3d(vec3A[0], vec3A[1], vec3A[2], vec3B[0], vec3B[1], vec3B[2]);
+	var norm_u_norm_v = sqrt(dot_uu * dot_vv);
+	var real_part = norm_u_norm_v + dot_uv;
+	var w = [0,0,0];
+	
+	if (real_part < 0.001 * norm_u_norm_v)
+	{
+		real_part = 0;
+		w = (abs(vec3A[0]) > abs(vec3B[0]))?
+			[-vec3A[1], vec3A[0], 0]:
+			[0, -vec3A[2], vec3A[1]];
+	}
+	else
+	{
+		w = [
+			vec3A[1] * vec3B[2] - vec3A[2] * vec3B[1],
+			vec3A[2] * vec3B[0] - vec3A[0] * vec3B[2],
+			vec3A[0] * vec3B[1] - vec3A[1] * vec3B[0]
+		];
+	}
+	
+	return QuatNormalized(QuatBuild(real_part, w[0], w[1], w[2]));
 }

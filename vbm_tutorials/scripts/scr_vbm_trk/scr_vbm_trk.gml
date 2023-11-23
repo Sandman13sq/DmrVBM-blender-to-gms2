@@ -48,19 +48,41 @@ enum TRK_Space
 	evaluated = 4
 }
 
+enum TRK_TrackTransformType
+{
+	none = 0,
+	location = 1,
+	quaternion = 2,
+	scale = 3,
+	euler = 4,
+}
+
+enum TRK_CurveInterpolation
+{
+	constant = 0,
+	linear = 1,
+	bezier = 2,
+}
+
+// =================================================================================
+#region // Structs
+// =================================================================================
+
 function TRKData() constructor
 {
 	matrixspace = TRK_Space.none; // 0 = None, 1 = Local, 2 = Pose, 3 = World, 4 = Evaluated
-	framematrices = []; // Array of flat matrix arrays for each frame
 	
 	trackspace = TRK_Space.none; // 0 = None, 1 = Local, 2 = Pose, 3 = World
-	tracks = []; // array of TRKData_Track
+	transformtracks = []; // array of 3 "TRKData_TrackTransform"s, one for each transform type; for each track
 	tracknames = [];	// (bone) names for each track
 	trackmap = {}; // {trackname: track} for each track
 	trackindices = {};	// {trackname: index} for each track
 	trackcount = 0;
 	
-	curvedata = [];	// array of array of TRKData_FCurve for Non-bone curves
+	poses = new TRKData_TrackPose();	// Contains local-space transforms of each bone
+	evaluations = new TRKData_TrackEvaluated(); // Contains final transforms of each bone
+	
+	curvegroups = [];	// array of array of TRKData_FCurve for Non-bone curves
 	curvenames = [];	// Names for each curve
 	curvemap = {}; // {curvename: curve group} for each curve
 	curveindices = {};	// {curvename: index} for each curve
@@ -74,53 +96,190 @@ function TRKData() constructor
 	positionrange = [0, 1];
 	positionstep = 1.0
 	
-	framecount = 0;
-	framespersecond = 1;
-	duration = 0;
+	framespersecond = 60;	// Native fps value that animation was exported in
+	duration = 0;	// Length in frames of animation
 	flag = 0;
+	
+	isbaked = 0;	// 1 = Pose Baked, 2 = Evaluated Baked
 	
 	// Accessors -------------------------------------------------------------------
 	
 	static Flags = function() {return flag;}
 	static Duration = function() {return duration;}
 	static PositionStep = function() {return positionstep;}
-	
 	static CalculateTimeStep = function(fps) {return (framespersecond/fps)/duration;}
 	
 	static MatrixSpace = function() {return matrixspace;}
 	static TrackSpace = function() {return trackspace;}
 	
-	static FrameCount = function() {return framecount;}
-	static FrameMatrices = function() {return framematrices;}
-	static GetFrameMatrices = function(index) {return framematrices[clamp(index, 0, framecount-1)];}
-	static GetFrameMatricesByPosition = function(pos) 
-		{return framematrices[clamp(round(pos*framecount), 0, framecount-1)];}
-	static GetFrameMatricesByMarker = function(marker_index) 
-		{return framematrices[round(markerpositions[clamp(marker_index, 0, markercount-1)]*(framecount-1))];}
+	static GetPoseData = function() {return poses;}
+	static GetEvaluatedData = function() {return evaluatedmatrices;}
 	
-	static Tracks = function() {return tracks;}
+	static TransformTracks = function() {return transformtracks;}
 	static TrackCount = function() {return trackcount;}
 	static TrackNames = function() {return tracknames;}
-	static GetTrack = function(index) {return tracks[index];}
+	static GetTrack = function(index) {return transformtracks[index];}
 	static GetTrackName = function(index) {return tracknames[index];}
 	
 	static MarkerCount = function() {return markercount;}
 	static MarkerPositions = function() {return markerpositions;}
 	static MarkerNames = function() {return markernames;}
+	static MarkerExists = function(key) {return variable_struct_exists(markermap, key);}
 	static GetMarkerPositionIndex = function(index) {return markerpositions[index];}
 	static GetMarkerPositionKey = function(key) {return markermap[$ key];}
 	static GetMarkerName = function(index) {return markernames[index];}
-	static MarkerExists = function(key) {return variable_struct_exists(markermap, key);}
 	
 	// Methods -------------------------------------------------------------------
 	
+	// Used when struct is given to string() function
 	static toString = function()
 	{
 		return "TRKData: {" + 
 			"Duration: " + string(duration) + ", " +
-			"Frames: " + string(framecount) + ", " +
 			"Tracks: " + string(trackcount) + ", " +
+			"Poses: " + string(poses.count) + ", " +
+			"Evaluations: " + string(evaluations.count) + ", " +
+			"FCurves: " + string(curvecount) + ", " +
 			"Markers: " + string(markercount) + "}";
+	}
+	
+	// Returns new trk with data
+	static CopyFromOther = function(othertrk)
+	{
+		Clear();
+		
+		matrixspace = othertrk.matrixspace;
+		trackspace = othertrk.trackspace;
+		
+		positionstep = othertrk.positionstep;
+		framespersecond = othertrk.framespersecond;
+		duration = othertrk.duration;
+		flag = othertrk.flag;
+		isbaked = othertrk.isbaked;
+		
+		// Tracks
+		trackcount = othertrk.trackcount;
+		array_resize(transformtracks, trackcount);
+		array_resize(tracknames, trackcount);
+		
+		for (var i = 0; i < trackcount; i++)
+		{
+			transformtracks[i] = [
+				othertrk.transformtracks[i][0].Duplicate(),
+				othertrk.transformtracks[i][1].Duplicate(),
+				othertrk.transformtracks[i][2].Duplicate()
+			];
+			
+			tracknames[i] = othertrk.tracknames[i];
+			trackmap[$ tracknames[i]] = transformtracks[i];
+			trackindices[$ tracknames[i]] = i;
+		}
+		
+		poses = othertrk.poses.Duplicate();
+		evaluations = othertrk.evaluations.Duplicate();
+		
+		// Curves
+		curvecount = othertrk.curvecount;
+		
+		var group;
+		
+		for (var i = 0; i < curvecount; i++)
+		{
+			group = other.curvegroups[i];
+			var n = array_length(group)
+			
+			curvegroups[i] = array_create(n);
+			
+			for (var j = 0; j < n; j++)
+			{
+				curvegroups[i][j] = group[j].Duplicate();
+			}
+			
+			curvenames[i] = othertrk.curvenames[i];
+			curvemap[$ curvenames[i]] = curvegroups[i];
+			curveindices[$ tracknames[i]] = i;
+		}
+		
+		// Markers
+		markercount = othertrk.markercount;
+		
+		for (var i = 0; i < markercount; i++)
+		{
+			markerpositions[i] = othertrk.markerpositions[i];
+			markernames[i] = othertrk.markernames[i];
+			markermap[$ markernames[i]] = markerpositions[i];
+		}
+		
+		return self;
+	}
+	
+	static Duplicate = function()
+	{
+		var othertrk = new TRKData();
+		othertrk.CopyFromOther(self);
+		return othertrk;
+	}
+	
+	// Removes all data from TRKData
+	static Clear = function()
+	{
+		ClearTracks();
+		ClearPoses();
+		ClearEvaluations();
+		ClearCurves();
+		ClearMarkers();
+		
+		duration = 0;
+		
+		return self;
+	}
+	
+	static ClearTracks = function()
+	{
+		array_resize(transformtracks, 0);
+		array_resize(tracknames, 0);
+		trackmap = {};
+		trackindices = {};
+		trackcount = 0;
+		
+		return self;
+	}
+	
+	static ClearPoses = function()
+	{
+		delete poses;
+		poses = new TRKData_TrackPose();
+		
+		return self;
+	}
+	
+	static ClearEvaluations = function()
+	{
+		delete evaluations;
+		evaluations = new TRKData_TrackPose();
+		
+		return self;
+	}
+	
+	static ClearCurves = function()
+	{
+		array_resize(curvegroups, 0);
+		array_resize(curvenames, 0);
+		curvemap = {};
+		curveindices = {};
+		curvecount = 0;
+		
+		return self;
+	}
+	
+	static ClearMarkers = function()
+	{
+		array_resize(markerpositions, 0);
+		array_resize(markernames, 0);
+		markermap = {};
+		markercount = 0;
+		
+		return self;
 	}
 	
 	// Reads TRK data from file
@@ -129,27 +288,414 @@ function TRKData() constructor
 		OpenTRK(self, path);
 		return self;
 	}
+	
+	// Calculates local and/or evaluated matrices for animation using tracks
+	static BakeToMatrices = function(
+		bonenames, 
+		parentindices, 
+		localtransforms, 
+		inversetransforms,
+		frame_step=1,	// Step : Frame ratio. 2 = "duration" / 2 frames, 0.5 = "duration" x 2 frames
+		compare_thresh=0.01, 
+		to_local=true, 
+		to_evaluated=true
+		)
+	{
+		var numframes = duration;
+		
+		// Bake to local-space transforms
+		if ( isbaked < 1 && (to_local || to_evaluated) )
+		{
+			var lastpose = Mat4Array(200);
+			var temppose = Mat4Array(200);
+			var d = compare_thresh;
+			var frame = 0;
+			
+			poses.InitializeArrays(0, trackcount);
+			
+			frame = 0;
+			repeat(max(numframes / frame_step))
+			{
+				EvaluateAnimationTracks(
+					self,
+					frame/(duration-1),
+					TRK_Intrpl.linear, 
+					0,
+					temppose
+					);
+				
+				// Crude matrix distance testing
+				for (var i = 0; i < poses.posesize; i++)
+				{
+					d += (
+						abs(temppose[i][ 0] - lastpose[i][ 0]) +
+						abs(temppose[i][ 1] - lastpose[i][ 1]) +
+						abs(temppose[i][ 2] - lastpose[i][ 2]) +
+						abs(temppose[i][ 4] - lastpose[i][ 4]) +
+						abs(temppose[i][ 5] - lastpose[i][ 5]) +
+						abs(temppose[i][ 6] - lastpose[i][ 6]) +
+						abs(temppose[i][ 8] - lastpose[i][ 8]) +
+						abs(temppose[i][ 9] - lastpose[i][ 9]) +
+						abs(temppose[i][10] - lastpose[i][10]) +
+						abs(temppose[i][12] - lastpose[i][12]) +
+						abs(temppose[i][13] - lastpose[i][13]) +
+						abs(temppose[i][14] - lastpose[i][14]) +
+						abs(temppose[i][15] - lastpose[i][15])
+					);
+				}
+				
+				if ( d >= compare_thresh )
+				{
+					poses.count += 1;
+					array_push(poses.framepositions, frame/duration);
+					array_push(poses.frametransforms, temppose);
+					
+					lastpose = temppose;
+					temppose = Mat4Array(200);
+					
+					d = 0;
+				}
+				
+				frame += frame_step;
+			}
+			
+			isbaked = 1;
+		}
+		
+		// Bake to evaluated/final transforms
+		if ( isbaked < 2 || to_evaluated )
+		{
+			evaluations.InitializeArrays(poses.count, trackcount);
+			array_copy(evaluations.framepositions, 0, poses.framepositions, 0, poses.count);
+			
+			var f = 0;
+			repeat(poses.count)
+			{
+				CalculateAnimationPose(
+					parentindices, 
+					localtransforms, 
+					inversetransforms, 
+					poses.frametransforms[f],
+					evaluations.framematrices[f]
+					);
+						
+				f++;
+			}
+			
+			isbaked = 2;
+		}
+	}
+	
+	// Returns pose transforms matching position
+	static FindPoseByPosition = function(pos)
+	{
+		var n = poses.count;
+		var framepositions = poses.framepositions;
+		var i = 0;
+		
+		while ( pos > framepositions[i+1] && i < (n-2) ) {i++;}
+		
+		return poses.frametransforms[i];
+	}
+	
+	// Returns pose transforms matching marker position, default_position if not found
+	static FindPoseByMarker = function(markername, default_position=undefined)
+	{
+		return MarkerExists(markername)? FindPoseByPosition(markerpositions[$ markername]): default_position;
+	}
+	
+	// Returns evaluation matrices matching position
+	static FindEvaluationByPosition = function(pos)
+	{
+		var n = evaluations.count;
+		var framepositions = evaluations.framepositions;
+		var i = 0;
+		
+		while ( pos > framepositions[i+1] && i < (n-2) ) {i++;}
+		
+		return evaluations.framematrices[i];
+	}
+	
+	// Returns evaluation matrices matching marker position, default_position if not found
+	static FindEvaluationByMarker = function(markername, default_position=undefined)
+	{
+		return MarkerExists(markername)? FindEvaluationByPosition(markerpositions[$ markername]): default_position;
+	}
+	
+	// Returns value from curves if exists, else default_value
+	static EvaluateFCurveValue = function(curvename, default_value=undefined, index=0)
+	{
+		return CurveExists(curvename)?
+			curvemap[$ curvename][index]:
+			default_value;
+	}
+	
+	// Returns vector from curves if exists, else default_vector
+	static EvaluateFCurveVector = function(curvename, default_vector=undefined)
+	{
+		return variable_struct_exists(outcurves, curvename)? outcurves[$ curvename]: default_vector;
+	}
+	
 }
 
-function TRKData_Track() constructor
+/*
+	Contains keyframes and values for transforms for one type of transform:
+	Location, Quaternion Rotation, Euler Rotation, or Scale.
+	Keyframe positions are in range [0, 1]
+	"frame" and "vectors" arrays both have the same size of "count"
+	Each element in "vectors" have size "vectorsize"
+*/
+function TRKData_TrackTransform() constructor
 {
-	frames = [];
-	vectors = [];
 	count = 0;
+	transformtype = TRK_TrackTransformType.none;	// loc, quat, euler, or scale
+	vectorsize = 0;	// Size of each element in "vectors" array. 3 for loc, 4 for quat, 3, for euler, 3 for scale
+	frames = [];	// Keyframe for each vector of size <count> [ frame, frame, ... ]
+	vectors = [];	// Transform of size <count> [ value[vectorsize], value[vectorsize], ... ]
+	
+	static Duplicate = function()
+	{
+		var f;
+		var out = new TRKData_TrackTransform();
+		
+		out.count = count;
+		out.transformtype = transformtype;
+		out.vectorsize = vectorsize;
+		
+		array_resize(out.frames, count);
+		array_resize(out.vectors, count);
+		
+		f = 0;
+		repeat(count)
+		{
+			out.framepositions[f] = framepositions[f];
+			out.vectors[f] = array_create(vectorsize);
+			array_copy(out.vectors[f], 0, vectors[f], 0, vectorsize);
+			
+			f++;
+		}
+		
+		return out;
+	}
 }
 
+/*
+	Contains keyframes and values for property curves.
+	Keyframe positions are in range [0, 1]
+	"frame" and "values" arrays both have the same size of "count"
+*/
 function TRKData_FCurve() constructor
 {
 	array_index = -1;
-	frames = [];
+	propertyname = "";
+	framepositions = [];
+	frameinterpolations = [];
 	values = [];
 	count = 0;
+	
+	static Add = function(position, value, interpolation)
+	{
+		framepositions[count] = position;
+		values[count] = value;
+		frameinterpolations[count] = interpolation;
+		count++;
+		
+		return self;
+	}
+	
+	static SetData = function(n, positionarray, valuearray, interpolationarray)
+	{
+		count = n;
+		
+		array_resize(framepositions, n);
+		array_resize(values, n);
+		array_resize(frameinterpolations, n);
+		
+		array_copy(framepositions, 0, positionarray, 0, n);
+		array_copy(values, 0, valuearray, 0, n);
+		array_copy(frameinterpolations, 0, interpolationarray, 0, n);
+		
+		return self;
+	}
+	
+	static Duplicate = function()
+	{
+		var out  = new TRKData_FCurve();
+		var f;
+		
+		out.count = count;
+		out.array_index = array_index;
+		out.propertyname = propertyname;
+		
+		array_resize(out.framepositions, count);
+		array_resize(out.vectors, count);
+		
+		f = 0;
+		repeat(count)
+		{
+			out.framepositions[f] = framepositions[f];
+			out.values[f] = values[f];
+			
+			f++;
+		}
+		
+		return out;
+	}
+	
+	static Evaluate = function(pos, default_value=undefined)
+	{
+		if ( count == 0 ) {return default_value;}
+		if ( count == 1 ) {return values[0];}
+		
+		var positions = framepositions;
+		var n = count;
+		var iprev = 0, inext = 1;
+		var amt;
+		
+		while ( pos > positions[inext] && inext < (n-1) ) {iprev++; inext++;}
+		amt = (pos-positions[iprev]) / (positions[inext]-positions[iprev]);
+		
+		switch(frameinterpolations[iprev])
+		{
+			case(TRK_CurveInterpolation.constant): return values[iprev];
+			default:
+			case(TRK_CurveInterpolation.linear): return lerp(values[iprev], values[inext], amt);
+			case(TRK_CurveInterpolation.bezier): return lerp(values[iprev], values[inext], amt);	// Not supported
+		}
+		
+		return values[0];
+	}
 }
 
-// Removes allocated memory from trk struct (None yet)
+/*
+	Contains keyframes and corresponding matrix arrays for local transforms.
+	Keyframe positions are in range [0, 1]
+	"frame" and "matrices" arrays both have the same size of "count"
+*/
+function TRKData_TrackPose() constructor
+{
+	count = 0;
+	framepositions = [];	// Array of keyframe positions: [frame, frame, ...]
+	frametransforms = [];	// Array of matrix arrays for each frame: [ mat4[posesize], mat4[posesize], ... ]
+	posesize = 200;	// Number of matrices for each element in "poses"
+	
+	// Init
+	static InitializeArrays = function(n, elementsize=0)
+	{
+		if (elementsize <= 0) {elementsize = posesize;}
+		
+		count = n;
+		posesize = elementsize;
+		framepositions = array_create(count);
+		frametransforms = array_create(count);
+		
+		for (var f = 0; f < count; f++)
+		{
+			for (var m = 0; m < posesize; m++)
+			{
+				frametransforms[f][m] = matrix_build_identity();
+			}
+		}
+		
+		return self;
+	}
+	
+	static Duplicate = function()
+	{
+		var f, m;
+		var out = new TRKData_TrackPose();
+		
+		out.count = count;
+		out.posesize = posesize;
+		
+		array_resize(out.framepositions, count);
+		array_resize(out.frametransforms, count);
+		
+		f = 0;
+		repeat(count)
+		{
+			out.framepositions[f] = framepositions[f];
+			out.frametransforms[f] = array_create(posesize);
+			
+			m = 0;
+			repeat(posesize)
+			{
+				out.frametransforms[f][m] = matrix_build_identity();
+				array_copy(out.frametransforms[f][m], 0, frametransforms[f][m], 0, 16);
+				m++;
+			}
+			
+			f++;
+		}
+		
+		return out;
+	}
+}
+
+/*
+	Contains keyframes and matrix arrays for transforms.
+	Keyframe positions are in range [0, 1]
+	"frame" and "matrices" arrays both have the same size of "count"
+*/
+function TRKData_TrackEvaluated() constructor
+{
+	count = 0;
+	framepositions = [];
+	framematrices = [];
+	matrixcount = 200;	// Number of matrices per frame. Values = ("matrixcount" * 16)
+	
+	// Init
+	static InitializeArrays = function(n, elementsize=0)
+	{
+		if (elementsize <= 0) {elementsize = matrixcount;}
+		
+		count = n;
+		matrixcount = elementsize;
+		array_resize(framepositions, count);
+		array_resize(framematrices, count);
+		
+		for (var f = 0; f < count; f++)
+		{
+			framematrices[f] = array_create(matrixcount * 16);
+		}
+		
+		return self;
+	}
+	
+	static Duplicate = function()
+	{
+		var f;
+		var out = new TRKData_TrackEvaluated();
+		
+		out.count = count;
+		out.matrixcount = matrixcount;
+		
+		array_resize(out.framepositions, count);
+		array_resize(out.framematrices, count);
+		
+		f = 0;
+		repeat(count)
+		{
+			out.framepositions[f] = framepositions[f];
+			out.framematrices[f] = array_create(matrixcount*16);
+			array_copy(out.framematrices[f], 0, framematrices[f], 0, matrixcount*16);
+			f++;
+		}
+		
+		return out;
+	}
+}
+
+#endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+// =================================================================================
+#region // Functions
+// =================================================================================
+
+// Removes allocated memory from trk struct. (None yet)
 function TRKFree(trk) constructor
 {
-	
+	trk.Clear();
 }
 
 // Returns animation struct from file (.trk)
@@ -205,6 +751,8 @@ function OpenTRK(outtrk, path)
 	{
 		default:
 		
+		// Version 4 (Interpolation)
+		case(4):
 		// Version 3 (FCurves)
 		case(3): 
 		// Version 2 (Sparse Matrices)
@@ -215,6 +763,41 @@ function OpenTRK(outtrk, path)
 	}
 	
 	return -1;
+}
+
+// Populates struct with {fname: TRKData}
+function OpenTRKDirectory(dir, outtrkstruct={})
+{
+	var _lastchar = string_char_at(dir, string_length(dir));
+	if ( _lastchar != "/" && _lastchar != "\\" )
+	{
+		dir += "\\";
+	}
+	
+	var err;
+	try
+	{
+		var trk;
+		var fname = file_find_first(dir + "*.trk", 0);
+	
+		while (fname != "")
+		{
+			trk = new TRKData();
+			trk.Open(dir+fname);
+			
+			variable_struct_set(outtrkstruct, filename_change_ext(fname, ""), trk);
+			
+			fname = file_find_next();
+		}
+	}
+	catch (err)
+	{
+		show_debug_message(err);
+	}
+	
+	file_find_close();
+	
+	return outtrkstruct;
 }
 
 function __TRKOpen_v1(b, outtrk)
@@ -283,8 +866,11 @@ function __TRKOpen_v1(b, outtrk)
 	outtrk.flag = flag;
 	// Animation Original FPS
 	outtrk.framespersecond = buffer_read(b, buffer_f32);
-	// Frame Count
-	outtrk.framecount = buffer_read(b, buffer_u32);
+	// Frame Count (old. Use duration)
+	if ( version < 4 )
+	{
+		buffer_read(b, buffer_u32);
+	}
 	// Track/Bone Count
 	outtrk.trackcount = buffer_read(b, buffer_u32);
 	// Non-Bone Curve Count
@@ -314,18 +900,20 @@ function __TRKOpen_v1(b, outtrk)
 	var trackindex;
 	var transformindex;
 	var matarray;
+	var curvegroup;
 	var curve;
 	var curveframes;
 	var curvevalues;
+	var curveinterpolations;
 	
 	var i, v, f, n;
 	
 	var numtracks = outtrk.trackcount;
 	
-	array_resize(outtrk.tracks, numtracks);
+	array_resize(outtrk.transformtracks, numtracks);
 	array_resize(outtrk.tracknames, numtracks);
 	
-	// Track Names
+	// Track Names ---------------------------------------------------------------------
 	trackindex = 0;
 	repeat(numtracks)
 	{
@@ -340,13 +928,14 @@ function __TRKOpen_v1(b, outtrk)
 		trackindex++;
 	}
 	
-	// Read Matrices
+	// Read Matrices -------------------------------------------------------------------
 	outtrk.matrixspace = buffer_read(b, buffer_u8);
+	
 	if (outtrk.matrixspace > 0)
 	{
-		numframes = outtrk.framecount;
+		numframes = outtrk.duration;
 		n = numtracks*16;
-		array_resize(outtrk.framematrices, numframes);
+		array_resize(outtrk.evaluatedmatrices, numframes);
 		
 		f = 0;
 		
@@ -373,7 +962,7 @@ function __TRKOpen_v1(b, outtrk)
 					i += 16;
 				}
 				
-				outtrk.framematrices[@ f++] = matarray;
+				outtrk.evaluatedmatrices[@ f++] = matarray;
 			}
 		}
 		// Uncompressed Matrices
@@ -391,12 +980,12 @@ function __TRKOpen_v1(b, outtrk)
 					matarray[i++] = buffer_read(b, float_type);
 				}
 			
-				outtrk.framematrices[@ f++] = matarray;
+				outtrk.evaluatedmatrices[@ f++] = matarray;
 			}
 		}
 	}
 	
-	// Read tracks
+	// Read tracks ---------------------------------------------------------------------
 	outtrk.trackspace = buffer_read(b, buffer_u8);
 	
 	if (outtrk.trackspace > 0)
@@ -411,13 +1000,18 @@ function __TRKOpen_v1(b, outtrk)
 			repeat(3)
 			{
 				vectorsize = (transformindex == 1)? 4:3; // 4 for quats, 3 for location and scale
-			
+				
 				numframes = buffer_read(b, buffer_u32); // Frame Count
 			
-				track = new TRKData_Track();
+				track = new TRKData_TrackTransform();
 				trackframes = array_create(numframes);
 				trackvectors = array_create(numframes);
-			
+				track.vectorsize = vectorsize;
+				
+				if (transformindex == 0) {track.transformtype = TRK_TrackTransformType.location;}
+				else if (transformindex == 1) {track.transformtype = TRK_TrackTransformType.quaternion;}
+				else if (transformindex == 2) {track.transformtype = TRK_TrackTransformType.scale;}
+				
 				// Frame Positions
 				f = 0;
 				repeat(numframes)
@@ -447,22 +1041,25 @@ function __TRKOpen_v1(b, outtrk)
 				}
 				
 				track.count = numframes;
-				track.frames = trackframes;
+				track.framepositions = trackframes;
 				track.vectors = trackvectors;
 				transformtracks[transformindex++] = track;
 			}
 			
 			name = outtrk.tracknames[trackindex];
 			
-			outtrk.tracks[trackindex] = transformtracks;
+			outtrk.transformtracks[trackindex] = transformtracks;
 			outtrk.trackmap[$ name] = transformtracks;
 			
 			trackindex++;
 		}
 	}
 	
+	// Read Curves ---------------------------------------------------------------------
+	
 	// Curve Names
 	var numcurves = outtrk.curvecount;
+	var namelist = array_create(numcurves);
 	
 	trackindex = 0;
 	repeat(numcurves)
@@ -473,29 +1070,32 @@ function __TRKOpen_v1(b, outtrk)
 		{
 			name += chr( buffer_read(b, buffer_u8) );
 		}
-		outtrk.curvenames[trackindex] = name;
-		outtrk.curveindices[$ name] = trackindex;
+		namelist[trackindex] = name;
 		trackindex++;
 	}
 	
-	// Read Curves
+	// Curve Data
 	trackindex = 0;
 	repeat(numcurves)
 	{
 		// Values
 		vectorsize = buffer_read(b, buffer_u8);
-		transformtracks = array_create(vectorsize);
+		curvegroup = array_create(vectorsize);
 		transformindex = 0;
+		
+		name = namelist[trackindex];
 		
 		repeat(vectorsize)
 		{
 			curve = new TRKData_FCurve();
-						
+			curve.propertyname = name;
 			curve.array_index = buffer_read(b, buffer_u32);
+			
 			numframes = buffer_read(b, buffer_u32); // Frame Count
 			
 			curveframes = array_create(numframes);
 			curvevalues = array_create(numframes);
+			curveinterpolations = array_create(numframes);
 			
 			// Frame Positions
 			f = 0;
@@ -511,20 +1111,29 @@ function __TRKOpen_v1(b, outtrk)
 				curvevalues[f++] = buffer_read(b, float_type);
 			}
 			
-			curve.count = numframes;
-			curve.frames = curveframes;
-			curve.values = curvevalues;
-			transformtracks[transformindex++] = curve;
+			// Frame Interpolations
+			if (version >= 4)
+			{
+				f = 0;
+				repeat(numframes)
+				{
+					curveinterpolations[f++] = buffer_read(b, buffer_u8);
+				}
+			}
+			
+			curve.SetData(numframes, curveframes, curvevalues, curveinterpolations);
+			curvegroup[transformindex++] = curve;
 		}
 		
-		name = outtrk.curvenames[trackindex];
-		outtrk.curvedata[trackindex] = transformtracks;
-		outtrk.curvemap[$ name] = transformtracks;
+		outtrk.curvenames[trackindex] = name;
+		outtrk.curveindices[$ name] = trackindex;
+		outtrk.curvegroups[trackindex] = curvegroup;
+		outtrk.curvemap[$ name] = curvegroup;
 			
 		trackindex++;
 	}
 	
-	// Markers -----------------------------------------------------
+	// Markers ---------------------------------------------------------------------
 	var nummarkers = buffer_read(b, buffer_u32);
 	outtrk.markercount = nummarkers;
 	
@@ -559,445 +1168,5 @@ function __TRKOpen_v1(b, outtrk)
 	return 1;
 }
 
-// Evaluates animation at given position and fills "outpose" with evaluated matrices
-// Set "bonekeys" to 0 to use indices instead of bone names
-function EvaluateAnimationTracks(
-	trackdata,	// TRK struct for animation
-	pos,	// 0-1 Value for animation position
-	interpolationtype,	// Interpolation method for blending keyframes
-	bonemap,	// Bone names to map tracks to bones. 0 for track indices
-	outpose
-	)
-{
-	// ~16% of original time / ~625% speed increase with the YYC compiler
-	
-	var tracknames, tracklist, tracklistmax;
-	var b, bonename, outposematrix;
-	var t, trackindex, track, trackframes, trackvectors;
-	var transformtracks;
-	var posnext, posprev;
-	var findexprev, findexnext, findexmax, blendamt;
-	var vecprev, vecnext;
-	
-	var possearchstart;
-	var ttype;
-	
-	// Quat Slerp
-	var q1_0, q1_1, q1_2, q1_3,
-		q2_0, q2_1, q2_2, q2_3,
-		qOut0, qOut1, qOut2, qOut3,
-		xml, d, sqrD, sqrT, f0, f1;
-	// Quat to Mat4
-	var q_length, q_hyp_sqr,
-		q_c, q_s, q_omc;
-	
-	var mm = matrix_build_identity();
-	var mmscale = Mat4();
-	mmscale[15] = 1;
-	
-	pos = clamp(pos, 0, 1);
-	
-	var _lastepsilon = math_get_epsilon();
-	math_set_epsilon(0.0000000000001);
-	
-	// Trk values
-	tracklist = trackdata.tracks;
-	tracklistmax = array_length(tracklist);
-	tracknames = trackdata.tracknames;
-	
-	var transformorder = [1,2,0] // Performs in this order: Rotation, Scale, Translation
-	
-	// For each track
-	trackindex = 0; repeat(tracklistmax)
-	{
-		transformtracks = tracklist[trackindex]; // [frames[], vectors[]]
-		
-		if transformtracks == 0 {trackindex++; continue;}
-		
-		// Switch to correct index in outpose
-		if ( bonemap != 0 )
-		{
-			if ( variable_struct_exists(bonemap, tracknames[trackindex]) )
-			{
-				t = bonemap[$ tracknames[trackindex]];
-			}
-			else
-			{
-				trackindex++; 
-				continue;
-			}
-		}
-		else
-		{
-			t = trackindex;
-		}
-		
-		outposematrix = outpose[@ t]; // Target Bone Matrix
-		
-		// For each transform (location, scale, rotation)
-		// Performs in this order: Rotation, Scale, Translation
-		ttype = 0;
-		repeat(3)
-		{
-			track = transformtracks[transformorder[ttype]]; // TRKData_Track
-			trackframes = track.frames;
-			trackvectors = track.vectors;
-			findexmax = track.count - 1;
-			
-			// Single Keyframe
-			if (findexmax == 0)
-			{
-				vecprev = trackvectors[0];
-				switch(transformorder[ttype])
-				{
-					case(0): // Transform
-						// Only copy to the location values (indices 12 to 15)
-						array_copy(outposematrix, 12, vecprev, 0, 3);
-						break;
-					
-					case(2): // Scale
-						// Update the diagonal values of the temporary scale matrix
-						mmscale[0] = vecprev[0];
-						mmscale[5] = vecprev[1];
-						mmscale[10] = vecprev[2];
-						array_copy( outposematrix, 0, matrix_multiply(mmscale, outposematrix), 0, 16);
-						break;
-				
-					case(1): // Quaternion
-						// Quaternion to Mat4 ===================================================
-						q1_0 = vecprev[0]; q1_1 = vecprev[1]; q1_2 = vecprev[2]; q1_3 = vecprev[3];
-						q_length = sqrt(q1_1*q1_1 + q1_2*q1_2 + q1_3*q1_3);
-						
-						if (q_length == 0)
-						{
-							outposematrix[@ 0] = 1; outposematrix[@ 1] = 0; outposematrix[@ 2] = 0; //out[@ 3] = 0;
-							outposematrix[@ 4] = 0; outposematrix[@ 5] = 1; outposematrix[@ 6] = 0; //out[@ 7] = 0;
-							outposematrix[@ 8] = 0; outposematrix[@ 9] = 0; outposematrix[@10] = 1; //out[@11] = 0;
-						}
-						else
-						{
-							q_hyp_sqr = q_length*q_length + q1_0*q1_0;
-							// Calculate trig coefficients
-							q_c   = 2*q1_0*q1_0 / q_hyp_sqr - 1;
-							q_s   = 2*q_length*q1_0*q_hyp_sqr;
-							q_omc = 1 - q_c;
-							// Normalize the input vector
-							q1_1 /= q_length; q1_2 /= q_length; q1_3 /= q_length;
-							// Build matrix
-							outposematrix[@ 0] = q_omc*q1_1*q1_1 + q_c;
-							outposematrix[@ 1] = q_omc*q1_1*q1_2 + q_s*q1_3;
-							outposematrix[@ 2] = q_omc*q1_1*q1_3 - q_s*q1_2;
-							outposematrix[@ 4] = q_omc*q1_1*q1_2 - q_s*q1_3;
-							outposematrix[@ 5] = q_omc*q1_2*q1_2 + q_c;
-							outposematrix[@ 6] = q_omc*q1_2*q1_3 + q_s*q1_1;
-							outposematrix[@ 8] = q_omc*q1_1*q1_3 + q_s*q1_2;
-							outposematrix[@ 9] = q_omc*q1_2*q1_3 - q_s*q1_1;
-							outposematrix[@10] = q_omc*q1_3*q1_3 + q_c;
-						}
-						break;
-				}
-				
-			}
-			// Multiple Keyframes
-			else if (findexmax > 0)
-			{
-				// Guess initial position
-				findexprev = clamp( floor(pos*findexmax), 0, findexmax);
-				possearchstart = trackframes[findexprev];
-				
-				if (possearchstart < pos) // Search starting from beginning moving forwards
-				{
-					findexnext = findexprev;
-					while (pos >= trackframes[findexnext] && findexnext < findexmax) {findexnext++;}
-					findexprev = max(findexnext - 1, 0);
-				}
-				else // Search starting from end moving backwards
-				{
-					while (pos <= trackframes[findexprev] && findexprev > 0) {findexprev--;}
-					findexnext = min(findexprev + 1, findexmax);
-				}
-				
-				posprev = trackframes[findexprev];	// Position of keyframe that "pos" is ahead of
-				posnext = trackframes[findexnext];	// Position of next keyframe
-			
-				// Find Blend amount (Map "pos" distance to [0-1] value)
-				blendamt = clamp((pos - posprev) / (posnext - posprev), 0.0, 1.0);
-				
-				// Apply Interpolation
-				if (interpolationtype == TRK_Intrpl.constant) {blendamt = blendamt >= 0.99;}
-				else if (interpolationtype == TRK_Intrpl.smooth) {blendamt = 0.5*(1-cos(pi*blendamt));}
-				
-				// Apply Transform
-				vecprev = trackvectors[findexprev];
-				vecnext = trackvectors[findexnext];
-				
-				switch(transformorder[ttype])
-				{
-					case(0): // Transform
-						// Only copy to the location values (indices 12 to 15)
-						outposematrix[@ 12] = lerp(vecprev[0], vecnext[0], blendamt);
-						outposematrix[@ 13] = lerp(vecprev[1], vecnext[1], blendamt);
-						outposematrix[@ 14] = lerp(vecprev[2], vecnext[2], blendamt);
-						break;
-					
-					case(2): // Scale
-						// Update the diagonal values of the temporary scale matrix
-						mmscale[0] = lerp(vecprev[0], vecnext[0], blendamt);
-						mmscale[5] = lerp(vecprev[1], vecnext[1], blendamt);
-						mmscale[10] = lerp(vecprev[2], vecnext[2], blendamt);
-						mm = matrix_multiply(mmscale, outposematrix);
-						array_copy(outposematrix, 0, mm, 0, 16);
-						
-						break;
-					
-					case(1): // Quaternion
-						// Fast Quaternion Slerp =====================================================
-						/*
-							Sourced from this paper by David Eberly, licensed under CC 4.0.
-							Paper: https://www.geometrictools.com/Documentation/FastAndAccurateSlerp.pdf
-							CC License: https://creativecommons.org/licenses/by/4.0/
-						*/
-						
-						q1_0 = vecprev[0]; q1_1 = vecprev[1]; q1_2 = vecprev[2]; q1_3 = vecprev[3];
-						q2_0 = vecnext[0]; q2_1 = vecnext[1]; q2_2 = vecnext[2]; q2_3 = vecnext[3];
-						
-						xml = (q1_0*q2_0 + q1_1*q2_1 + q1_2*q2_2 + q1_3*q2_3)-1.0;
-						
-						if ( xml == 0 )
-						{
-							qOut0 = q1_0;
-							qOut1 = q1_1;
-							qOut2 = q1_2;
-							qOut3 = q1_3;
-						}
-						else
-						{
-							d = 1.0-blendamt; 
-							sqrT = blendamt*blendamt;
-							sqrD = d*d;
-						
-							f0 = blendamt * (
-								1+((QUATSLERP_U0 * sqrT - QUATSLERP_V0) * xml)*(
-								1+((QUATSLERP_U1 * sqrT - QUATSLERP_V1) * xml)*(
-								1+((QUATSLERP_U2 * sqrT - QUATSLERP_V2) * xml)*(
-								1+((QUATSLERP_U3 * sqrT - QUATSLERP_V3) * xml)*(
-								1+((QUATSLERP_U4 * sqrT - QUATSLERP_V4) * xml)*(
-								1+((QUATSLERP_U5 * sqrT - QUATSLERP_V5) * xml)*(
-								1+((QUATSLERP_U6 * sqrT - QUATSLERP_V6) * xml)*(
-								1+((QUATSLERP_U7 * sqrT - QUATSLERP_V7) * xml)
-								))))))));
-						
-							f1 = d * (
-								1+((QUATSLERP_U0 * sqrD - QUATSLERP_V0) * xml)*(
-								1+((QUATSLERP_U1 * sqrD - QUATSLERP_V1) * xml)*(
-								1+((QUATSLERP_U2 * sqrD - QUATSLERP_V2) * xml)*(
-								1+((QUATSLERP_U3 * sqrD - QUATSLERP_V3) * xml)*(
-								1+((QUATSLERP_U4 * sqrD - QUATSLERP_V4) * xml)*(
-								1+((QUATSLERP_U5 * sqrD - QUATSLERP_V5) * xml)*(
-								1+((QUATSLERP_U6 * sqrD - QUATSLERP_V6) * xml)*(
-								1+((QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml)
-								))))))));
-						
-							qOut0 = f0 * q1_0 + f1 * q2_0;
-							qOut1 = f0 * q1_1 + f1 * q2_1;
-							qOut2 = f0 * q1_2 + f1 * q2_2;
-							qOut3 = f0 * q1_3 + f1 * q2_3;
-						}
-						
-						var qOut = [0,0,0,0]
-						QuatSlerp_r(vecprev, vecnext, blendamt, qOut);
-						
-						qOut0 = qOut[0];
-						qOut1 = qOut[1];
-						qOut2 = qOut[2];
-						qOut3 = qOut[3];
-						
-						// Quaternion to Mat4 ===================================================
-						q_length = sqrt(qOut1*qOut1 + qOut2*qOut2 + qOut3*qOut3);
-						
-						if (q_length == 0)
-						{
-							outposematrix[@ 0] = 1; outposematrix[@ 1] = 0; outposematrix[@ 2] = 0; //out[@ 3] = 0;
-							outposematrix[@ 4] = 0; outposematrix[@ 5] = 1; outposematrix[@ 6] = 0; //out[@ 7] = 0;
-							outposematrix[@ 8] = 0; outposematrix[@ 9] = 0; outposematrix[@10] = 1; //out[@11] = 0;
-						}
-						else
-						{
-							q_hyp_sqr = q_length*q_length + qOut0*qOut0;
-							// Calculate trig coefficients
-							q_c   = 2*qOut0*qOut0 / q_hyp_sqr - 1;
-							q_s   = 2*q_length*qOut0*q_hyp_sqr;
-							q_omc = 1 - q_c;
-							// Normalize the input vector
-							qOut1 /= q_length; qOut2 /= q_length; qOut3 /= q_length;
-							// Build matrix
-							outposematrix[@ 0] = q_omc*qOut1*qOut1 + q_c;
-							outposematrix[@ 1] = q_omc*qOut1*qOut2 + q_s*qOut3;
-							outposematrix[@ 2] = q_omc*qOut1*qOut3 - q_s*qOut2;
-							outposematrix[@ 4] = q_omc*qOut1*qOut2 - q_s*qOut3;
-							outposematrix[@ 5] = q_omc*qOut2*qOut2 + q_c;
-							outposematrix[@ 6] = q_omc*qOut2*qOut3 + q_s*qOut1;
-							outposematrix[@ 8] = q_omc*qOut1*qOut3 + q_s*qOut2;
-							outposematrix[@ 9] = q_omc*qOut2*qOut3 - q_s*qOut1;
-							outposematrix[@10] = q_omc*qOut3*qOut3 + q_c;
-						}
-						
-						break;
-				}
-			}
-			
-			ttype++;
-		}
-		
-		trackindex++;
-	}
-	
-	math_set_epsilon(_lastepsilon);
-	
-	return outpose;
-}
+#endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-// Evaluates animation at given position and fills "outvalues" with evaluated values/vectors
-function EvaluateAnimationCurves(
-	trk,		// TRK struct for animation
-	pos,		// 0-1 Value for animation position
-	outvalues={}	// A struct to store evaluated values in. Creates entries if not present
-	)
-{
-	var outvector;
-	var curvedata = trk.curvedata;
-	var curvedatacount = trk.curvecount;
-	var curvenames = trk.curvenames;
-	var activecurvebundle;
-	var curve;
-	var curvename;
-	var curvearrayindex;
-	var curvefrequency;
-	var curveentryindex;
-	var t, trackframes, trackvalues;
-	
-	var possearchstart;
-	var posnext, posprev;
-	var findexprev, findexnext, findexmax, blendamt;
-	
-	pos = clamp(pos, 0, 1);
-	
-	var _lastepsilon = math_get_epsilon();
-	math_set_epsilon(0.0000000000001);
-	
-	// For each track
-	t = 0; repeat(curvedatacount)
-	{
-		activecurvebundle = curvedata[t]; // [curve, curve, ...]
-		
-		curvefrequency = array_length(activecurvebundle);
-		curvename = curvenames[t];
-		
-		// For each transform
-		curveentryindex = 0;
-		
-		if ( !variable_struct_exists(outvalues, curvename) )
-		{
-			variable_struct_set(outvalues, curvename, []);
-		}
-		
-		repeat(curvefrequency)
-		{
-			curve = activecurvebundle[curveentryindex]; // TRKData_FCurve
-			curvearrayindex = curve.array_index;
-			
-			trackframes = curve.frames;
-			trackvalues = curve.values;
-			findexmax = curve.count - 1;
-			
-			// Single Keyframe
-			if (findexmax == 0)
-			{
-				outvalues[$ curvename][curvearrayindex] = trackvalues[0];
-			}
-			// Multiple Keyframes
-			else if (findexmax > 0)
-			{
-				// Guess initial position
-				findexprev = clamp( floor(pos*findexmax), 0, findexmax);
-				possearchstart = trackframes[findexprev];
-				
-				if (possearchstart < pos) // Search starting from beginning moving forwards
-				{
-					findexnext = findexprev;
-					while (pos >= trackframes[findexnext] && findexnext < findexmax) {findexnext++;}
-					findexprev = max(findexnext - 1, 0);
-				}
-				else // Search starting from end moving backwards
-				{
-					while (pos <= trackframes[findexprev] && findexprev > 0) {findexprev--;}
-					findexnext = min(findexprev + 1, findexmax);
-				}
-				
-				posprev = trackframes[findexprev];	// Position of keyframe that "pos" is ahead of
-				posnext = trackframes[findexnext];	// Position of next keyframe
-			
-				// Find Blend amount (Map "pos" distance to [0-1] value)
-				blendamt = clamp((pos - posprev) / (posnext - posprev), 0.0, 1.0);
-				
-				// Apply Transform
-				outvalues[$ curvename][curvearrayindex] = lerp(trackvalues[findexprev], trackvalues[findexnext], blendamt);
-			}
-			
-			curveentryindex += 1;
-		}
-		
-		t++;
-	}
-	
-	math_set_epsilon(_lastepsilon);
-}
-
-// Fills outtransform with calculated animation pose
-// bone_parentindices = Array of parent index for bone at current index
-// bone_localmatricies = Array of local 4x4 matrices for bones
-// bone_inversemodelmatrices = Array of inverse 4x4 matrices for bones
-// posedata = Array of 4x4 matrices. 2D
-// outposetransform = Flat Array of matrices in localspace, size = len(posedata) * 16, give to shader
-// outbonetransform = Array of bone matrices in modelspace
-function CalculateAnimationPose(
-	bone_parentindices, bone_localmatricies, bone_inversemodelmatrices, posedata, 
-	outposetransform, outbonetransform = [])
-{
-	var n = min( array_length(bone_parentindices), array_length(posedata));
-	var i;
-	var m;
-	var localtransform = array_create(n);	// Parent -> Bone
-	//var outbonetransform = array_create(n);	// Origin -> Bone
-	array_resize(outbonetransform, n);
-	
-	// Calculate animation for specific bone
-	i = 0; repeat(n)
-	{
-		localtransform[i++] = matrix_multiply(
-			posedata[i], bone_localmatricies[i]);
-	}
-	
-	// Set the model transform of bone using parent transform
-	// Only works if the parents preceed their children in array
-	
-	outbonetransform[@ 0] = localtransform[0]; // Edge case for root bone
-	
-	i = 1; repeat(n-1)
-	{
-		outbonetransform[@ i++] = matrix_multiply(
-			localtransform[i], outbonetransform[ bone_parentindices[i] ]);
-	}
-	
-	// Compute final matrix for bone
-	i = 0; repeat(n)
-	{
-		array_copy(outposetransform, (i++)*16, matrix_multiply(bone_inversemodelmatrices[i], outbonetransform[i]), 0, 16);
-	}
-}
-
-// Returns amount to move position in one frame
-function TrackData_GetTimeStep(trkdata, framespersecond)
-{
-	return trkdata.positionstep*(trkdata.framespersecond/framespersecond);
-}

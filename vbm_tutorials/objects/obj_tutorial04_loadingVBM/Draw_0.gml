@@ -20,6 +20,7 @@ matrix_set(matrix_view, matview);
 // Draw vertex buffers (Simple)
 shader_set(shd_simple);
 
+matrix_set(matrix_world, matrix_build(0,0,0, 0,0,0, 0.1, 0.1, 0.1));
 if (vb_grid >= 0) {vertex_submit(vb_grid, pr_linelist, -1);}
 if (vb_axis >= 0) {vertex_submit(vb_axis, pr_trianglelist, -1);}
 

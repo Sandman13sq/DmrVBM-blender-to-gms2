@@ -1,13 +1,13 @@
 /// @desc Initializing Variables
 
 // Camera ----------------------------------------------
-viewposition = [0, 0, 8];	// Location to point the camera at
+viewposition = [0, 0, 0.8];	// Location to point the camera at
 viewxrot = -10;	// Camera's vertical rotation
-viewzrot = 0;	// Camera's horizontal rotation
-viewdistance = 24;	// Distance from camera position
+viewzrot = 10;	// Camera's horizontal rotation
+viewdistance = 2.4;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
-znear = 1;	// Clipping distance for close triangles
+znear = 0.1;	// Clipping distance for close triangles
 zfar = 100;	// Clipping distance for far triangles
 
 matproj = matrix_build_projection_perspective_fov(
@@ -53,12 +53,21 @@ vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_simple);
 vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_simple);
 
 // *Open VBM -------------------------------------------
+
 vbm_starcie = new VBMData();
 OpenVBM(vbm_starcie, "assets/starcie/model_rigged.vbm");	// VBM creates and stores format needed to render if none is given.
 
+vbm_starcie = vbm_starcie.Duplicate();
+
 // *Open TRK -------------------------------------------
 trk_lean = new TRKData();	// Initialize new TRK data
-OpenTRK(trk_lean, "assets/starcie/tutorial5.trk");	// Read in TRK from file
+OpenTRK(trk_lean, "assets/starcie/lean.trk");	// Read in TRK from file
+
+trk_stand = new TRKData();	// Initialize new TRK data
+OpenTRK(trk_stand, "assets/starcie/stand.trk");	// Read in TRK from file
+
+trk_peace = new TRKData();	// Initialize new TRK data
+OpenTRK(trk_peace, "assets/starcie/peace.trk");	// Read in TRK from file
 
 trk_blink = new TRKData();	// Initialize new TRK data
 OpenTRK(trk_blink, "assets/starcie/blink.trk");	// Read in TRK from file
@@ -66,16 +75,22 @@ OpenTRK(trk_blink, "assets/starcie/blink.trk");	// Read in TRK from file
 trkanimator = new TRKAnimator();	// Initialize animator
 trkanimator.ReadTransformsFromVBM(vbm_starcie);	// Update bone indices by name
 
+trk_lean = trk_lean.Duplicate();
+
 trkanimator.DefineAnimation("lean", trk_lean);	// Add animation to pool
+trkanimator.DefineAnimation("stand", trk_stand);	// Add animation to pool
+trkanimator.DefineAnimation("peace", trk_peace);	// Add animation to pool
 trkanimator.DefineAnimation("blink", trk_blink);	// Add animation to pool
 
-trkanimator.AddLayer().SetAnimationKey("lean");	// Create Layer 1 and set animation
-trkanimator.AddLayer().SetAnimationKey("blink");	// Create Layer 2 and set animation
+trkanimator.AddLayer().SetAnimationKey("lean");	// Create Layer 0 and set animation
+trkanimator.AddLayer().SetAnimationKey("blink");	// Create Layer 1 and set animation
+
+trkanimator.BakeAnimations();
 
 /*
-	Layer 1 will evaluate first, Layer 2 second.
+	Layer 0 will evaluate first, Layer 1 second.
 	The "blink" animation only contains tracks for the eye lids,
-	meaning "blink" is overlayed on the "idle" animation.
+	meaning "blink" is overlayed on the "lean" animation.
 */
 
 // *Texture from file ----------------------------------
@@ -87,8 +102,10 @@ zrot = 0;
 lightpos = [8, 32, 32];
 
 // *Playback Controls ----------------------------------
-playbackmode = 0; // 0 = Tracks, 1 = Matrices
+playbackmode = TRK_AnimatorCalculation.track; // 0 = Evaluated, 1 = Pose, 2 = Tracks
 playbackspeed = 1;
+playbackkeys = ["lean", "stand", "peace"];
+playbackkeyindex = 0;
 
 // *Shader Uniforms ------------------------------------
 u_rigged_light = shader_get_uniform(shd_rigged, "u_lightpos");

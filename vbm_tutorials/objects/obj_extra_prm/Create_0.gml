@@ -10,8 +10,12 @@ vbm_world.Clear();
 vbm_world.Open("assets/starcie/world_murasaki_normal.vbm");
 
 // Open TRK -------------------------------------------
-trk_prm = new TRKData();
-trk_prm.Open("assets/starcie/extra_prm.trk");
+animations = OpenTRKDirectory("assets/starcie/");
+animationkeys = variable_struct_get_names(animations);
+array_sort(animationkeys, function(a, b) {return animations[$ a].Duration() > animations[$ b].Duration();});
+animationindex = 0;
+
+show_debug_message("> Loaded " + string(array_length(animationkeys)) + " animations");
 
 // Shader Uniforms
 u_style_lightpos = shader_get_uniform(shd_style, "u_lightpos");
@@ -38,7 +42,11 @@ tex_prm = sprite_get_texture(spr_prm, 0);
 
 // Controls
 trkanimator = new TRKAnimator().ReadTransformsFromVBM(vbm_starcie_prm);
-trkanimator.AddLayer().SetAnimationData(trk_prm);
+trkanimator.CopyAnimations(animations);
+trkanimator.AddLayer(TRKANIMATORLAYERFLAG.ignorecurves);
+trkanimator.SetAnimationKey(animationkeys[animationindex]);
+
+mattran = Mat4();
 
 // *Playback Controls ----------------------------------
 playbackmode = 1; // 0 = Matrices, 1 = Tracks

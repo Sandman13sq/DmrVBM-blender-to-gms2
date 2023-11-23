@@ -878,7 +878,7 @@ def GetVBData(
                         tuple(boneindices+(0,0,0,0))[:4], 
                         tuple([int(x) for x in boneindices+(0,0,0,0)])[:4], 
                         tuple(weights+weightdefaults)[:4],
-                        tuple([int(x*255.0) for x in weights+weightdefaults])[:4], 
+                        tuple([max(0, min(1, int(x*255.0))) for x in weights+weightdefaults])[:4], 
                     )
             else:
                 def VEntry(v):
@@ -1225,96 +1225,105 @@ def ExportVB(
     
     format = context.scene.vbm.formats.FindItem(format) if isinstance(format, str) else format
     
-    # Single file ------------------------------------------------------------------
-    if batch == 'NONE':
-        out = b''
-        for i, obj in enumerate(targetobjects):
-            data = context.scene.vbm.GetVBData(
-                context, 
-                obj, 
-                format,
-                
-                flip_uvs=flip_uvs,
-                max_subdivisions=max_subdivisions,
-                modifier_target=modifier_target,
-                apply_armature=apply_armature,
-                deform_only=deform_only,
-                edges_only=edges_only,
-                flip_normals=flip_normals,
-                reverse_winding=reverse_winding,
-                matrix=matrix
-                )[0]
-            
-            for d in data.values():
-                out += d
-        
-        CompressAndWrite(out, compression_level, path)
-        print("> VB data written to \"%s\"" % path)
-    
-    # Batch Export ------------------------------------------------------------------
-    else:
-        rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else (path + "/")
-        outgroups = {} # {groupname: vertexdata}
-        vbkeys = []
-        
-        for obj in targetobjects:
-            datapair = context.scene.vbm.GetVBData(
-                context, 
-                obj, 
-                format,
-                
-                flip_uvs=flip_uvs,
-                max_subdivisions=max_subdivisions,
-                modifier_target=modifier_target,
-                apply_armature=apply_armature,
-                deform_only=deform_only,
-                edges_only=edges_only,
-                flip_normals=flip_normals,
-                reverse_winding=reverse_winding,
-                matrix=matrix
-                )
-            
-            vbytes = datapair[0]
-            vcounts = datapair[1]
-            vertexcount = sum(datapair[1].values())
-            
-            # By Object or Mesh name
-            if batchexport in ['OBJECT', 'MESH']:
-                if vertexcount:
-                    k = obj.name if batchexport == 'OBJECT' else obj.data.name
-                    name = FixName(k, delimiter_start, delimiter_end)
-                    if name not in vbkeys:
-                        vbkeys.append(name)
-                        outgroups[name] = [b'', {name: 0}]
+    try:
+        # Single file ------------------------------------------------------------------
+        if batch == 'NONE':
+            out = b''
+            for i, obj in enumerate(targetobjects):
+                data = context.scene.vbm.GetVBData(
+                    context, 
+                    obj, 
+                    format,
                     
-                    outgroups[name][0] += b''.join([x for x in vbytes.values()])
-                    outgroups[name][1][name] += vertexcount
-            # By Material
-            elif batchexport == 'MATERIAL':
-                for k, d in vbytes.items():
-                    if vcounts[k]:
+                    flip_uvs=flip_uvs,
+                    max_subdivisions=max_subdivisions,
+                    modifier_target=modifier_target,
+                    apply_armature=apply_armature,
+                    deform_only=deform_only,
+                    edges_only=edges_only,
+                    flip_normals=flip_normals,
+                    reverse_winding=reverse_winding,
+                    matrix=matrix
+                    )[0]
+                
+                for d in data.values():
+                    out += d
+            
+            CompressAndWrite(out, compression_level, path)
+            print("> VB data written to \"%s\"" % path)
+        
+        # Batch Export ------------------------------------------------------------------
+        else:
+            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else (path + "/")
+            outgroups = {} # {groupname: vertexdata}
+            vbkeys = []
+            
+            for obj in targetobjects:
+                datapair = context.scene.vbm.GetVBData(
+                    context, 
+                    obj, 
+                    format,
+                    
+                    flip_uvs=flip_uvs,
+                    max_subdivisions=max_subdivisions,
+                    modifier_target=modifier_target,
+                    apply_armature=apply_armature,
+                    deform_only=deform_only,
+                    edges_only=edges_only,
+                    flip_normals=flip_normals,
+                    reverse_winding=reverse_winding,
+                    matrix=matrix
+                    )
+                
+                vbytes = datapair[0]
+                vcounts = datapair[1]
+                vertexcount = sum(datapair[1].values())
+                
+                # By Object or Mesh name
+                if batchexport in ['OBJECT', 'MESH']:
+                    if vertexcount:
+                        k = obj.name if batchexport == 'OBJECT' else obj.data.name
                         name = FixName(k, delimiter_start, delimiter_end)
                         if name not in vbkeys:
                             vbkeys.append(name)
                             outgroups[name] = [b'', {name: 0}]
                         
-                        outgroups[name][0] += vbytes[k]
-                        outgroups[name][1][name] += vcounts[k]
-            
-        # Export each data as individual files
-        for name, outgroup in outgroups.items():
-            out = outgroup[0]
-            outcompressed = zlib.compress(out)
-            outlen = (len(out), len(outcompressed))
-            
-            CompressAndWrite(out, compression_level, rootpath + name + self.filename_ext)
-        print("> VB data written to \"%s\"" % rootpath)
+                        outgroups[name][0] += b''.join([x for x in vbytes.values()])
+                        outgroups[name][1][name] += vertexcount
+                # By Material
+                elif batchexport == 'MATERIAL':
+                    for k, d in vbytes.items():
+                        if vcounts[k]:
+                            name = FixName(k, delimiter_start, delimiter_end)
+                            if name not in vbkeys:
+                                vbkeys.append(name)
+                                outgroups[name] = [b'', {name: 0}]
+                            
+                            outgroups[name][0] += vbytes[k]
+                            outgroups[name][1][name] += vcounts[k]
+                
+            # Export each data as individual files
+            for name, outgroup in outgroups.items():
+                out = outgroup[0]
+                outcompressed = zlib.compress(out)
+                outlen = (len(out), len(outcompressed))
+                
+                CompressAndWrite(out, compression_level, rootpath + name + self.filename_ext)
+            print("> VB data written to \"%s\"" % rootpath)
     
-    # Restore State --------------------------------------------------------
-    RemoveTempObjects()
+    except Exception as e:
+        raise e
     
-    if activename in [x.name for x in context.selected_objects]:
-        context.view_layer.objects.active = bpy.data.objects[activename]
+    finally:
+        # Restore State --------------------------------------------------------
+        RemoveTempObjects()
+        
+        for obj in targetobjects:
+            if obj:
+                obj.select_set(True)
+        
+        if activename in [x.name for x in context.selected_objects]:
+            context.view_layer.objects.active = bpy.data.objects[activename]
 
 # --------------------------------------------------------------------------------------
 
@@ -1389,188 +1398,110 @@ def ExportVBM(
             if armature:
                 break
     
-    # Header ============================================================
-    attributelist = format.GetItems()
-    
-    # Make flag
-    flag = 0
-    
-    # Vertex Format
-    out_format = b''
-    out_format += Pack('B', len(attributelist)) # Format length
-    for i,attribute in enumerate(attributelist):
-        out_format += Pack('B', VBFTypeIndex[attribute.type]) # Attribute Type
-        out_format += Pack('B', attribute.size) # Attribute Float Size
-    
-    out_header = b'VBM' + Pack('B', VBMVERSION)
-    out_header += Pack('B', flag)
-    out_header += out_format
-    
-    # Compose Bone Data =========================================================
-    def ComposeBoneData(armature):
-        bone_names = []
-        if armature and export_armature:
-            print('> Composing armature data...')
-            
-            sourceobj = armature
-            
-            # Create armature that copy source's transforms -------------------------------------------------
-            bpy.ops.object.mode_set(mode='OBJECT')
-            
-            workingarmature = bpy.data.armatures.new(name=sourceobj.data.name + '__temp')
-            workingobj = bpy.data.objects.new(sourceobj.name + '__temp', workingarmature)
-            context.scene.collection.objects.link(workingobj)
-            
-            # Get bone transforms
-            rigbonemeta = {
-                b.name: (
-                    b.head_local.copy(), 
-                    b.tail_local.copy(), 
-                    b.AxisRollFromMatrix(b.matrix_local.to_3x3())[1],
-                    b.use_connect
-                    )
-                    for b in sourceobj.data.bones if b.use_deform
-            }
-            
-            boneparents = {b: p if p else None for b,p in ParseDeformParents(sourceobj).items()}
-            
-            bpy.ops.object.select_all(action='DESELECT')
-            workingobj.select_set(True)
-            
-            context.view_layer.objects.active = workingobj
-            bpy.ops.object.mode_set(mode='EDIT')
-            
-            editbones = workingobj.data.edit_bones
-            
-            # Create bones
-            for bonename, meta in rigbonemeta.items():
-                if bonename not in editbones.keys():
-                    editbones.new(name=bonename)
-                b = editbones[bonename]
-                b.head, b.tail, b.roll, b.use_connect = meta
+    try:
+        # Header ============================================================
+        attributelist = format.GetItems()
+        
+        # Make flag
+        flag = 0
+        
+        # Vertex Format
+        out_format = b''
+        out_format += Pack('B', len(attributelist)) # Format length
+        for i,attribute in enumerate(attributelist):
+            out_format += Pack('B', VBFTypeIndex[attribute.type]) # Attribute Type
+            out_format += Pack('B', attribute.size) # Attribute Float Size
+        
+        out_header = b'VBM' + Pack('B', VBMVERSION)
+        out_header += Pack('B', flag)
+        out_header += out_format
+        
+        # Compose Bone Data =========================================================
+        def ComposeBoneData(armature):
+            bone_names = []
+            if armature and export_armature:
+                print('> Composing armature data...')
                 
-            for b in editbones:
-                if boneparents[b.name]:
-                    b.parent = editbones[boneparents[b.name]]
-            
-            bpy.ops.object.mode_set(mode='OBJECT')
-            
-            # Write Data
-            out_bone = b''
-            
-            bones = [b for b in workingarmature.bones if b.use_deform]
-            bonemat = {b: (matrix @ b.matrix_local.copy()) for b in bones}
-            
-            out_bone += Pack('I', len(bones)) # Bone count
-            out_bone += b''.join( [PackString(b.name) for b in bones] ) # Bone names
-            out_bone += b''.join( [Pack('I', bones.index(b.parent) if b.parent else 0) for b in bones] ) # Bone parent index
-            out_bone += b''.join( [ # local matrices
-                PackMatrix('f', (bonemat[b.parent].inverted() @ bonemat[b]) if b.parent else bonemat[b]) 
-                for b in bones
-                ] )
-            out_bone += b''.join( [ # inverse matrices
-                PackMatrix('f', bonemat[b].inverted()) 
-                for b in bones
-                ] ) 
-            
-            bone_names = [b.name for b in bones]
-            
-            # Delete Temporary
-            bpy.data.objects.remove(workingobj, do_unlink=True)
-            bpy.data.armatures.remove(workingarmature, do_unlink=True)
-            
-        else:
-            out_bone = Pack('I', 0) # Bone Count
-        return (out_bone, bone_names)
-    
-    out_bone, bone_names = ComposeBoneData(armature)
-    
-    # Compose Vertex Buffer Data ================================================
-    def GetVBGroupSorted(objlist, grouping):
-        vbgroups = {}
-        vbkeys = []
-        vbnumber = {}
-        
-        for obj in objlist:
-            datapair = context.scene.vbm.GetVBData(
-                context, 
-                obj, 
-                format,
+                sourceobj = armature
                 
-                flip_uvs=flip_uvs,
-                max_subdivisions=max_subdivisions,
-                modifier_target=modifier_target,
-                apply_armature=apply_armature,
-                bone_names=bone_names,
-                deform_only=deform_only,
-                edges_only=edges_only,
-                flip_normals=flip_normals,
-                reverse_winding=reverse_winding,
-                matrix=matrix
-                )
-            vbytes = datapair[0]
-            vcounts = datapair[1]
+                # Create armature that copy source's transforms -------------------------------------------------
+                bpy.ops.object.mode_set(mode='OBJECT')
+                
+                workingarmature = bpy.data.armatures.new(name=sourceobj.data.name + '__temp')
+                workingobj = bpy.data.objects.new(sourceobj.name + '__temp', workingarmature)
+                context.scene.collection.objects.link(workingobj)
+                
+                # Get bone transforms
+                rigbonemeta = {
+                    b.name: (
+                        b.head_local.copy(), 
+                        b.tail_local.copy(), 
+                        b.AxisRollFromMatrix(b.matrix_local.to_3x3())[1],
+                        b.use_connect
+                        )
+                        for b in sourceobj.data.bones if b.use_deform
+                }
+                
+                boneparents = {b: p if p else None for b,p in ParseDeformParents(sourceobj).items()}
+                
+                bpy.ops.object.select_all(action='DESELECT')
+                workingobj.select_set(True)
+                
+                context.view_layer.objects.active = workingobj
+                bpy.ops.object.mode_set(mode='EDIT')
+                
+                editbones = workingobj.data.edit_bones
+                
+                # Create bones
+                for bonename, meta in rigbonemeta.items():
+                    if bonename not in editbones.keys():
+                        editbones.new(name=bonename)
+                    b = editbones[bonename]
+                    b.head, b.tail, b.roll, b.use_connect = meta
+                    
+                for b in editbones:
+                    if boneparents[b.name]:
+                        b.parent = editbones[boneparents[b.name]]
+                
+                bpy.ops.object.mode_set(mode='OBJECT')
+                
+                # Write Data
+                out_bone = b''
+                
+                bones = [b for b in workingarmature.bones if b.use_deform]
+                bonemat = {b: (matrix @ b.matrix_local.copy()) for b in bones}
+                
+                out_bone += Pack('I', len(bones)) # Bone count
+                out_bone += b''.join( [PackString(b.name) for b in bones] ) # Bone names
+                out_bone += b''.join( [Pack('I', bones.index(b.parent) if b.parent else 0) for b in bones] ) # Bone parent index
+                out_bone += b''.join( [ # local matrices
+                    PackMatrix('f', (bonemat[b.parent].inverted() @ bonemat[b]) if b.parent else bonemat[b]) 
+                    for b in bones
+                    ] )
+                out_bone += b''.join( [ # inverse matrices
+                    PackMatrix('f', bonemat[b].inverted()) 
+                    for b in bones
+                    ] ) 
+                
+                bone_names = [b.name for b in bones]
+                
+                # Delete Temporary
+                bpy.data.objects.remove(workingobj, do_unlink=True)
+                bpy.data.armatures.remove(workingarmature, do_unlink=True)
+                
+            else:
+                out_bone = Pack('I', 0) # Bone Count
+            return (out_bone, bone_names)
+        
+        out_bone, bone_names = ComposeBoneData(armature)
+        
+        # Compose Vertex Buffer Data ================================================
+        def GetVBGroupSorted(objlist, grouping):
+            vbgroups = {}
+            vbkeys = []
+            vbnumber = {}
             
-            # Group by Object
-            if grouping == 'OBJECT':
-                name = obj.name
-                name = FixName(name, delimiter_start, delimiter_end)
-                if sum( [len(x) for x in vbytes.values()] ) >= 0:
-                    if name not in vbkeys:
-                        vbkeys.append(name)
-                        vbgroups[name] = b''
-                        vbnumber[name] = 0
-                    vbgroups[name] += b''.join(vbytes.values())
-                    vbnumber[name] += sum(vcounts.values())
-            # Group by Material
-            elif grouping == 'MATERIAL':
-                for name, vbdata in vbytes.items():
-                    vcount = vcounts[name]
-                    name = FixName(name, delimiter_start, delimiter_end)
-                    if len(vbdata) > 0:
-                        if name not in vbkeys:
-                            vbkeys.append(name)
-                            vbgroups[name] = b''
-                            vbnumber[name] = 0
-                        vbgroups[name] += vbdata
-                        vbnumber[name] += vcount
-        
-        return (vbgroups, vbnumber, vbkeys)
-    
-    def FinishVBM(vbgroups, vbnumbers, groupkeys, path=path):
-        out_vb = b''
-        out_vb += Pack('I', len(vbgroups)) # Number of groups
-        out_vb += b''.join( [PackString(name) for name in groupkeys] ) # Group Names
-        
-        # Write groups
-        for name in groupkeys:
-            vb = vbgroups[name]
-            out_vb += Pack('L', len(vb)) # Size of buffer
-            out_vb += Pack('L', vbnumbers[name]) # Number of vertices
-            out_vb += vb # Vertex Buffer
-        
-        # Output to file
-        out = out_header + out_vb + out_bone
-        CompressAndWrite(out, compression_level, path)
-    
-    # No Batching
-    if batch == 'NONE':
-        vbgroups = {}
-        vbkeys = []
-        vertexcount = 0
-        
-        vbgroups, vertexcount, vbkeys = GetVBGroupSorted(targetobjects, grouping)
-        FinishVBM(vbgroups, vertexcount, vbkeys)
-    
-    else:
-        rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else (path + "/")
-        outgroups = {} # {groupname: vertexdata}
-        vbkeys = []
-        individualexport = True
-        
-        # By Name
-        if batch in ['OBJECT', 'MESH', 'MATERIAL']:
-            for obj in targetobjects:
+            for obj in objlist:
                 datapair = context.scene.vbm.GetVBData(
                     context, 
                     obj, 
@@ -1586,67 +1517,151 @@ def ExportVBM(
                     flip_normals=flip_normals,
                     reverse_winding=reverse_winding,
                     matrix=matrix
-                )
+                    )
                 vbytes = datapair[0]
                 vcounts = datapair[1]
-                vertexcount = sum(datapair[1].values())
                 
-                # By Object or Mesh name
-                if batch in ['OBJECT', 'MESH']:
-                    if vertexcount:
-                        k = obj.name if batch == 'OBJECT' else obj.data.name
-                        name = FixName(k, delimiter_start, delimiter_end)
+                # Group by Object
+                if grouping == 'OBJECT':
+                    name = obj.name
+                    name = FixName(name, delimiter_start, delimiter_end)
+                    if sum( [len(x) for x in vbytes.values()] ) >= 0:
                         if name not in vbkeys:
                             vbkeys.append(name)
-                            outgroups[name] = [b'', {name: 0}]
+                            vbgroups[name] = b''
+                            vbnumber[name] = 0
+                        vbgroups[name] += b''.join(vbytes.values())
+                        vbnumber[name] += sum(vcounts.values())
+                # Group by Material
+                elif grouping == 'MATERIAL':
+                    for name, vbdata in vbytes.items():
+                        vcount = vcounts[name]
+                        name = FixName(name, delimiter_start, delimiter_end)
+                        if len(vbdata) > 0:
+                            if name not in vbkeys:
+                                vbkeys.append(name)
+                                vbgroups[name] = b''
+                                vbnumber[name] = 0
+                            vbgroups[name] += vbdata
+                            vbnumber[name] += vcount
+            
+            return (vbgroups, vbnumber, vbkeys)
+        
+        def FinishVBM(vbgroups, vbnumbers, groupkeys, path=path):
+            out_vb = b''
+            out_vb += Pack('I', len(vbgroups)) # Number of groups
+            out_vb += b''.join( [PackString(name) for name in groupkeys] ) # Group Names
+            
+            # Write groups
+            for name in groupkeys:
+                vb = vbgroups[name]
+                out_vb += Pack('L', len(vb)) # Size of buffer
+                out_vb += Pack('L', vbnumbers[name]) # Number of vertices
+                out_vb += vb # Vertex Buffer
+            
+            # Output to file
+            out = out_header + out_vb + out_bone
+            CompressAndWrite(out, compression_level, path)
+        
+        # No Batching
+        if batch == 'NONE':
+            vbgroups = {}
+            vbkeys = []
+            vertexcount = 0
+            
+            vbgroups, vertexcount, vbkeys = GetVBGroupSorted(targetobjects, grouping)
+            FinishVBM(vbgroups, vertexcount, vbkeys)
+        
+        else:
+            rootpath = path[:path.rfind(self.filename_ext)] if self.filename_ext in path else (path + "/")
+            outgroups = {} # {groupname: vertexdata}
+            vbkeys = []
+            individualexport = True
+            
+            # By Name
+            if batch in ['OBJECT', 'MESH', 'MATERIAL']:
+                for obj in targetobjects:
+                    datapair = context.scene.vbm.GetVBData(
+                        context, 
+                        obj, 
+                        format,
                         
-                        outgroups[name][0] += b''.join([x for x in vbytes.values()])
-                        outgroups[name][1][name] += vertexcount
-                
-                # By Material
-                elif batch == 'MATERIAL':
-                    for k, d in vbytes.items():
-                        if vcounts[k]:
+                        flip_uvs=flip_uvs,
+                        max_subdivisions=max_subdivisions,
+                        modifier_target=modifier_target,
+                        apply_armature=apply_armature,
+                        bone_names=bone_names,
+                        deform_only=deform_only,
+                        edges_only=edges_only,
+                        flip_normals=flip_normals,
+                        reverse_winding=reverse_winding,
+                        matrix=matrix
+                    )
+                    vbytes = datapair[0]
+                    vcounts = datapair[1]
+                    vertexcount = sum(datapair[1].values())
+                    
+                    # By Object or Mesh name
+                    if batch in ['OBJECT', 'MESH']:
+                        if vertexcount:
+                            k = obj.name if batch == 'OBJECT' else obj.data.name
                             name = FixName(k, delimiter_start, delimiter_end)
                             if name not in vbkeys:
                                 vbkeys.append(name)
                                 outgroups[name] = [b'', {name: 0}]
                             
-                            outgroups[name][0] += vbytes[k]
-                            outgroups[name][1][name] += vcounts[k]
-        
-        # By Armature
-        elif batch == 'ARMATURE':
-            arms = [x for x in armatures if len(x.children) > 0]
-            individualexport = True
+                            outgroups[name][0] += b''.join([x for x in vbytes.values()])
+                            outgroups[name][1][name] += vertexcount
+                    
+                    # By Material
+                    elif batch == 'MATERIAL':
+                        for k, d in vbytes.items():
+                            if vcounts[k]:
+                                name = FixName(k, delimiter_start, delimiter_end)
+                                if name not in vbkeys:
+                                    vbkeys.append(name)
+                                    outgroups[name] = [b'', {name: 0}]
+                                
+                                outgroups[name][0] += vbytes[k]
+                                outgroups[name][1][name] += vcounts[k]
             
-            for armobj in arms:
-                name = armobj.name
-                name = FixName(name, delimiter_start, delimiter_end)
-                if name not in vbkeys:
-                    vbkeys.append(name)
+            # By Armature
+            elif batch == 'ARMATURE':
+                arms = [x for x in armatures if len(x.children) > 0]
+                individualexport = True
                 
-                children = [x for x in armobj.children if ((self.export_hidden and not x.hide_get()) or not self.hidden)]
-                out_bone = ComposeBoneData(armobj)
-                vbgroups, vbnumbers, groupnames = GetVBGroupSorted(children, grouping)
-                
-                if sum(vbnumbers.values()) > 0:
-                    FinishVBM(vbgroups, vbnumbers, vbkeys, rootpath + name + self.filename_ext)
-            outgroups = {}
+                for armobj in arms:
+                    name = armobj.name
+                    name = FixName(name, delimiter_start, delimiter_end)
+                    if name not in vbkeys:
+                        vbkeys.append(name)
+                    
+                    children = [x for x in armobj.children if ((self.export_hidden and not x.hide_get()) or not self.hidden)]
+                    out_bone = ComposeBoneData(armobj)
+                    vbgroups, vbnumbers, groupnames = GetVBGroupSorted(children, grouping)
+                    
+                    if sum(vbnumbers.values()) > 0:
+                        FinishVBM(vbgroups, vbnumbers, vbkeys, rootpath + name + self.filename_ext)
+                outgroups = {}
+            
+            # Export each data as individual files
+            if individualexport:
+                for name, outgroup in outgroups.items():
+                    FinishVBM({name: outgroup[0]}, outgroup[1], [name], rootpath + name + self.filename_ext)
+    
+    except Exception as e:
+        raise e
+    
+    finally:
+        # Restore State --------------------------------------------------------
+        RemoveTempObjects()
         
-        # Export each data as individual files
-        if individualexport:
-            for name, outgroup in outgroups.items():
-                FinishVBM({name: outgroup[0]}, outgroup[1], [name], rootpath + name + self.filename_ext)
-    
-    # Restore State --------------------------------------------------------
-    RemoveTempObjects()
-    
-    for obj in targetobjects:
-        obj.select_set(True)
-    
-    if activename in [x.name for x in bpy.context.selected_objects]:
-        context.view_layer.objects.active = bpy.data.objects[activename]
+        for obj in targetobjects:
+            if obj:
+                obj.select_set(True)
+        
+        if activename in [x.name for x in bpy.context.selected_objects]:
+            context.view_layer.objects.active = bpy.data.objects[activename]
     
 # --------------------------------------------------------------------------------------
 

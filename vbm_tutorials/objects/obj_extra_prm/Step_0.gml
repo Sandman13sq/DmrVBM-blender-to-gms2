@@ -8,6 +8,15 @@ if (keyboard_check(vk_subtract) || keyboard_check(189)) {transitionblend = max(0
 // Switch between matrices and track evaluation
 if (keyboard_check_pressed(vk_space)) {playbackmode ^= 1;}
 
+// Change animation
+if (keyboard_check_pressed(ord("Z"))) 
+{
+	animationindex = (animationindex+1) mod array_length(animationkeys);
+	trkanimator.SetAnimationKey(animationkeys[animationindex]);
+}
+
 // Progress Playback
 trkanimator.UpdateAnimation(1);
+
+mattran = Mat4Rotate(0, 0, trkanimator.CurveValue("spin", 0));
 

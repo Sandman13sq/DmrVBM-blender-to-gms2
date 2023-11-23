@@ -20,10 +20,11 @@ matrix_set(matrix_view, matview);
 // Draw vertex buffers (Simple)
 shader_set(shd_simple);
 
+matrix_set(matrix_world, matrix_build(0,0,0, 0,0,0, 0.1, 0.1, 0.1));
 vertex_submit(vb_grid, pr_linelist, -1); // <- pr_linelist here
 vertex_submit(vb_axis, pr_trianglelist, -1);
 
-matrix_set(matrix_world, mattran); // Transform matrix
+matrix_set(matrix_world, Mat4()); // Transform matrix
 
 shader_set(shd_rigged);
 shader_set_uniform_f_array(u_rigged_light, lightpos);
