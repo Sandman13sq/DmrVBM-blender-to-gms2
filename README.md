@@ -1,32 +1,33 @@
-![Repo Banner](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/banner.png)
+![Repo Banner](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/banner.png)
 
-# Vertex Buffer Model Exporter by Dreamer13sq
-### Import/Export tools for loading .vb and .vbm vertex buffer data out of Blender and in to Game Maker Studio 2
+# Vertex Buffer Model Exporter and Importer by Sandman13sq
+### Import/Export tools for loading vertex buffer data out of Blender and in to Game Maker Studio 2
+
 #### .vb is Game Maker Studio's **vertex buffer data** format used in functions like `vertex_submit()`.
-#### .vbm is a custom file format for exporting **multiple meshes** with extra metadata.  
-#### .trk is a custom file format for exporting **action animation data** from Blender.
+#### .vbm is a custom file format for exporting mesh data, skeleton bones, and action curves. 
+
+## [[ Current version is in BETA! The present file format is not finalized. Updates may (will) break compatibility and models will need re-exporting. ]]
 
 NOTE: If cloned straight from GitHub not all features are guranteed to work correctly.  
 For stable versions see the **Releases** on the GitHub page.
 
-# [Quick Start Guide](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/wiki/Quick-Start-Guide)
+# [Quick Start Guide](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/wiki/Quick-Start-Guide)
 
 -----
   
 ## Blender 3.x Addon Installation
 * In Blender, go to `Edit` > `Preferences` > `Add-ons`
 * Click `Install` on the top right of the Preferences window
-* Navigate to the `DmrBlender_VBM.zip` file (keep this zipped). Select it and click `Install Add-on`
-* Enable the `DmrBlender VBM Export` addon
+* Navigate to the `DmrVBM_Blender.zip` file (keep this zipped). Select it and click `Install Add-on`
+* Enable the `DmrVBM Vertex Buffer Model Export` addon
 * The VBM export panel can be found in the `Properties` > `Scene`
      * If nothing shows up try `Edit` > `Preferences` > `Interface` > `Display` > Enable `Developer Extras`
 
 ## Game Maker Studio 2 Installation
 * With a GMS2 project open, go to `Tools` > `Import Local Package`
-* Navigate to the `DmrVBM.yymps` file. Select the file and click `Open`
-* Choose which scripts to import into the project
-    * *scr_vbm* is written to be independent of any other script. The other scripts use elements from all scripts.
-* NOTE: Script names have changed from v1.1 to v1.2, so old scripts will need to be deleted to avoid conflicts.
+* Navigate to the `DmrVBM_GameMaker.yymps` file. Select the file and click `Open`
+* Choose *scr_vbm* to import into the project
+* NOTE: To avoid conflicts when upgrading to v1.3, remove existing v1.2 scripts before importing.
 
 ### Supported Attributes
 - Position - Location of vertex.
@@ -46,11 +47,36 @@ Game Maker's default format is [Position, Color Bytes, UV]
 
 -----------------------------------------------------------------------------------------------
 
-![Addon Panels](https://github.com/Dreamer13sq/DmrVBM-blender-to-gms2/blob/main/images/addon.png)
+![Addon Panels](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/addon.png)
 
 -----------------------------------------------------------------------------------------------
 
 # CHANGELOG
+
+## v1.3 BETA December 2023 Update
+- Blender Addon
+	- Addon code condensed to single script
+	- Merged VBM and TRK format into one filetype
+		- VBM files now contain mesh, skeleton, and action data
+		- TRK files are no longer a thing
+	- Overhauled UI
+		- All export types (.vb, .vbm, .trk, batched) combined into one operator
+		- More customization options for exports
+	- Optimizations for repeat exports
+		- Star button repeats last export of selected object in one click
+		- VB data is cached to object when exporting, so repeat exports with same parameters don't recalculate same data
+		- Baked actions are reused if source action data is not changed
+- GMS2 Scripts
+	- Merged VBM and TRK struct into single struct
+		- VBM data is now stored in one VBM_Model struct
+		- Struct contains meshes (vertex buffers), bone data, and animations
+		- VBM struct has an animator used for animating poses and curves
+	- Single script used for VBM functions
+		- Extra math functions omitted from package
+	- Tutorial project rewritten to reflect new changes
+
+- Other
+	- Current mascot is now Treat - A pumpkin witch.
 
 ## v1.2 December 2022 Update
 - VBM Export Addon
