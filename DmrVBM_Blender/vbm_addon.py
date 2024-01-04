@@ -22,8 +22,9 @@ classlist = []
     jumpanimations (1I)
     
     -- Vertex Buffers ----------------------------------------------
-    numvbuffers (1I)
+    meshflags (1I)
     
+    numvbuffers (1I)
     formatlength (1B)
     formatentry[formatlength]
         attributetype (1B)
@@ -33,17 +34,20 @@ classlist = []
         namelength (1B)
         namechars[namelength]
             char (1B)
+    
     vbdata[vbcount]
         vbcompressedsize (1L)
         vbnumvertices (1L)
         vbcompresseddata (vbcompressedsize B)
     
-    *vbmaterials[vbcount]
+    vbmaterials[vbcount]
         namelength (1B)
         namechars[namelength]
             char (1B)
     
     -- Skeleton ---------------------------------------------------
+    skeletonflags (1I)
+    
     numbones (1I)
     bonenames[numbones]
         namelength (1B)
@@ -57,6 +61,8 @@ classlist = []
         mat4 (16f)
     
     -- Animation --------------------------------------------------------
+    animationflags (1I)
+    
     numanimations (1I)
     animations[numanimations]
         namelength (1B)
@@ -83,41 +89,6 @@ classlist = []
                     value (1f)
                 frameinterpolations[numframes]
                     interpolationtype (1B)
-        
-        tracknames[numtracks]
-            namelength (1B)
-            namechars[namelength]
-                char (1B)
-        
-        trackspace (1B)
-            0 = No Tracks
-            1 = LOCAL
-            2 = POSE
-            3 = WORLD
-        trackdata[numtracks]
-            locationtransforms
-                numframes (1I)
-                framepositions[numframes]
-                    position (1f)
-                framevectors[numframes]
-                    vector[3]
-                        value (1f)
-            
-            quaterniontransforms
-                numframes (1I)
-                framepositions[numframes]
-                    position (1f)
-                framevectors[numframes]
-                    vector[4]
-                        value (1f)
-            
-            scaletransforms
-                numframes (1I)
-                framepositions[numframes]
-                    position (1f)
-                framevectors[numframes]
-                    vector[3]
-                        value (1f)
         
         markernames[nummarkers]
             namelength (1B)
@@ -302,6 +273,8 @@ if 1: # Folding
     )
 
     VALIDOBJTYPES = ['MESH', 'CURVE', 'META', 'FONT', 'SURFACE']
+    
+    VBM_QUEUEGROUPICON = ['DECORATE_KEYFRAME']+['SEQUENCE_COLOR_0'+str(i) for i in range(1, 10)]+['SEQ_CHROMA_SCOPE']*24
 
 '# =========================================================================================================================='
 '# PROPERTY GROUPS'
@@ -315,22 +288,24 @@ classlist.append(VBM_PG_Name)
 # -------------------------------------------------------------------------------------------------------------------------------
 class VBM_PG_Format_Attribute(bpy.types.PropertyGroup):
     def UpdateFormatString(self, context):
-        if self.format_code_mutex == False:
+        if not self.format_code_mutex:
+            for format in list(context.scene.vbm.formats):
+                if self in list(format.attributes) and format.format_code_mutex:
+                    return
+            
             self.format_code_mutex = True
             if self.type == VBF_PAB:
                 self.default_normalize = True
             if self.type == VBF_PAD:
                 self.default_normalize = False
             
-            for format in context.scene.vbm.formats:
-                if sum([att.format_code_mutex for att in format.attributes]) > 0:
+            for format in list(context.scene.vbm.formats):
+                if self in list(format.attributes):
                     format.UpdateFormatString(context)
+                    break
             
             self.size = min(self.size, VBFSize[self.type])
-        
-        for format in context.scene.vbm.formats:
-            for att in format.attributes:
-                att.format_code_mutex = False
+            self.format_code_mutex = False
     
     format_code_mutex : bpy.props.BoolProperty()
     
@@ -355,13 +330,12 @@ class VBM_PG_Format_Attribute(bpy.types.PropertyGroup):
         description="Constant values for this attribute")
     
     padding_bytes : bpy.props.IntVectorProperty(
-        name="Padding Bytes", size=4, default=(255,255,255,255), update=UpdateFormatString,
-        description="Constant values for this attribute",)
+        name="Padding Bytes", size=4, default=(255,255,255,255), min=0, max=255, update=UpdateFormatString,
+        description="Constant values for this attribute")
     
     default_normalize : bpy.props.BoolProperty(
         name="Normalized Bytes", default=False, update=UpdateFormatString,
-        description="Use normalized bytes for default value. This means the value will be divided by 255 on export",
-        )
+        description="Use normalized bytes for default value. This means the value will be divided by 255 on export")
 classlist.append(VBM_PG_Format_Attribute)
 
 # -------------------------------------------------------------------------------------------------------------------------------
@@ -376,12 +350,13 @@ class VBM_PG_Format(bpy.types.PropertyGroup):
                 s = str(att.type)
                 s += str(att.size)
                 
-                if att.layer == LYR_SELECT:
-                    s += "-select"
-                elif att.layer != LYR_RENDER:
-                    s += '@"' + att.layer + '"'
-                if not att.convert_to_srgb:
-                    s += "-linear"
+                if att.type in (VBF_COL, VBF_RGB, VBF_UVS, VBF_UVS):
+                    if att.layer == LYR_SELECT:
+                        s += "-select"
+                    elif att.layer != LYR_RENDER:
+                        s += '@"' + att.layer + '"'
+                    if not att.convert_to_srgb:
+                        s += "-linear"
                 if att.type == VBF_PAD:
                     s += "=("+("%.2f,"*att.size)[:-1] % att.padding_floats[:att.size]+")"
                 elif att.type == VBF_PAB:
@@ -450,7 +425,18 @@ classlist.append(VBM_PG_ExportList)
 # ========================================================================================================
 class VBM_PG_Action(bpy.types.PropertyGroup):
     action : bpy.props.PointerProperty(type=bpy.types.Action)
+    all_curves : bpy.props.BoolProperty(
+        name="All Bone Curves", default=True,
+        description="Write curves for all bones. If false, non-transformed curves will be omitted"
+    )
 classlist.append(VBM_PG_Action)
+
+class VBM_PG_Action_Settings(bpy.types.PropertyGroup):
+    all_curves : bpy.props.BoolProperty(
+        name="All Bone Curves", default=True,
+        description="Write curves for all bones. If false, non-transformed curves will be omitted"
+    )
+classlist.append(VBM_PG_Action_Settings)
 
 # ========================================================================================================
 
@@ -468,6 +454,46 @@ class VBM_PG_BoneDissolveList(bpy.types.PropertyGroup):
     dissolves : bpy.props.CollectionProperty(name="Dissolves", type=VBM_PG_BoneDissolveTree)
     index : bpy.props.IntProperty(name="Index", default=0)
 classlist.append(VBM_PG_BoneDissolveList)
+
+# ========================================================================================================
+
+class VBM_PG_ExportQueue_Entry(bpy.types.PropertyGroup):
+    def UpdateName(self, context):
+        allqueuenames = [q.name for q in context.scene.vbm.queues if q != self]
+        if self.name in allqueuenames:
+            basename = self.name
+            i = 1
+            while (basename+str(i) in allqueuenames):
+                i += 1
+            self.name = basename+str(i)
+            return
+    
+    name : bpy.props.StringProperty(name="Name", default="VBM", update=UpdateName)
+    group : bpy.props.IntProperty(name="Group", default=0, min=0, max=31)
+    id_armature : bpy.props.PointerProperty(name="Rig", type=bpy.types.Object, poll=lambda self,obj: obj.type=='ARMATURE')
+    id_collection : bpy.props.PointerProperty(name="Collection", type=bpy.types.Collection)
+    id_pose : bpy.props.PointerProperty(name="Pose", type=bpy.types.Action)
+    copy_textures : bpy.props.BoolProperty(name="Copy Textures", default=False)
+    
+    enabled : bpy.props.BoolProperty(name="Enabled", default=True)
+    # saveprops = {}
+classlist.append(VBM_PG_ExportQueue_Entry)
+
+# ------------------------------------------------------------------------------
+class VBM_PG_ExportQueue_Queue(bpy.types.PropertyGroup):
+    def GetFiles(self):
+        vbm = context.scene.vbm
+        filekeys = [int(x) for x in self.files]
+        return [q for q in vbm.queues if str(q.key) in filekeys]
+    
+    def FindFile(self, index):
+        key = int(self.files[index].name)
+        return [q for q in vbm.queues if q.key == key][0]
+    
+    files : bpy.props.CollectionProperty(name="Queues", type=VBM_PG_Name)
+    active_index : bpy.props.IntProperty(name="Index", default=0)
+    enabled : bpy.props.BoolProperty(name="Enabled", default=True)
+classlist.append(VBM_PG_ExportQueue_Queue)
 
 '# =========================================================================================================================='
 '# OPERATORS'
@@ -828,29 +854,193 @@ class VBM_OT_BoneDissolve_Init(bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(VBM_OT_BoneDissolve_Init)
 
+'========================================================================================================'
+
+class VBM_OT_ExportQueue_AddEntry(bpy.types.Operator):
+    """Add export queue to scene"""
+    bl_label = "Add Queue"
+    bl_idname = 'vbm.queue_entry_add'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        active = vbm.queues[vbm.queues_index] if vbm.queues else None
+        item = vbm.queues.add()
+        item['filepath'] = "//model.vbm"
+        item['selected_only'] = True
+        item['visible_only'] = True
+        
+        if active:
+            for k in active.keys():
+                item[k] = active[k]
+        
+        item.name = item.name
+        
+        vbm.queues.move(len(vbm.queues)-1, vbm.queues_index+1)
+        
+        return {'FINISHED'}
+classlist.append(VBM_OT_ExportQueue_AddEntry)
+
 # -------------------------------------------------------------------------------------------
-class VBM_OT_ExportList_Remove(bpy.types.Operator):
-    """Remove vertex format by index"""
-    bl_label = "Remove Format"
-    bl_idname = 'vbm.exportlist_remove'
+class VBM_OT_ExportQueue_RemoveEntry(bpy.types.Operator):
+    """Remove export queue by index"""
+    bl_label = "Remove Queue"
+    bl_idname = 'vbm.queue_entry_remove'
     bl_options = {'REGISTER', 'UNDO'}
     index : bpy.props.IntProperty(name="Index")
     
     def execute(self, context):
-        context.scene.vbm.export_lists.remove(self.index)
+        vbm = context.scene.vbm
+        vbm.queues.remove(self.index)
+        vbm.queues_index = min(max(vbm.queues_index, 0), len(vbm.queues)-1)
         return {'FINISHED'}
-classlist.append(VBM_OT_ExportList_Remove)
+classlist.append(VBM_OT_ExportQueue_RemoveEntry)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_ExportQueue_MoveEntry(bpy.types.Operator):
+    """Move queue up or down in list"""
+    bl_label = "Queue Move"
+    bl_idname = 'vbm.queue_entry_move'
+    bl_options = {'REGISTER', 'UNDO'}
+    move_down : bpy.props.BoolProperty(name="Move Down", default=True)
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        items = vbm.queues
+        items.move(vbm.queues_index, vbm.queues_index + (1 if self.move_down else -1))
+        vbm.queues_index = max(0, min(vbm.queues_index + (1 if self.move_down else -1), len(items)-1))
+        return {'FINISHED'}
+classlist.append(VBM_OT_ExportQueue_MoveEntry)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_ExportQueue_SetGroup(bpy.types.Operator):
+    """Move queue up or down in list"""
+    bl_label = "Queue Set Group"
+    bl_idname = 'vbm.queue_entry_group'
+    bl_options = {'REGISTER', 'UNDO'}
+    queue : bpy.props.StringProperty(name="Queue", default="")
+    group : bpy.props.IntProperty(name="Group", default=0, min=0, max=31)
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        queue = vbm.queues.get(self.queue)
+        if queue:
+            queue.group = self.group
+        return {'FINISHED'}
+classlist.append(VBM_OT_ExportQueue_SetGroup)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_ExportQueue_ToggleGroup(bpy.types.Operator):
+    """Toggle groups for queues"""
+    bl_label = "Queue Toggle Group"
+    bl_idname = 'vbm.queue_group_toggle'
+    bl_options = {'REGISTER', 'UNDO'}
+    group : bpy.props.IntProperty(name="Group", default=0, min=-1, max=31)
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        if self.group == -1:
+            queues = list(vbm.queues)
+        else:
+            queues = [q for q in vbm.queues if q.group == self.group]
+        
+        enabled = sum([q.enabled == False for q in queues]) == len(queues)
+        for q in queues:
+            q.enabled = enabled
+        
+        return {'FINISHED'}
+classlist.append(VBM_OT_ExportQueue_ToggleGroup)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_ExportQueue_Export(bpy.types.Operator):
+    """Export all VBMs in queue"""
+    bl_label = "Export Queue"
+    bl_idname = 'vbm.queue_export'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    queue : bpy.props.StringProperty(name="Queue", default="")
+    group : bpy.props.IntProperty(name="Group", default=-1, min=-1, max=31) # Ignored if 'queue' is set
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        if self.queue:
+            queues = [ vbm.queues.get(self.queue) ]
+        elif self.group > -1:
+            queues = [ q for q in vbm.queues if q.group == self.group ]
+        else:
+            queues = list(vbm.queues)
+        
+        hits = 0
+        
+        for q in queues:
+            if q.enabled:
+                print("> Exporting Queue: " + q.name)
+                bpy.ops.vbm.export_vbm(queue=q.name)
+                hits += 1
+        
+        if hits == 0:
+            self.report({'WARNING'}, "No Queues Exported.")
+        else:
+            self.report({'INFO'}, "%d Queue(s) Exported." % hits)
+        
+        return {'FINISHED'}
+classlist.append(VBM_OT_ExportQueue_Export)
 
 '========================================================================================================'
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
-    """Add vertex format to scene"""
+    """Export model to vbm file"""
     bl_label = "Export VBM"
     bl_idname = 'vbm.export_vbm'
     bl_options = {'REGISTER', 'UNDO'}
     
+    savepropnames = ('''
+        filepath filename_ext file_type compression collection armature 
+        alphanumeric_modifiers mesh_delimiter_start mesh_delimiter_end flip_uvs
+        add_root_bone deform_only pose armature_delimiter_start armature_delimiter_end
+        action_delimiter_start action_delimiter_end
+        visible_only selected_only alphanumeric_only format_code format grouping batching fast_vb cache_vb
+        pre_script post_script export_meshes export_skeleton export_animations copy_textures''').split()
+    
     dialog: bpy.props.BoolProperty(default=True)
+    queue : bpy.props.StringProperty(
+        name="Export Queue", default="",
+        description="Export Queue To Write/Save to"
+        )
+    
+    def SaveQueue(self, context):
+        if self.queue_save:
+            self.queue_save = False
+            
+            if not self.queue:
+                self.queue = (
+                    self.collection if self.armature else 
+                    self.armature if self.armature else 
+                    context.object.name
+                )
+            
+            vbmqueues = context.scene.vbm.queues
+            queue = vbmqueues.get(self.queue)
+            if not queue:
+                queue = vbmqueues.add()
+                queue.name = self.queue
+            if queue:
+                queue.id_armature = bpy.data.objects.get(self.armature)
+                queue.id_collection = bpy.data.collections.get(self.collection)
+                queue.id_pose = bpy.data.actions.get(self.pose)
+                
+                for k in VBM_OT_ExportVBM.savepropnames:
+                    queue[k] = getattr(self, k)
+                
+                queue['filepath'] = bpy.path.relpath(queue['filepath'])
+                
+                print("> Saved props to: " + queue.name)
+    
+    queue_save : bpy.props.BoolProperty(
+        name="Save Queue", default=False, update=SaveQueue,
+        description="Save Settings to Queue"
+    )
     
     filter_glob: bpy.props.StringProperty(default="*", options={'HIDDEN'}, maxlen=255)
     filename_ext: bpy.props.StringProperty(default=".vb", options={'HIDDEN'})
@@ -933,39 +1123,6 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         description="Modifiers with names starting with a non-alphanumeric character are omitted from export"
     )
     
-    # Skeleton ===================================================
-    
-    deform_only : bpy.props.BoolProperty(
-        name="Deform Only", default=True,
-        description="Only export deform bones for skeleton and bone-related attributes"
-    )
-    
-    add_root_bone : bpy.props.BoolProperty(
-        name="Add Zero Bone", default=True,
-        description="Adds a root bone to the origin of the armature."
-    )
-    
-    # Checkout ===================================================
-    visible_only : bpy.props.BoolProperty(
-        name="Visible Only", default=True,
-        description="Export meshes that are visible"
-    )
-    
-    selected_only : bpy.props.BoolProperty(
-        name="Selected Only", default=True,
-        description="Export meshes that are selected"
-    )
-    
-    alphanumeric_only : bpy.props.BoolProperty(
-        name="Alphanumeric Only", default=True,
-        description="Objects with names starting with a non-alphanumeric character are omitted from export"
-    )
-    
-    compression : bpy.props.IntProperty(
-        name="Compression", default=-1, min=-1, max=9,
-        description="Amount to compress file"
-    )
-    
     mesh_delimiter_start : bpy.props.StringProperty(
         name="Mesh Delimiter Start", default="-",
         description="Remove beginning of mesh name up to and including this character"
@@ -980,6 +1137,50 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         name="Show Corrected Names", default=True,
         description="Show corrected action names"
     )
+    
+    use_object_formats : bpy.props.BoolProperty(
+        name="Use Object Formats", default=True,
+        description="If set, use the format defined for the object, instead of dialog's format. Dialog format is used if not set/found"
+    )
+    
+    flip_uvs : bpy.props.BoolProperty(
+        name="Flip UVs", default=True,
+        description="Invert the Y coordinate of exported UV values (1-y)"
+    )
+    
+    # Skeleton ===================================================
+    
+    armature_delimiter_start : bpy.props.StringProperty(
+        name="Armature Delimiter Start", default="-",
+        description="Remove beginning of mesh name up to and including this character"
+    )
+    
+    armature_delimiter_end : bpy.props.StringProperty(
+        name="Armature Delimiter End", default="",
+        description="Remove end of mesh name including this character"
+    )
+    
+    armature_delimiter_show : bpy.props.BoolProperty(
+        name="Armature Corrected Names", default=True,
+        description="Show corrected armature names"
+    )
+    
+    pose : bpy.props.StringProperty(
+        name="Pose", default="",
+        description="Action to set armature to for export. Ignored if armature is exported"
+    )
+    
+    deform_only : bpy.props.BoolProperty(
+        name="Deform Only", default=True,
+        description="Only export deform bones for skeleton and bone-related attributes"
+    )
+    
+    add_root_bone : bpy.props.BoolProperty(
+        name="Add Zero Bone", default=True,
+        description="Adds a root bone to the origin of the armature."
+    )
+    
+    # Action ===================================================
     
     action_delimiter_start : bpy.props.StringProperty(
         name="Action Delimiter Start", default="-",
@@ -996,10 +1197,36 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         description="Show corrected action names"
     )
     
-    menu_vbuffer : bpy.props.BoolProperty(name="Vertex Buffer Options", default=True)
-    menu_skeleton : bpy.props.BoolProperty(name="Skeleton Options", default=True)
-    menu_animation : bpy.props.BoolProperty(name="Animation Options", default=True)
-    menu_checkout : bpy.props.BoolProperty(name="Checkout Options", default=True)
+    # Checkout ===================================================
+    visible_only : bpy.props.BoolProperty(
+        name="Visible Only", default=False,
+        description="Export meshes that are visible"
+    )
+    
+    selected_only : bpy.props.BoolProperty(
+        name="Selected Only", default=False,
+        description="Export meshes that are selected"
+    )
+    
+    alphanumeric_only : bpy.props.BoolProperty(
+        name="Alphanumeric Only", default=True,
+        description="Objects with names starting with a non-alphanumeric character are omitted from export"
+    )
+    
+    compression : bpy.props.IntProperty(
+        name="Compression", default=-1, min=-1, max=9,
+        description="Amount to compress file"
+    )
+    
+    copy_textures : bpy.props.BoolProperty(
+        name="Copy Textures", default=False,
+        description="Copy relevant textures from objects' materials to destination. Filename uses not label if set, else image name"
+    )
+    
+    menu_vbuffer : bpy.props.BoolProperty(name="Vertex Buffer Options", default=False)
+    menu_skeleton : bpy.props.BoolProperty(name="Skeleton Options", default=False)
+    menu_animation : bpy.props.BoolProperty(name="Animation Options", default=False)
+    menu_checkout : bpy.props.BoolProperty(name="Checkout Options", default=False)
     
     pre_script : bpy.props.StringProperty(
         name="Pre Script", default="",
@@ -1013,14 +1240,6 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     
     active : bpy.props.BoolProperty()
     use_last_props : bpy.props.BoolProperty()
-    
-    savepropnames = ('''
-        filepath filename_ext file_type compression collection armature 
-        alphanumeric_modifiers mesh_delimiter_start mesh_delimiter_end
-        add_root_bone deform_only
-        action_delimiter_start action_delimiter_end
-        visible_only selected_only alphanumeric_only format_code format grouping batching fast_vb cache_vb
-        pre_script post_script export_meshes export_skeleton export_animations''').split()
     
     def GetCheckout(self):
         # Can't have this in a prop update, otherwise it lags Blender
@@ -1061,7 +1280,29 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 armatures.append(obj.find_armature())
         
         if self.batching == 'ARMATURE':
-            files = [ [fbasename + f[2].name + fext, armature.children, armature, [x.action for x in armature.data.vbm_action_list if x.action]] for armature in armatures ]
+            files = [ 
+                [
+                    fbasename + armature.name + fext, 
+                    armature.children, 
+                    armature, 
+                    [x.action for x in armature.data.vbm_action_list if x.action]
+                ] 
+                for armature in armatures
+            ]
+        elif self.batching == 'OBJECT':
+            files = [
+                [fbasename + obj.name + fext, [obj], None, []]
+                for obj in objects if obj.type != 'ARMATURE' and (
+                    (not self.alphanumeric_only or obj.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890')
+                )
+            ]
+        elif self.batching == 'MESH':
+            files = [
+                [fbasename + obj.data.name + fext, [obj], None, []]
+                for obj in objects if obj.type == 'MESH' and (
+                    (not self.alphanumeric_only or obj.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890')
+                )
+            ]
         else:
             objects = [obj for obj in objects if obj.type in VALIDOBJTYPES]
             if armatures:
@@ -1072,12 +1313,21 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         
         if not self.export_meshes:
             files = [f[:1] + [[]] + f[2:] for f in files]
-        if not self.export_skeleton:
-            files = [f[:2] + [None] + f[3:] for f in files]
         if not self.export_animations:
             files = [f[:3] + [[]] + f[4:] for f in files]
         
         return files
+    
+    def ReadQueue(self):
+        queue = bpy.context.scene.vbm.queues.get(self.queue)
+        if queue:
+            for k in queue.keys():
+                if k in self.savepropnames and isinstance(queue[k], (type(getattr(self, k)), bool, int, float, str)):
+                    setattr(self, k, queue[k])
+            self.armature = queue.id_armature.name if queue.id_armature else self.armature
+            self.collection = queue.id_collection.name if queue.id_collection else self.collection
+            self.pose = queue.id_pose.name if queue.id_pose else self.pose
+        return queue
     
     def invoke(self, context, event):
         [data.remove(x) for data in (bpy.data.objects, bpy.data.meshes, bpy.data.armatures, bpy.data.actions) for x in data if x.get('__temp', False)]
@@ -1089,19 +1339,24 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             if context.scene.vbm.formats:
                 self.format = context.scene.vbm.formats[0].name
         
+        # Queue
+        queue = self.ReadQueue()
         # Use Last Props
-        obj = context.selected_objects[0] if context.selected_objects else context.active_object
-        rig = bpy.data.objects.get(self.armature)
-        collection = bpy.data.collections.get(self.collection)
-        
-        if collection:
-            [setattr(self, k,v) for k,v in collection.get('VBM_LASTEXPORT', {}).items()]
-            self.collection = collection.name
-        elif rig:
-            [setattr(self, k,v) for k,v in rig.get('VBM_LASTEXPORT', {}).items()]
-            self.armature = rig.name
-        elif obj:
-            [setattr(self, k,v) for k,v in obj.get('VBM_LASTEXPORT', {}).items()]
+        if not queue and self.use_last_props:
+            obj = context.selected_objects[0] if context.selected_objects else context.active_object
+            rig = bpy.data.objects.get(self.armature)
+            collection = bpy.data.collections.get(self.collection)
+            
+            if collection:
+                [setattr(self, k,v) for k,v in collection.get('VBM_LASTEXPORT', {}).items() if k in self.savepropnames]
+                self.collection = collection.name
+            elif rig:
+                [setattr(self, k,v) for k,v in rig.get('VBM_LASTEXPORT', {}).items() if k in self.savepropnames]
+                self.armature = rig.name
+            elif obj:
+                ftype = self.file_type
+                [setattr(self, k,v) for k,v in obj.get('VBM_LASTEXPORT', {}).items() if k in self.savepropnames]
+                self.file_type = ftype
         
         # Call Browser Dialog
         if self.dialog:
@@ -1124,6 +1379,24 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     def draw(self, context):
         vbm = context.scene.vbm
         layout = self.layout
+        
+        # Queue
+        r = layout.row(align=True)
+        
+        rr = r.row(align=True)
+        rr.scale_x = 0.55
+        rr.label(text="Queue:")
+        rr.prop_search(self, 'queue', vbm, 'queues', text="")
+        
+        queue = vbm.queues.get(self.queue)
+        if queue:
+            r.prop(queue, 'name', text="")
+        else:
+            r.prop(self, 'queue', text="")
+        
+        r.prop(self, 'queue_save', text="", icon='GREASEPENCIL')
+        
+        # File Type
         r = layout.row()
         r.prop(self, 'file_type', expand=True)
         
@@ -1139,7 +1412,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         r.prop(self, 'export_animations', text="Animations", toggle=True)
         
         b.separator()
-        b.prop(self, 'compression')
+        r = b.row()
+        r.prop(self, 'compression')
+        rr = r.row()
+        rr.scale_x = 0.9
+        rr.prop(self, 'copy_textures')
         
         c = layout.column(align=True)
         r = c.row(align=True)
@@ -1150,6 +1427,9 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         c = layout.column(align=True)
         c.prop(self, 'batching')
         c.prop(self, 'grouping')
+        
+        c = layout.column(align=True)
+        c.prop_search(self, 'pose', bpy.data, 'actions', icon='POSE_HLT')
         
         bc = layout.column(align=True)
         
@@ -1170,6 +1450,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             cc.use_property_split = True
             cc.prop_search(self, "pre_script", bpy.data, 'texts')
             cc.prop_search(self, "post_script", bpy.data, 'texts')
+            cc.prop(self, "flip_uvs")
             rr = c.row()
             rr.prop(self, "fast_vb")
             rr.prop(self, "cache_vb")
@@ -1210,6 +1491,15 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             r.prop(self, 'mesh_delimiter_show', text="", icon='HIDE_OFF' if self.mesh_delimiter_show else 'HIDE_ON')
             
             r = bb.row(align=True)
+            r.active = self.grouping == 'ARMATURE'
+            r.label(text="", icon='ARMATURE_DATA')
+            rr = r.row(align=True)
+            rr.scale_x = 1.1
+            rr.prop(self, 'armature_delimiter_start', text="", icon='TRACKING_CLEAR_BACKWARDS')
+            rr.prop(self, 'armature_delimiter_end', text="", icon='TRACKING_CLEAR_FORWARDS')
+            r.prop(self, 'armature_delimiter_show', text="", icon='HIDE_OFF' if self.armature_delimiter_show else 'HIDE_ON')
+            
+            r = bb.row(align=True)
             r.label(text="", icon='ACTION')
             rr = r.row(align=True)
             rr.scale_x = 1.1
@@ -1233,7 +1523,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     name = name[:name.find(delimend)]
                 return name
                 
-            for fname, fobjects, farmature, factions in self.GetCheckout():
+            checkout = self.GetCheckout()
+            for fname, fobjects, farmature, factions in checkout:
+                if self.batching == 'ARMATURE' and self.armature_delimiter_show:
+                    fname = FixName(fname, self.armature_delimiter_start, self.armature_delimiter_end)
+                
                 c.label(text=fname)
                 r = c.row(align=True)
                 r.label(text="", icon='BLANK1')
@@ -1246,14 +1540,16 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 # Meshes
                 for obj in fobjects:
                     rr = cc.row(align=True)
-                    rr.enabled = (
+                    canexport = (
                         (not self.visible_only or obj.visible_get()) and
                         (not self.selected_only or obj.select_get()) and
                         (not self.alphanumeric_only or obj.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890')
                     )
                     
+                    rr.enabled = canexport
+                    
                     name = obj.name
-                    if self.mesh_delimiter_show:
+                    if self.mesh_delimiter_show and canexport:
                         name = FixName(name, self.mesh_delimiter_start, self.mesh_delimiter_end)
                     
                     rr.label(text=name, icon=obj.type+'_DATA')
@@ -1266,6 +1562,19 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     if self.action_delimiter_show:
                         name = FixName(name, self.action_delimiter_start, self.action_delimiter_end)
                     cc.label(text=name, icon='ACTION')
+            # + Textures
+            if self.copy_textures:
+                outputimages = list(set([
+                    (nd.label if nd.label else nd.image.name, nd.image)
+                    for c in checkout
+                    for obj in c[1]
+                    for slot in obj.material_slots
+                    for nd in slot.material.node_tree.nodes if (nd.type == 'TEX_IMAGE' and nd.image)
+                ]))
+                
+                for name, image in outputimages:
+                    cc.label(text=bpy.path.ensure_ext(name, ".png"), icon='IMAGE')
+            
         else:
             r = b.row(align=True)
             r.prop(self, 'menu_checkout', icon='CURRENT_FILE')
@@ -1275,11 +1584,15 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     
     def execute(self, context):
         vbm = context.scene.vbm
+        exporterror = 0
+        
+        # Queue
+        queue = self.ReadQueue()
         
         self.filename_ext = "." + self.file_type.lower()
         fpath = os.path.abspath(bpy.path.abspath(self.filepath))
-        fpath = bpy.path.ensure_ext(fpath, self.filename_ext)
         if self.filename_ext in fpath:
+            fpath = bpy.path.ensure_ext(fpath, self.filename_ext)
             fdir = os.path.dirname(fpath) + "/"
             fname = os.path.basename(fpath)
             fbasename, fext = os.path.splitext(fname)
@@ -1294,28 +1607,41 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         
         deformonly = self.deform_only
         usezerobone = self.add_root_bone
-        boneorder = []
-        
         delims = [self.mesh_delimiter_start, self.mesh_delimiter_end]
         
         sc = context.scene
         
         # Save Last Props
-        obj = context.selected_objects[0] if context.selected_objects else context.active_object
-        rig = bpy.data.objects.get(self.armature)
-        collection = bpy.data.collections.get(self.collection)
+        if not queue:
+            obj = context.selected_objects[0] if context.selected_objects else context.active_object
+            rig = bpy.data.objects.get(self.armature)
+            collection = bpy.data.collections.get(self.collection)
+            
+            saveprops = {k: getattr(self, k) for k in self.savepropnames}
+            if format:
+                saveprops['format_code'] = format.format_code
+            
+            if collection:
+                collection['VBM_LASTEXPORT'] = saveprops
+            elif rig:
+                rig['VBM_LASTEXPORT'] = saveprops
+            else:
+                for obj in context.selected_objects:
+                    obj['VBM_LASTEXPORT'] = saveprops
         
-        saveprops = {k: getattr(self, k) for k in self.savepropnames}
-        if format:
-            saveprops['format_code'] = format.format_code
+        if not os.path.isdir(fdir):
+            self.report({'WARNING'}, "Path does not exist: " + filepath)
+            return {'FINISHED'}
         
-        if collection:
-            collection['VBM_LASTEXPORT'] = saveprops
-        elif rig:
-            rig['VBM_LASTEXPORT'] = saveprops
-        else:
-            for obj in context.selected_objects:
-                obj['VBM_LASTEXPORT'] = saveprops
+        pose_action = bpy.data.actions.get(self.pose)
+        
+        transformdefaults = (
+            ('.location', (0,0,0)),
+            ('.rotation_quaternion', (1,0,0,0)),
+            ('.scale', (1,1,1))
+        )
+        
+        outputimages = []
         
         def FixName(name, delimstart, delimend):
             if delimstart and delimstart in name:
@@ -1334,6 +1660,14 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     (not self.alphanumeric_only or obj.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890')
                 )]
                 
+                lastaction = None
+                if armature and pose_action:
+                    if not armature.animation_data:
+                        armature.animation_data_create()
+                    lastaction = armature.animation_data.action
+                    armature.animation_data.action = pose_action
+                    context.scene.frame_set(context.scene.frame_current)
+                
                 vbdata = context.scene.vbm.MeshToVB(
                     objects, 
                     format if format else self.format_code,
@@ -1343,6 +1677,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     fast=self.fast_vb,
                     alphanumeric_modifiers=self.alphanumeric_modifiers,
                     apply_armature=True,
+                    flip_uvs=self.flip_uvs,
                     )
                 
                 outbytes = b''.join([vbmeta[0] for name, vbmeta in vbdata.items()])
@@ -1365,6 +1700,9 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], filepath) 
                     )
                 
+                if armature and pose_action:
+                    armature.animation_data.action = lastaction
+                
             self.report({'INFO'}, "> Vertex Buffer Export Complete")
         # VBM
         elif self.file_type == 'VBM':
@@ -1373,13 +1711,26 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             PackMatrix = lambda m: b''.join([Pack('f', x) for v in m.copy().transposed() for x in v])
             
             for fname, objects, armature, actions in files:
+                if self.batching == 'ARMATURE':
+                    fname = FixName(fname, self.armature_delimiter_start, self.armature_delimiter_end)
+                
                 filepath = fdir + fname
+                
                 objects = [obj for obj in objects if (
                     (not self.visible_only or obj.visible_get()) and
                     (not self.selected_only or obj.select_get()) and
                     (not self.alphanumeric_only or obj.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890')
                 )]
                 
+                if self.copy_textures:
+                    outputimages += [
+                        (nd.label if nd.label else nd.image.name, nd.image)
+                        for obj in objects
+                        for slot in obj.material_slots
+                        for nd in slot.material.node_tree.nodes if (nd.type == 'TEX_IMAGE' and nd.image)
+                    ]
+                
+                boneorder = []
                 bonedata = {}
                 
                 # Data order: Header, VBs, Skeleton, Animations
@@ -1387,14 +1738,14 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 
                 # Skeleton --------------------------------------------------------
                 outskeleton = b''
+                outskeleton += Pack('I', 0) # Flags
                 
                 parentmap = {}
                 if armature:
                     parentmap = vbm.DeformArmatureMap(armature) if deformonly else {b.name: b.parent.name if b.parent else "" for b in armature.data.bones}
                     boneorder = list(parentmap.keys())
                 
-                if armature and self.export_skeleton:
-                    print("> Creating Skeleton Data")
+                if armature:
                     matidentity = armature.matrix_world.copy()
                     matidentity.identity()
                     
@@ -1404,33 +1755,37 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     parentmatinv = {b: bonematinv[parentmap[b]].copy() if parentmap.get(b) else matidentity for b in bonematinv.keys()}
                     
                     numbones = len(boneorder)
-                    outskeleton += Pack('I', numbones + usezerobone)
                     
-                    # Bone Names
-                    if usezerobone:
-                        outskeleton += PackString("")
-                    for bname in boneorder:
-                        outskeleton += PackString(bname)
-                    # Parent Indices
-                    if usezerobone:
+                    if self.export_skeleton:
+                        print("> Creating Skeleton Data")
+                        outskeleton += Pack('I', numbones + usezerobone)
+                        
+                        # Bone Names
+                        if usezerobone:
+                            outskeleton += PackString("")
+                        for bname in boneorder:
+                            outskeleton += PackString(bname)
+                        # Parent Indices
+                        if usezerobone:
+                            outskeleton += Pack('I', 0)
+                        for b in boneorder:
+                            outskeleton += Pack('I', (boneorder.index(parentmap[b]) + usezerobone) if parentmap.get(b) != None else 0)
+                        # Local Matrices
+                        if usezerobone:
+                            outskeleton += PackMatrix(matidentity)
+                        for b in boneorder:
+                            outskeleton += PackMatrix((parentmatinv[b] @ bonemat[b]))
+                        # Inverse Transforms
+                        if usezerobone:
+                            outskeleton += PackMatrix(matidentity)
+                        for b in boneorder: 
+                            outskeleton += PackMatrix(bonematinv[b])
+                    else:
                         outskeleton += Pack('I', 0)
-                    for b in boneorder:
-                        outskeleton += Pack('I', (boneorder.index(parentmap[b]) + usezerobone) if parentmap.get(b) != None else 0)
-                    # Local Matrices
-                    if usezerobone:
-                        outskeleton += PackMatrix(matidentity)
-                    for b in boneorder:
-                        outskeleton += PackMatrix((parentmatinv[b] @ bonemat[b]))
-                    # Inverse Transforms
-                    if usezerobone:
-                        outskeleton += PackMatrix(matidentity)
-                    for b in boneorder: 
-                        outskeleton += PackMatrix(bonematinv[b])
-                else:
-                    outskeleton += Pack('I', 0)
                 
                 # VBs -------------------------------------------------------------
                 outvbs = b''
+                outvbs += Pack('I', 0) # Flags
                 
                 vbmap = {}
                 
@@ -1448,6 +1803,16 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     if usezerobone:
                         boneorder = [""] + boneorder
                     
+                    lastaction = None
+                    if armature:
+                        if not armature.animation_data and pose_action:
+                            armature.animation_data_create()
+                        if armature.animation_data:
+                            lastaction = armature.animation_data.action
+                    
+                    if pose_action:
+                        armature.animation_data.action = pose_action
+                    
                     print("> Creating VB Data")
                     if grouping == 'OBJECT':
                         for obj in objects:
@@ -1461,6 +1826,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 use_cache=self.cache_vb,
                                 fast=self.fast_vb,
                                 alphanumeric_modifiers=self.alphanumeric_modifiers,
+                                flip_uvs=self.flip_uvs,
                             ).items():
                                 name = FixName(name, self.mesh_delimiter_start, self.mesh_delimiter_end)
                                 
@@ -1496,6 +1862,9 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                             
                             vbmap[str(f)] = (vb, numelements)
                 
+                    if armature and armature.animation_data:
+                        armature.animation_data.action = lastaction
+                
                 outvbs += Pack('I', len(vbmap))
                 
                 formatserialized = vbm.ParseFormatString(format if format else self.format_code) if self.export_meshes else []
@@ -1516,28 +1885,36 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 
                 # Animation --------------------------------------------------------
                 outanimations = b''
+                outanimations = Pack('I', 0) # Flags
                 
-                if armature and self.export_animations:
+                if self.export_animations:
                     print("> Creating Animation Data")
-                    matidentity = armature.matrix_world.copy()
-                    matidentity.identity()
-                    lastaction = armature.animation_data.action if armature.animation_data else None
                     
-                    numactions = len(actions)
-                    fps = context.scene.render.fps
+                    boneorder = tuple(parentmap.keys())
+                    basebonenames = [x.replace('DEF-', "") for x in boneorder]
                     
-                    outanimations += Pack('I', numactions) # numactions
+                    outanimations += Pack('I', len(actions)) # numactions
                     
-                    workingrig = vbm.CreateDeformArmature(armature)
-                    workingrig['__temp'] = True
-                    workingrig.data['__temp'] = True
-                    context.view_layer.objects.active = workingrig
-                    
-                    if not workingrig.animation_data:
-                        workingrig.animation_data_create()
-                    
-                    armature.data.pose_position = 'POSE'
-                    workingrig.data.pose_position = 'POSE'
+                    if armature:
+                        matidentity = armature.matrix_world.copy()
+                        matidentity.identity()
+                        lastaction = armature.animation_data.action if armature.animation_data else None
+                        
+                        numactions = len(actions)
+                        fps = context.scene.render.fps
+                        
+                        workingrig = vbm.CreateDeformArmature(armature)
+                        workingrig['__temp'] = True
+                        workingrig.data['__temp'] = True
+                        context.view_layer.objects.active = workingrig
+                        
+                        if not workingrig.animation_data:
+                            workingrig.animation_data_create()
+                        
+                        armature.data.pose_position = 'POSE'
+                        workingrig.data.pose_position = 'POSE'
+                    else:
+                        workingrig = None
                     
                     for action in actions:
                         actionchecksum = int(sum((
@@ -1546,65 +1923,82 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                             [action.frame_start, action.frame_end]
                         )))
                         
-                        if actionchecksum != action.get('VBM_CHECKSUM', 0) or action.get('VBM_BAKED', "") not in bpy.data.actions.keys():
-                            baked = bpy.data.actions.get(action.get('VBM_BAKED', ""))
-                            if baked:
-                                bpy.data.actions.remove(baked)
-                            
-                            action['VBM_CHECKSUM'] = actionchecksum
-                            
-                            workingaction = action.copy()
-                            workingrig.select_set(True)
-                            workingrig.animation_data.action = workingaction
-                            workingaction['__temp'] = True
-                            
-                            armature.animation_data.action = workingaction
-                            
-                            [pb.matrix_basis.identity() for pb in workingrig.pose.bones]
-                            [pb.matrix_basis.identity() for pb in armature.pose.bones]
-                            
-                            context.view_layer.update()
-                            
-                            print("> Baking action:", workingaction.name)
-                            bpy.ops.nla.bake(
-                                frame_start=int(action.frame_start),
-                                frame_end=int(action.frame_end), 
-                                step=1, 
-                                only_selected=False, 
-                                visual_keying=True, 
-                                clear_constraints=False, 
-                                clear_parents=False, 
-                                use_current_action=True, 
-                                clean_curves=True,
-                                bake_types={'POSE'} 
-                                )
-                            print("> Bake complete")
-                            
-                            workingaction = workingrig.animation_data.action
-                            workingaction['__temp'] = False
-                            workingaction.name = "~" + action.name + "__VBM_BAKED"
-                            action['VBM_BAKED'] = workingaction.name
+                        if workingrig:
+                            if actionchecksum != action.get('VBM_CHECKSUM', 0) or action.get('VBM_BAKED', "") not in bpy.data.actions.keys():
+                                baked = bpy.data.actions.get(action.get('VBM_BAKED', ""))
+                                if baked:
+                                    bpy.data.actions.remove(baked)
+                                
+                                action['VBM_CHECKSUM'] = actionchecksum
+                                
+                                workingaction = action.copy()
+                                workingrig.select_set(True)
+                                workingrig.animation_data.action = workingaction
+                                workingaction['__temp'] = True
+                                
+                                armature.animation_data.action = workingaction
+                                
+                                [pb.matrix_basis.identity() for pb in workingrig.pose.bones]
+                                [pb.matrix_basis.identity() for pb in armature.pose.bones]
+                                
+                                context.view_layer.update()
+                                
+                                print("> Baking action:", workingaction.name)
+                                bpy.ops.nla.bake(
+                                    frame_start=int(action.frame_start),
+                                    frame_end=int(action.frame_end), 
+                                    step=1, 
+                                    only_selected=False, 
+                                    visual_keying=True, 
+                                    clear_constraints=False, 
+                                    clear_parents=False, 
+                                    use_current_action=True, 
+                                    clean_curves=True,
+                                    bake_types={'POSE'} 
+                                    )
+                                
+                                workingaction = workingrig.animation_data.action
+                                workingaction['__temp'] = False
+                                workingaction.name = "~" + action.name + "__VBM_BAKED"
+                                action['VBM_BAKED'] = workingaction.name
+                            else:
+                                workingaction = bpy.data.actions.get(action['VBM_BAKED'])
                         else:
-                            workingaction = bpy.data.actions.get(action['VBM_BAKED'])
+                            workingaction = action
                         
                         framerange = (action.frame_start, action.frame_end)
                         duration = framerange[1]-framerange[0]+1
-                        
-                        boneorder = tuple(parentmap.keys())
-                        basebonenames = [x.replace('DEF-', "") for x in boneorder]
                         
                         fcurves = workingaction.fcurves
                         bundles = {}
                         bundlesbone = {}
                         bundlesnonbone = {}
                         
+                        ValueCmp = lambda x1, x2: (x2-x1)*(x2-x1) <= 0.0001
+                        
                         # Build Curves
                         for fc in fcurves:
                             dp = fc.data_path
                             curvename = dp
                             bonename = dp[dp.find('"')+1:dp.rfind('"')]
+                            inert = False
                             
+                            # Bone Curve
                             if bonename and bonename in boneorder:
+                                if not action.vbm.all_curves:
+                                    # Omit curves that don't change
+                                    array_index = fc.array_index
+                                    for ttype, vec in transformdefaults:
+                                        if ttype in dp:
+                                            kpoints = tuple(fc.keyframe_points)
+                                            if sum([ValueCmp(k.co[1], vec[array_index]) for k in kpoints]) == len(kpoints):
+                                                inert = True
+                                            break
+                                    
+                                    if inert:
+                                        continue
+                                
+                                # Fix Name
                                 curvename = bonename
                                 if '.location' in dp:
                                     curvename += '.location'
@@ -1614,9 +2008,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                     curvename += '.rotation_quaternion'
                                 elif '.' in dp[dp.find(bonename)+len(bonename):]:
                                     curvename += dp[dp.rfind('.'):]
+                            # Property Curve
                             elif curvename[:2] == '["':
                                 curvename = curvename[2:-2]
                             
+                            # Non-bone curve
                             if 'pose.bones' not in curvename:
                                 kpoints = fc.keyframe_points
                                 
@@ -1626,7 +2022,6 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                     bundles[curvename].append([])
                                 
                                 bundles[curvename][fc.array_index] = [k.co for k in kpoints]
-                        
                         
                         bundlelist = list(bundles.items())
                         bundlelist.sort(key=lambda b: (
@@ -1656,9 +2051,10 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 outanimations += b''.join([Pack('f', x[1]) for x in channel]) # values[]
                                 outanimations += b''.join([Pack('B', 1) for x in channel]) # interpolations[]
                     
-                    [pb.matrix_basis.identity() for pb in armature.pose.bones]
-                    if armature.animation_data:
-                        armature.animation_data.action = lastaction
+                    if armature:
+                        [pb.matrix_basis.identity() for pb in armature.pose.bones]
+                        if armature.animation_data:
+                            armature.animation_data.action = lastaction
                         
                 else:
                     outanimations += Pack('I', 0)
@@ -1669,9 +2065,9 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 outbytes += b'VBM' + Pack('B', VBMVERSION)
                 outbytes += Pack('B', 0)
                 
-                outbytes += Pack('I', len(outvbs) + len(Pack('I', 0)) * 3)
-                outbytes += Pack('I', len(outskeleton) + len(Pack('I', 0)) * 2)
-                outbytes += Pack('I', len(outanimations) + len(Pack('I', 0)) * 1)
+                outbytes += Pack('I', len(outbytes) + len(Pack('I', 0)) * 3)
+                outbytes += Pack('I', len(outbytes) + len(outvbs) + len(Pack('I', 0)) * 2)
+                outbytes += Pack('I', len(outbytes) + len(outvbs) + len(outskeleton) + len(Pack('I', 0)) * 1)
                 
                 outbytes += outvbs
                 outbytes += outskeleton
@@ -1689,17 +2085,40 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     f.close()
                 
                 outlen = [rawlen, len(outbytes)]
-                print("Objects:", len(objects), "-> Meshes:", len(vbmap.items()), "| Bones:", len(boneorder), "| Actions:", len(actions))
+                print(
+                    "Objects:", len(objects), 
+                    "-> Meshes:", len(vbmap.items()) * self.export_meshes, 
+                    "| Bones:", len(boneorder)  * self.export_skeleton, 
+                    "| Actions:", len(actions) * self.export_animations
+                    )
                 print(
                     "Data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
                     (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], filepath) 
                     )
+                
+            if exporterror == 0:
+                self.report({'INFO'}, "> VBM Export Complete")
+        
+        # Copy Textures
+        usedimages = []
+        for name, image in outputimages:
+            imagepath = fdir + bpy.path.ensure_ext(name, ".png")
+            if imagepath in usedimages:
+                continue
+            usedimages.append(imagepath)
             
-            self.report({'INFO'}, "> VBM Export Complete")
+            if bpy.app.version >= (3,2,2):
+                image.save(filepath=imagepath)
+            else:
+                imgpath = image.filepath
+                image.filepath = imagepath
+                image.save()
+                image.filepath = imgpath
         
         context.view_layer.objects.active = active
-        active.select_set(True)
-        [data.remove(x) for data in [bpy.data.meshes, bpy.data.armatures] for x in data if x.get('__temp', False)]
+        if active:
+            active.select_set(True)
+        [data.remove(x) for data in (bpy.data.objects, bpy.data.meshes, bpy.data.armatures, bpy.data.actions) for x in data if x.get('__temp', False)]
         return {'FINISHED'}
 classlist.append(VBM_OT_ExportVBM)
 
@@ -1785,9 +2204,10 @@ classlist.append(VBM_UL_BoneDissolve)
 # ------------------------------------------------------------------------------------------
 class VBM_UL_ActionList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        r = layout.row()
+        r = layout.row(align=True)
         if item.action:
             r.prop(item.action, 'name', text="", icon='ACTION', emboss=False)
+            r.prop(item.action.vbm, 'all_curves', text="", icon='WORLD')
             
             rr = r.row(align=True)
             rr.scale_x = 0.6
@@ -1799,19 +2219,64 @@ class VBM_UL_ActionList(bpy.types.UIList):
             r.prop(item, 'action')
 classlist.append(VBM_UL_ActionList)
 
+# ------------------------------------------------------------------------------------------
+class VBM_UL_ExportQueues_File(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        vbm = context.scene.vbm
+        
+        c = layout.column(align=True)
+        
+        r = c.row(align=True)
+        r.prop(item, 'enabled', text="")
+        
+        r = r.row(align=True)
+        r.active = item.enabled
+        
+        if vbm.display_queue_group_indices:
+            rr = r.row()
+            rr.scale_x = 0.3
+            rr.label(text="["+str(item.group)+"]")
+            r.prop(item, 'name', text="", emboss=False)
+        else:
+            r.prop(item, 'name', text="", emboss=False, icon=VBM_QUEUEGROUPICON[item.group])
+        
+        rr = r.row()
+        rr.scale_x = 1 if item.id_armature else 0.5
+        rr.prop(item, 'id_armature', text="", icon='ARMATURE_DATA')
+        
+        rr = r.row()
+        rr.scale_x = 1 if item.id_collection else 0.5
+        rr.prop(item, 'id_collection', text="", icon='OUTLINER_COLLECTION')
+        
+        op = r.operator('vbm.export_vbm', text="", icon='WINDOW')
+        op.dialog = True
+        op.queue = item.name
+        op.file_type = item.get('file_type', 'VBM')
+        
+        op = r.operator('vbm.export_vbm', text="", icon='SOLO_ON')
+        op.dialog = False
+        op.queue = item.name
+        op.file_type = item.get('file_type', 'VBM')
+        
+        if vbm.display_queue_group_paths:
+            r = c.row(align=True)
+            r.active = item.enabled
+            r.label(text="", icon='BLANK1')
+            r.prop(item, '["filepath"]', text="")
+classlist.append(VBM_UL_ExportQueues_File)
+
 '# =========================================================================================================================='
 '# PANEL'
 '# =========================================================================================================================='
 
 class VBM_PT_Master(bpy.types.Panel):
-    bl_label = "VBM Exporter"
+    bl_label = "Dmr VBM"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"
     
     def draw(self, context):
         vbm = context.scene.vbm
-        
         layout = self.layout
         
         r = layout.row()
@@ -1824,21 +2289,23 @@ class VBM_PT_Master(bpy.types.Panel):
         r.label(text="Export Selected: ")
         obj = context.selected_objects[0] if context.selected_objects else context.active_object
         
-        lastpath = obj.get('VBM_LASTPATH', None) if obj else None
-        
         op = r.operator('vbm.export_vbm', text="VB", icon='OUTLINER_DATA_MESH')
         op.file_type = 'VB'
-        if lastpath:
-            op.filepath = lastpath
+        op.collection, op.armature = ("", "")
+        op.use_last_props = False
+        op.queue = ""
         op.dialog = True
         op.format_code = ""
+        op.selected_only = True
         
         op = r.operator('vbm.export_vbm', text="VBM", icon='MOD_ARRAY')
         op.file_type = 'VBM'
-        if lastpath:
-            op.filepath = lastpath
+        op.collection, op.armature = ("", "")
+        op.use_last_props = False
+        op.queue = ""
         op.dialog = True
         op.format_code = ""
+        op.selected_only = True
         
         # Last Export
         def OpFromProps(idstruct, r, icon, collection, rig):
@@ -1856,6 +2323,7 @@ class VBM_PT_Master(bpy.types.Panel):
                 op.format = ""
                 op.file_type = lastprops['file_type']
                 op.collection, op.armature = (collection, rig)
+                op.use_last_props = True
                 
                 r.separator()
                 
@@ -1864,6 +2332,8 @@ class VBM_PT_Master(bpy.types.Panel):
                 op.format = ""
                 op.file_type = lastprops['file_type']
                 op.collection, op.armature = (collection, rig)
+                op.use_last_props = True
+                op.queue = ""
             else:
                 rr = r.row(align=True)
                 rr.scale_x = 0.7
@@ -1874,8 +2344,8 @@ class VBM_PT_Master(bpy.types.Panel):
                 op = rr.operator('vbm.export_vbm', text="VBM", icon='MOD_ARRAY')
                 op.dialog, op.format_code, op.file_type = (True, '', 'VBM')
                 op.collection, op.armature = (collection, rig)
-            
-            
+                op.use_last_props = True
+                op.queue = ""
             return op
         
         obj = context.active_object
@@ -1887,6 +2357,96 @@ class VBM_PT_Master(bpy.types.Panel):
         op = OpFromProps(rig, b.row(align=True), 'ARMATURE_DATA', "", rig.name if rig else '')
         op = OpFromProps(context.collection, b.row(align=True), 'OUTLINER_COLLECTION', context.collection.name, "")
 classlist.append(VBM_PT_Master)
+
+# ------------------------------------------------------------------------------------------
+class VBM_PT_Queues(bpy.types.Panel):
+    bl_label = "Export Queues"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+    bl_parent_id = 'VBM_PT_Master'
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    def draw(self, context):
+        vbm = context.scene.vbm
+        altdisplay = vbm.display_queue_group_indices
+        
+        layout = self.layout.column()
+        
+        r = layout.row()
+        r.prop(vbm, 'display_queue_group_paths')
+        r.prop(vbm, 'display_queue_group_indices')
+        
+        # Export
+        r = layout.row(align=True)
+        r.enabled = len(vbm.queues) > 0
+        op = r.operator('vbm.queue_export', icon='SOLO_ON')
+        op.queue = ""
+        op.group = -1
+        
+        if altdisplay:
+            r = r.row(align=True)
+            r.scale_x = 0.35
+        for i in range(0, 8):
+            op = r.operator('vbm.queue_export', text=str(i) if altdisplay else "", icon='NONE' if altdisplay else VBM_QUEUEGROUPICON[i])
+            op.queue = ""
+            op.group = i
+            
+        # Toggle
+        r = layout.row(align=True)
+        r.operator('vbm.queue_group_toggle', text="Select/Deselect", icon='RESTRICT_SELECT_OFF').group=-1
+        
+        if altdisplay:
+            r = r.row(align=True)
+            r.scale_x = 0.35
+        for i in range(0, 8):
+            op = r.operator('vbm.queue_group_toggle', text=str(i) if altdisplay else "", icon='NONE' if altdisplay else VBM_QUEUEGROUPICON[i])
+            op.group = i
+        
+        # List
+        r = layout.row(align=True)
+        c = r.column(align=True)
+        c.template_list("VBM_UL_ExportQueues_File", "", vbm, "queues", vbm, "queues_index", rows=3)
+        r.separator()
+        
+        # List Ops
+        c = r.column(align=True)
+        c.scale_y = 0.9
+        c.operator('vbm.queue_entry_add', text="", icon='ADD')
+        c.operator('vbm.queue_entry_remove', text="", icon='REMOVE').index = vbm.queues_index
+        c.separator()
+        c.operator('vbm.queue_entry_move', text="", icon='TRIA_UP').move_down = False
+        c.operator('vbm.queue_entry_move', text="", icon='TRIA_DOWN').move_down = True
+        
+        # Active
+        if len(vbm.queues) > 0:
+            queue = vbm.queues[vbm.queues_index]
+            bb = layout.box().column()
+            
+            r = bb.row()
+            r.alignment = 'CENTER'
+            r.label(text="== Active Queue ==")
+            
+            r = bb.row(align=True)
+            r.prop(queue, 'name', text="")
+            r.separator()
+            
+            if altdisplay:
+                r = r.row(align=True)
+                r.scale_x = 0.35
+            for i in range(0, 8):
+                op = r.operator('vbm.queue_entry_group', text=str(i) if altdisplay else "", icon='NONE' if altdisplay else VBM_QUEUEGROUPICON[i])
+                op.queue = queue.name
+                op.group = i
+            r = bb.row()
+            r.prop(queue, 'id_armature', text="", icon='ARMATURE_DATA')
+            r.prop(queue, 'id_collection', text="", icon='OUTLINER_COLLECTION')
+            r.prop(queue, 'id_pose')
+            r = bb.row()
+            r.prop(queue, 'copy_textures')
+            r = bb.row()
+            r.prop(queue, '["filepath"]', text="", icon='FILEBROWSER')
+classlist.append(VBM_PT_Queues)
 
 # ------------------------------------------------------------------------------------------
 class VBM_PT_Format(bpy.types.Panel):
@@ -1907,34 +2467,24 @@ class VBM_PT_Format(bpy.types.Panel):
         r.separator()
         
         c = r.column(align=True)
+        c.scale_y = 0.9
         c.operator('vbm.format_add', text="", icon='ADD')
         c.operator('vbm.format_remove', text="", icon='REMOVE').index = vbm.formats_index
         c.separator()
         c.operator('vbm.format_move', text="", icon='TRIA_UP').move_down = False
         c.operator('vbm.format_move', text="", icon='TRIA_DOWN').move_down = True
-classlist.append(VBM_PT_Format)
-
-# ------------------------------------------------------------------------------------------
-class VBM_PT_Format_Attributes(bpy.types.Panel):
-    bl_label = "Active Format"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context = "scene"
-    bl_parent_id = 'VBM_PT_Master'
-    
-    def draw(self, context):
-        layout = self.layout
-        vbm = context.scene.vbm
         
-        r = layout.row(align=True)
-        
-        
+        # Attributes
         if len(vbm.formats) > 0:
             format = vbm.formats[vbm.formats_index]
-            format.DrawPanel(layout, True)
+            b = layout.box().column(align=False)
+            b.prop(format, 'name', text="", emboss=False)
+            format.DrawPanel(b, True)
         else:
             layout.label(text="(No Active Format)")
-classlist.append(VBM_PT_Format_Attributes)
+classlist.append(VBM_PT_Format)
+
+# ==============================================================================================
 
 # ------------------------------------------------------------------------------------------
 class VBM_PT_BoneDissolve(bpy.types.Panel):
@@ -1942,13 +2492,18 @@ class VBM_PT_BoneDissolve(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
+    bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
         vbm = context.scene.vbm
         layout = self.layout
         obj = context.object
+        
         if obj and obj.type == 'ARMATURE':
             c = layout.column()
+            
+            c.prop_search(obj, 'vbm_format', vbm, 'formats')
+            
             c.operator('vbm.bonedissolve_initialize')
             
             dissolvelist = obj.data.vbm_dissolve_list
@@ -1969,6 +2524,7 @@ class VBM_PT_ActionList(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context = "scene"
     bl_parent_id = 'VBM_PT_Master'
+    bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
         layout = self.layout
@@ -2016,9 +2572,29 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
     export_lists : bpy.props.CollectionProperty(name="Export Lists", type=VBM_PG_ExportList)
     export_lists_index : bpy.props.IntProperty(name="Export Lists Index")
     
+    queues : bpy.props.CollectionProperty(name="Queues", type=VBM_PG_ExportQueue_Entry)
+    queues_index : bpy.props.IntProperty(name="Queue Index", min=0)
+    queue_group_enabled : bpy.props.BoolVectorProperty(name="Queue Groups", size=32, default=tuple([True for i in range(0,32)]))
+    
+    display_queue_group_indices : bpy.props.BoolProperty(name="Display Group Indices", default=False)
+    display_queue_group_paths : bpy.props.BoolProperty(name="Display Group Paths", default=True)
+    
     write_to_cache : bpy.props.BoolProperty(
         name="Write To Cache", default=True,
         description="Save export data on object to speed up repeat exports")
+    
+    def RefreshQueues(self):
+        queues = self.queues
+        groups = self.queue_groups
+        
+        for q in queues:
+            groups = groups[q.group]
+            if q.name not in g.group.files:
+                [g.remove(f) for g in groups for f in g.files if f.name == q.name]
+                group.files.add().name = q
+        
+        queuenames = [x.name for x in queuenames]
+        [g.files.remove(f) for g in groups for f in g.files if f.name not in queuenames]
     
     def ToFormatCode(self, formatserialized):
         fstring = ""
@@ -2249,7 +2825,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         
         return workingobj
     
-    # Returns map {meshname: (vbdata, numvertices)}
+    # Returns map {meshname: (vbdata, numvertices, material_name)}
     def MeshToVB(
         self, 
         objects, 
@@ -2294,7 +2870,6 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             
             for m1 in src.modifiers:
                 if not alphanumeric_modifiers or m1.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890':
-                    print(m1.name)
                     m2 = obj.modifiers.new(name=m1.name, type=m1.type)
                     for prop in [p.identifier for p in m1.bl_rna.properties if not p.is_readonly]:
                         setattr(m2, prop, getattr(m1, prop))
@@ -2302,21 +2877,34 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         
         def ObjChecksum(obj):
             return int(sum(
-                [alphanumeric_modifiers] + 
-                [x for v in obj.data.vertices for x in ([xx for xx in v.co]+[xx for vge in v.groups for xx in (vge.group, vge.weight)])] +
+                [alphanumeric_modifiers, flip_uvs] + 
+                ((
+                    [x for v in obj.data.vertices for x in ([xx for xx in v.co]+[xx for vge in v.groups for xx in (vge.group, vge.weight)])] +
+                    (
+                        [x for lyr in obj.data.color_attributes for e in lyr.data for x in e.color] if USE_ATTRIBUTES else
+                        [x for lyr in obj.data.vertex_colors for e in lyr.data for x in e.color]
+                    ) +
+                    [x for lyr in obj.data.uv_layers for e in lyr.data for x in e.uv] + 
+                    [x for v in obj.matrix_basis for x in v] + 
+                    ([
+                        x 
+                        for m in obj.modifiers 
+                        for propname in [p.identifier for p in m.bl_rna.properties if not p.is_readonly] 
+                        for x in [getattr(m, propname)] if isinstance(getattr(m, propname), (float, int))
+                    ]) +
+                    ([
+                        (sum([ord(x) for x in obj.data.uv_layers.active.name]) if obj.data.uv_layers else 0) +
+                        (
+                            (sum([ord(x) for x in obj.data.color_attributes.active_color.name]) if obj.data.color_attributes else 0) if USE_ATTRIBUTES else
+                            (sum([ord(x) for x in obj.data.vertex_colors.active.name]) if obj.data.vertex_colors else 0)
+                        )
+                    ])
+                ) if obj.data == 'MESH' else [] ) + 
+                ([x for b in armature.data.bones for v in b.matrix_local for x in v] if armature else []) + 
                 (
-                    [x for lyr in obj.data.color_attributes for e in lyr.data for x in e.color] if USE_ATTRIBUTES else
-                    [x for lyr in obj.data.vertex_colors for e in lyr.data for x in e.color]
-                ) +
-                [x for lyr in obj.data.uv_layers for e in lyr.data for x in e.uv] + 
-                [x for v in obj.matrix_basis for x in v] + 
-                ([
-                    x 
-                    for m in obj.modifiers 
-                    for propname in [p.identifier for p in m.bl_rna.properties if not p.is_readonly] 
-                    for x in [getattr(m, propname)] if isinstance(getattr(m, propname), (float, int))
-                ]) + 
-                ([x for b in armature.data.bones for v in b.matrix_local for x in v] if armature else []) +
+                    [x for fc in armature.animation_data.action.fcurves for k in fc.keyframe_points for x in k.co]
+                    if (apply_armature and armature and armature.animation_data and armature.animation_data.action) else []
+                ) + 
                 ([ord(x) for b in boneorder for x in b]) + 
                 ([ObjChecksum(c) for c in obj.children] if obj.instance_type in ('VERTICES', 'FACES') else [])
             ))
@@ -2371,7 +2959,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 
                 for matrixindex, instobj in enumerate(instobjects):
                     # Fast = Use final evaluated mesh. No Pre Script or armature support
-                    if fast:
+                    if fast or instobj.type != 'MESH':
                         obj = instobj.evaluated_get(depsgraph)
                         mesh = obj.to_mesh()
                         
@@ -2389,6 +2977,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         obj.select_set(True)
                         bpy.context.view_layer.objects.active = obj
                         
+                        # Pre-Calculation Script
                         if pre_script:
                             context.scene['VBMEXPORTACTIVE'] = True
                             exec(pre_script.as_string())
@@ -2409,12 +2998,16 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
                         mesh = obj.data
                     
+                    # Post-Calculation Script
                     if post_script:
                         context.scene['VBMEXPORTACTIVE'] = True
                         exec(post_script.as_string())
                         context.scene['VBMEXPORTACTIVE'] = False
                     
                     # Collect data
+                    if instobj.matrix_world.determinant() < 0:
+                        # Blender corrects normals for negative scale on display, not in raw data
+                        mesh.flip_normals()
                     mesh.calc_loop_triangles()
                     mesh.calc_normals_split()
                     
@@ -2467,7 +3060,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     bcontiguous = []
                     
                     NumpyFloatToBytes = lambda nparray : numpy.frombuffer( nparray.astype(numpy.float32).tobytes(), dtype=numpy.uint8 )
-                    NumpyByteToBytes = lambda nparray : numpy.frombuffer( (nparray * 255.0).astype(numpy.uint8).tobytes(), dtype=numpy.uint8 )
+                    NumpyUnitsToBytes = lambda nparray : numpy.frombuffer( (nparray * 255.0).astype(numpy.uint8).tobytes(), dtype=numpy.uint8 )
+                    NumpyByteToBytes = lambda nparray : numpy.frombuffer( (nparray).astype(numpy.uint8).tobytes(), dtype=numpy.uint8 )
                     
                     def NumpyCreatePattern(vector, size):
                         vector = numpy.array(vector)
@@ -2517,13 +3111,14 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                     lyr.data.foreach_get('uv', uniquedata)
                                 else:
                                     lyr.data.foreach_get('uv', uniquedata)
-                                attdata = numpy.array([ x for i in faceloopindices for v in [uniquedata[i*2:i*2+size]] for x in (v[0], 1.0-v[1])], dtype=numpy.float32)
+                                if flip_uvs:
+                                    attdata = numpy.array([ x for i in faceloopindices for v in [uniquedata[i*2:i*2+size]] for x in (v[0], 1.0-v[1])], dtype=numpy.float32)
                             else:
                                 attdata = NumpyCreatePattern(default_value, numelements)
                             if k == VBF_UVS:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
-                                bcontiguous.append( NumpyByteToBytes(attdata) )
+                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
                         # Color
                         elif k == VBF_COL or k == VBF_RGB:
                             if USE_ATTRIBUTES:
@@ -2535,16 +3130,16 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 lyr.data.foreach_get('color', uniquedata)
                                 
                                 if (USE_ATTRIBUTES and not isSrgb):
-                                    numpy.power(uniquedata, NumpyCreatePattern((.4545, .4545, .4545, 1.0), numloops), uniquedata)
+                                    numpy.power(uniquedata, numpy.array([.4545, .4545, .4545, 1.0] * numloops), uniquedata)
                                 elif (not USE_ATTRIBUTES) and (not isSrgb):
-                                    numpy.power(uniquedata, NumpyCreatePattern((2.2, 2.2, 2.2, 1.0), numloops), uniquedata)
+                                    numpy.power(uniquedata, numpy.array([2.2, 2.2, 2.2, 1.0] * numloops), uniquedata)
                                 attdata = numpy.array([ uniquedata[i*4:i*4+size] for i in faceloopindices], dtype=numpy.float32)
                             else:
                                 attdata = NumpyCreatePattern(default_value, numelements)
                             if k == VBF_COL:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
-                                bcontiguous.append( NumpyByteToBytes(attdata) )
+                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
                         # Bones
                         elif k == VBF_BON or k == VBF_BOB:
                             uniquedata = numpy.empty((numverts * size), dtype=numpy.float32 if k == VBF_BON else numpy.int8)
@@ -2555,7 +3150,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             if k == VBF_BON:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
-                                bcontiguous.append( NumpyByteToBytes(attdata/255.0) )
+                                bcontiguous.append( NumpyUnitsToBytes(attdata/255.0) )
                         # Weights
                         elif k == VBF_WEI or k == VBF_WEB:
                             uniquedata = numpy.empty((numverts * size), dtype=numpy.float32)
@@ -2565,7 +3160,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             if k == VBF_WEI:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
-                                bcontiguous.append( NumpyByteToBytes(attdata) )
+                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
                         # Padding
                         elif k == VBF_PAD or k == VBF_PAB:
                             attdata = NumpyCreatePattern(default_value, numelements)
@@ -2587,7 +3182,11 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     netnumelements += numelements
                 
                 vbmesh = b''.join(vbinstances)
-                vbmap[sourceobj.name] = (vbmesh, netnumelements)
+                vbmap[sourceobj.name] = (
+                    vbmesh, 
+                    netnumelements, 
+                    instobj.active_material.name if instobj.active_material else ""
+                )
                 
                 if use_cache:
                     sourceobj['VBDAT_'+checksumkey] = zlib.compress(vbmesh, 9)
@@ -2606,9 +3205,12 @@ def register():
         bpy.utils.register_class(c)
     
     bpy.types.Scene.vbm = bpy.props.PointerProperty(type=VBM_PG_Master)
+    bpy.types.Action.vbm = bpy.props.PointerProperty(name="VBM Settings", type=VBM_PG_Action_Settings)
+    
     bpy.types.Armature.vbm_dissolve_list = bpy.props.PointerProperty(type=VBM_PG_BoneDissolveList)
     bpy.types.Armature.vbm_action_list = bpy.props.CollectionProperty(type=VBM_PG_Action)
     bpy.types.Armature.vbm_action_list_index = bpy.props.IntProperty(name="Index")
+    bpy.types.Object.vbm_format = bpy.props.StringProperty(name="Format")
 
 def unregister():
     for c in classlist[::-1]:
