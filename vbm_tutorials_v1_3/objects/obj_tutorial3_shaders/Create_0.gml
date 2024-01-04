@@ -2,29 +2,27 @@
 
 // *Camera ----------------------------------------------
 viewposition = [0, 0, 1];	// Location to point the camera at
-viewxrot = -10;	// Camera's vertical rotation
-viewzrot = 0;	// Camera's horizontal rotation
+viewhrot = 0;	// Camera's vertical rotation
+viewvrot = 10;	// Camera's horizontal rotation
 viewdistance = 2.4;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 1;	// Clipping distance for close triangles
 zfar = 100;	// Clipping distance for far triangles
 
-matproj = matrix_build_projection_perspective_fov(
-	fieldofview, window_get_width()/window_get_height(), znear, zfar);
-
+matproj = matrix_build_identity();	// Matrices are updated in Step Event
 matview = matrix_build_identity();
 mattran = matrix_build_identity();
 
-viewforward = [0, -1, 0]
+viewforward = [0, 1, 0]
 viewright = [1, 0, 0]
 viewup = [0, 0, 1];
 
 // Camera Controls
 mouseanchor = [window_mouse_get_x(), window_mouse_get_y()];
 viewpositionanchor = [0, 0, 0]
-viewxrotanchor = viewxrot;	// Updated when middle mouse is pressed
-viewzrotanchor = viewzrot;	// Updated when middle mouse is pressed
+viewvrotanchor = viewhrot;	// Updated when middle mouse is pressed
+viewhrotanchor = viewvrot;	// Updated when middle mouse is pressed
 movingcamera = false;	// Middle mouse or left mouse + alt is held
 movingcameralast = false;	// Used to check when middle has been pressed
 
@@ -51,7 +49,7 @@ vb_treat_normal = OpenVertexBuffer("assets/treat_normal.vb", vbf_normal);
 // *Model Controls
 zrot = 0;	// Model rotation
 shadermode = 0;	// 0 = simple, 1 = normal
-lightpos = [8, -8, 8];	// Light position to pass to shader
+lightpos = [4, -8, 8];	// Light position to pass to shader
 eyepos = [0, 0, 0];	// View position to pass to shader. Calculated with matview
 
 // *Shader Uniforms

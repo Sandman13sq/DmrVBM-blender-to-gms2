@@ -1,15 +1,16 @@
 {
   "FolderOrderSettings": [
-    {"name":"Sprites","order":1,"path":"folders/Sprites.yy",},
-    {"name":"Shaders","order":6,"path":"folders/Shaders.yy",},
+    {"name":"DmrVBM","order":11,"path":"folders/DmrVBM.yy",},
     {"name":"Fonts","order":7,"path":"folders/Fonts.yy",},
     {"name":"Objects","order":9,"path":"folders/Objects.yy",},
     {"name":"Rooms","order":10,"path":"folders/Rooms.yy",},
-    {"name":"DmrVBM","order":11,"path":"folders/DmrVBM.yy",},
+    {"name":"Shaders","order":6,"path":"folders/Shaders.yy",},
+    {"name":"Sprites","order":1,"path":"folders/Sprites.yy",},
   ],
   "ResourceOrderSettings": [
     {"name":"obj_tutorial3_shaders","order":3,"path":"objects/obj_tutorial3_shaders/obj_tutorial3_shaders.yy",},
     {"name":"shd_normal","order":1,"path":"shaders/shd_normal/shd_normal.yy",},
+    {"name":"shd_rigged_compact","order":3,"path":"shaders/shd_rigged_compact/shd_rigged_compact.yy",},
     {"name":"obj_tutorial2_loadingVB","order":2,"path":"objects/obj_tutorial2_loadingVB/obj_tutorial2_loadingVB.yy",},
     {"name":"shd_rigged","order":2,"path":"shaders/shd_rigged/shd_rigged.yy",},
     {"name":"obj_tutorial4_VBManimation","order":4,"path":"objects/obj_tutorial4_VBManimation/obj_tutorial4_VBManimation.yy",},

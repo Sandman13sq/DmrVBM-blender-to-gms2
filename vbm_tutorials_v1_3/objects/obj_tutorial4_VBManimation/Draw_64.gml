@@ -14,15 +14,24 @@ draw_text(16, i*20, "Press SPACE to Play/Pause Layer 0"); i++;
 draw_text(16, i*20, "Press +/- to change animation speed"); i++;
 
 draw_text(16, i*20, "Animation Mode: " + (
-	(!vbm_treat.Animator().forcelocalposes && vbm_treat.Animator().ActiveAnimation().isbakedlocal)? "Local": "Evaluated")); i++;
+	(!animator.Layer(0).forcelocalposes && animator.Layer(0).ActiveAnimation().isbakedlocal)? "Local": "Evaluated")); i++;
 draw_text(16, i*20, "Animation Speed: " + string(playbackspeed)); i++;
-draw_text(16, i*20, "Animation Elapsed: " + string(vbm_treat.Animator().animationelapsed)); i++;
-draw_text(16, i*20, "Animation Position: " + string(vbm_treat.Animator().animationposition)); i++;
+draw_text(16, i*20, "Animation Elapsed: " + string(animator.Layer(0).animationelapsed)); i++;
+draw_text(16, i*20, "Animation Position: " + string(animator.Layer(0).animationposition)); i++;
 
+// Draw Layers
 var ww = display_get_gui_width();
 var hh = display_get_gui_height();
+var yy = hh-48;
+var _color;
 
-draw_healthbar(16, hh-50, ww/2, hh-31,
-	(vbm_treat.Animator().animationposition mod 1.0)*100, c_black, c_green, c_green, 0, true, true);
-draw_text(20, hh-48, string(vbm_treat.Animator()));
+for (var i = animator.layercount-1; i >= 0; i--)
+{
+	_color = (c_green + i*131313) % 0xFFFFFF
+	
+	draw_healthbar(16, yy, ww/2, yy + 20,
+		(animator.Layer(i).Position())*100, c_black, _color, _color, 0, true, true);
+	draw_text(20, yy, string(animator.Layer(i)));
+	yy -= 20;
+}
 

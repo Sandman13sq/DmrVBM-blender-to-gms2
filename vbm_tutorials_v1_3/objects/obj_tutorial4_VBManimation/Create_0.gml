@@ -2,29 +2,27 @@
 
 // Camera ----------------------------------------------
 viewposition = [0, 0, 1];	// Location to point the camera at
-viewxrot = -10;	// Camera's vertical rotation
-viewzrot = 10;	// Camera's horizontal rotation
-viewdistance = 2.4;	// Distance from camera position
+viewhrot = 20;	// Camera's vertical rotation
+viewvrot = 10;	// Camera's horizontal rotation
+viewdistance = 3;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 0.1;	// Clipping distance for close triangles
 zfar = 100;	// Clipping distance for far triangles
 
-matproj = matrix_build_projection_perspective_fov(
-	fieldofview, window_get_width()/window_get_height(), znear, zfar);
-
+matproj = matrix_build_identity();	// Matrices are updated in Step Event
 matview = matrix_build_identity();
 mattran = matrix_build_identity();
 
-viewforward = [0, -1, 0]
+viewforward = [0, 1, 0]
 viewright = [1, 0, 0]
 viewup = [0, 0, 1];
 
 // Camera Controls
 mouseanchor = [window_mouse_get_x(), window_mouse_get_y()];
 viewpositionanchor = [0, 0, 0]
-viewxrotanchor = viewxrot;	// Updated when middle mouse is pressed
-viewzrotanchor = viewzrot;	// Updated when middle mouse is pressed
+viewvrotanchor = viewhrot;	// Updated when middle mouse is pressed
+viewhrotanchor = viewvrot;	// Updated when middle mouse is pressed
 movingcamera = false;	// Middle mouse or left mouse + alt is held
 movingcameralast = false;	// Used to check when middle has been pressed
 
@@ -53,9 +51,11 @@ vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_native);
 vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_native);
 
 // *Open VBM -------------------------------------------
-vbm_treat = OpenVBM("assets/treat_rig.vbm");
+vbm_treat = OpenVBM("assets/treat_rig.vbm");	// Format is handled automatically
+animator = vbm_treat.CreateAnimator(2);	// Instance animator using skeleton from vbm
 
-vbm_treat.Animator().PlayAnimation(vbm_treat.AnimationGet(0));
+animator.Layer(0).SetAnimation(vbm_treat.AnimationGet(0), true);	// Set animation data directly
+animator.Layer(1).PlayAnimation("blink");	// Or play animation using animation name
 
 // *Texture from file ----------------------------------
 spr_col = sprite_add("assets/tex_treat_col.png", 1, false, false, 0, 0);
@@ -66,12 +66,11 @@ zrot = 0;
 lightpos = [8, -8, 8];
 
 // *Playback Controls ----------------------------------
-playbackmode = 0; // 0 = Evaluated, 1 = Pose, 2 = Tracks
 playbackspeed = 1;
 playbackkeyindex = 0;
 
 // *Shader Uniforms ------------------------------------
 u_rigged_light = shader_get_uniform(shd_rigged, "u_lightpos");
-u_rigged_matpose = shader_get_uniform(shd_rigged, "u_posearray");	// Handler for pose matrix array
+u_rigged_matpose = shader_get_uniform(shd_rigged, "u_bonemats");	// Handler for pose matrix array
 
 event_perform(ev_step, 0);	// Force an update

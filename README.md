@@ -1,12 +1,10 @@
 ![Repo Banner](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/banner.png)
 
 # Vertex Buffer Model Exporter and Importer by Sandman13sq
-### Import/Export tools for loading vertex buffer data out of Blender and in to Game Maker Studio 2
+### Import/Export tools for loading vertex buffer data out of Blender and in to Game Maker Studio 2.
 
-#### .vb is Game Maker Studio's **vertex buffer data** format used in functions like `vertex_submit()`.
+#### .vb is Game Maker Studio's **vertex buffer data** format used for `vertex_submit()`.
 #### .vbm is a custom file format for exporting mesh data, skeleton bones, and action curves. 
-
-## [[ Current version is in BETA! The present file format is not finalized. Updates may (will) break compatibility and models will need re-exporting. ]]
 
 NOTE: If cloned straight from GitHub not all features are guranteed to work correctly.  
 For stable versions see the **Releases** on the GitHub page.
@@ -26,7 +24,7 @@ For stable versions see the **Releases** on the GitHub page.
 ## Game Maker Studio 2 Installation
 * With a GMS2 project open, go to `Tools` > `Import Local Package`
 * Navigate to the `DmrVBM_GameMaker.yymps` file. Select the file and click `Open`
-* Choose *scr_vbm* to import into the project
+* Choose *scr_dmrvbm* to import into the project
 * NOTE: To avoid conflicts when upgrading to v1.3, remove existing v1.2 scripts before importing.
 
 ### Supported Attributes
@@ -42,6 +40,8 @@ For stable versions see the **Releases** on the GitHub page.
 - Weights - Weight from deform vertex groups.
 - Weight Bytes - Above as 4 bytes
 - Vertex Group - Vertex weight value from named vertex group.  
+- Padding - A constant value for all vertices
+- Padding Bytes - Above as X bytes
 
 Game Maker's default format is [Position, Color Bytes, UV]
 
@@ -53,12 +53,16 @@ Game Maker's default format is [Position, Color Bytes, UV]
 
 # CHANGELOG
 
-## v1.3 BETA December 2023 Update
+## v1.3 January 2024 Update
 - Blender Addon
 	- Addon code condensed to single script
 	- Merged VBM and TRK format into one filetype
 		- VBM files now contain mesh, skeleton, and action data
-		- TRK files are no longer a thing
+		- TRK files are discontinued
+		- VB files remain as raw vertex buffer data
+	- New Export Queues Tab
+		- Define a list of exports to re-export models with one click
+		- Execute multiple file exports with one click
 	- Overhauled UI
 		- All export types (.vb, .vbm, .trk, batched) combined into one operator
 		- More customization options for exports
@@ -71,10 +75,9 @@ Game Maker's default format is [Position, Color Bytes, UV]
 		- VBM data is now stored in one VBM_Model struct
 		- Struct contains meshes (vertex buffers), bone data, and animations
 		- VBM struct has an animator used for animating poses and curves
-	- Single script used for VBM functions
+	- Single script used for VBM functionality
 		- Extra math functions omitted from package
 	- Tutorial project rewritten to reflect new changes
-
 - Other
 	- Current mascot is now Treat - A pumpkin witch.
 

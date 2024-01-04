@@ -29,7 +29,7 @@ matrix_set(matrix_world, mattran); // Transform matrix
 
 shader_set(shd_rigged);
 shader_set_uniform_f_array(u_rigged_light, lightpos);
-shader_set_uniform_matrix_array(u_rigged_matpose, vbm_treat.Animator().OutputPose());	// Send final pose to shader
+shader_set_uniform_matrix_array(u_rigged_matpose, animator.OutputPose());	// Send final pose to shader
 
 vbm_treat.Submit(pr_trianglelist, tex_col);	// Texture index is given
 

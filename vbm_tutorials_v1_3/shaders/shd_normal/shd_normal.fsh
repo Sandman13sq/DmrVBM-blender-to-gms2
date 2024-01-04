@@ -1,5 +1,5 @@
 //
-// Simple passthrough fragment shader
+//	Makes use of normal attribute and shading
 //
 varying vec2 v_vTexcoord;
 varying vec4 v_vColour;

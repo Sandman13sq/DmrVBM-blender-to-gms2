@@ -1,5 +1,5 @@
 //
-// Simple passthrough vertex shader
+//	Transforms vertices by bone matrices
 //
 attribute vec3 in_Position;                  // (x,y,z)
 attribute vec3 in_Normal;                  // (x,y,z)
@@ -15,7 +15,7 @@ varying vec3 v_vLightDir;	// Light vector to pass to fragment shader
 
 // Uniforms - Passed in in draw call
 uniform vec3 u_lightpos;	// Passed in in draw call
-uniform mat4 u_posearray[128];
+uniform mat4 u_bonemats[128];
 
 void main()
 {
@@ -26,14 +26,11 @@ void main()
 	mat4 m = mat4(0.0);
 	for (int i = 0; i < 4; i++)
 	{
-		m += u_posearray[ int(in_Bone[i]) ] * in_Weight[i];
+		m += u_bonemats[ int(in_Bone[i]) ] * in_Weight[i];
 	}
 	
 	object_space_pos = m * object_space_pos;
 	object_space_nor = m * object_space_nor;
-	
-	object_space_pos.y *= -1.0;	// Flip Y coordinate to match Blender's coordinate system
-	object_space_nor.y *= -1.0;
 	
     gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * object_space_pos;
     
@@ -42,5 +39,5 @@ void main()
     v_vTexcoord = in_TextureCoord;
 	v_vNormal = (gm_Matrices[MATRIX_WORLD] * object_space_nor).xyz;	// Matrix MUST be first operand
 	
-	v_vLightDir = (u_lightpos*vec3(1.0,-1.0,1.0) - object_space_pos.xyz);
+	v_vLightDir = (u_lightpos - object_space_pos.xyz);
 }

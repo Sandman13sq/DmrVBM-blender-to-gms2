@@ -77,7 +77,6 @@ function VBM_Model() constructor
 	animationnames = [];
 	animationmap = {}	// {name: VBM_Animation} for each animation
 	animationcount = 0;
-	animator = 0;
 	
 	// Accessors -------------------------------------------------------------------
 	
@@ -104,13 +103,13 @@ function VBM_Model() constructor
 	function AnimationGet(_animationindex) {return animations[_animationindex];}
 	function AnimationFind(_animationname) {return variable_struct_get(animationmap, _animationname);}
 	
-	function Animator()
+	function CreateAnimator(_numlayers=1)
 	{
-		if (!animator) 
-		{
-			animator = new VBM_Animator();
-			animator.ReadTransforms(self);
-		}
+		animator = new VBM_Animator();
+		animator.ReadTransforms(self);
+		animator.LayerInitialize(_numlayers);
+		animator.AnimationAddArray(animations);
+		
 		return animator;
 	}
 	
@@ -121,9 +120,62 @@ function VBM_Model() constructor
 		return "VBM_Model: {" +string(meshcount)+" meshes, " + string(bonecount) + " bones, " + string(animationcount) + " animations" + "}";
 	}
 	
-	static Open = function(path, format=-1, freeze=true)
+	function Duplicate()
 	{
-		OpenVBM(path, self, freeze);
+		var _out = new VBM_Model();
+		
+		// Meshes
+		_out.meshcount = meshcount;
+		array_resize(_out.meshnames, meshcount);
+		array_resize(_out.meshes, meshcount);
+		
+		for (var i = 0; i < meshcount; i++)
+		{
+			_out.meshnames[i] = meshnames[i];
+			_out.meshes[i] = meshes[i].Duplicate();
+			_out.meshmap[$ meshnames[i]] = _out.meshes[i];
+			_out.meshnamemap[$ meshnames[i]] = i;
+		}
+		
+		// Skeleton
+		_out.bonecount = bonecount;
+		array_resize(_out.bonenames, bonecount);
+		array_resize(_out.bone_parentindices, bonecount);
+		array_resize(_out.bone_localmatricies, bonecount);
+		array_resize(_out.bone_inversematricies, bonecount);
+		
+		array_copy(_out.bonenames, 0, bonenames, 0, bonecount);
+		array_copy(_out.bone_parentindices, 0, bone_parentindices, 0, bonecount);
+		
+		for (var i = 0; i < bonecount; i++)
+		{
+			_out.bone_localmatricies[i] = matrix_build_identity();
+			array_copy(_out.bone_localmatricies[i], 0, bone_localmatricies[i], 0, 16);
+			
+			_out.bone_inversematricies[i] = matrix_build_identity();
+			array_copy(_out.bone_inversematricies[i], 0, bone_inversematricies[i], 0, 16);
+			
+			_out.bonemap[$ bonenames[i]] = i;
+		}
+		
+		// Animations
+		_out.animationcount = animationcount;
+		array_resize(_out.animations, animationcount);
+		array_resize(_out.animationnames, animationcount);
+		array_copy(_out.animationnames, 0, animationnames, 0, animationcount);
+		
+		for (var i = 0; i < animationcount; i++)
+		{
+			_out.animations[i] = animations[i].Duplicate();
+			_out.animationmap[$ animationnames[i]] = _out.animations[i];
+		}
+		
+		return _out;
+	}
+	
+	static Open = function(_path, _flags=0)
+	{
+		OpenVBM(_path, self, _flags);
 		return self;
 	}
 	
@@ -165,15 +217,6 @@ function VBM_Model() constructor
 		animationmap = {};
 		animationcount = 0;
 		animator = 0;
-	}
-	
-	// Returns index of vb with given name. -1 if not found
-	static GetMesh = function(_index) {return meshes[_index];}
-	
-	// Returns mesh with given name. -1 if not found
-	static FindMesh = function(_name)
-	{
-		return variable_struct_exists(meshmap, _name)? meshmap[$ _name]: -1;
 	}
 	
 	// Returns bone index from given name. -1 if not found
@@ -218,14 +261,19 @@ function VBM_Model() constructor
 	}
 	
 	// Pre-calculate transformations
-	function OptimizeAnimations()
+	function BakeAnimations()
 	{
 		for (var i = 0; i < animationcount; i++)
 		{
-			animations[i].BakeToLocal(bonenames);
+			animations[i].BakeToIntermediate(bonenames);
 		}
 		
 		return self;
+	}
+	
+	function Freeze()
+	{
+		for (var i = 0; i < meshcount; i++) {meshes[i].Freeze();} return self;
 	}
 }
 
@@ -238,6 +286,7 @@ function VBM_Mesh() constructor
 	vertexbuffer = -1;
 	rawbuffer = -1;
 	vertexformat = -1; // Vertex Buffer Format created in OpenVBM() (Don't touch!)
+	formatcode = [];
 	
 	visible = true;
 	edges = false;
@@ -256,11 +305,46 @@ function VBM_Mesh() constructor
 		vertexformat = -1;
 	}
 	
+	function Duplicate()
+	{
+		var _out = new VBM_Mesh();
+		var n;
+		
+		_out.name = name;
+		_out.materialname = materialname;
+		_out.texture = texture;
+		_out.edges = edges;
+		
+		// Format
+		n = array_length(formatcode);
+		array_resize(_out.formatcode, n);
+		for (var i = 0; i < n; i++)
+		{
+			_out.formatcode[i] = [formatcode[i][0], formatcode[i][1]];
+		}
+		
+		_out.vertexformat = VBMParseFormat(_out.formatcode);
+		
+		// Buffers
+		_out.rawbuffer = buffer_create(buffer_get_size(rawbuffer), buffer_fast, 1);
+		buffer_copy(rawbuffer, 0, buffer_get_size(rawbuffer), _out.rawbuffer, 0);
+		_out.vertexbuffer = vertex_create_buffer_from_buffer(_out.rawbuffer, _out.vertexformat);
+		
+		return _out;
+	}
+	
+	// --------------------------------------------------------------------------
+	
 	function Submit(_primitive_type=-1, _texture=-1)
 	{
 		if (_primitive_type == -1) {_primitive_type = edges? pr_linelist: pr_trianglelist;}
 		if (_texture == -1) {_texture = texture;}
 		vertex_submit(vertexbuffer, _primitive_type, _texture);
+	}
+	
+	function Freeze()
+	{
+		if (vertexbuffer) {vertex_freeze(vertexbuffer);}
 	}
 }
 
@@ -269,15 +353,15 @@ function VBM_Animation() constructor
 	name = "";	// Animation name
 	
 	framespersecond = 60;
-	duration = 1;
+	duration = 1;	// In frames
 	size = 0;	// Number of curves
 	curvearray = [];	// Array of channels[]
 	curvenames = [];	// Curve names
 	curvemap = {};	// {curvename: curvechannels}
 	
 	isbakedlocal = false;
-	evaluatedlocalmap = {}
-	evaluatedlocal = [];	// Matrices relative to bone. Intermediate pose
+	evaluatedlocal = [];	// Frame matrices relative to bone. Intermediate pose
+	evaluatedmap = {};		// Above with name map
 	
 	// Animation curves match the order of bones that they were exported with. Non-bone curves follow
 	// [loc, quat, sca, loc, quat, sca, ...]
@@ -289,10 +373,13 @@ function VBM_Animation() constructor
 				interpolations[]
 	*/
 	
+	// ==============================================================================
+	
 	Mat4 = matrix_build_identity;
 	
 	function toString() {return "VBM_Animation: {" + name + "}";}
 	
+	// Clears data from struct
 	function Clear()
 	{
 		array_resize(curvearray, 0);
@@ -301,21 +388,113 @@ function VBM_Animation() constructor
 		size = 0;
 		
 		isbakedlocal = false;
-		evaluatedlocalmap = {};
 		array_resize(evaluatedlocal, 0);
 	}
 	
+	// Removes dynamic data from struct
 	function Free()
 	{
 		Clear();
 	}
 	
+	// Returns copy of struct data in new struct
+	function Duplicate()
+	{
+		var _out = new VBM_Animation();
+		var _curve1, _curve2;
+		var _channel1, _channel2;
+		var _numchannels;
+		var _numvalues;
+		
+		_out.name = name;
+		_out.framespersecond = framespersecond;
+		_out.duration = duration;
+		_out.size = size;
+		_out.isbakedlocal = isbakedlocal;
+		
+		array_resize(_out.curvearray, size);
+		array_resize(_out.curvenames, size);
+		
+		array_copy(_out.curvenames, 0, curvenames, 0, size);
+		
+		// Copy curves
+		for (var i = 0; i < size; i++)
+		{
+			_curve1 = curvearray[i];
+			_numchannels = array_length(_curve1);
+			_curve2 = array_create(_numchannels);
+			
+			for (var c = 0; c < _numchannels; c++)
+			{
+				_channel1 = _curve1[c];
+				_channel2 = [[], [], []];	// [positions, values, interpolations]
+				
+				_numvalues = array_length(_channel1[0]);
+				array_resize(_channel2[0], _numvalues);				
+				array_copy(_channel2[0], 0, _channel1[0], 0, _numvalues);
+				
+				_numvalues = array_length(_channel1[1]);
+				array_resize(_channel2[1], _numvalues);				
+				array_copy(_channel2[1], 0, _channel1[1], 0, _numvalues);
+				
+				_numvalues = array_length(_channel1[2]);
+				array_resize(_channel2[2], _numvalues);				
+				array_copy(_channel2[2], 0, _channel1[2], 0, _numvalues);
+				
+				_curve2[c] = _channel2;
+			}
+			
+			_out.curvearray[i] = _curve2;
+			_out.curvemap[$ curvenames[i]] = _curve2;
+		}
+		
+		// Copy Baked
+		if (isbakedlocal)
+		{
+			var _n = array_length(evaluatedlocal);
+			var b = 0;
+			var _bonecount = 128;
+			var _frame, _srcframe;
+			
+			array_resize(_out.evaluatedlocal, _n);
+			for (var f = 0; f < _n; f++)
+			{
+				_srcframe = _out.evaluatedlocal[f];
+				_frame = [
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4()
+				];
+				
+				b = 0;
+				repeat(_bonecount)
+				{
+					array_copy(_frame[b], 0, _srcframe[b], 0, 16);
+					b++;
+				}
+				
+				_out.evaluatedlocal[f] = _frame;
+			}
+		}
+		
+		return _out;
+	}
+	
+	// ---------------------------------------------------------------------------------------
+	
+	// Returns true if curve path exists
 	function CurveExists(_curvename) {return variable_struct_exists(curvemap, _curvename);}
 	function ChannelExists(_curvename, _channel_index) 
 	{
 		return variable_struct_exists(curvemap, _curvename) && _channel_index <= array_length(curvemap[$ _curvename]);
 	}
 	
+	// Returns single value from curve path
 	function EvaluateValue(_curvename, _channel_index, _pos, _default_value=0) constructor
 	{
 		// Check curve exists
@@ -347,6 +526,7 @@ function VBM_Animation() constructor
 		);
 	}
 	
+	// Returns vector from curve path
 	function EvaluateVector(_curvename, _pos, _default_value=[])
 	{
 		var n = array_length(curvemap[$ _curvename][0]);
@@ -359,6 +539,41 @@ function VBM_Animation() constructor
 		return _default_value;
 	}
 	
+	// Populates struct variable with evaluated curves
+	function EvaluateSelectValue(_outdict, _pos, _curvenames)
+	{
+		var n = array_length(_curvenames);
+		var _name;
+		for (var i = 0; i < n; i++)
+		{
+			_name = _curvenames[i];
+			if ( ChannelExists(_name, 0) )
+			{
+				_outdict[$ _name] = EvaluateValue(_name, 0, _pos, _outdict[$ _name]);
+			}
+		}
+		
+		return _outdict;
+	}
+	
+	// Populates struct variable with evaluated curves
+	function EvaluateSelectVector(_outdict, _pos, _curvenames)
+	{
+		var n = array_length(_curvenames);
+		var _name;
+		for (var i = 0; i < n; i++)
+		{
+			_name = _curvenames[i];
+			if ( CurveExists(_name) )
+			{
+				_outdict[$ _name] = EvaluateVector(_name, 0, _pos, _outdict[$ _name]);
+			}
+		}
+		
+		return _outdict;
+	}
+	
+	// Populates struct variable with evaluated curves
 	function EvaluateAll(_outdict, _pos)
 	{
 		var _curve;
@@ -379,7 +594,8 @@ function VBM_Animation() constructor
 		return _outdict;
 	}
 	
-	function EvaluatePoseLocal(_pos, _outmat4array, _bonenames)
+	// Populates matrix array with calculated transforms from curves
+	function EvaluatePoseIntermediate(_pos, _outmat4array, _bonenames)
 	{
 		var _curveindex;
 		var _curvename;
@@ -387,6 +603,7 @@ function VBM_Animation() constructor
 		var _channels;
 		var _loc = [0,0,0];
 		var _quat = [1,0,0,0.0001];
+		var _euler = [0,0,0];
 		var _mat4;
 		
 		var q_length, q_hyp_sqr, q_c, q_s, q_omc;
@@ -402,7 +619,7 @@ function VBM_Animation() constructor
 			_bonename = _bonenames[i];
 			_mat4 = _outmat4array[@ i];
 			
-			// Rotation ----------------------------------------------------------
+			// Rotation Quaternion ----------------------------------------------------------
 			_curvename = _bonename + ".rotation_quaternion";
 			
 			if ( variable_struct_exists(curvemap, _curvename) )
@@ -431,6 +648,16 @@ function VBM_Animation() constructor
 				_mat4[@ 8] = q_omc*_quat[1]*_quat[3] + q_s*_quat[2];
 				_mat4[@ 9] = q_omc*_quat[2]*_quat[3] - q_s*_quat[1];
 				_mat4[@10] = q_omc*_quat[3]*_quat[3] + q_c;
+			}
+			
+			// Rotation Euler ----------------------------------------------------------
+			_curvename = _bonename + ".rotation_euler";
+			
+			if ( variable_struct_exists(curvemap, _curvename) )
+			{
+				_euler[0] = EvaluateValue(_curvename, 0, _pos, 0);
+				_euler[1] = EvaluateValue(_curvename, 1, _pos, 0);
+				_euler[2] = EvaluateValue(_curvename, 2, _pos, 0);
 			}
 			
 			// Scale -------------------------------------------------------------
@@ -463,37 +690,53 @@ function VBM_Animation() constructor
 		return _outmat4array;
 	}
 	
+	// Populates matrix array with transforms from curves. Uses pre-baked values if baked beforehand
 	function EvaluatePose(_pos, _outmat4array, _bonenames, _force_evaluate=false)
 	{
+		// Use baked values
 		if ( !_force_evaluate && isbakedlocal )
 		{
 			var n = array_length(_bonenames);
 			var i = 0;
+			var _bonename;
 			repeat(n)
 			{
-				array_copy(
-					_outmat4array[@ i],
-					0,
-					evaluatedlocal[clamp(round(_pos*duration), 0, duration-1)][i],
-					0,
-					16
-				);
+				_bonename = _bonenames[i];
+				if (
+					CurveExists(_bonename+".location") ||
+					CurveExists(_bonename+".rotation_quaternion") ||
+					CurveExists(_bonename+".scale")
+				)
+				{
+					array_copy(
+						_outmat4array[@ i],
+						0,
+						evaluatedlocal[clamp(round(_pos*duration), 0, duration-1)][i],
+						0,
+						16
+					);
+				}
 				i += 1;
 			}
 		}
+		// Calculate values at runtime
 		else
 		{
-			EvaluatePoseLocal(_pos, _outmat4array, _bonenames);
+			EvaluatePoseIntermediate(_pos, _outmat4array, _bonenames);
 		}
 	}
 	
-	function BakeToLocal(_bonenames, _targetfps=0)
+	// ----------------------------------------------------------------------------
+	
+	// Evaluate and save values for faster updating
+	function BakeToIntermediate(_bonenames, _targetfps=0)
 	{
 		if (_targetfps == 0) {_targetfps = game_get_speed(gamespeed_fps);}
 		
 		var _numframes = duration * (_targetfps / framespersecond);
 		
-		evaluatedlocal = array_create(_numframes);
+		array_resize(evaluatedlocal, _numframes);
+		
 		for (var f = 0; f <= _numframes; f++)
 		{
 			evaluatedlocal[@ f] = [
@@ -507,7 +750,7 @@ function VBM_Animation() constructor
 				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4()
 			];
 			
-			EvaluatePoseLocal(f/_numframes, evaluatedlocal[@ f], _bonenames);
+			EvaluatePoseIntermediate(f/_numframes, evaluatedlocal[@ f], _bonenames);
 		}
 		
 		isbakedlocal = true;
@@ -517,22 +760,14 @@ function VBM_Animation() constructor
 
 function VBM_Animator() constructor
 {
-	animation = 0;
-	animationspeed = 1;
-	animationelapsed = 0;
-	animationposition = 0;
-	animationpositionlast = 0;
-	animationduration = 1;
-	animationloop = true;
+	layers = [];
+	layercount = 0;
 	
-	evaluationposition = 0;
-	evaluationpositionlast = 0;
-	
-	animationpool = {}
-	curveoutput = {};
+	animationpool = {};
+	animations = [];
+	animationcount = 0;
 	
 	pausefield = 0;	// Bit field. If not zero, animation is paused
-	forcelocalposes = false;	// Prevents evaluated animations from being used when true
 	
 	// Matrix size = 128
 	static Mat4 = matrix_build_identity;
@@ -542,111 +777,165 @@ function VBM_Animator() constructor
 	boneindexmap = {};
 	boneparentindices = array_create(VBM_MATPOSEMAX);
 	bonecount = 0;
+	curveoutput = {};
 	
-	posefinal = [
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1
-	];
+	posefinal = array_create(VBM_MATPOSEMAX*16);
+	poseintermediate = array_create(VBM_MATPOSEMAX);
+	bonematlocal = array_create(VBM_MATPOSEMAX);
+	bonematinverse = array_create(VBM_MATPOSEMAX);
+	localbonetransform = array_create(VBM_MATPOSEMAX);
 	
-	poseintermediate = [
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-	];
-	
-	bonematlocal = [
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-	];
-	
-	bonematinverse = [
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-	];
-	
-	localbonetransform = [
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-	];
-	
-	function toString() 
+	function Initialize()
 	{
-		return "VBM_Animator: {" + 
-			string(animation) + ", " + 
-			string(evaluationposition) + " = " + string(animationelapsed) + "/" + string(animationduration) + "s" + 
-			"}";
+		posefinal = [
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1
+		];
+	
+		poseintermediate = [
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+		];
+	
+		bonematlocal = [
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+		];
+	
+		bonematinverse = [
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+		];
+	
+		localbonetransform = [
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
+		];
 	}
 	
-	function ActiveAnimation() {return animation;}
-	function ActiveAnimationName() {return animation? animation.name: "";}
+	Initialize();
 	
-	function Pause(_bitindex=0) {pausefield |= (1 << _bitindex);}
-	function PauseToggle(_bitindex=0) {pausefield ^= (1 << _bitindex);}
+	// ===========================================================================
 	
-	function PlayAnimation(_animation, _loop=true)
+	function toString()
 	{
-		if (animation != _animation)
+		var s = "{ ";
+		for (var i = 0; i < layercount; i++)
 		{
-			animation = _animation;
-			
-			if (animation)
-			{
-				animationduration = animation.duration;
-				animationloop = _loop;
-				animationposition = 0;
-				animationelapsed = 0;
-				evaluationposition = 0;
-				evaluationpositionlast = -1;
-			}
+			s += string(layers[i]);
 		}
+		s += " }";
+		return s;
+	}
+	
+	function LayerInitialize(_count)
+	{
+		layercount = _count;
+		array_resize(layers, layercount);
+		
+		for (var i = 0; i < _count; i++)
+		{
+			layers[i] = new VBM_Animator_Layer(self);
+			layers[i].index = i;
+		}
+		
+		return self;
+	}
+	
+	function Layer(_index=0)
+	{
+		return (_index >= 0 && _index < layercount)? layers[_index]: undefined;
+	}
+	
+	// -------------------------------------------------------------------------------------
+	
+	function AnimationCount() {return animationcount;}
+	
+	// Pre-calculate transformations
+	function BakeAnimations(_bonenames=0)
+	{
+		if (_bonenames == 0)
+		{
+			_bonenames = bonenames;
+		}
+		
+		for (var i = 0; i < animationcount; i++)
+		{
+			animations[i].BakeToIntermediate(_bonenames);
+		}
+		
+		return self;
 	}
 	
 	function ReadTransforms(_vbm)
 	{
-		boneparentindices = _vbm.BoneParentIndices();
+		bonecount = _vbm.bonecount;
+		
+		array_resize(boneparentindices, bonecount);
+		array_copy(boneparentindices, 0, _vbm.BoneParentIndices(), 0, bonecount);
 		bonematlocal = _vbm.BoneLocalMatrices();
 		bonematinverse = _vbm.BoneInverseMatrices();
-		bonecount = _vbm.bonecount;
 		
 		array_resize(bonenames, bonecount);
 		array_copy(bonenames, 0, _vbm.bonenames, 0, bonecount);
@@ -664,30 +953,117 @@ function VBM_Animator() constructor
 	function LocalPose() {return poseintermediate;}	// Array of local space matrices
 	function OutputPose() {return posefinal;}	// Flat array of final pose matrices
 	
-	function OutputPosePacked()
+	function GetMatrixIntermediate(_index) {return poseintermediate[_index];}
+	function FindMatriIntermediate(_name) 
 	{
-		var m = posefinal;
-		return [
-			m[ 0], m[ 4], m[ 8], m[ 0], 
-		];
+		return variable_struct_exists(boneindexmap, _name)? 
+			poseintermediate[boneindexmap[$ _name]]: 
+			undefined;
 	}
 	
-	function Update(deltasec)
+	function MatrixSetIntermediate(_index, _mat4)
+	{
+		array_copy(poseintermediate[_index], 0, _mat4, 0, 16);
+	}
+	
+	// ------------------------------------------------------------------------
+	
+	function AnimationAdd(_animation)
+	{
+		return AnimationDefine(_animation.name, _animation);
+	}
+	
+	function AnimationAddArray(_animations)
+	{
+		var n = array_length(_animations);
+		for (var i = 0; i < n; i++)
+		{
+			AnimationAdd(_animations[i]);
+		}
+	}
+	
+	function AnimationAddVBM(_vbm)
+	{
+		return AnimationAddArray(_vbm.animations)
+	}
+	
+	function AnimationDefine(_key, _animation)
+	{
+		animationpool[$ _key] = _animation;
+		array_push(animations, _animation);
+		animationcount += 1;
+		
+		for (var i = 0; i < layercount; i++)
+		{
+			layers[i].AnimationDefine(_key, _animation);
+		}
+		
+		return _key;
+	}
+	
+	// ------------------------------------------------------------------------
+	
+	function Pause(_bitindex=0) {pausefield |= (1 << _bitindex);}
+	function PauseToggle(_bitindex=0) {pausefield ^= (1 << _bitindex);}
+	
+	function EvaluateValue(_curvename, _channel_index, _pos, _default_value)
+	{
+		return animation?
+			animation.EvaluateValue(_curvename, _channel_index, _pos, _default_value):
+			_default_value;
+	}
+	
+	function EvaluateVector(_curvename, _pos, _default_value)
+	{
+		return animation?
+			animation.EvaluateValue(_curvename, _pos, _default_value):
+			_default_value;
+	}
+	
+	// ------------------------------------------------------------------------
+	
+	function SetPosition(_pos)
+	{
+		for (var i = 0; i < layercount; i++)
+		{
+			layers[i].SetPosition(_pos);
+		}
+	}
+	
+	function PlayAnimation(_animationkey, _loop=-1)
+	{
+		for (var i = 0; i < layercount; i++)
+		{
+			layers[i].PlayAnimation(_animationkey, _loop);
+		}
+	}
+	
+	function SetAnimation(_animation, _loop=-1)
+	{
+		for (var i = 0; i < layercount; i++)
+		{
+			layers[i].SetAnimation(_animation, _loop);
+		}
+	}
+	
+	// Process all layers
+	function Update(ts, _process_output=true, _process_intermediate=true)
 	{
 		if (pausefield == 0)
 		{
-			animationelapsed += deltasec * animationspeed;
+			for (var i = 0; i < layercount; i++)
+			{
+				if (layers[i].enabled)
+				{
+					layers[i].Update(ts, _process_output, _process_intermediate);
+				}
+			}
 		}
 		
-		if (animation)
+		if (_process_output)
 		{
-			animationposition = animationelapsed / animationduration;
-			evaluationposition = animationloop? (animationposition mod 1.0): clamp(animationposition, 0.0, 1.0);
-			
-			if (evaluationpositionlast != evaluationposition)
-			{
-				animation.EvaluatePose(evaluationposition, poseintermediate, bonenames, forcelocalposes);
-				
+			if (bonecount > 0)
+			{	
 				CalculateAnimationPose(
 					boneparentindices,
 					bonematlocal,
@@ -696,32 +1072,8 @@ function VBM_Animator() constructor
 					posefinal,
 					localbonetransform
 				);
-				
-				evaluationpositionlast = evaluationposition;
-			}
-			
-			
-			// Update Visibility
-			if (vbm != -1)
-			{
-				var n = vbm.meshcount;
-				var _mesh;
-				
-				for (var m = 0; m < n; m++)
-				{
-					_mesh = vbm.meshes[m];
-					_mesh.visible = animation.EvaluateValue(_mesh.name, 0, evaluationposition, _mesh.visible);
-				}
 			}
 		}
-	}
-	
-	function GetMatrixLocal(_index) {return poseintermediate[_index];}
-	function FindMatrixLocal(_name) 
-	{
-		return variable_struct_exists(boneindexmap, _name)? 
-			poseintermediate[boneindexmap[$ _name]]: 
-			undefined;
 	}
 	
 	function CalculateAnimationPose(
@@ -729,11 +1081,10 @@ function VBM_Animator() constructor
 		outposetransform, outbonetransform)
 	{
 		var i;
-		var m;
 		var n = min( array_length(bone_parentindices), array_length(posedata));
 		var localtransform = array_create(n);	// Parent -> Bone
 		array_resize(outbonetransform, n);	// Origin -> Bone
-	
+		
 		// Calculate animation for specific bone
 		i = 0; repeat(n) {localtransform[i++] = matrix_multiply(posedata[i], bone_localmatricies[i]);}
 	
@@ -753,12 +1104,213 @@ function VBM_Animator() constructor
 	}
 }
 
+function VBM_Animator_Layer(_root) constructor
+{
+	index = 0;
+	enabled = true;
+	pausefield = 0;	// Bit field. If not zero, animation is paused
+	
+	animator = _root;	// Root animator
+	
+	animation = 0;
+	animationspeed = 1;
+	animationelapsed = 0;
+	animationposition = 0;
+	animationpositionlast = 0;
+	animationduration = 1;
+	animationloop = true;
+	
+	evaluationposition = 0;
+	evaluationpositionlast = 0;
+	
+	animationpool = {}
+	animations = [];
+	animationcount = 0;
+	
+	forcelocalposes = false;	// Prevents evaluated animations from being used when true
+	
+	// ==================================================================================
+	
+	function toString() 
+	{
+		return "VBM_Animator_Layer: {" + 
+			string(index) + ", " + 
+			string(animation) + ", " + 
+			string(evaluationposition) + " = " + string(animationelapsed) + "/" + string(animationduration) + "f" + 
+			"}";
+	}
+	
+	function AnimationCount() {return animationcount;}
+	function ActiveAnimation() {return animation;}
+	function ActiveAnimationName() {return animation? animation.name: "";}
+	
+	function Pause(_bitindex=0) {pausefield |= (1 << _bitindex);}
+	function PauseToggle(_bitindex=0) {pausefield ^= (1 << _bitindex);}
+	
+	function Position() {return evaluationposition;}
+	function Elapsed() {return animationelapsed;}
+	
+	// ------------------------------------------------------------------------
+	
+	function AnimationAdd(_animation)
+	{
+		return AnimationDefine(_animation.name, _animation);
+	}
+	
+	function AnimationDefine(_key, _animation)
+	{
+		animationpool[$ _key] = _animation;
+		array_push(animations, _animation);
+		animationcount += 1;
+		
+		return self;
+	}
+	
+	// ------------------------------------------------------------------------
+	
+	function SetPosition(_pos)
+	{
+		animationelapsed = _pos / animationduration;
+	}
+	
+	function PlayAnimation(_animationkey, _loop=true)
+	{
+		SetAnimation(animationpool[$ _animationkey], _loop);
+	}
+	
+	function SetAnimation(_animation, _loop=true)
+	{
+		if (animation != _animation)
+		{
+			animation = _animation;
+			
+			if (animation)
+			{
+				animationduration = animation.duration;
+				animationloop = _loop != 0;
+				animationposition = 0;
+				animationelapsed = 0;
+				evaluationposition = 0;
+				evaluationpositionlast = -1;
+			}
+		}
+	}
+	
+	function Update(deltasec, _process_intermediate=true, _process_output=true)
+	{
+		if (pausefield == 0)
+		{
+			animationelapsed += deltasec * animationspeed;
+		}
+		
+		if (animation)
+		{
+			animationposition = animationelapsed / animationduration;
+			evaluationposition = animationloop? (animationposition mod 1.0): clamp(animationposition, 0.0, 1.0);
+			
+			// Update Bone Transforms
+			if (_process_intermediate)
+			{
+				if (evaluationpositionlast != evaluationposition)
+				{
+					animation.EvaluatePose(
+						evaluationposition, 
+						animator.poseintermediate, 
+						animator.bonenames, 
+						forcelocalposes
+						);
+					evaluationpositionlast = evaluationposition;
+				}
+			}
+			
+			// Update Visibility
+			if (_process_output)
+			{
+				if (animator.vbm != -1)
+				{
+					var _vbm = animator.vbm;
+					var n = _vbm.meshcount;
+					var _mesh;
+				
+					for (var m = 0; m < n; m++)
+					{
+						_mesh = _vbm.meshes[m];
+						_mesh.visible = animation.EvaluateValue(_mesh.name, 0, evaluationposition, _mesh.visible);
+					}
+				}
+			}
+		}
+	}
+	
+}
+
 // ======================================================================================================
 
 // Removes allocated memory from vbm
 function VBMFree(vbm)
 {
 	vbm.Clear();
+}
+
+// Creates and returns vertex format from code
+function VBMParseFormat(_formatcode)
+{
+	var _numattributes = array_length(_formatcode);
+	
+	vertex_format_begin();
+	
+	var attributetype;
+	var attributesize;
+	var bytesum = 0;
+	
+	for (var i = 0; i < _numattributes; i++)
+	{
+		attributetype = _formatcode[i][0];
+		attributesize = _formatcode[i][1];
+		
+		switch(attributetype)
+		{
+			// Native types
+			case(VBM_ATTRIBUTE_POSITION):
+				if (attributesize == 3) {vertex_format_add_position_3d();}
+				else {vertex_format_add_position();}
+				break;
+			case(VBM_ATTRIBUTE_UV):
+				vertex_format_add_texcoord(); break;
+			case(VBM_ATTRIBUTE_NORMAL):
+				vertex_format_add_normal(); break;
+			// Byte Attributes. Merged into Groups of 4
+			case(VBM_ATTRIBUTE_COLORBYTES):
+			case(VBM_ATTRIBUTE_BONEBYTES):
+			case(VBM_ATTRIBUTE_WEIGHTBYTES):
+			case(VBM_ATTRIBUTE_UVBYTES):
+			case(VBM_ATTRIBUTE_PADBYTES):
+				// Add attribute if this attribute's size yields a byte sum of 4
+				// Ex: 2 Bone Bytes + 2 Weight Bytes = Add attribute
+				// Ex: 3 Color Bytes + 1 Padding Byte = Add attribute
+				if ( ((bytesum + attributesize) div 4) > bytesum div 4 )
+				{
+					//vertex_format_add_custom(vertex_type_ubyte4, vertex_usage_texcoord);
+					vertex_format_add_color();
+				}
+				
+				bytesum += attributesize;
+				break;
+			
+			// Non native types
+			default:
+				switch(attributesize)
+				{
+					case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
+					case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
+					case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
+					case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
+				}
+				break;
+		}
+	}
+		
+	return vertex_format_end();
 }
 
 // Returns vertex buffer from file (.vb)
@@ -868,71 +1420,6 @@ function OpenVBM(
 	return _outvbm;
 }
 
-// Returns vbm format from buffer
-function GetVBMFormat(b, offset)
-{
-	var numattributes = buffer_peek(b, offset, buffer_u8);
-	offset += 1;
-	
-	vertex_format_begin();
-	
-	var attributetype;
-	var attributesize;
-	
-	var bytesum = 0;
-	
-	repeat(numattributes)
-	{
-		attributetype = buffer_peek(b, offset, buffer_u8);
-		offset += 1;
-		attributesize = buffer_peek(b, offset, buffer_u8);
-		offset += 1;
-		
-		switch(attributetype)
-		{
-			// Native types
-			case(VBM_ATTRIBUTE_POSITION):
-				if (attributesize == 3) {vertex_format_add_position_3d();}
-				else {vertex_format_add_position();}
-				break;
-			case(VBM_ATTRIBUTE_UV):
-				vertex_format_add_texcoord(); break;
-			case(VBM_ATTRIBUTE_NORMAL):
-				vertex_format_add_normal(); break;
-			// Byte Attributes. Merged into Groups of 4
-			case(VBM_ATTRIBUTE_COLORBYTES):
-			case(VBM_ATTRIBUTE_BONEBYTES):
-			case(VBM_ATTRIBUTE_WEIGHTBYTES):
-			case(VBM_ATTRIBUTE_UVBYTES):
-			case(VBM_ATTRIBUTE_PADBYTES):
-				// Add attribute if this attribute's size yields a byte sum of 4
-				// Ex: 2 Bone Bytes + 2 Weight Bytes = Add attribute
-				// Ex: 3 Color Bytes + 1 Padding Byte = Add attribute
-				if ( ((bytesum + attributesize) div 4) > bytesum div 4 )
-				{
-					//vertex_format_add_custom(vertex_type_ubyte4, vertex_usage_texcoord);
-					vertex_format_add_color();
-				}
-				
-				bytesum += attributesize;
-				break;
-			
-			// Non native types
-			default:
-				switch(attributesize)
-				{
-					case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
-					case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
-					case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
-					case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
-				}
-				break;
-		}
-	}
-		
-	return vertex_format_end();
-}
-
 // Returns vbm struct from file (.vbm)
 function __VBMOpen_v2(_outvbm, b, _userflags)
 {
@@ -971,6 +1458,10 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	
 	var _version;
 	var _format;
+	var _formatlength;
+	var _formatcode;
+	var _formatattribtype;
+	var _formatattribsize;
 	var _flag;
 	var _mesh;
 	var _vbcount;
@@ -981,12 +1472,17 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	var _name;
 	var _mat4;
 	var _vb;
+	var _vbraw;
 	var _targetindices;
 	var _targetmats;
 	var i, j;
 	
 	var _vbuffersize;
 	var _numvertices;
+	
+	var _flagsmesh;
+	var _flagsskeleton;
+	var _flagsanimation;
 	
 	var _freeze = (_userflags & VBM_IMPORTFLAG_FREEZE) != 0;
 	var _merge = (_userflags & VBM_IMPORTFLAG_MERGE) != 0;
@@ -1003,14 +1499,24 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	
 	#region // Vertex Buffers ==================================================
 	
+	buffer_seek(b, buffer_seek_start, jumpvbuffers);
+	
+	_flagsmesh = buffer_read(b, buffer_u32);
 	_vbcount = buffer_read(b, buffer_u32);
 	_vbcountoffset = _outvbm.meshcount;
 	_outvbm.meshcount += _vbcount;
 	array_resize(_outvbm.meshnames, _outvbm.meshcount);
 	
 	// Vertex Format
-	_format = GetVBMFormat(b, buffer_tell(b));
-	buffer_seek(b, buffer_seek_relative, buffer_read(b, buffer_u8)*2);
+	_formatlength = buffer_read(b, buffer_u8);
+	_formatcode = array_create(_formatlength);
+	
+	for (var i = 0; i < _formatlength; i++)
+	{
+		_formatattribtype = buffer_read(b, buffer_u8);
+		_formatattribsize = buffer_read(b, buffer_u8);
+		_formatcode[i] = [_formatattribtype, _formatattribsize];
+	}
 	
 	// VB Names ------------------------------------------------------------
 	for (var i = 0; i < _vbcount; i++) 
@@ -1018,6 +1524,7 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 		_name = "";
 		_namelength = buffer_read(b, buffer_u8);
 		repeat(_namelength) {_name += chr(buffer_read(b, buffer_u8));}
+		if (_name == "") {_name = string(i);}
 		_outvbm.meshnames[_vbcountoffset + i] = _name;
 		_outvbm.meshnamemap[$ _name] = _vbcountoffset + i;
 	}
@@ -1028,13 +1535,20 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 		_vbuffersize = buffer_read(b, buffer_u32);
 		_numvertices = buffer_read(b, buffer_u32);
 		
+		_format = VBMParseFormat(_formatcode);
+		
 		// Create _vb
-		_vb = vertex_create_buffer_from_buffer_ext(b, _format, buffer_tell(b), _numvertices);
+		_vbraw = buffer_create(_vbuffersize, buffer_fast, 1);
+		buffer_copy(b, buffer_tell(b), _vbuffersize, _vbraw, 0);
+		
+		_vb = vertex_create_buffer_from_buffer(_vbraw, _format);
 		if _freeze {vertex_freeze(_vb);}
 		
 		_mesh = new VBM_Mesh();
+		_mesh.rawbuffer = _vbraw;
 		_mesh.vertexbuffer = _vb;
 		_mesh.vertexformat = _format;
+		_mesh.formatcode = _formatcode;
 		
 		_outvbm.meshes[_vbcountoffset + i] = _mesh;
 		_outvbm.meshmap[$ _outvbm.meshnames[_vbcountoffset + i]] = _mesh;
@@ -1047,6 +1561,10 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	#endregion -------------------------------------------------------------
 	
 	#region // Skeleton ===========================================================
+	
+	buffer_seek(b, buffer_seek_start, jumpskeleton);
+	
+	_flagsskeleton = buffer_read(b, buffer_u32);
 	
 	_bonecount = buffer_read(b, buffer_u32);
 	_outvbm.bonecount = _bonecount;
@@ -1094,6 +1612,10 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	
 	#region // Animations ===========================================================
 	
+	buffer_seek(b, buffer_seek_start, jumpanimations);
+	
+	_flagsanimation = buffer_read(b, buffer_u32);
+	
 	var _numanimations;
 	var _animation;
 	var _animationnames;
@@ -1107,6 +1629,7 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	_numanimations = buffer_read(b, buffer_u32);
 	_outvbm.animationcount = _numanimations;
 	array_resize(_outvbm.animations, _numanimations);
+	array_resize(_outvbm.animationnames, _numanimations);
 	
 	// Animations
 	for (var i = 0; i < _numanimations; i++)
@@ -1163,14 +1686,12 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 		
 		_outvbm.animations[i] = _animation;
 		_outvbm.animationmap[$ _animation.name] = _animation;
+		_outvbm.animationnames[i] = _animation.name;
 	}
 	
 	#endregion -------------------------------------------------------------
 	
 	buffer_delete(b);
-	
-	// Keep Temporary format
-	_outvbm.vertexformat = _format;
 	
 	return _outvbm;
 }

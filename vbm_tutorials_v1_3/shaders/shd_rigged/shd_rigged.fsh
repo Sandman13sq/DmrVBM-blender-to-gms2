@@ -11,6 +11,6 @@ void main()
 	float dp = dot(normalize(v_vLightDir), normalize(v_vNormal));	// Ratio that normal faces light value
 	dp = max(0.0, dp) * 0.5 + 0.5;
 	
-    gl_FragColor = v_vColour * texture2D( gm_BaseTexture, v_vTexcoord );	
+    gl_FragColor = v_vColour * texture2D( gm_BaseTexture, vec2(v_vTexcoord.x, v_vTexcoord.y) );	
 	gl_FragColor.rgb *= dp; // Multiply color by dot product
 }

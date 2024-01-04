@@ -1,5 +1,5 @@
 //
-// Simple passthrough vertex shader
+//	Makes use of normal attribute and shading
 //
 attribute vec3 in_Position;                  // (x,y,z)
 attribute vec3 in_Normal;                  // (x,y,z)
@@ -21,9 +21,6 @@ void main()
     vec4 object_space_pos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
     vec4 object_space_nor = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 1.0);
 	
-	object_space_pos.y *= -1.0;	// Flip Y coordinate to match Blender's coordinate system
-	object_space_nor.y *= -1.0;
-	
     gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * object_space_pos;
     
 	// Varyings ------------------------------------------------------------
@@ -31,6 +28,6 @@ void main()
     v_vTexcoord = in_TextureCoord;
 	v_vNormal = (gm_Matrices[MATRIX_WORLD] * object_space_nor).xyz;	// Matrix MUST be first operand
 	
-	v_vLightDir = (u_lightpos*vec3(1.0,-1.0,1.0) - object_space_pos.xyz);
-	v_vEyeDir = (u_eyepos*vec3(1.0,1.0,1.0) - object_space_pos.xyz);
+	v_vLightDir = (u_lightpos - object_space_pos.xyz);
+	v_vEyeDir = (u_eyepos - object_space_pos.xyz);
 }

@@ -5,11 +5,11 @@ shadermode ^= keyboard_check_pressed(vk_space);
 
 #region Camera =============================================================
 
-var _spd = 0.1;
+var _spd = 0.2;
 
-var matviewrot = matrix_build(0,0,0, viewxrot,0,viewzrot, 1,1,1);
-viewforward = matrix_transform_vertex(matviewrot, 0,-1,0);
-viewright = matrix_transform_vertex(matviewrot, -1,0,0);
+var matviewrot = matrix_build(0,0,0, viewvrot,0,viewhrot, 1,1,1);
+viewforward = matrix_transform_vertex(matviewrot, 0,1,0);
+viewright = matrix_transform_vertex(matviewrot, 1,0,0);
 viewup = matrix_transform_vertex(matviewrot, 0,0,1);
 
 // Middle mouse button is held or left mouse button + alt key is held
@@ -20,14 +20,14 @@ if ( keyboard_check(vk_shift) )
 {
 	if ( keyboard_check(vk_right) ) {zrot += 1;}
 	if ( keyboard_check(vk_left) ) {zrot -= 1;}
-	if ( keyboard_check(vk_up) ) {viewxrot -= 1;}
-	if ( keyboard_check(vk_down) ) {viewxrot += 1;}
+	if ( keyboard_check(vk_up) ) {viewvrot -= 1;}
+	if ( keyboard_check(vk_down) ) {viewvrot += 1;}
 }
 // Move model
 else
 {
-	if ( keyboard_check(vk_right) ) {viewzrot += 1;}
-	if ( keyboard_check(vk_left) ) {viewzrot -= 1;}
+	if ( keyboard_check(vk_right) ) {viewhrot += 1;}
+	if ( keyboard_check(vk_left) ) {viewhrot -= 1;}
 	if ( keyboard_check(vk_up) ) {viewdistance /= 1.01;}
 	if ( keyboard_check(vk_down) ) {viewdistance *= 1.01;}
 }
@@ -41,8 +41,8 @@ if (movingcamera && (movingcamera != movingcameralast))	// In this frame, moving
 {
 	mouseanchor[0] = window_mouse_get_x();
 	mouseanchor[1] = window_mouse_get_y();
-	viewxrotanchor = viewxrot;
-	viewzrotanchor = viewzrot;
+	viewhrotanchor = viewhrot;
+	viewvrotanchor = viewvrot;
 	viewpositionanchor[0] = viewposition[0];
 	viewpositionanchor[1] = viewposition[1];
 	viewpositionanchor[2] = viewposition[2];
@@ -64,8 +64,8 @@ if (movingcamera)
 	// Rotation
 	else
 	{
-		viewzrot = viewzrotanchor - (window_mouse_get_x()-mouseanchor[0]) * _spd;
-		viewxrot = viewxrotanchor - (window_mouse_get_y()-mouseanchor[1]) * _spd;
+		viewhrot = viewhrotanchor + (window_mouse_get_x()-mouseanchor[0]) * _spd;
+		viewvrot = viewvrotanchor + (window_mouse_get_y()-mouseanchor[1]) * _spd;
 	}
 }
 
@@ -84,8 +84,12 @@ matview = matrix_build_lookat(
 	);
 
 matproj = matrix_build_projection_perspective_fov(
-	fieldofview, window_get_width()/window_get_height(), znear, zfar);
-
-mattran = matrix_build(x, y, 0, 0, 0, zrot, 1, 1, 1);
+	fieldofview, 
+	-window_get_width()/window_get_height(),	// Aspect is negated to fix y-coordinate
+	znear, 
+	zfar
+	);
 
 #endregion
+
+mattran = matrix_build(x, y, 0, 0, 0, zrot, 1, 1, 1);
