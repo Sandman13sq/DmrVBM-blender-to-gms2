@@ -8,9 +8,13 @@ varying vec3 v_vLightDir;
 
 void main()
 {
-	float dp = dot(normalize(v_vLightDir), normalize(v_vNormal));	// Ratio that normal faces light value
-	dp = max(0.0, dp) * 0.5 + 0.5;
+	float lightoffset = v_vColour.a;
+	float dp = dot(normalize(v_vLightDir), normalize(v_vNormal));	// Ratio that normal faces light vector
+	dp = clamp(dp + lightoffset * 1.5 - 0.5, 0.0, 1.0);
 	
-    gl_FragColor = v_vColour * texture2D( gm_BaseTexture, vec2(v_vTexcoord.x, v_vTexcoord.y) );	
-	gl_FragColor.rgb *= dp; // Multiply color by dot product
+	vec3 colorDark = vec3(0.4, 0.3, 0.6);
+    gl_FragColor = texture2D( gm_BaseTexture, vec2(v_vTexcoord.x, v_vTexcoord.y) );	// Texture Only
+	
+	// Multiply color by dark color with ratio of dot product
+	gl_FragColor.rgb = mix(gl_FragColor.rgb * colorDark, gl_FragColor.rgb, dp);
 }

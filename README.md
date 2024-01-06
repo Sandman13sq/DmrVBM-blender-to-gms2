@@ -26,6 +26,7 @@ For stable versions see the **Releases** on the GitHub page.
 * Navigate to the `DmrVBM_GameMaker.yymps` file. Select the file and click `Open`
 * Choose *scr_dmrvbm* to import into the project
 * NOTE: To avoid conflicts when upgrading to v1.3, remove existing v1.2 scripts before importing.
+* NOTE again: v1.3 is NOT backwards compatible with v1.2 models or below. Old models will have to be re-exported.
 
 ### Supported Attributes
 - Position - Location of vertex.

@@ -63,7 +63,7 @@ tex_col = sprite_get_texture(spr_col, 0);
 
 // *Model Controls -------------------------------------
 zrot = 0;
-lightpos = [8, -8, 8];
+lightpos = [4, -8, 8];
 
 // *Playback Controls ----------------------------------
 playbackspeed = 1;

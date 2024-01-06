@@ -1,6 +1,6 @@
 bl_info = {
     'name': 'DmrVBM Vertex Buffer Model Export',
-    'description': 'Export tools to export data to Game Maker Studio 2',
+    'description': 'Export tools to export vertex buffer data to Game Maker Studio 2',
     'author': 'Sandman13sq',
     'category': 'Import-Export',
     'version': (1, 3, 0),

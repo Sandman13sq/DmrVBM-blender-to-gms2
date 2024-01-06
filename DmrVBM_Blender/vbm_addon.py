@@ -5,15 +5,17 @@ import bmesh
 import os
 import zlib
 import mathutils
+import json
 
 from bpy_extras.io_utils import ExportHelper, ImportHelper
+from bl_ui.utils import PresetPanel
 
 classlist = []
 
 # VBM spec:
 """
     'VBM' (3B)
-    VBM version = 3 (1B)
+    VBM file version = 3 (1B)
     
     flags (1B)
     
@@ -299,12 +301,13 @@ class VBM_PG_Format_Attribute(bpy.types.PropertyGroup):
             if self.type == VBF_PAD:
                 self.default_normalize = False
             
+            self.size = min(self.size, VBFSize[self.type])
+            
             for format in list(context.scene.vbm.formats):
                 if self in list(format.attributes):
                     format.UpdateFormatString(context)
                     break
             
-            self.size = min(self.size, VBFSize[self.type])
             self.format_code_mutex = False
     
     format_code_mutex : bpy.props.BoolProperty()
@@ -473,6 +476,7 @@ class VBM_PG_ExportQueue_Entry(bpy.types.PropertyGroup):
     id_armature : bpy.props.PointerProperty(name="Rig", type=bpy.types.Object, poll=lambda self,obj: obj.type=='ARMATURE')
     id_collection : bpy.props.PointerProperty(name="Collection", type=bpy.types.Collection)
     id_pose : bpy.props.PointerProperty(name="Pose", type=bpy.types.Action)
+    format : bpy.props.StringProperty(name="Format", default="")
     copy_textures : bpy.props.BoolProperty(name="Copy Textures", default=False)
     
     enabled : bpy.props.BoolProperty(name="Enabled", default=True)
@@ -507,13 +511,39 @@ class VBM_OT_ClearCache(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        hits = 0
         for obj in bpy.data.objects:
             if obj.type == 'MESH':
+                hit = 0
                 for k in list(obj.keys())[::-1]:
                     if k[:6] in ('VBDAT_', 'VBNUM_', 'VBSUM_') or k in 'VBM_LASTCOUNT VBM_LASTDATA'.split():
                         del obj[k]
+                        hit = 1
+                hits += hit
+        self.report({'INFO'}, '> VBM Cache cleared for %d object(s)' % hits)
         return {'FINISHED'}
 classlist.append(VBM_OT_ClearCache)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_ClearRecent(bpy.types.Operator):
+    """Clear stored export parameters"""
+    bl_label = "Clear Recents"
+    bl_idname = 'vbm.clear_recents'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        hits = 0
+        for obj in bpy.data.objects:
+            if obj.type == 'MESH':
+                hit = 0
+                for k in list(obj.keys())[::-1]:
+                    if k == 'VBM_LASTEXPORT':
+                        del obj[k]
+                        hit = 1
+                hits += hit
+        self.report({'INFO'}, '> VBM Recent cleared for %d object(s)' % hits)
+        return {'FINISHED'}
+classlist.append(VBM_OT_ClearRecent)
 
 '========================================================================================================'
 
@@ -540,9 +570,26 @@ class VBM_OT_Format_Remove(bpy.types.Operator):
     index : bpy.props.IntProperty(name="Index")
     
     def execute(self, context):
-        context.scene.vbm.formats.remove(self.index)
+        vbm = context.scene.vbm
+        vbm.formats.remove(self.index)
+        vbm.formats_index = max(min(vbm.formats_index, len(vbm.formats)-1), 0)
         return {'FINISHED'}
 classlist.append(VBM_OT_Format_Remove)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_Format_Clear(bpy.types.Operator):
+    """Removes all vertex formats from scene"""
+    bl_label = "Clear Format"
+    bl_idname = 'vbm.format_clear'
+    bl_options = {'REGISTER', 'UNDO'}
+    index : bpy.props.IntProperty(name="Index")
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        vbm.formats.clear()
+        vbm.formats_index = max(min(vbm.formats_index, len(vbm.formats)-1), 0)
+        return {'FINISHED'}
+classlist.append(VBM_OT_Format_Clear)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_Format_Move(bpy.types.Operator):
@@ -559,6 +606,105 @@ class VBM_OT_Format_Move(bpy.types.Operator):
         vbm.formats_index = max(0, min(vbm.formats_index + (1 if self.move_down else -1), len(formats)-1))
         return {'FINISHED'}
 classlist.append(VBM_OT_Format_Move)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_Format_Export(ExportHelper, bpy.types.Operator):
+    """Exports format to json"""
+    bl_label = "Export Format"
+    bl_idname = 'vbm.format_export'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    format : bpy.props.StringProperty(
+        name="Format", default="",
+        description="Format to export. If empty, exports all formats"
+        )
+    
+    filename_ext = ".json"
+    filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
+    
+    def draw(self, context):
+        vbm = context.scene.vbm
+        formats = context.scene.vbm.formats
+        
+        layout = self.layout
+        layout.prop_search(self, 'format', vbm, 'formats')
+        
+        format = formats.get(self.format)
+        if format:
+            format.DrawPanel(layout)
+        elif self.format != "":
+            b = layout.box()
+            b.label(text="(Format name not found)")
+        else:
+            b = layout.box().row()
+            c1 = b.column(align=True)
+            c2 = b.column(align=True)
+            c1.scale_x = 4.0
+            for format in formats:
+                c1.prop(format, 'name', text="", emboss=False)
+                rr = c2.row(align=True)
+                for att in format.attributes:
+                    rr.label(text="", icon=VBFIcon[att.type])
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        formats = context.scene.vbm.formats
+        outjson = {}
+        
+        if self.format:
+            format = formats.get(self.format)
+            if format:
+                formats = [formats[self.format]]
+            else:
+                self.report({'WARNING'}, 'Format "%s" not found' % self.format)
+                return {'FINISHED'}
+        
+        for f in formats:
+            outjson[f.name] = f.format_code
+        
+        f = open(self.filepath, 'w')
+        f.write(json.dumps(outjson, indent=4))
+        f.close()
+        
+        self.report({'INFO'}, 'Format(s) written to json file')
+        return {'FINISHED'}
+classlist.append(VBM_OT_Format_Export)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_Format_Import(ImportHelper, bpy.types.Operator):
+    """Imports format from json"""
+    bl_label = "Import Format"
+    bl_idname = 'vbm.format_import'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    filename_ext = ".json"
+    filter_glob: bpy.props.StringProperty(default="*"+filename_ext, options={'HIDDEN'}, maxlen=255)
+    
+    overwrite : bpy.props.BoolProperty(
+        name="Overwrite Existing", default=True,
+        description="Overwrites existing formats if name already exists in file."
+        )
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        formats = context.scene.vbm.formats
+        
+        f = open(bpy.path.abspath(self.filepath), 'r')
+        injson = json.loads("".join([x for x in f]))
+        f.close()
+        
+        for k,v in injson.items():
+            if formats.get(k):
+                if self.overwrite:
+                    formats.get(k).format_code = v
+            else:
+                item = formats.add()
+                item.name = k
+                item.format_code = v
+        
+        self.report({'INFO'}, 'Imported format(s) from json file')
+        return {'FINISHED'}
+classlist.append(VBM_OT_Format_Import)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_Attribute_Add(bpy.types.Operator):
@@ -952,6 +1098,30 @@ class VBM_OT_ExportQueue_ToggleGroup(bpy.types.Operator):
 classlist.append(VBM_OT_ExportQueue_ToggleGroup)
 
 # -------------------------------------------------------------------------------------------
+class VBM_OT_ExportQueue_MakePathsRelative(bpy.types.Operator):
+    """Toggle relative paths for queues"""
+    bl_label = "Make Queue Paths Relative/Absolute"
+    bl_idname = 'vbm.queue_relative_path'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    relative : bpy.props.BoolProperty(
+        name="Make Relative", default=True, 
+        description="Converts path to relative, otherwise absolute"
+        )
+    
+    def execute(self, context):
+        vbm = context.scene.vbm
+        relative = self.relative
+        for q in vbm.queues:
+            if relative:
+                q['filepath'] = bpy.path.relpath(q['filepath'])
+            else:
+                q['filepath'] = bpy.path.abspath(q['filepath'])
+        
+        return {'FINISHED'}
+classlist.append(VBM_OT_ExportQueue_MakePathsRelative)
+
+# -------------------------------------------------------------------------------------------
 class VBM_OT_ExportQueue_Export(bpy.types.Operator):
     """Export all VBMs in queue"""
     bl_label = "Export Queue"
@@ -989,11 +1159,22 @@ classlist.append(VBM_OT_ExportQueue_Export)
 '========================================================================================================'
 
 # -------------------------------------------------------------------------------------------
+class VBM_PT_ExportVBM_Presets(PresetPanel, bpy.types.Panel):
+    bl_label = "My Presets"
+    preset_subdir = "dmrvbm/vbm_export_vbm"
+    preset_operator = 'vbm.export_vbm'
+    preset_add_operator = 'vbm.export_vbm_preset_add'
+classlist.append(VBM_PT_ExportVBM_Presets)
+
+# -------------------------------------------------------------------------------------------
 class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     """Export model to vbm file"""
     bl_label = "Export VBM"
     bl_idname = 'vbm.export_vbm'
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER', 'UNDO', 'PRESET'}
+    
+    def draw_header_preset(self, context):
+        VBM_PT_ExportVBM_Presets.draw_panel_header(self.layout)
     
     savepropnames = ('''
         filepath filename_ext file_type compression collection armature 
@@ -1612,7 +1793,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         sc = context.scene
         
         # Save Last Props
-        if not queue:
+        if not queue and vbm.write_to_recent:
             obj = context.selected_objects[0] if context.selected_objects else context.active_object
             rig = bpy.data.objects.get(self.armature)
             collection = bpy.data.collections.get(self.collection)
@@ -1697,7 +1878,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 print("Objects:", len(objects))
                 print(
                     "Data of size %.2fKB (%.2f%% of original size) written to \"%s\"" % 
-                    (outlen[1] / 1000, 100.0 * outlen[1] / outlen[0], filepath) 
+                    (outlen[1] / 1000, 100.0 * outlen[1] / max(outlen[0], 1), filepath) 
                     )
                 
                 if armature and pose_action:
@@ -2107,12 +2288,12 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 continue
             usedimages.append(imagepath)
             
-            if bpy.app.version >= (3,2,2):
+            if bpy.app.version >= (3,4,0):
                 image.save(filepath=imagepath)
             else:
                 imgpath = image.filepath
                 image.filepath = imagepath
-                image.save()
+                image.save_render()
                 image.filepath = imgpath
         
         context.view_layer.objects.active = active
@@ -2277,11 +2458,7 @@ class VBM_PT_Master(bpy.types.Panel):
     
     def draw(self, context):
         vbm = context.scene.vbm
-        layout = self.layout
-        
-        r = layout.row()
-        r.prop(vbm, 'write_to_cache')
-        r.operator('vbm.clear_cache')
+        layout = self.layout.column()
         
         b = layout.box().column(align=True)
         
@@ -2356,6 +2533,20 @@ class VBM_PT_Master(bpy.types.Panel):
         op = OpFromProps(obj, b.row(align=True), 'RESTRICT_SELECT_OFF', '', '')
         op = OpFromProps(rig, b.row(align=True), 'ARMATURE_DATA', "", rig.name if rig else '')
         op = OpFromProps(context.collection, b.row(align=True), 'OUTLINER_COLLECTION', context.collection.name, "")
+        
+        r = layout.row(align=True)
+        rr = r.box().row(align=True)
+        rrr = rr.row()
+        rrr.scale_x = 0.7
+        rrr.label(text="Cache:")
+        rr.prop(vbm, 'write_to_cache', text="Write: Enabled" if vbm.write_to_cache else "Write: Disabled", toggle=True)
+        rr.operator('vbm.clear_cache', text="", icon='X')
+        rr = r.box().row(align=True)
+        rrr = rr.row()
+        rrr.scale_x = 0.7
+        rrr.label(text="Recent:")
+        rr.prop(vbm, 'write_to_recent', text="Write: Enabled" if vbm.write_to_recent else "Write: Disabled", toggle=True)
+        rr.operator('vbm.clear_recents', text="", icon='X')
 classlist.append(VBM_PT_Master)
 
 # ------------------------------------------------------------------------------------------
@@ -2374,13 +2565,17 @@ class VBM_PT_Queues(bpy.types.Panel):
         layout = self.layout.column()
         
         r = layout.row()
-        r.prop(vbm, 'display_queue_group_paths')
-        r.prop(vbm, 'display_queue_group_indices')
+        r.prop(vbm, 'display_queue_group_paths', text="Show Paths")
+        r.prop(vbm, 'display_queue_group_indices', text="Show Indices")
+        
+        r = r.row(align=True)
+        r.operator('vbm.queue_relative_path', text="Relative Paths").relative = True
+        r.operator('vbm.queue_relative_path', text="Absolute Paths").relative = False
         
         # Export
         r = layout.row(align=True)
         r.enabled = len(vbm.queues) > 0
-        op = r.operator('vbm.queue_export', icon='SOLO_ON')
+        op = r.operator('vbm.queue_export', text="Export Queues", icon='SOLO_ON')
         op.queue = ""
         op.group = -1
         
@@ -2443,6 +2638,7 @@ class VBM_PT_Queues(bpy.types.Panel):
             r.prop(queue, 'id_collection', text="", icon='OUTLINER_COLLECTION')
             r.prop(queue, 'id_pose')
             r = bb.row()
+            r.prop_search(queue, 'format', vbm, 'formats')
             r.prop(queue, 'copy_textures')
             r = bb.row()
             r.prop(queue, '["filepath"]', text="", icon='FILEBROWSER')
@@ -2459,7 +2655,14 @@ class VBM_PT_Format(bpy.types.Panel):
     def draw(self, context):
         vbm = context.scene.vbm
         
-        layout = self.layout
+        layout = self.layout.column()
+        
+        r = layout.row(align=False)
+        rr = r.row(align=True)
+        rr.operator('vbm.format_export', text="Export", icon='EXPORT').format = vbm.formats[vbm.formats_index].name if vbm.formats else ""
+        rr.operator('vbm.format_export', text="All").format = ""
+        rr = r.row(align=True)
+        rr.operator('vbm.format_import', text="Import", icon='IMPORT')
         
         r = layout.row(align=True)
         c = r.column(align=True)
@@ -2472,7 +2675,8 @@ class VBM_PT_Format(bpy.types.Panel):
         c.operator('vbm.format_remove', text="", icon='REMOVE').index = vbm.formats_index
         c.separator()
         c.operator('vbm.format_move', text="", icon='TRIA_UP').move_down = False
-        c.operator('vbm.format_move', text="", icon='TRIA_DOWN').move_down = True
+        c.separator()
+        c.operator('vbm.format_clear', text="", icon='X')
         
         # Attributes
         if len(vbm.formats) > 0:
@@ -2577,11 +2781,15 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
     queue_group_enabled : bpy.props.BoolVectorProperty(name="Queue Groups", size=32, default=tuple([True for i in range(0,32)]))
     
     display_queue_group_indices : bpy.props.BoolProperty(name="Display Group Indices", default=False)
-    display_queue_group_paths : bpy.props.BoolProperty(name="Display Group Paths", default=True)
+    display_queue_group_paths : bpy.props.BoolProperty(name="Display Group Paths", default=False)
     
     write_to_cache : bpy.props.BoolProperty(
         name="Write To Cache", default=True,
         description="Save export data on object to speed up repeat exports")
+    
+    write_to_recent : bpy.props.BoolProperty(
+        name="Write To Recent", default=True,
+        description="Save export parameters on object for one-click re-exports")
     
     def RefreshQueues(self):
         queues = self.queues
@@ -2839,6 +3047,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         fast=False,
         alphanumeric_modifiers=True,
         ):
+        vbm = self
         outmap = {} # {mtl_name: data}
         mtlkey = {}
         
@@ -2877,7 +3086,12 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         
         def ObjChecksum(obj):
             return int(sum(
-                [alphanumeric_modifiers, flip_uvs] + 
+                [
+                    alphanumeric_modifiers, 
+                    flip_uvs, 
+                    sum([ord(x) for x in pre_script.as_string()]) if pre_script else 0,
+                    sum([ord(x) for x in post_script.as_string()]) if post_script else 0,
+                ] + 
                 ((
                     [x for v in obj.data.vertices for x in ([xx for xx in v.co]+[xx for vge in v.groups for xx in (vge.group, vge.weight)])] +
                     (
@@ -2899,7 +3113,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             (sum([ord(x) for x in obj.data.vertex_colors.active.name]) if obj.data.vertex_colors else 0)
                         )
                     ])
-                ) if obj.data == 'MESH' else [] ) + 
+                ) if obj.type == 'MESH' else [] ) + 
                 ([x for b in armature.data.bones for v in b.matrix_local for x in v] if armature else []) + 
                 (
                     [x for fc in armature.animation_data.action.fcurves for k in fc.keyframe_points for x in k.co]
@@ -2918,7 +3132,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             s += str(size)
             if layer != LYR_RENDER:
                 s += layer[:4]
-            if srgb:
+            if k in VBFUseVCLayer and srgb:
                 s += "c"
             attribstr += s
         
@@ -2928,7 +3142,6 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             armature = sourceobj.find_armature()
             
             checksum = ObjChecksum(sourceobj)
-            
             checksumkey = attribstr
             
             # Use Cached Data
@@ -2979,9 +3192,9 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         
                         # Pre-Calculation Script
                         if pre_script:
-                            context.scene['VBMEXPORTACTIVE'] = True
+                            context.scene['VBM_EXPORTING'] = True
                             exec(pre_script.as_string())
-                            context.scene['VBMEXPORTACTIVE'] = False
+                            context.scene['VBM_EXPORTING'] = False
                         
                         if not apply_armature:
                             armaturemodifiers = [m for m in obj.modifiers if m.type == 'ARMATURE' and m.show_viewport]
@@ -3000,9 +3213,9 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     
                     # Post-Calculation Script
                     if post_script:
-                        context.scene['VBMEXPORTACTIVE'] = True
+                        context.scene['VBM_EXPORTING'] = True
                         exec(post_script.as_string())
-                        context.scene['VBMEXPORTACTIVE'] = False
+                        context.scene['VBM_EXPORTING'] = False
                     
                     # Collect data
                     if instobj.matrix_world.determinant() < 0:
@@ -3129,10 +3342,11 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 uniquedata = numpy.empty(numloops * 4, dtype=numpy.float32)
                                 lyr.data.foreach_get('color', uniquedata)
                                 
-                                if (USE_ATTRIBUTES and not isSrgb):
+                                if (USE_ATTRIBUTES and isSrgb):
                                     numpy.power(uniquedata, numpy.array([.4545, .4545, .4545, 1.0] * numloops), uniquedata)
                                 elif (not USE_ATTRIBUTES) and (not isSrgb):
                                     numpy.power(uniquedata, numpy.array([2.2, 2.2, 2.2, 1.0] * numloops), uniquedata)
+                                
                                 attdata = numpy.array([ uniquedata[i*4:i*4+size] for i in faceloopindices], dtype=numpy.float32)
                             else:
                                 attdata = NumpyCreatePattern(default_value, numelements)
@@ -3188,7 +3402,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     instobj.active_material.name if instobj.active_material else ""
                 )
                 
-                if use_cache:
+                if vbm.write_to_cache:
                     sourceobj['VBDAT_'+checksumkey] = zlib.compress(vbmesh, 9)
                     sourceobj['VBNUM_'+checksumkey] = numelements
                     sourceobj['VBSUM_'+checksumkey] = checksum
