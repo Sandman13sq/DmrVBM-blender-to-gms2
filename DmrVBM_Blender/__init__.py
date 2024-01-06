@@ -4,7 +4,7 @@ bl_info = {
     'author': 'Sandman13sq',
     'category': 'Import-Export',
     'version': (1, 3, 0),
-    'blender': (3, 0, 0),
+    'blender': (3, 3, 0),
     'support': 'COMMUNITY',
     'doc_url': 'https://github.com/Sandman13sq/DmrVBM-blender-to-gms2',
 }

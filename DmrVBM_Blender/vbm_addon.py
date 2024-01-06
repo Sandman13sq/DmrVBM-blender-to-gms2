@@ -27,10 +27,6 @@ classlist = []
     meshflags (1I)
     
     numvbuffers (1I)
-    formatlength (1B)
-    formatentry[formatlength]
-        attributetype (1B)
-        attributefloatsize (1B)
     
     vbnames[vbcount]
         namelength (1B)
@@ -38,9 +34,13 @@ classlist = []
             char (1B)
     
     vbdata[vbcount]
-        vbcompressedsize (1L)
+        formatlength (1B)
+        formatentry[formatlength]
+            attributetype (1B)
+            attributefloatsize (1B)
+        vbnumbytes (1L)
         vbnumvertices (1L)
-        vbcompresseddata (vbcompressedsize B)
+        vbdata (vbnumbytes B)
     
     vbmaterials[vbcount]
         namelength (1B)
@@ -2050,15 +2050,16 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 
                 formatserialized = vbm.ParseFormatString(format if format else self.format_code) if self.export_meshes else []
                 
-                outvbs += Pack('B', len(formatserialized))
-                for k, size, layer, srgb, defaultvalue in formatserialized:
-                    outvbs += Pack('B', VBFTypeIndex[k])
-                    outvbs += Pack('B', size)
-                
+                # VBs
                 for name, vbmeta in vbmap.items():
+                    # Name
                     outvbs += PackString(name)
-                
-                for name, vbmeta in vbmap.items():
+                    # Format
+                    outvbs += Pack('B', len(formatserialized))
+                    for k, size, layer, srgb, defaultvalue in formatserialized:
+                        outvbs += Pack('B', VBFTypeIndex[k])
+                        outvbs += Pack('B', size)
+                    # Buffer
                     vb, numvertices = vbmeta
                     outvbs += Pack('I', len(vb))
                     outvbs += Pack('I', numvertices)
@@ -2124,7 +2125,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 
                                 context.view_layer.update()
                                 
-                                print("> Baking action:", workingaction.name)
+                                print("> Baking copy of action:", action.name)
                                 bpy.ops.nla.bake(
                                     frame_start=int(action.frame_start),
                                     frame_end=int(action.frame_end), 

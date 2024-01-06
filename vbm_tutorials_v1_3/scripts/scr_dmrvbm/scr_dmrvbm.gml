@@ -1423,39 +1423,6 @@ function OpenVBM(
 // Returns vbm struct from file (.vbm)
 function __VBMOpen_v2(_outvbm, b, _userflags)
 {
-	/* Vertex Buffer Collection v1 File spec:
-		'VBM' (3B)
-		VBM version (1B)
-    
-		flags (1B)
-
-		formatlength (1B)
-		formatentry[formatlength]
-		    attributetype (1B)
-		    attributefloatsize (1B)
-
-		vbcount (1I)
-		vertexbuffernames[vbcount]
-		    namelength (1B)
-		    namechars[namelength]
-		        char (1B)
-		vbdata[vbcount]
-		    vbcompressedsize (1L)
-		    vbcompresseddata (vbcompressedsize B)
-
-		bonecount (1I)
-		bonenames[bonecount]
-		    namelength (1B)
-		    namechars[namelength]
-		        char (1B)
-		parentindices[bonecount] 
-		    parentindex (1I)
-		localmatrices[bonecount]
-		    mat4 (16f)
-		inversemodelmatrices[bonecount]
-		    mat4 (16f)
-	*/
-	
 	var _version;
 	var _format;
 	var _formatlength;
@@ -1507,37 +1474,34 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	_outvbm.meshcount += _vbcount;
 	array_resize(_outvbm.meshnames, _outvbm.meshcount);
 	
-	// Vertex Format
-	_formatlength = buffer_read(b, buffer_u8);
-	_formatcode = array_create(_formatlength);
-	
-	for (var i = 0; i < _formatlength; i++)
+	// VB Data -------------------------------------------------------------
+	for (var _vbindex = 0; _vbindex < _vbcount; _vbindex++)
 	{
-		_formatattribtype = buffer_read(b, buffer_u8);
-		_formatattribsize = buffer_read(b, buffer_u8);
-		_formatcode[i] = [_formatattribtype, _formatattribsize];
-	}
-	
-	// VB Names ------------------------------------------------------------
-	for (var i = 0; i < _vbcount; i++) 
-	{
+		// Mesh Name
 		_name = "";
 		_namelength = buffer_read(b, buffer_u8);
 		repeat(_namelength) {_name += chr(buffer_read(b, buffer_u8));}
-		if (_name == "") {_name = string(i);}
-		_outvbm.meshnames[_vbcountoffset + i] = _name;
-		_outvbm.meshnamemap[$ _name] = _vbcountoffset + i;
-	}
+		if (_name == "") {_name = string(_vbindex);}
+		_outvbm.meshnames[_vbcountoffset + _vbindex] = _name;
+		_outvbm.meshnamemap[$ _name] = _vbcountoffset + _vbindex;
+		
+		// Vertex Format
+		_formatlength = buffer_read(b, buffer_u8);
+		_formatcode = array_create(_formatlength);
 	
-	// VB Data -------------------------------------------------------------
-	for (var i = 0; i < _vbcount; i++)
-	{
-		_vbuffersize = buffer_read(b, buffer_u32);
-		_numvertices = buffer_read(b, buffer_u32);
+		for (var i = 0; i < _formatlength; i++)
+		{
+			_formatattribtype = buffer_read(b, buffer_u8);
+			_formatattribsize = buffer_read(b, buffer_u8);
+			_formatcode[i] = [_formatattribtype, _formatattribsize];
+		}
 		
 		_format = VBMParseFormat(_formatcode);
 		
-		// Create _vb
+		// Create buffer
+		_vbuffersize = buffer_read(b, buffer_u32);
+		_numvertices = buffer_read(b, buffer_u32);
+		
 		_vbraw = buffer_create(_vbuffersize, buffer_fast, 1);
 		buffer_copy(b, buffer_tell(b), _vbuffersize, _vbraw, 0);
 		
@@ -1550,9 +1514,9 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 		_mesh.vertexformat = _format;
 		_mesh.formatcode = _formatcode;
 		
-		_outvbm.meshes[_vbcountoffset + i] = _mesh;
-		_outvbm.meshmap[$ _outvbm.meshnames[_vbcountoffset + i]] = _mesh;
-		_mesh.name = _outvbm.meshnames[_vbcountoffset + i]
+		_outvbm.meshes[_vbcountoffset + _vbindex] = _mesh;
+		_outvbm.meshmap[$ _name] = _mesh;
+		_mesh.name = _name
 		
 		// move to next _vb
 		buffer_seek(b, buffer_seek_relative, _vbuffersize);
