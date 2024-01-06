@@ -7,7 +7,7 @@ viewvrot = 10;	// Camera's horizontal rotation
 viewdistance = 2.4;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
-znear = 1;	// Clipping distance for close triangles
+znear = 0.1;	// Clipping distance for close triangles
 zfar = 100;	// Clipping distance for far triangles
 
 matproj = matrix_build_identity();	// Matrices are updated in Step Event
@@ -25,6 +25,7 @@ viewvrotanchor = viewhrot;	// Updated when middle mouse is pressed
 viewhrotanchor = viewvrot;	// Updated when middle mouse is pressed
 movingcamera = false;	// Middle mouse or left mouse + alt is held
 movingcameralast = false;	// Used to check when middle has been pressed
+cameramovemode = 0;	// 0 = Rotate, 1 = Pan
 
 // *Vertex format --------------------------------------
 vertex_format_begin();

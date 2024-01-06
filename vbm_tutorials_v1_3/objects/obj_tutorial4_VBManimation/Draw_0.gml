@@ -1,12 +1,5 @@
 /// @desc Set matrices and draw VBs
 
-// Store room matrices in matrix stack
-var roommatrices = [
-	matrix_get(matrix_projection),
-	matrix_get(matrix_view),
-	matrix_get(matrix_world)
-];
-
 // GPU State
 gpu_push_state();
 gpu_set_cullmode(cull_clockwise);	// Don't draw triangles facing away from camera

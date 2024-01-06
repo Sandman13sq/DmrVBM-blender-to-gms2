@@ -291,9 +291,6 @@ function VBM_Mesh() constructor
 	visible = true;
 	edges = false;
 	
-	boundsmin = [0,0,0];
-	boundsmax = [0,0,0];
-	
 	function Free()
 	{
 		if (vertexbuffer != -1) {vertex_delete_buffer(vertexbuffer);}
@@ -359,9 +356,13 @@ function VBM_Animation() constructor
 	curvenames = [];	// Curve names
 	curvemap = {};	// {curvename: curvechannels}
 	
+	markercount = 0;
+	markerpositions = [];
+	markernames = [];
+	markermap = {};
+	
 	isbakedlocal = false;
 	evaluatedlocal = [];	// Frame matrices relative to bone. Intermediate pose
-	evaluatedmap = {};		// Above with name map
 	
 	// Animation curves match the order of bones that they were exported with. Non-bone curves follow
 	// [loc, quat, sca, loc, quat, sca, ...]
@@ -383,7 +384,7 @@ function VBM_Animation() constructor
 	function Clear()
 	{
 		array_resize(curvearray, 0);
-		array_resize(curvename, 0);
+		array_resize(curvenames, 0);
 		curvemap = {};
 		size = 0;
 		
@@ -529,7 +530,6 @@ function VBM_Animation() constructor
 	// Returns vector from curve path
 	function EvaluateVector(_curvename, _pos, _default_value=[])
 	{
-		var n = array_length(curvemap[$ _curvename][0]);
 		var i = 0; repeat(i)
 		{
 			_default_value[i] = EvaluateValue(_curvename, i, _pos, _default_value[i]);
@@ -566,7 +566,7 @@ function VBM_Animation() constructor
 			_name = _curvenames[i];
 			if ( CurveExists(_name) )
 			{
-				_outdict[$ _name] = EvaluateVector(_name, 0, _pos, _outdict[$ _name]);
+				_outdict[$ _name] = EvaluateVector(_name, _pos, _outdict[$ _name]);
 			}
 		}
 		
@@ -576,10 +576,6 @@ function VBM_Animation() constructor
 	// Populates struct variable with evaluated curves
 	function EvaluateAll(_outdict, _pos)
 	{
-		var _curve;
-		var _channels;
-		var _channel;
-		var _positions;
 		var _curvename;
 		
 		for (var i = 0; i < size; i++)
@@ -597,10 +593,7 @@ function VBM_Animation() constructor
 	// Populates matrix array with calculated transforms from curves
 	function EvaluatePoseIntermediate(_pos, _outmat4array, _bonenames)
 	{
-		var _curveindex;
 		var _curvename;
-		var _curve;
-		var _channels;
 		var _loc = [0,0,0];
 		var _quat = [1,0,0,0.0001];
 		var _euler = [0,0,0];
@@ -610,7 +603,6 @@ function VBM_Animation() constructor
 		var _matscale = matrix_build_identity();
 		
 		var n = array_length(_bonenames);
-		var b;
 		var _bonename;
 		
 		var i = 0;
@@ -633,7 +625,7 @@ function VBM_Animation() constructor
 				q_length = sqrt(_quat[1]*_quat[1] + _quat[2]*_quat[2] + _quat[3]*_quat[3]) + 0.00000000001;	
 				q_hyp_sqr = q_length*q_length + _quat[0]*_quat[0];
 				// Calculate trig coefficients
-				q_c   = 2*_quat[0]*_quat[0]/ q_hyp_sqr - 1;
+				q_c   = 2*_quat[0]*_quat[0]/q_hyp_sqr - 1;
 				q_s   = 2*q_length*_quat[0]*q_hyp_sqr;
 				q_omc = 1 - q_c;
 				// Normalize the input vector
@@ -777,7 +769,6 @@ function VBM_Animator() constructor
 	boneindexmap = {};
 	boneparentindices = array_create(VBM_MATPOSEMAX);
 	bonecount = 0;
-	curveoutput = {};
 	
 	posefinal = array_create(VBM_MATPOSEMAX*16);
 	poseintermediate = array_create(VBM_MATPOSEMAX);
@@ -1022,14 +1013,7 @@ function VBM_Animator() constructor
 	
 	// ------------------------------------------------------------------------
 	
-	function SetPosition(_pos)
-	{
-		for (var i = 0; i < layercount; i++)
-		{
-			layers[i].SetPosition(_pos);
-		}
-	}
-	
+	// Plays animation via key
 	function PlayAnimation(_animationkey, _loop=-1)
 	{
 		for (var i = 0; i < layercount; i++)
@@ -1038,11 +1022,22 @@ function VBM_Animator() constructor
 		}
 	}
 	
+	// Set animation struct to play
 	function SetAnimation(_animation, _loop=-1)
 	{
 		for (var i = 0; i < layercount; i++)
 		{
 			layers[i].SetAnimation(_animation, _loop);
+		}
+	}
+	
+	
+	// Sets frame position
+	function SetPosition(_frame)
+	{
+		for (var i = 0; i < layercount; i++)
+		{
+			layers[i].SetPosition(_frame);
 		}
 	}
 	
@@ -1116,8 +1111,8 @@ function VBM_Animator_Layer(_root) constructor
 	animationspeed = 1;
 	animationelapsed = 0;
 	animationposition = 0;
-	animationpositionlast = 0;
 	animationduration = 1;
+	animationfps = 60;
 	animationloop = true;
 	
 	evaluationposition = 0;
@@ -1143,6 +1138,7 @@ function VBM_Animator_Layer(_root) constructor
 	function AnimationCount() {return animationcount;}
 	function ActiveAnimation() {return animation;}
 	function ActiveAnimationName() {return animation? animation.name: "";}
+	function ActiveAnimationDuration() {return animation? animation.duration: animationduration;}
 	
 	function Pause(_bitindex=0) {pausefield |= (1 << _bitindex);}
 	function PauseToggle(_bitindex=0) {pausefield ^= (1 << _bitindex);}
@@ -1168,16 +1164,31 @@ function VBM_Animator_Layer(_root) constructor
 	
 	// ------------------------------------------------------------------------
 	
+	// Sets position
 	function SetPosition(_pos)
 	{
-		animationelapsed = _pos / animationduration;
+		animationelapsed = _pos * animationduration;
 	}
 	
+	// Sets position to frame
+	function SetPositionFrame(_frame)
+	{
+		animationelapsed = _frame / animationduration;
+	}
+	
+	// Sets position to time in seconds
+	function SetPositionSec(_pos_seconds)
+	{
+		animationelapsed = _pos_seconds / animationfps;
+	}
+	
+	// Plays animation via name
 	function PlayAnimation(_animationkey, _loop=true)
 	{
 		SetAnimation(animationpool[$ _animationkey], _loop);
 	}
 	
+	// Set animation struct
 	function SetAnimation(_animation, _loop=true)
 	{
 		if (animation != _animation)
@@ -1190,22 +1201,24 @@ function VBM_Animator_Layer(_root) constructor
 				animationloop = _loop != 0;
 				animationposition = 0;
 				animationelapsed = 0;
+				animationfps = animation.framespersecond;
 				evaluationposition = 0;
 				evaluationpositionlast = -1;
 			}
 		}
 	}
 	
-	function Update(deltasec, _process_intermediate=true, _process_output=true)
+	// Calculate transforms and curves
+	function Update(_deltaframe, _process_intermediate=true, _process_output=true)
 	{
 		if (pausefield == 0)
 		{
-			animationelapsed += deltasec * animationspeed;
+			animationelapsed += _deltaframe * animationspeed;
 		}
 		
 		if (animation)
 		{
-			animationposition = animationelapsed / animationduration;
+			animationposition = animationelapsed / (animationduration);
 			evaluationposition = animationloop? (animationposition mod 1.0): clamp(animationposition, 0.0, 1.0);
 			
 			// Update Bone Transforms
@@ -1434,7 +1447,6 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	var _vbcount;
 	var _vbcountoffset;
 	var _bonecount;
-	var appendcount;
 	var _namelength;
 	var _name;
 	var _mat4;
@@ -1452,7 +1464,7 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	var _flagsanimation;
 	
 	var _freeze = (_userflags & VBM_IMPORTFLAG_FREEZE) != 0;
-	var _merge = (_userflags & VBM_IMPORTFLAG_MERGE) != 0;
+	//var _merge = (_userflags & VBM_IMPORTFLAG_MERGE) != 0;
 	
 	// Header
 	_version = buffer_read(b, buffer_u32) >> 24;
@@ -1582,13 +1594,13 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	
 	var _numanimations;
 	var _animation;
-	var _animationnames;
 	var _numcurves;
 	var _curve;
 	var _numchannels;
 	var _channel;
 	var _numframes;
-	var _channelvalues;
+	var _nummarkers;
+	var _markerframe;
 	
 	_numanimations = buffer_read(b, buffer_u32);
 	_outvbm.animationcount = _numanimations;
@@ -1610,7 +1622,6 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 		_animation.framespersecond = buffer_read(b, buffer_f32);
 		_animation.duration = buffer_read(b, buffer_f32);
 		_numcurves = buffer_read(b, buffer_u32);
-		_animation.markercount = buffer_read(b, buffer_u32);
 		
 		_animation.size = _numcurves;
 		
@@ -1646,6 +1657,25 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 			_animation.curvearray[t] = _curve;
 			_animation.curvemap[$ _name] = _curve;
 			_animation.curvenames[t] = _name;
+		}
+		
+		// Markers
+		_nummarkers = buffer_read(b, buffer_u32);
+		_animation.markercount = _nummarkers;
+		array_resize(_animation.markernames, _nummarkers);
+		array_resize(_animation.markerpositions, _nummarkers);
+		
+		for (var t = 0; t < _nummarkers; t++)
+		{
+			_name = "";
+			_namelength = buffer_read(b, buffer_u8);
+			repeat(_namelength) {_name += chr(buffer_read(b, buffer_u8));}
+			
+			_markerframe = buffer_read(b, buffer_s32);
+			
+			_animation.markernames[t] = _name;
+			_animation.markerpositions[t] = _markerframe;
+			_animation.markermap[$ _name] = _markerframe;
 		}
 		
 		_outvbm.animations[i] = _animation;

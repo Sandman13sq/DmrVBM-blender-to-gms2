@@ -1263,7 +1263,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             ('NONE', 'No Batching', 'All objects will be written to a single file'),
             ('OBJECT', 'By Object Name', 'Objects will be written to "<filename><object_name>.ext" by object'),
             ('MESH', 'By Mesh Name', 'Objects will be written to "<filename><mesh_name>.ext" by mesh'),
-            ('MATERIAL', 'By Material', 'Objects will be written to "<filename><material_name>.ext" by material'),
+            #('MATERIAL', 'By Material', 'Objects will be written to "<filename><material_name>.ext" by material'),
             ('ARMATURE', 'By Parent Armature', 'Objects will be written to "<filename><armature_name>.ext" by parent armature'),
             #('EMPTY', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.ext" by parent empty'),
         ),
@@ -1273,7 +1273,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     grouping : bpy.props.EnumProperty(
         name="Grouping", default='OBJECT', items=(
             ('OBJECT', "By Object", "Objects -> VBs"),
-            ('MATERIAL', "By Material", "Materials -> VBs"),
+            #('MATERIAL', "By Material", "Materials -> VBs"),
             ('ACTION', "By Frame", "Object at frame -> VBs"),
         ),
         description="Method to split vertex buffers."
@@ -2101,7 +2101,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     for action in actions:
                         actionchecksum = int(sum((
                             [ord(x) for fc in action.fcurves for dp in fc.data_path for x in dp] + 
-                            [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] + 
+                            [x*10 for fc in action.fcurves for k in fc.keyframe_points for x in k.co] + 
                             [action.frame_start, action.frame_end]
                         )))
                         
@@ -2215,9 +2215,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                         # Write Curves
                         outanimations += PackString(FixName(action.name, self.action_delimiter_start, self.action_delimiter_end)) # Actionname
                         outanimations += Pack('f', context.scene.render.fps) # FPS
-                        outanimations += Pack('f', duration) # Duration
+                        outanimations += Pack('f', duration) # Duration in frames
                         outanimations += Pack('I', len(bundles)) # Number of curves
-                        outanimations += Pack('I', 0) # Number of markers
                         
                         for curvename, channels in bundlelist:
                             outanimations += PackString(curvename) # Curve Name
@@ -2232,6 +2231,9 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 outanimations += b''.join([Pack('f', x) for x in positions]) # positions[]
                                 outanimations += b''.join([Pack('f', x[1]) for x in channel]) # values[]
                                 outanimations += b''.join([Pack('B', 1) for x in channel]) # interpolations[]
+                        
+                        outanimations += Pack('I', len(action.pose_markers)) # Number of markers
+                        outanimations += b''.join([PackString(m.name) + Pack('i', m.frame) for m in action.pose_markers])
                     
                     if armature:
                         [pb.matrix_basis.identity() for pb in armature.pose.bones]
@@ -3047,6 +3049,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         use_cache=True,
         fast=False,
         alphanumeric_modifiers=True,
+        group_by_material=False,
         ):
         vbm = self
         outmap = {} # {mtl_name: data}
@@ -3094,7 +3097,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     sum([ord(x) for x in post_script.as_string()]) if post_script else 0,
                 ] + 
                 ((
-                    [x for v in obj.data.vertices for x in ([xx for xx in v.co]+[xx for vge in v.groups for xx in (vge.group, vge.weight)])] +
+                    [x for v in obj.data.vertices for x in ([xx*10 for xx in v.co]+[xx for vge in v.groups for xx in (vge.group, vge.weight)])] +
                     (
                         [x for lyr in obj.data.color_attributes for e in lyr.data for x in e.color] if USE_ATTRIBUTES else
                         [x for lyr in obj.data.vertex_colors for e in lyr.data for x in e.color]

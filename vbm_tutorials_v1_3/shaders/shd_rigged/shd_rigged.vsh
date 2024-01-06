@@ -19,8 +19,8 @@ uniform mat4 u_bonemats[128];
 
 void main()
 {
-    vec4 object_space_pos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);
-    vec4 object_space_nor = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 1.0);
+    vec4 object_space_pos = vec4( in_Position.x, in_Position.y, in_Position.z, 1.0);	// w value is 1 for positional vectors
+    vec4 object_space_nor = vec4( in_Normal.x, in_Normal.y, in_Normal.z, 0.0);	// w value is 0 for directional vectors
 	
 	// Pose Transform
 	mat4 m = mat4(0.0);
