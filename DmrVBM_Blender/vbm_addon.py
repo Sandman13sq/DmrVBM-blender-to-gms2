@@ -2713,6 +2713,7 @@ class VBM_PT_Format(bpy.types.Panel):
         c.operator('vbm.format_remove', text="", icon='REMOVE').index = vbm.formats_index
         c.separator()
         c.operator('vbm.format_move', text="", icon='TRIA_UP').move_down = False
+        c.operator('vbm.format_move', text="", icon='TRIA_DOWN').move_down = True
         c.separator()
         c.operator('vbm.format_clear', text="", icon='X')
         
