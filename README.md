@@ -40,7 +40,8 @@ For stable versions see the **Releases** on the GitHub page.
 - Bone Index Bytes - Above as 4 bytes
 - Weights - Weight from deform vertex groups.
 - Weight Bytes - Above as 4 bytes
-- Vertex Group - Vertex weight value from named vertex group.  
+- Group Value - Vertex weight value from named vertex group.  
+- Group Byte - Above as 1 byte.  
 - Padding - A constant value for all vertices
 - Padding Bytes - Above as X bytes
 
