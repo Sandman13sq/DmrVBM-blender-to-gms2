@@ -44,7 +44,7 @@ For stable versions see the **Releases** on the GitHub page.
 - Padding - A constant value for all vertices
 - Padding Bytes - Above as X bytes
 
-Game Maker's default format is [Position, Color Bytes, UV]
+Game Maker's native format is [Position, Color Bytes, UV]
 
 -----------------------------------------------------------------------------------------------
 
@@ -52,7 +52,7 @@ Game Maker's default format is [Position, Color Bytes, UV]
 
 -----------------------------------------------------------------------------------------------
 
-# CHANGELOG
+# FEATURE CHANGELOG
 
 ## v1.3 January 2024 Update
 - Blender Addon
@@ -69,7 +69,7 @@ Game Maker's default format is [Position, Color Bytes, UV]
 		- More customization options for exports
 	- Optimizations for repeat exports
 		- Star button repeats last export of selected object in one click
-		- VB data is cached to object when exporting, so repeat exports with same parameters don't recalculate same data
+		- VB data is cached to object when exporting, so repeat exports with same parameters don't recalculate unchanged data
 		- Baked actions are reused if source action data is not changed
 - GMS2 Scripts
 	- Merged VBM and TRK struct into single struct

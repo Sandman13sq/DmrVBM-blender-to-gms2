@@ -45,13 +45,15 @@ for (var i = 0; i < VBM_MATPOSEMAX; i++)
 #macro VBM_ATTRIBUTE_BONEBYTES 10
 #macro VBM_ATTRIBUTE_WEIGHT 11
 #macro VBM_ATTRIBUTE_WEIGHTBYTES 12
-#macro VBM_ATTRIBUTE_VERTEXGROUP 13
-#macro VBM_ATTRIBUTE_PAD 14
-#macro VBM_ATTRIBUTE_PADBYTES 15
+#macro VBM_ATTRIBUTE_GROUP 13
+#macro VBM_ATTRIBUTE_GROUPBYTES 14
+#macro VBM_ATTRIBUTE_PAD 15
+#macro VBM_ATTRIBUTE_PADBYTES 16
 
 #macro VBM_IMPORTFLAG_FREEZE (1<<0)
 #macro VBM_IMPORTFLAG_MERGE (1<<1)
 #macro VBM_IMPORTFLAG_SAVETRIANGLES (1<<2)
+#macro VBM_ATTBYTEFLAG 128
 
 // ======================================================================================================
 
@@ -1281,7 +1283,7 @@ function VBMParseFormat(_formatcode)
 		attributetype = _formatcode[i][0];
 		attributesize = _formatcode[i][1];
 		
-		switch(attributetype)
+		switch(attributetype & 0x7F) // Ignore byte flag
 		{
 			// Native types
 			case(VBM_ATTRIBUTE_POSITION):
@@ -1297,6 +1299,7 @@ function VBMParseFormat(_formatcode)
 			case(VBM_ATTRIBUTE_BONEBYTES):
 			case(VBM_ATTRIBUTE_WEIGHTBYTES):
 			case(VBM_ATTRIBUTE_UVBYTES):
+			case(VBM_ATTRIBUTE_GROUPBYTES):
 			case(VBM_ATTRIBUTE_PADBYTES):
 				// Add attribute if this attribute's size yields a byte sum of 4
 				// Ex: 2 Bone Bytes + 2 Weight Bytes = Add attribute
@@ -1312,12 +1315,27 @@ function VBMParseFormat(_formatcode)
 			
 			// Non native types
 			default:
-				switch(attributesize)
+				// Float Attribute
+				if (attributetype & (VBM_ATTBYTEFLAG) == 0)
 				{
-					case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
-					case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
-					case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
-					case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
+					switch(attributesize)
+					{
+						case(1): vertex_format_add_custom(vertex_type_float1, vertex_usage_texcoord); break;
+						case(2): vertex_format_add_custom(vertex_type_float2, vertex_usage_texcoord); break;
+						case(3): vertex_format_add_custom(vertex_type_float3, vertex_usage_texcoord); break;
+						case(4): vertex_format_add_custom(vertex_type_float4, vertex_usage_texcoord); break;
+					}
+				}
+				// Byte Attribute
+				else
+				{
+					if ( ((bytesum + attributesize) div 4) > bytesum div 4 )
+					{
+						//vertex_format_add_custom(vertex_type_ubyte4, vertex_usage_texcoord);
+						vertex_format_add_color();
+					}
+				
+					bytesum += attributesize;
 				}
 				break;
 		}

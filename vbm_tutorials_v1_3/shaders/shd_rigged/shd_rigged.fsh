@@ -8,7 +8,7 @@ varying vec3 v_vLightDir;
 
 void main()
 {
-	float lightoffset = v_vColour.a;
+	float lightoffset = v_vColour.r;
 	float dp = dot(normalize(v_vLightDir), normalize(v_vNormal));	// Ratio that normal faces light vector
 	dp = clamp(dp + lightoffset * 2.0 - 0.9, 0.0, 1.0);
 	

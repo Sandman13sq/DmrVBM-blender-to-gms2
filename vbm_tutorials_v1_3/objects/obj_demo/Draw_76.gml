@@ -21,4 +21,4 @@ if ( windowres[0] != window_get_width() || windowres[1] != window_get_height() )
 	camera_set_proj_mat(camera_get_active(), matrix_build_projection_ortho(w, h, 1, 1000));
 }
 
-
+draw_set_font(dmrfont);

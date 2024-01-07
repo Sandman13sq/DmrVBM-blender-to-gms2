@@ -14,6 +14,7 @@
     {"name":"obj_tutorial2_loadingVB","order":2,"path":"objects/obj_tutorial2_loadingVB/obj_tutorial2_loadingVB.yy",},
     {"name":"shd_rigged","order":2,"path":"shaders/shd_rigged/shd_rigged.yy",},
     {"name":"obj_tutorial4_VBManimation","order":4,"path":"objects/obj_tutorial4_VBManimation/obj_tutorial4_VBManimation.yy",},
+    {"name":"spr_dmrfont","order":1,"path":"sprites/spr_dmrfont/spr_dmrfont.yy",},
     {"name":"obj_tutorial1_triangle","order":1,"path":"objects/obj_tutorial1_triangle/obj_tutorial1_triangle.yy",},
   ],
 }

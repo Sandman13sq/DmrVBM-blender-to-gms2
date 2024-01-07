@@ -129,15 +129,18 @@ if 1: # Folding
     VBF_BOB = 'BONEBYTES'
     VBF_WEI = 'WEIGHT'
     VBF_WEB = 'WEIGHTBYTES'
-    VBF_GRO = 'VERTEXGROUP'
+    VBF_GRO = 'GROUP'
+    VBF_GRB = 'GROUPBYTES'
     VBF_PAD = 'PAD'
     VBF_PAB = 'PADBYTES'
     
-    VBFUseBytes = [VBF_UVB, VBF_RGB, VBF_BOB, VBF_WEB, VBF_PAB]
+    VBFUseBytes = [VBF_UVB, VBF_RGB, VBF_BOB, VBF_WEB, VBF_PAB, VBF_GRB]
     VBFUseSizeControl = [VBF_POS, VBF_NOR, VBF_TAN, VBF_BTN, VBF_COL, VBF_RGB, VBF_BON, VBF_BOB, VBF_WEI, VBF_WEB, VBF_PAD, VBF_PAB]
     VBFUseVCLayer = [VBF_COL, VBF_RGB]
     VBFUseUVLayer = [VBF_UVS, VBF_UVB]
     VBFUsePadding = [VBF_PAD, VBF_PAB]
+    VBFUseDefault = [VBF_COL, VBF_UVS, VBF_WEI, VBF_GRO]
+    VBFUseDefaultBytes = [VBF_RGB, VBF_UVB, VBF_WEB, VBF_GRB]
     
     LYR_RENDER = '<RENDER>'
     LYR_SELECT = '<SELECT>'
@@ -165,6 +168,7 @@ if 1: # Folding
         VBF_WEI: 4, 
         VBF_WEB: 4,
         VBF_GRO: 1,
+        VBF_GRB: 1,
         VBF_PAD: 4,
         VBF_PAB: 4,
         }
@@ -179,6 +183,7 @@ if 1: # Folding
         VBF_WEI: (0,0,0,0),
         VBF_WEB: (0,0,0,0),
         VBF_GRO: [0],
+        VBF_GRB: [0],
         VBF_PAD: (0,0,0,0),
         VBF_PAB: (0,0,0,0),
     }
@@ -200,6 +205,7 @@ if 1: # Folding
         VBF_WEI: "in_Weight",
         VBF_WEB: "in_Weight",
         VBF_GRO: "in_Group",
+        VBF_GRB: "in_Group",
         }
 
     Items_VBF = (
@@ -216,7 +222,8 @@ if 1: # Folding
         (VBF_BOB, 'Bone Index Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'BONE_DATA', 10),
         (VBF_WEI, 'Weights', '4* Floats', 'MOD_VERTEX_WEIGHT', 11),
         (VBF_WEB, 'Weight Bytes', '4 Bytes = Size of 1 Float in format 0xWWZZYYXX', 'MOD_VERTEX_WEIGHT', 12),
-        (VBF_GRO, 'Vertex Group', '1 Float', 'GROUP_VERTEX', 13),
+        (VBF_GRO, 'Group Value', '1 Float', 'GROUP_VERTEX', 13),
+        (VBF_GRB, 'Group Byte', '1 Byte', 'GROUP_VERTEX', 14),
         (VBF_PAD, 'Padding', 'X Floats', 'LINENUMBERS_ON', 98),
         (VBF_PAB, 'Padding Bytes', 'X Bytes', 'LINENUMBERS_ON', 99),
     )
@@ -227,7 +234,7 @@ if 1: # Folding
     VBFIcon = {x[0]: x[3] for x in Items_VBF}
 
     VBFTypeIndex = {x[1]: x[0] for x in enumerate(VBFTypes)}
-
+    
     Items_LayerChoice = (
         ('render', 'Render Layer', 'Use the layer that will be rendered (camera icon is on)', 'RESTRICT_RENDER_OFF', 0),
         ('active', 'Active Layer', 'Use the layer that is active (highlighted)', 'RESTRICT_SELECT_OFF', 1),
@@ -240,7 +247,7 @@ if 1: # Folding
         (MTY_AND, 'Viewport and Render', 'Export modifiers only if they are visible in viewport and renders'), 
         (MTY_ALL, 'All', 'Export all supported modifiers')
     )
-
+    
     Items_UpAxis = (
         ('+x', '+X Up', 'Export model(s) with +X Up axis'),
         ('+y', '+Y Up', 'Export model(s) with +Y Up axis'),
@@ -258,22 +265,7 @@ if 1: # Folding
         ('-y', '-Y Forward', 'Export model(s) with -Y Forward axis'),
         ('-z', '-Z Forward', 'Export model(s) with -Z Forward axis'),
     )
-
-    Items_FloatChoice = (
-        ('f', 'Float (32bit) *GMS*', 'Write floating point data using floats (32 bits)\n***Use for Game Maker Studio***'),
-        ('d', 'Double (64bit)', 'Write floating point data using doubles (64 bits)'),
-        ('e', 'Binary16 (16bit)', 'Write floating point data using binary16 (16 bits)'),
-    )
-
-    Items_VBMSort = (
-        ('NONE', 'No Batching', 'All objects will be written to a single file'),
-        ('OBJECT', 'By Object Name', 'Objects will be written to "<filename><object_name>.vbm" by object'),
-        ('MESH', 'By Mesh Name', 'Objects will be written to "<filename><mesh_name>.vbm" by mesh'),
-        ('MATERIAL', 'By Material', 'Objects will be written to "<filename><material_name>.vbm" by material'),
-        ('ARMATURE', 'By Parent Armature', 'Objects will be written to "<filename><armature_name>.vbm" by parent armature'),
-        #('EMPTY', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.vbm" by parent empty'),
-    )
-
+    
     VALIDOBJTYPES = ['MESH', 'CURVE', 'META', 'FONT', 'SURFACE']
     
     VBM_QUEUEGROUPICON = ['DECORATE_KEYFRAME']+['SEQUENCE_COLOR_0'+str(i) for i in range(1, 10)]+['SEQ_CHROMA_SCOPE']*24
@@ -314,7 +306,7 @@ class VBM_PG_Format_Attribute(bpy.types.PropertyGroup):
     
     type : bpy.props.EnumProperty(
         name="Attribute Type", items=Items_VBF, default=VBF_000, update=UpdateFormatString,
-        description='Data to write for each vertex')
+        description='Type of attribute to write for each vertex')
     
     size : bpy.props.IntProperty(
         name="Attribute Size", min=1, max=4, default=4, update=UpdateFormatString,
@@ -360,9 +352,9 @@ class VBM_PG_Format(bpy.types.PropertyGroup):
                         s += '@"' + att.layer + '"'
                     if not att.convert_to_srgb:
                         s += "-linear"
-                if att.type == VBF_PAD:
+                if att.type in (VBF_PAD, VBF_GRO):
                     s += "=("+("%.2f,"*att.size)[:-1] % att.padding_floats[:att.size]+")"
-                elif att.type == VBF_PAB:
+                elif att.type in (VBF_PAB, VBF_GRB):
                     s += "=("+("%d,"*att.size)[:-1] % att.padding_bytes[:att.size]+")"
                     s += "-units"
                 
@@ -390,7 +382,27 @@ class VBM_PG_Format(bpy.types.PropertyGroup):
         r = c.row(align=True)
         cc = r.column(align=True)
         cc.template_list("VBM_UL_Format_Attribute", "", format, "attributes", format, "attributes_index", rows=5)
+        
         c.prop(format, 'format_code', text="")
+        
+        if self.attributes:
+            att = self.attributes[self.attributes_index]
+            if att.type in VBFUseDefault:
+                rr = c.row(align=False)
+                rr.label(text="Default Value:", icon=VBFIcon[att.type])
+                rr.prop(att, 'size', text="Size")
+                rrr = rr.row(align=True)
+                rrr.scale_x = 0.7
+                [rrr.prop(att, 'padding_floats', index=i, text="", emboss=i<att.size) for i in (0,1,2,3)]
+            elif att.type in VBFUseDefaultBytes:
+                rr = c.row(align=False)
+                rr.label(text="Default Value:", icon=VBFIcon[att.type])
+                rr.prop(att, 'size', text="Size")
+                rrr = rr.row(align=True)
+                rrr.scale_x = 0.7
+                [rrr.prop(att, 'padding_bytes', index=i, text="", emboss=i<att.size) for i in (0,1,2,3)]
+            else:
+                c.label(text=VBFName[att.type], icon=VBFIcon[att.type])
         
         if show_operators:
             r.separator()
@@ -555,9 +567,14 @@ class VBM_OT_Format_Add(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
-        format = context.scene.vbm.formats.add()
+        vbm = context.scene.vbm
+        formats = vbm.formats
+        format = formats.add()
         format.name = format.name
-        format.format_code = "POSITION3 COLORBYTES4 UV4"
+        if len(formats) > 1:
+            format.format_code = formats[vbm.formats_index].format_code
+        else:
+            format.format_code = "POSITION3 COLORBYTES4 UV4"
         return {'FINISHED'}
 classlist.append(VBM_OT_Format_Add)
 
@@ -1516,9 +1533,14 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         self.filename_ext = "." + self.file_type.lower()
         self.filter_glob = "*." + self.file_type.lower()
         
+        vbm = context.scene.vbm
+        
         if self.format == "":
-            if context.scene.vbm.formats:
-                self.format = context.scene.vbm.formats[0].name
+            if len(vbm.formats) == 0:
+                item = vbm.formats.add()
+                item.name = "Native"
+                item.format_code = "POSITION3 COLORBYTES4 UV2"
+            self.format = context.scene.vbm.formats[0].name
         
         # Queue
         queue = self.ReadQueue()
@@ -2057,7 +2079,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     # Format
                     outvbs += Pack('B', len(formatserialized))
                     for k, size, layer, srgb, defaultvalue in formatserialized:
-                        outvbs += Pack('B', VBFTypeIndex[k])
+                        # 8th bit is used to mark byte attributes
+                        outvbs += Pack('B', VBFTypeIndex[k] | (128 if k in VBFUseBytes else 0))
                         outvbs += Pack('B', size)
                     # Buffer
                     vb, numvertices = vbmeta
@@ -2337,15 +2360,19 @@ class VBM_UL_Format_Attribute(bpy.types.UIList):
         elif item.type == VBF_PAB:
             for i in range(0, 4):
                 r.prop(item, 'padding_bytes', index=i, text="", emboss=i<item.size)
-        elif item.type == VBF_GRO:
+        elif item.type == VBF_GRO or item.type == VBF_GRB:
             obj = context.view_layer.objects.active
             if obj and obj.type == 'MESH':
                 if USE_ATTRIBUTES:
-                    r.prop_search(item, 'layer', obj, 'vertex_groups', results_are_suggestions=True, text="")
+                    r.prop_search(item, 'layer', obj, 'vertex_groups', text="", results_are_suggestions=True)
                 else:
                     r.prop_search(item, 'layer', obj, 'vertex_groups', text="")
             else:
                 r.prop(item, 'layer', text="")
+            if item.type == VBF_GRO:
+                r.prop(item, 'padding_floats', index=0, text="")
+            elif item.type == VBF_GRB:
+                r.prop(item, 'padding_bytes', index=0, text="")
         # Layer
         elif item.type in VBFUseVCLayer+VBFUseUVLayer:
             obj = context.view_layer.objects.active
@@ -2369,7 +2396,8 @@ class VBM_UL_Format_Attribute(bpy.types.UIList):
                 r.separator()
                 r.prop(item, 'convert_to_srgb', text='', toggle=False, icon='BRUSHES_ALL' if item.convert_to_srgb else 'IPO_SINE')
         
-        if 1 or item.type in VBFUseSizeControl:
+        # Size control
+        if True or item.type in VBFUseSizeControl:
             rr = r.row()
             rr.scale_x = 0.4
             rr.prop(item, 'size', text="")
@@ -2410,7 +2438,9 @@ class VBM_UL_ExportQueues_File(bpy.types.UIList):
         
         c = layout.column(align=True)
         
-        r = c.row(align=True)
+        cr = c.row(align=True)
+        
+        r = cr.row(align=True)
         r.prop(item, 'enabled', text="")
         
         r = r.row(align=True)
@@ -2432,6 +2462,8 @@ class VBM_UL_ExportQueues_File(bpy.types.UIList):
         rr.scale_x = 1 if item.id_collection else 0.5
         rr.prop(item, 'id_collection', text="", icon='OUTLINER_COLLECTION')
         
+        # Export
+        r = cr.row(align=True)
         op = r.operator('vbm.export_vbm', text="", icon='WINDOW')
         op.dialog = True
         op.queue = item.name
@@ -2569,7 +2601,7 @@ class VBM_PT_Queues(bpy.types.Panel):
         
         r = layout.row()
         r.prop(vbm, 'display_queue_group_paths', text="Show Paths")
-        r.prop(vbm, 'display_queue_group_indices', text="Show Indices")
+        r.prop(vbm, 'display_queue_group_indices', text="Group Indices")
         
         r = r.row(align=True)
         r.operator('vbm.queue_relative_path', text="Relative Paths").relative = True
@@ -2623,28 +2655,31 @@ class VBM_PT_Queues(bpy.types.Panel):
             
             r = bb.row()
             r.alignment = 'CENTER'
-            r.label(text="== Active Queue ==")
             
-            r = bb.row(align=True)
-            r.prop(queue, 'name', text="")
-            r.separator()
+            r.prop(queue, 'name', text="Active Queue", emboss=False)
+            r.prop(vbm, 'display_queue_active', text="Show Export Parameters", icon='HIDE_OFF' if vbm.display_queue_active else 'HIDE_ON')
             
-            if altdisplay:
-                r = r.row(align=True)
-                r.scale_x = 0.35
-            for i in range(0, 8):
-                op = r.operator('vbm.queue_entry_group', text=str(i) if altdisplay else "", icon='NONE' if altdisplay else VBM_QUEUEGROUPICON[i])
-                op.queue = queue.name
-                op.group = i
-            r = bb.row()
-            r.prop(queue, 'id_armature', text="", icon='ARMATURE_DATA')
-            r.prop(queue, 'id_collection', text="", icon='OUTLINER_COLLECTION')
-            r.prop(queue, 'id_pose')
-            r = bb.row()
-            r.prop_search(queue, 'format', vbm, 'formats')
-            r.prop(queue, 'copy_textures')
-            r = bb.row()
-            r.prop(queue, '["filepath"]', text="", icon='FILEBROWSER')
+            if vbm.display_queue_active:
+                r = bb.row(align=True)
+                r.prop(queue, 'name', text="")
+                r.separator()
+                
+                if altdisplay:
+                    r = r.row(align=True)
+                    r.scale_x = 0.35
+                for i in range(0, 8):
+                    op = r.operator('vbm.queue_entry_group', text=str(i) if altdisplay else "", icon='NONE' if altdisplay else VBM_QUEUEGROUPICON[i])
+                    op.queue = queue.name
+                    op.group = i
+                r = bb.row()
+                r.prop(queue, 'id_armature', text="", icon='ARMATURE_DATA')
+                r.prop(queue, 'id_collection', text="", icon='OUTLINER_COLLECTION')
+                r.prop(queue, 'id_pose')
+                r = bb.row()
+                r.prop_search(queue, 'format', vbm, 'formats')
+                r.prop(queue, 'copy_textures')
+                r = bb.row()
+                r.prop(queue, '["filepath"]', text="", icon='FILEBROWSER')
 classlist.append(VBM_PT_Queues)
 
 # ------------------------------------------------------------------------------------------
@@ -2785,6 +2820,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
     
     display_queue_group_indices : bpy.props.BoolProperty(name="Display Group Indices", default=False)
     display_queue_group_paths : bpy.props.BoolProperty(name="Display Group Paths", default=False)
+    display_queue_active : bpy.props.BoolProperty(name="Display Active Queue Properties", default=True)
     
     write_to_cache : bpy.props.BoolProperty(
         name="Write To Cache", default=True,
@@ -2846,6 +2882,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             break
                         i += 1
                 i += 1
+            
+            print(format)
             
             for att in attribstrings:
                 n = len(att)
@@ -2921,6 +2959,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             layer = LYR_SELECT
                         elif line == "units":
                             defaultvalue = [x/255.0 for x in defaultvalue]
+                            print(k, "UNITS", defaultvalue)
                         
                     i += 1
                 
@@ -2931,7 +2970,11 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 a.size, 
                 a.layer, 
                 a.convert_to_srgb,
-                a.padding_bytes if a.type in VBFUseBytes else a.padding_floats) 
+                (
+                    ([x/255.0 for x in a.padding_bytes] if a.type in (VBF_PAB, VBF_GRB) else a.padding_bytes)
+                    if a.type in VBFUseBytes else a.padding_floats
+                )
+            )
             for a in format.attributes]
         return attribparams
     
@@ -3064,6 +3107,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         vbmap = {}
         process_bones = sum([att[0] in (VBF_BON, VBF_BOB) for att in attribparams]) > 0
         process_tangents = sum([att[0] in (VBF_TAN, VBF_BTN) for att in attribparams]) > 0
+        process_groups = sum([att[0] in (VBF_GRO, VBF_GRB) for att in attribparams]) > 0
         apply_armature = apply_armature and not process_bones
         fast = fast and not process_bones
         
@@ -3089,7 +3133,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             return obj
         
         def ObjChecksum(obj):
-            return int(sum(
+            return int(sum([z*13 for z in
                 [
                     alphanumeric_modifiers, 
                     flip_uvs, 
@@ -3125,7 +3169,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 ) + 
                 ([ord(x) for b in boneorder for x in b]) + 
                 ([ObjChecksum(c) for c in obj.children] if obj.instance_type in ('VERTICES', 'FACES') else [])
-            ))
+            ]))
         
         # Cache Key
         attribstr = ""
@@ -3231,6 +3275,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     if mesh.uv_layers and process_tangents:
                         mesh.calc_tangents()
                     
+                    meshverts = tuple(mesh.vertices)
+                    
                     numverts = len(mesh.vertices)
                     numpolys = len(mesh.loop_triangles)
                     numloops = len(mesh.loops)
@@ -3248,6 +3294,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     vweights = [[1,1,1,1] for x in range(0, numverts)]
                     vnumbones = numpy.empty(numverts)
                     vnumbones.fill(0)
+                    
+                    looptovertex = tuple([meshverts[i] for i in facevertindices])
                     
                     if process_bones:
                         vertices = tuple(mesh.vertices)
@@ -3331,7 +3379,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 if flip_uvs:
                                     attdata = numpy.array([ x for i in faceloopindices for v in [uniquedata[i*2:i*2+size]] for x in (v[0], 1.0-v[1])], dtype=numpy.float32)
                             else:
-                                attdata = NumpyCreatePattern(default_value, numelements)
+                                attdata = NumpyCreatePattern(default_value[:size], numelements)
                             if k == VBF_UVS:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
@@ -3353,7 +3401,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 
                                 attdata = numpy.array([ uniquedata[i*4:i*4+size] for i in faceloopindices], dtype=numpy.float32)
                             else:
-                                attdata = NumpyCreatePattern(default_value, numelements)
+                                attdata = NumpyCreatePattern(default_value[:size], numelements)
                             if k == VBF_COL:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
@@ -3376,6 +3424,23 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 uniquedata[vi*size:vi*size+size] = vweights[vi][:size] / sum(vweights[vi][:size])
                             attdata = numpy.array([ uniquedata[i*size:i*size+size] for i in facevertindices], dtype=numpy.float32)
                             if k == VBF_WEI:
+                                bcontiguous.append( NumpyFloatToBytes(attdata) )
+                            else:
+                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
+                        # Groups
+                        elif k == VBF_GRO or k == VBF_GRB:
+                            vg = obj.vertex_groups.get(layer, None)
+                            if vg != None:
+                                vgindex = vg.index
+                                uniquedata = numpy.array([
+                                    vg.weight(i) if sum([vge.group == vgindex for vge in v.groups]) else 0.0
+                                    for i,v in enumerate(meshverts) 
+                                ], dtype=numpy.float32)
+                                attdata = numpy.array([ uniquedata[i] for i in facevertindices], dtype=numpy.float32)
+                            else:
+                                attdata = NumpyCreatePattern(default_value[:1], numelements)
+                            
+                            if k == VBF_GRO:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
                                 bcontiguous.append( NumpyUnitsToBytes(attdata) )
