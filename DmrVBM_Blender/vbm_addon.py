@@ -1948,43 +1948,48 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     parentmap = vbm.DeformArmatureMap(armature) if deformonly else {b.name: b.parent.name if b.parent else "" for b in armature.data.bones}
                     boneorder = list(parentmap.keys())
                 
-                if armature:
-                    matidentity = armature.matrix_world.copy()
-                    matidentity.identity()
+                if self.export_skeleton:
+                    matidentity = mathutils.Matrix.Identity(4)
                     
-                    bones = [armature.data.bones[bname] for bname in parentmap.keys()]
-                    bonemat = {b.name: b.matrix_local.copy() for b in bones}
-                    bonematinv = {b: m.copy().inverted() for b,m in bonemat.items()}
-                    parentmatinv = {b: bonematinv[parentmap[b]].copy() if parentmap.get(b) else matidentity for b in bonematinv.keys()}
+                    # Use armature bone data
+                    if armature:
+                        bones = [armature.data.bones[bname] for bname in parentmap.keys()]
+                        bonemat = {b.name: b.matrix_local.copy() for b in bones}
+                        bonematinv = {b: m.copy().inverted() for b,m in bonemat.items()}
+                        parentmatinv = {b: bonematinv[parentmap[b]].copy() if parentmap.get(b) else matidentity for b in bonematinv.keys()}
+                    else:
+                        bones = []
+                        bonemat = {}
+                        bonematinv = {}
+                        parentmatinv = {}
                     
                     numbones = len(boneorder)
                     
-                    if self.export_skeleton:
-                        print("> Creating Skeleton Data")
-                        outskeleton += Pack('I', numbones + usezerobone)
-                        
-                        # Bone Names
-                        if usezerobone:
-                            outskeleton += PackString("")
-                        for bname in boneorder:
-                            outskeleton += PackString(bname)
-                        # Parent Indices
-                        if usezerobone:
-                            outskeleton += Pack('I', 0)
-                        for b in boneorder:
-                            outskeleton += Pack('I', (boneorder.index(parentmap[b]) + usezerobone) if parentmap.get(b) != None else 0)
-                        # Local Matrices
-                        if usezerobone:
-                            outskeleton += PackMatrix(matidentity)
-                        for b in boneorder:
-                            outskeleton += PackMatrix((parentmatinv[b] @ bonemat[b]))
-                        # Inverse Transforms
-                        if usezerobone:
-                            outskeleton += PackMatrix(matidentity)
-                        for b in boneorder: 
-                            outskeleton += PackMatrix(bonematinv[b])
-                    else:
+                    print("> Creating Skeleton Data")
+                    outskeleton += Pack('I', numbones + usezerobone)
+                    
+                    # Bone Names
+                    if usezerobone:
+                        outskeleton += PackString("")
+                    for bname in boneorder:
+                        outskeleton += PackString(bname)
+                    # Parent Indices
+                    if usezerobone:
                         outskeleton += Pack('I', 0)
+                    for b in boneorder:
+                        outskeleton += Pack('I', (boneorder.index(parentmap[b]) + usezerobone) if parentmap.get(b) else 0)
+                    # Local Matrices
+                    if usezerobone:
+                        outskeleton += PackMatrix(matidentity)
+                    for b in boneorder:
+                        outskeleton += PackMatrix((parentmatinv[b] @ bonemat[b]))
+                    # Inverse Transforms
+                    if usezerobone:
+                        outskeleton += PackMatrix(matidentity)
+                    for b in boneorder: 
+                        outskeleton += PackMatrix(bonematinv[b])
+                else:
+                    outskeleton += Pack('I', 0)
                 
                 # VBs -------------------------------------------------------------
                 outvbs = b''
