@@ -140,7 +140,7 @@ if 1: # Folding
     VBFUseUVLayer = [VBF_UVS, VBF_UVB]
     VBFUsePadding = [VBF_PAD, VBF_PAB]
     VBFUseDefault = [VBF_COL, VBF_UVS, VBF_WEI, VBF_GRO]
-    VBFUseDefaultBytes = [VBF_RGB, VBF_UVB, VBF_WEB, VBF_GRB]
+    VBFUseDefaultBytes = [VBF_RGB, VBF_UVB, VBF_WEB, VBF_GRB, VBF_PAD, VBF_PAB]
     
     LYR_RENDER = '<RENDER>'
     LYR_SELECT = '<SELECT>'
@@ -488,8 +488,14 @@ class VBM_PG_ExportQueue_Entry(bpy.types.PropertyGroup):
     id_armature : bpy.props.PointerProperty(name="Rig", type=bpy.types.Object, poll=lambda self,obj: obj.type=='ARMATURE')
     id_collection : bpy.props.PointerProperty(name="Collection", type=bpy.types.Collection)
     id_pose : bpy.props.PointerProperty(name="Pose", type=bpy.types.Action)
+    id_pre_script : bpy.props.PointerProperty(name="Pre Script", type=bpy.types.Text)
+    id_post_script : bpy.props.PointerProperty(name="Post Script", type=bpy.types.Text)
+    
     format : bpy.props.StringProperty(name="Format", default="")
     copy_textures : bpy.props.BoolProperty(name="Copy Textures", default=False)
+    export_meshes : bpy.props.BoolProperty(name="Export Meshes", default=True)
+    export_skeleton : bpy.props.BoolProperty(name="Export Skeleton", default=True)
+    export_animations : bpy.props.BoolProperty(name="Export Animations", default=True)
     
     enabled : bpy.props.BoolProperty(name="Enabled", default=True)
     # saveprops = {}
@@ -1077,7 +1083,7 @@ classlist.append(VBM_OT_ExportQueue_MoveEntry)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_ExportQueue_SetGroup(bpy.types.Operator):
-    """Move queue up or down in list"""
+    """Sets group for queue"""
     bl_label = "Queue Set Group"
     bl_idname = 'vbm.queue_entry_group'
     bl_options = {'REGISTER', 'UNDO'}
@@ -1129,12 +1135,21 @@ class VBM_OT_ExportQueue_MakePathsRelative(bpy.types.Operator):
     def execute(self, context):
         vbm = context.scene.vbm
         relative = self.relative
-        for q in vbm.queues:
+        driveerror = ""
+        for queue in vbm.queues:
+            queueabspath = bpy.path.abspath(queue['filepath'])
             if relative:
-                q['filepath'] = bpy.path.relpath(q['filepath'])
+                # Make relative if Blender file and target filepath are on same drive
+                if queueabspath[:3] == bpy.path.abspath("//")[:3]:
+                    queue['filepath'] = bpy.path.relpath(queue['filepath'])
+                else:
+                    driveerror = "> Queue \"%s\" filepath does not target same drive as Blender file (%s != %s)" % (
+                        queue.name, queueabspath[:3], bpy.path.abspath("//")[:3])
+                    print(driveerror)
             else:
-                q['filepath'] = bpy.path.abspath(q['filepath'])
+                queue['filepath'] = bpy.path.abspath(queue['filepath'])
         
+        if driveerror:
         return {'FINISHED'}
 classlist.append(VBM_OT_ExportQueue_MakePathsRelative)
 
@@ -1162,7 +1177,7 @@ class VBM_OT_ExportQueue_Export(bpy.types.Operator):
         for q in queues:
             if q.enabled:
                 print("> Exporting Queue: " + q.name)
-                bpy.ops.vbm.export_vbm(queue=q.name)
+                bpy.ops.vbm.export_vbm(queue=q.name, dialog=False)
                 hits += 1
         
         if hits == 0:
@@ -1204,39 +1219,70 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     dialog: bpy.props.BoolProperty(default=True)
     queue : bpy.props.StringProperty(
         name="Export Queue", default="",
-        description="Export Queue To Write/Save to"
+        description="Export Queue to read parameters from"
         )
     
-    def SaveQueue(self, context):
+    queue_dialog : bpy.props.StringProperty(
+        name="Export Queue", default="",
+        description="Queue to save dialog settings to."
+    )
+    
+    def SaveQueue(self, context=None):
+        context = context if context else bpy.context
+        
+        if not self.queue_dialog:
+            self.queue_dialog = (
+                self.collection.name if self.armature else 
+                self.armature.name if self.armature else 
+                context.object.name
+            )
+        
+        vbmqueues = context.scene.vbm.queues
+        queue = vbmqueues.get(self.queue_dialog)
+        if not queue:
+            queue = vbmqueues.add()
+            queue.name = self.queue_dialog
+        if queue:
+            queue.id_armature = bpy.data.objects.get(self.armature)
+            queue.id_collection = bpy.data.collections.get(self.collection)
+            queue.id_pose = bpy.data.actions.get(self.pose)
+            queue.id_pre_script = bpy.data.texts.get(self.pre_script)
+            queue.id_post_script = bpy.data.texts.get(self.post_script)
+            queue.id_pose = bpy.data.actions.get(self.pose)
+            
+            for k in VBM_OT_ExportVBM.savepropnames:
+                queue[k] = getattr(self, k)
+            
+            # Make relative if Blender file and target filepath are on same drive
+            if self.filepath[:3] == bpy.path.abspath("//")[:3]:
+                queue['filepath'] = bpy.path.relpath(self.filepath)
+            else:
+                queue['filepath'] = bpy.path.abspath(self.filepath)
+            
+            print("> Saved props to Queue: " + queue.name)
+        return queue
+    
+    def ReadQueue(self, queuename):
+        queue = bpy.context.scene.vbm.queues.get(queuename)
+        if queue:
+            for k in self.savepropnames:
+                setattr(self, k, getattr(queue, k, queue.get(k, getattr(self, k))))
+            
+            self.armature = queue.id_armature.name if queue.id_armature else self.armature
+            self.collection = queue.id_collection.name if queue.id_collection else self.collection
+            self.pose = queue.id_pose.name if queue.id_pose else self.pose
+            self.pose = queue.id_pose.name if queue.id_pose else self.pose
+            self.pre_script = queue.id_pre_script.name if queue.id_pre_script else self.pre_script
+            self.post_script = queue.id_post_script.name if queue.id_post_script else self.post_script
+        return queue
+    
+    def UpdateQueueSave(self, context):
         if self.queue_save:
             self.queue_save = False
-            
-            if not self.queue:
-                self.queue = (
-                    self.collection if self.armature else 
-                    self.armature if self.armature else 
-                    context.object.name
-                )
-            
-            vbmqueues = context.scene.vbm.queues
-            queue = vbmqueues.get(self.queue)
-            if not queue:
-                queue = vbmqueues.add()
-                queue.name = self.queue
-            if queue:
-                queue.id_armature = bpy.data.objects.get(self.armature)
-                queue.id_collection = bpy.data.collections.get(self.collection)
-                queue.id_pose = bpy.data.actions.get(self.pose)
-                
-                for k in VBM_OT_ExportVBM.savepropnames:
-                    queue[k] = getattr(self, k)
-                
-                queue['filepath'] = bpy.path.relpath(queue['filepath'])
-                
-                print("> Saved props to: " + queue.name)
+            self.SaveQueue(context)
     
     queue_save : bpy.props.BoolProperty(
-        name="Save Queue", default=False, update=SaveQueue,
+        name="Save Queue", default=False, update=UpdateQueueSave,
         description="Save Settings to Queue"
     )
     
@@ -1516,17 +1562,6 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         
         return files
     
-    def ReadQueue(self):
-        queue = bpy.context.scene.vbm.queues.get(self.queue)
-        if queue:
-            for k in queue.keys():
-                if k in self.savepropnames and isinstance(queue[k], (type(getattr(self, k)), bool, int, float, str)):
-                    setattr(self, k, queue[k])
-            self.armature = queue.id_armature.name if queue.id_armature else self.armature
-            self.collection = queue.id_collection.name if queue.id_collection else self.collection
-            self.pose = queue.id_pose.name if queue.id_pose else self.pose
-        return queue
-    
     def invoke(self, context, event):
         [data.remove(x) for data in (bpy.data.objects, bpy.data.meshes, bpy.data.armatures, bpy.data.actions) for x in data if x.get('__temp', False)]
         
@@ -1543,7 +1578,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             self.format = context.scene.vbm.formats[0].name
         
         # Queue
-        queue = self.ReadQueue()
+        queue = self.ReadQueue(self.queue_dialog)
         # Use Last Props
         if not queue and self.use_last_props:
             obj = context.selected_objects[0] if context.selected_objects else context.active_object
@@ -1589,13 +1624,13 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         rr = r.row(align=True)
         rr.scale_x = 0.55
         rr.label(text="Queue:")
-        rr.prop_search(self, 'queue', vbm, 'queues', text="")
+        rr.prop_search(self, 'queue_dialog', vbm, 'queues', text="")
         
-        queue = vbm.queues.get(self.queue)
+        queue = vbm.queues.get(self.queue_dialog)
         if queue:
             r.prop(queue, 'name', text="")
         else:
-            r.prop(self, 'queue', text="")
+            r.prop(self, 'queue_dialog', text="")
         
         r.prop(self, 'queue_save', text="", icon='GREASEPENCIL')
         
@@ -1790,7 +1825,12 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         exporterror = 0
         
         # Queue
-        queue = self.ReadQueue()
+        queue = None
+        if self.dialog:
+            if self.queue_dialog:
+                queue = self.SaveQueue()
+        elif self.queue:
+            queue = self.ReadQueue(self.queue)
         
         self.filename_ext = "." + self.file_type.lower()
         fpath = os.path.abspath(bpy.path.abspath(self.filepath))
@@ -1832,8 +1872,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 for obj in context.selected_objects:
                     obj['VBM_LASTEXPORT'] = saveprops
         
-        if not os.path.isdir(fdir):
-            self.report({'WARNING'}, "Path does not exist: " + filepath)
+        if not os.path.isdir(fdir) or self.filepath == "":
+            self.report({'WARNING'}, "Invalid path: \"%s\"" % self.filepath)
             return {'FINISHED'}
         
         pose_action = bpy.data.actions.get(self.pose)
@@ -2360,11 +2400,9 @@ class VBM_UL_Format_Attribute(bpy.types.UIList):
         
         # Padding
         if item.type == VBF_PAD:
-            for i in range(0, 4):
-                r.prop(item, 'padding_floats', index=i, text="", emboss=i<item.size)
+            r.label(text="Value: " + str(tuple(item.padding_floats[:item.size])))
         elif item.type == VBF_PAB:
-            for i in range(0, 4):
-                r.prop(item, 'padding_bytes', index=i, text="", emboss=i<item.size)
+            r.label(text="Value: " + str(tuple(item.padding_bytes[:item.size])))
         elif item.type == VBF_GRO or item.type == VBF_GRB:
             obj = context.view_layer.objects.active
             if obj and obj.type == 'MESH':
@@ -2471,7 +2509,7 @@ class VBM_UL_ExportQueues_File(bpy.types.UIList):
         r = cr.row(align=True)
         op = r.operator('vbm.export_vbm', text="", icon='WINDOW')
         op.dialog = True
-        op.queue = item.name
+        op.queue_dialog = item.name
         op.file_type = item.get('file_type', 'VBM')
         
         op = r.operator('vbm.export_vbm', text="", icon='SOLO_ON')
@@ -2661,14 +2699,18 @@ class VBM_PT_Queues(bpy.types.Panel):
             r = bb.row()
             r.alignment = 'CENTER'
             
-            r.prop(queue, 'name', text="Active Queue", emboss=False)
+            r.prop(queue, 'name', text="Active Queue")
             r.prop(vbm, 'display_queue_active', text="Show Export Parameters", icon='HIDE_OFF' if vbm.display_queue_active else 'HIDE_ON')
             
             if vbm.display_queue_active:
                 r = bb.row(align=True)
-                r.prop(queue, 'name', text="")
+                r.prop(queue, 'export_meshes', text="Meshes", toggle=True)
+                r.prop(queue, 'export_skeleton', text="Skeleton", toggle=True)
+                r.prop(queue, 'export_animations', text="Animations", toggle=True)
+                
                 r.separator()
                 
+                # Draw Groups
                 if altdisplay:
                     r = r.row(align=True)
                     r.scale_x = 0.35
@@ -2676,6 +2718,8 @@ class VBM_PT_Queues(bpy.types.Panel):
                     op = r.operator('vbm.queue_entry_group', text=str(i) if altdisplay else "", icon='NONE' if altdisplay else VBM_QUEUEGROUPICON[i])
                     op.queue = queue.name
                     op.group = i
+                
+                # IDs
                 r = bb.row()
                 r.prop(queue, 'id_armature', text="", icon='ARMATURE_DATA')
                 r.prop(queue, 'id_collection', text="", icon='OUTLINER_COLLECTION')
@@ -3246,6 +3290,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         
                         # Pre-Calculation Script
                         if pre_script:
+                            bpy.context.view_layer.update()
                             context.scene['VBM_EXPORTING'] = True
                             exec(pre_script.as_string())
                             context.scene['VBM_EXPORTING'] = False
@@ -3457,11 +3502,11 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 bcontiguous.append( NumpyUnitsToBytes(attdata) )
                         # Padding
                         elif k == VBF_PAD or k == VBF_PAB:
-                            attdata = NumpyCreatePattern(default_value, numelements)
+                            attdata = NumpyCreatePattern(default_value[:size], numelements)
                             if k == VBF_PAD:
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             else:
-                                bcontiguous.append( NumpyByteToBytes(attdata) )
+                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
                     
                     attributevectors = [ numpy.split(buffer, numelements) for buffer in bcontiguous ]
                     
