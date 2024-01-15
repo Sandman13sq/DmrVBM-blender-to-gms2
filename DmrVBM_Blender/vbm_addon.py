@@ -1150,6 +1150,7 @@ class VBM_OT_ExportQueue_MakePathsRelative(bpy.types.Operator):
                 queue['filepath'] = bpy.path.abspath(queue['filepath'])
         
         if driveerror:
+            self.report({'WARNING'}, driveerror)
         return {'FINISHED'}
 classlist.append(VBM_OT_ExportQueue_MakePathsRelative)
 
