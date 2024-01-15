@@ -5,7 +5,7 @@ tutorials = [
 	obj_tutorial1_triangle,
 	obj_tutorial2_loadingVB,
 	obj_tutorial3_shaders,
-	obj_tutorial4_VBManimation
+	obj_tutorial4_VBManimation,
 ];
 
 tutorialindex = 1;

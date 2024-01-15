@@ -12,7 +12,6 @@ draw_text(16, i*20, "Press Z to move to next animation"); i++;
 draw_text(16, i*20, "Press X to switch animation modes"); i++;
 draw_text(16, i*20, "Press SPACE to Play/Pause Layer 0"); i++;
 draw_text(16, i*20, "Press +/- to change animation speed"); i++;
-draw_text(16, i*20, string(delta_time * 0.001)); i++;
 
 draw_text(16, i*20, "Animation Mode: " + (
 	(!animator.Layer(0).forcelocalposes && animator.Layer(0).ActiveAnimation().isbakedlocal)? "Local": "Evaluated")); i++;
@@ -36,3 +35,4 @@ for (var i = animator.layercount-1; i >= 0; i--)
 	yy -= 20;
 }
 
+draw_text(16, yy, vbm_treat);

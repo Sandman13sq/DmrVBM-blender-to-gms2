@@ -2,10 +2,13 @@
 
 var _tutlast = tutorialindex;
 
-if ( keyboard_check_pressed(ord("1")) ) {tutorialindex = 1;}
-if ( keyboard_check_pressed(ord("2")) ) {tutorialindex = 2;}
-if ( keyboard_check_pressed(ord("3")) ) {tutorialindex = 3;}
-if ( keyboard_check_pressed(ord("4")) ) {tutorialindex = 4;}
+for (var i = 1; i < array_length(tutorials); i++)
+{
+	if ( keyboard_check_pressed(ord("0")+i) ) 
+	{
+		tutorialindex = i;
+	}	
+}
 
 if (_tutlast != tutorialindex)
 {

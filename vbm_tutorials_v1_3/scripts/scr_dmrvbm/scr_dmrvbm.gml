@@ -1,9 +1,13 @@
 /*
 	VBM definition and functions.
-	By Dreamer13sq
-*/
-
-/*
+	By Sandman13sq
+	
+	Updates found on GitHub Repository: 
+	https://github.com/Sandman13sq/DmrVBM-blender-to-gms2
+	
+	More information on GitHub Wiki:
+	https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/wiki
+	
 	GM mat index ref:
 	[
 		 0,  4,  8, 12,	| (x)
@@ -15,22 +19,12 @@
 	]
 */
 
+// Header code at start of VBM files = 'VBMX' where X = version
 #macro VBMHEADERCODE 0x004D4256
 
 // Max number of bones for pose matrix array
-#macro VBM_MATPOSEMAX 128
-
-#macro VBM_MAT4ARRAYFLAT global.g_mat4identityflat
-#macro VBM_MAT4ARRAY2D global.g_mat4identity2d
-
-VBM_MAT4ARRAYFLAT = array_create(16*VBM_MATPOSEMAX);
-VBM_MAT4ARRAY2D = array_create(VBM_MATPOSEMAX);
-
-for (var i = 0; i < VBM_MATPOSEMAX; i++)
-{
-	array_copy(VBM_MAT4ARRAYFLAT, i*16, matrix_build_identity(), 0, 16);
-	VBM_MAT4ARRAY2D[i] = matrix_build_identity();
-}
+#macro VBM_MATPOSEMAX global.g_VBM_MatPoseMax
+VBM_MATPOSEMAX = 128;	// <- Change at start of game as you wish
 
 #macro VBM_ATTRIBUTE_OTHER 0
 #macro VBM_ATTRIBUTE_POSITION 1
@@ -456,23 +450,18 @@ function VBM_Animation() constructor
 		{
 			var _n = array_length(evaluatedlocal);
 			var b = 0;
-			var _bonecount = 128;
+			var _bonecount = VBM_MATPOSEMAX;
 			var _frame, _srcframe;
+			var i;
 			
 			array_resize(_out.evaluatedlocal, _n);
 			for (var f = 0; f < _n; f++)
 			{
 				_srcframe = _out.evaluatedlocal[f];
-				_frame = [
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-					Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4()
-				];
+				
+				i = 0;
+				_frame = array_create(_bonecount);
+				repeat(_bonecount) {_frame[i] = Mat4(); i++;}
 				
 				b = 0;
 				repeat(_bonecount)
@@ -618,6 +607,7 @@ function VBM_Animation() constructor
 			
 			if ( variable_struct_exists(curvemap, _curvename) )
 			{
+				// TODO: Find the site this was sourced from and give credit
 				_quat[0] = EvaluateValue(_curvename, 0, _pos, 1);
 				_quat[1] = EvaluateValue(_curvename, 1, _pos, 0);
 				_quat[2] = EvaluateValue(_curvename, 2, _pos, 0);
@@ -731,20 +721,17 @@ function VBM_Animation() constructor
 		
 		array_resize(evaluatedlocal, _numframes);
 		
-		for (var f = 0; f <= _numframes; f++)
+		var f = 0;
+		var i = 0;
+		var _mat4array;
+		repeat(_numframes)
 		{
-			evaluatedlocal[@ f] = [
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-				Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4()
-			];
-			
-			EvaluatePoseIntermediate(f/_numframes, evaluatedlocal[@ f], _bonenames);
+			_mat4array = array_create(VBM_MATPOSEMAX);
+			i = 0;
+			repeat(VBM_MATPOSEMAX) {_mat4array[i] = Mat4(); i++;}
+			EvaluatePoseIntermediate(f/_numframes, _mat4array, _bonenames);
+			evaluatedlocal[@ f] = _mat4array;
+			f++;
 		}
 		
 		isbakedlocal = true;
@@ -780,91 +767,35 @@ function VBM_Animator() constructor
 	
 	function Initialize()
 	{
-		posefinal = [
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		var n = VBM_MATPOSEMAX;
+		var i = 0;
 		
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		// Copy identity matrix to posefinal variable
+		var _mat4 = matrix_build_identity();
 		
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		array_copy(posefinal, 0, _mat4, 0, 16);
+		while ( (1<<i) < n )
+		{
+			array_copy(posefinal, (1<<i)*16, posefinal, 0, (1<<i)*16);
+			i += 1;
+		}
+		array_resize(posefinal, n*16);
 		
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
+		// Fill arrays with matrices
+		i = 0;
+		array_resize(poseintermediate, VBM_MATPOSEMAX);
+		array_resize(bonematlocal, VBM_MATPOSEMAX);
+		array_resize(bonematinverse, VBM_MATPOSEMAX);
+		array_resize(localbonetransform, VBM_MATPOSEMAX);
 		
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-		
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,
-			1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1, 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1
-		];
-	
-		poseintermediate = [
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		];
-	
-		bonematlocal = [
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		];
-	
-		bonematinverse = [
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		];
-	
-		localbonetransform = [
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-			Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),Mat4(),
-		];
+		repeat(VBM_MATPOSEMAX)
+		{
+			poseintermediate[i] = Mat4();
+			bonematlocal[i] = Mat4();
+			bonematinverse[i] = Mat4();
+			localbonetransform[i] = Mat4();
+			i += 1;
+		}
 	}
 	
 	Initialize();

@@ -18,7 +18,11 @@ if (keyboard_check_pressed(ord("X")))
 {
 	if (!vbm_treat.AnimationGet(0).isbakedlocal)
 	{
-		animator.BakeAnimations();
+		var _t = get_timer();
+		animator.BakeAnimations();	// Pre-evaluate animations
+		_t = get_timer()-_t;
+		
+		show_debug_message("Animations baked in {0} mcs", _t/1000000);
 	}
 	else
 	{
