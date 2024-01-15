@@ -3318,14 +3318,19 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                     wweights.append( vge.weight )
                                     n += 1
                             
-                            wpairs = [(bbones[i], wweights[i]) for i in range(0, n)]
-                            wpairs.sort(key=lambda x: -x[1])
-                            excessb = [0] * (4-n)
-                            excessw = [0] * (4-n)
-                            
-                            vbones[vi] = tuple([x[0] for x in wpairs]+excessb)
-                            vweights[vi] = numpy.array([x[1] for x in wpairs]+excessw)
-                            vnumbones[vi] = n
+                            if n == 0:
+                                vbones[vi] = (0,0,0,0)
+                                vweights[vi] = numpy.array([1,1,1,1])
+                                vnumbones[vi] = 4
+                            else:
+                                wpairs = [(bbones[i], wweights[i]) for i in range(0, n)]
+                                wpairs.sort(key=lambda x: -x[1])
+                                excessb = [0] * (4-n)
+                                excessw = [0] * (4-n)
+                                
+                                vbones[vi] = tuple([x[0] for x in wpairs]+excessb)
+                                vweights[vi] = numpy.array([x[1] for x in wpairs]+excessw)
+                                vnumbones[vi] = n
                     
                     # Buffer Data ------------------------------------------------------------------------------------------
                     bcontiguous = []
