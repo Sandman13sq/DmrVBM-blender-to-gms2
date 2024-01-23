@@ -115,6 +115,7 @@ if 1: # Folding
     
     EXPORTLISTHEADER = "|"
     USE_ATTRIBUTES = bpy.app.version >= (3,2,2)
+    VBM_PROJECTPATHKEY = '<DATAFILES>'
     
     VBF_000 = '0'
     VBF_POS = 'POSITION'
@@ -1139,15 +1140,17 @@ class VBM_OT_ExportQueue_MakePathsRelative(bpy.types.Operator):
         for queue in vbm.queues:
             queueabspath = bpy.path.abspath(queue['filepath'])
             if relative:
-                # Make relative if Blender file and target filepath are on same drive
-                if queueabspath[:3] == bpy.path.abspath("//")[:3]:
+                # Make relative if Blender file and target filepath are on same drive 
+                if vbm.datafiles_path != "":
+                    queue['filepath'] = vbm.ToProjectPath(queue['filepath'])
+                elif queueabspath[:3] == bpy.path.abspath("//")[:3]:
                     queue['filepath'] = bpy.path.relpath(queue['filepath'])
                 else:
                     driveerror = "> Queue \"%s\" filepath does not target same drive as Blender file (%s != %s)" % (
                         queue.name, queueabspath[:3], bpy.path.abspath("//")[:3])
                     print(driveerror)
             else:
-                queue['filepath'] = bpy.path.abspath(queue['filepath'])
+                queue['filepath'] = bpy.path.abspath( vbm.FromProjectPath(queue['filepath']) )
         
         if driveerror:
             self.report({'WARNING'}, driveerror)
@@ -1210,65 +1213,71 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         VBM_PT_ExportVBM_Presets.draw_panel_header(self.layout)
     
     savepropnames = ('''
-        filepath filename_ext file_type compression collection armature 
+        filepath filename_ext file_type compression collection armature use_collection_nested batching_filename
         alphanumeric_modifiers mesh_delimiter_start mesh_delimiter_end flip_uvs
         add_root_bone deform_only pose armature_delimiter_start armature_delimiter_end
         action_delimiter_start action_delimiter_end
         visible_only selected_only alphanumeric_only format_code format grouping batching fast_vb cache_vb
         pre_script post_script export_meshes export_skeleton export_animations copy_textures''').split()
     
-    dialog: bpy.props.BoolProperty(default=True)
+    dialog: bpy.props.BoolProperty(default=True, options={'SKIP_SAVE', 'HIDDEN'})
     queue : bpy.props.StringProperty(
         name="Export Queue", default="",
         description="Export Queue to read parameters from"
         )
     
     queue_dialog : bpy.props.StringProperty(
-        name="Export Queue", default="",
+        name="Export Queue", default="", options={'SKIP_SAVE', 'HIDDEN'},
         description="Queue to save dialog settings to."
     )
     
     def SaveQueue(self, context=None):
-        context = context if context else bpy.context
-        
-        if not self.queue_dialog:
-            self.queue_dialog = (
-                self.collection.name if self.armature else 
-                self.armature.name if self.armature else 
-                context.object.name
-            )
-        
-        vbmqueues = context.scene.vbm.queues
-        queue = vbmqueues.get(self.queue_dialog)
-        if not queue:
-            queue = vbmqueues.add()
-            queue.name = self.queue_dialog
-        if queue:
-            queue.id_armature = bpy.data.objects.get(self.armature)
-            queue.id_collection = bpy.data.collections.get(self.collection)
-            queue.id_pose = bpy.data.actions.get(self.pose)
-            queue.id_pre_script = bpy.data.texts.get(self.pre_script)
-            queue.id_post_script = bpy.data.texts.get(self.post_script)
-            queue.id_pose = bpy.data.actions.get(self.pose)
+        if self.queue_save or context==None:
+            self.queue_save = False
             
-            for k in VBM_OT_ExportVBM.savepropnames:
-                queue[k] = getattr(self, k)
+            context = context if context else bpy.context
+            vbm = context.scene.vbm
             
-            # Make relative if Blender file and target filepath are on same drive
-            if self.filepath[:3] == bpy.path.abspath("//")[:3]:
-                queue['filepath'] = bpy.path.relpath(self.filepath)
-            else:
-                queue['filepath'] = bpy.path.abspath(self.filepath)
+            if not self.queue_dialog:
+                self.queue_dialog = (
+                    self.collection.name if self.armature else 
+                    self.armature.name if self.armature else 
+                    context.object.name
+                )
             
-            print("> Saved props to Queue: " + queue.name)
-        return queue
+            vbmqueues = vbm.queues
+            queue = vbmqueues.get(self.queue_dialog)
+            if not queue:
+                queue = vbmqueues.add()
+                queue.name = self.queue_dialog
+            if queue:
+                queue.id_armature = bpy.data.objects.get(self.armature)
+                queue.id_collection = bpy.data.collections.get(self.collection)
+                queue.id_pose = bpy.data.actions.get(self.pose)
+                queue.id_pre_script = bpy.data.texts.get(self.pre_script)
+                queue.id_post_script = bpy.data.texts.get(self.post_script)
+                queue.id_pose = bpy.data.actions.get(self.pose)
+                
+                for k in VBM_OT_ExportVBM.savepropnames:
+                    queue[k] = getattr(self, k)
+                
+                # Make relative if Blender file and target filepath are on same drive
+                if self.filepath[:3] == bpy.path.abspath("//")[:3]:
+                    queue['filepath'] = vbm.ToProjectPath(bpy.path.relpath(self.filepath))
+                else:
+                    queue['filepath'] = vbm.ToProjectPath(bpy.path.abspath(self.filepath))
+                
+                print("> Saved props to Queue: " + queue.name)
+                
     
     def ReadQueue(self, queuename):
-        queue = bpy.context.scene.vbm.queues.get(queuename)
+        vbm = bpy.context.scene.vbm
+        queue = vbm.queues.get(queuename)
         if queue:
             for k in self.savepropnames:
                 setattr(self, k, getattr(queue, k, queue.get(k, getattr(self, k))))
             
+            self.filepath = vbm.FromProjectPath(self.filepath)
             self.armature = queue.id_armature.name if queue.id_armature else self.armature
             self.collection = queue.id_collection.name if queue.id_collection else self.collection
             self.pose = queue.id_pose.name if queue.id_pose else self.pose
@@ -1277,13 +1286,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             self.post_script = queue.id_post_script.name if queue.id_post_script else self.post_script
         return queue
     
-    def UpdateQueueSave(self, context):
-        if self.queue_save:
-            self.queue_save = False
-            self.SaveQueue(context)
-    
     queue_save : bpy.props.BoolProperty(
-        name="Save Queue", default=False, update=UpdateQueueSave,
+        name="Save Queue", default=False, update=SaveQueue, options={'SKIP_SAVE', 'HIDDEN'},
         description="Save Settings to Queue"
     )
     
@@ -1309,13 +1313,13 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         description="Include animations in export"
     )
     
-    items_collections : bpy.props.CollectionProperty(type=VBM_PG_Name)
+    items_collections : bpy.props.CollectionProperty(type=VBM_PG_Name, options={'SKIP_SAVE', 'HIDDEN'})
     collection : bpy.props.StringProperty(
         name="Collection", default="",
         description="Collection to export. If empty, all scene objects are used"
     )
     
-    items_armatures : bpy.props.CollectionProperty(type=VBM_PG_Name)
+    items_armatures : bpy.props.CollectionProperty(type=VBM_PG_Name, options={'SKIP_SAVE', 'HIDDEN'})
     armature : bpy.props.StringProperty(
         name="Armature", default="",
         description="Armature to export. If set, 'collection' parameter is ignored"
@@ -1468,10 +1472,10 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         description="Copy relevant textures from objects' materials to destination. Filename uses not label if set, else image name"
     )
     
-    menu_vbuffer : bpy.props.BoolProperty(name="Vertex Buffer Options", default=False)
-    menu_skeleton : bpy.props.BoolProperty(name="Skeleton Options", default=False)
-    menu_animation : bpy.props.BoolProperty(name="Animation Options", default=False)
-    menu_checkout : bpy.props.BoolProperty(name="Checkout Options", default=False)
+    menu_vbuffer : bpy.props.BoolProperty(name="Vertex Buffer Options", default=False, options={'SKIP_SAVE', 'HIDDEN'})
+    menu_skeleton : bpy.props.BoolProperty(name="Skeleton Options", default=False, options={'SKIP_SAVE', 'HIDDEN'})
+    menu_animation : bpy.props.BoolProperty(name="Animation Options", default=False, options={'SKIP_SAVE', 'HIDDEN'})
+    menu_checkout : bpy.props.BoolProperty(name="Checkout Options", default=False, options={'SKIP_SAVE', 'HIDDEN'})
     
     pre_script : bpy.props.StringProperty(
         name="Pre Script", default="",
@@ -1484,7 +1488,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     )
     
     active : bpy.props.BoolProperty()
-    use_last_props : bpy.props.BoolProperty()
+    use_last_props : bpy.props.BoolProperty(options={'SKIP_SAVE', 'HIDDEN'})
     
     def GetCheckout(self):
         # Can't have this in a prop update, otherwise it lags Blender
@@ -1829,12 +1833,14 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         queue = None
         if self.dialog:
             if self.queue_dialog:
-                queue = self.SaveQueue()
+                self.SaveQueue(context)
+                queue = self.ReadQueue(self.queue_dialog)
         elif self.queue:
             queue = self.ReadQueue(self.queue)
         
         self.filename_ext = "." + self.file_type.lower()
-        fpath = os.path.abspath(bpy.path.abspath(self.filepath))
+        self.filepath = vbm.FromProjectPath(self.filepath)
+        fpath = os.path.abspath(bpy.path.abspath( self.filepath ))
         if self.filename_ext in fpath:
             fpath = bpy.path.ensure_ext(fpath, self.filename_ext)
             fdir = os.path.dirname(fpath) + "/"
@@ -2604,16 +2610,20 @@ class VBM_PT_Master(bpy.types.Panel):
                 op.queue = ""
             return op
         
+        # Export Recent
         obj = context.active_object
         rig = (obj if obj.type == 'ARMATURE' else obj.find_armature()) if obj else None
         
         b.separator()
         c = b.column(align=True)
-        op = OpFromProps(obj, b.row(align=True), 'RESTRICT_SELECT_OFF', '', '')
-        op = OpFromProps(rig, b.row(align=True), 'ARMATURE_DATA', "", rig.name if rig else '')
-        op = OpFromProps(context.collection, b.row(align=True), 'OUTLINER_COLLECTION', context.collection.name, "")
+        c.scale_y = 0.9
+        op = OpFromProps(obj, c.row(align=True), 'RESTRICT_SELECT_OFF', '', '')
+        op = OpFromProps(rig, c.row(align=True), 'ARMATURE_DATA', "", rig.name if rig else '')
+        op = OpFromProps(context.collection, c.row(align=True), 'OUTLINER_COLLECTION', context.collection.name, "")
         
-        r = layout.row(align=True)
+        # Settings
+        c = layout.column(align=True)
+        r = c.row(align=True)
         rr = r.box().row(align=True)
         rrr = rr.row()
         rrr.scale_x = 0.7
@@ -2626,6 +2636,9 @@ class VBM_PT_Master(bpy.types.Panel):
         rrr.label(text="Recent:")
         rr.prop(vbm, 'write_to_recent', text="Write: Enabled" if vbm.write_to_recent else "Write: Disabled", toggle=True)
         rr.operator('vbm.clear_recents', text="", icon='X')
+        
+        r = c.row(align=True)
+        r.prop(vbm, 'datafiles_path')
 classlist.append(VBM_PT_Master)
 
 # ------------------------------------------------------------------------------------------
@@ -2880,6 +2893,21 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
     write_to_recent : bpy.props.BoolProperty(
         name="Write To Recent", default=True,
         description="Save export parameters on object for one-click re-exports")
+    
+    datafiles_path : bpy.props.StringProperty(
+        name="Data Files Path", default="", subtype='DIR_PATH',
+        description="Path to prepend to queue paths."
+    )
+    
+    def ToProjectPath(self, path):
+        datafilespath = os.path.abspath(bpy.path.abspath(self.datafiles_path))
+        projectpath = os.path.abspath(bpy.path.abspath(path))
+        if datafilespath in projectpath:
+            return projectpath.replace(datafilespath, VBM_PROJECTPATHKEY)
+        return path
+    
+    def FromProjectPath(self, path):
+        return path.replace(VBM_PROJECTPATHKEY, self.datafiles_path).replace("\\/", "/").replace("/\\", "/")
     
     def RefreshQueues(self):
         queues = self.queues
@@ -3190,6 +3218,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     flip_uvs, 
                     sum([ord(x) for x in pre_script.as_string()]) if pre_script else 0,
                     sum([ord(x) for x in post_script.as_string()]) if post_script else 0,
+                    context.scene.render.use_simplify * context.scene.render.simplify_subdivision
                 ] + 
                 ((
                     [x for v in obj.data.vertices for x in ([xx*10 for xx in v.co]+[xx for vge in v.groups for xx in (vge.group, vge.weight)])] +
