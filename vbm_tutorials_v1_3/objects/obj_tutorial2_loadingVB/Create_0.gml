@@ -31,7 +31,7 @@ vertex_format_add_texcoord();
 vbf_native = vertex_format_end();
 
 // *Load Vertex Buffer ----------------------------------
-vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_native); // Load "axis.vb" from file
+vb_axis = OpenVertexBuffer("axis.vb", vbf_native); // Load "axis.vb" from file
 
 /*
 	NOTE: To load files outside of the "datafiles" folder, enable the option in the project:

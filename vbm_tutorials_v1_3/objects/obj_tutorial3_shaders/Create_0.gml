@@ -42,10 +42,10 @@ vertex_format_add_texcoord();
 vbf_normal = vertex_format_end();	// For shd_normal
 
 // *Load Vertex Buffers --------------------------------
-vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_native);
-vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_native);
-vb_treat_native = OpenVertexBuffer("assets/treat_native.vb", vbf_native);
-vb_treat_normal = OpenVertexBuffer("assets/treat_normal.vb", vbf_normal);
+vb_grid = OpenVertexBuffer("grid.vb", vbf_native);
+vb_axis = OpenVertexBuffer("axis.vb", vbf_native);
+vb_treat_native = OpenVertexBuffer("treat_native.vb", vbf_native);
+vb_treat_normal = OpenVertexBuffer("treat_normal.vb", vbf_normal);
 
 // *Model Controls
 zrot = 0;	// Model rotation

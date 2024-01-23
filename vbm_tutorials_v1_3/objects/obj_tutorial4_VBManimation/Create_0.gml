@@ -47,18 +47,18 @@ vbf_rigged = vertex_format_end();
 */
 
 // Load Vertex Buffers ---------------------------------
-vb_grid = OpenVertexBuffer("assets/grid.vb", vbf_native);
-vb_axis = OpenVertexBuffer("assets/axis.vb", vbf_native);
+vb_grid = OpenVertexBuffer("grid.vb", vbf_native);
+vb_axis = OpenVertexBuffer("axis.vb", vbf_native);
 
 // *Open VBM -------------------------------------------
-vbm_treat = OpenVBM("assets/treat_rig.vbm");	// Format is handled automatically
+vbm_treat = OpenVBM("treat_rig.vbm");	// Format is handled automatically
 animator = vbm_treat.CreateAnimator(2);	// Instance animator using skeleton from vbm
 
 animator.Layer(0).SetAnimation(vbm_treat.AnimationGet(0), true);	// Set animation data directly
 animator.Layer(1).PlayAnimation("blink");	// Or play animation using animation name
 
 // *Texture from file ----------------------------------
-spr_col = sprite_add("assets/tex_treat_col.png", 1, false, false, 0, 0);
+spr_col = sprite_add("tex_treat_col.png", 1, false, false, 0, 0);
 tex_col = sprite_get_texture(spr_col, 0);
 
 // *Model Controls -------------------------------------

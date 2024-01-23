@@ -49,6 +49,34 @@ VBM_MATPOSEMAX = 128;	// <- Change at start of game as you wish
 #macro VBM_IMPORTFLAG_SAVETRIANGLES (1<<2)
 #macro VBM_ATTBYTEFLAG 128
 
+#region // Fast Quaternion Constants. Used in VBM_Animation.EvaluateIntermediate()
+
+/*
+	Sourced from this paper by David Eberly, licensed under CC 4.0.
+	Paper: https://www.geometrictools.com/Documentation/FastAndAccurateSlerp.pdf
+	CC License: https://creativecommons.org/licenses/by/4.0/
+*/
+
+#macro QUATSLERP_MU 1.85298109240830
+#macro QUATSLERP_U0 1.0/(1*3)
+#macro QUATSLERP_U1 1.0/(2*5)
+#macro QUATSLERP_U2 1.0/(3*7)
+#macro QUATSLERP_U3 1.0/(4*9)
+#macro QUATSLERP_U4 1.0/(5*11)
+#macro QUATSLERP_U5 1.0/(6*13)
+#macro QUATSLERP_U6 1.0/(7*15)
+#macro QUATSLERP_U7 QUATSLERP_MU/(8*17)
+#macro QUATSLERP_V0 1.0/(3)
+#macro QUATSLERP_V1 2.0/(5)
+#macro QUATSLERP_V2 3.0/(7)
+#macro QUATSLERP_V3 4.0/(9)
+#macro QUATSLERP_V4 5.0/(11)
+#macro QUATSLERP_V5 6.0/(13)
+#macro QUATSLERP_V6 7.0/(15)
+#macro QUATSLERP_V7 QUATSLERP_MU/(8.0*17)
+
+#endregion --------------------------------------------------------
+
 // ======================================================================================================
 
 function VBM_Model() constructor 
@@ -360,6 +388,8 @@ function VBM_Animation() constructor
 	isbakedlocal = false;
 	evaluatedlocal = [];	// Frame matrices relative to bone. Intermediate pose
 	
+	bakedelayframe = -1;
+	
 	// Animation curves match the order of bones that they were exported with. Non-bone curves follow
 	// [loc, quat, sca, loc, quat, sca, ...]
 	/*
@@ -582,16 +612,27 @@ function VBM_Animation() constructor
 	}
 	
 	// Populates matrix array with calculated transforms from curves
-	function EvaluatePoseIntermediate(_pos, _outmat4array, _bonenames)
+	function EvaluatePoseIntermediate(
+		_pos, 
+		_outmat4array, 
+		_bonenames, 
+		_activetransforms=0, 
+		_lasttransforms=0, 
+		_lastblend=1.0
+	)
 	{
 		var _curvename;
 		var _loc = [0,0,0];
 		var _quat = [1,0,0,0.0001];
+		var _quatlast = [1,0,0,0.0001];
 		var _euler = [0,0,0];
 		var _mat4;
 		
 		var q_length, q_hyp_sqr, q_c, q_s, q_omc;
 		var _matscale = matrix_build_identity();
+		
+		// Quat Slerp
+		var xml, d, sqrD, sqrT, f0, f1;
 		
 		var n = array_length(_bonenames);
 		var _bonename;
@@ -607,13 +648,101 @@ function VBM_Animation() constructor
 			
 			if ( variable_struct_exists(curvemap, _curvename) )
 			{
-				// TODO: Find the site this was sourced from and give credit
 				_quat[0] = EvaluateValue(_curvename, 0, _pos, 1);
 				_quat[1] = EvaluateValue(_curvename, 1, _pos, 0);
 				_quat[2] = EvaluateValue(_curvename, 2, _pos, 0);
 				_quat[3] = EvaluateValue(_curvename, 3, _pos, 0);
 				
+				// Blend last transforms
+				if ( false && _lasttransforms != 0 )
+				{
+					_quatlast = _lasttransforms[i][1];
+					// Fast Quaternion Slerp =====================================================
+					/*
+						Sourced from this paper by David Eberly, licensed under CC 4.0.
+						Paper: https://www.geometrictools.com/Documentation/FastAndAccurateSlerp.pdf
+						CC License: https://creativecommons.org/licenses/by/4.0/
+					*/
+					
+					///*
+					xml = (_quat[0]*_quatlast[0] + _quat[1]*_quatlast[1] + _quat[2]*_quatlast[2] + _quat[3]*_quatlast[3])-1.0;
+					
+					if ( xml != 0 )
+					{
+						d = 1.0-_lastblend; 
+						sqrT = _lastblend*_lastblend;
+						sqrD = d*d;
+						
+						f0 = _lastblend * (
+							1+((QUATSLERP_U0 * sqrT - QUATSLERP_V0) * xml)*(
+							1+((QUATSLERP_U1 * sqrT - QUATSLERP_V1) * xml)*(
+							1+((QUATSLERP_U2 * sqrT - QUATSLERP_V2) * xml)*(
+							1+((QUATSLERP_U3 * sqrT - QUATSLERP_V3) * xml)*(
+							1+((QUATSLERP_U4 * sqrT - QUATSLERP_V4) * xml)*(
+							1+((QUATSLERP_U5 * sqrT - QUATSLERP_V5) * xml)*(
+							1+((QUATSLERP_U6 * sqrT - QUATSLERP_V6) * xml)*(
+							1+((QUATSLERP_U7 * sqrT - QUATSLERP_V7) * xml)
+							))))))));
+						
+						f1 = d * (
+							1+((QUATSLERP_U0 * sqrD - QUATSLERP_V0) * xml)*(
+							1+((QUATSLERP_U1 * sqrD - QUATSLERP_V1) * xml)*(
+							1+((QUATSLERP_U2 * sqrD - QUATSLERP_V2) * xml)*(
+							1+((QUATSLERP_U3 * sqrD - QUATSLERP_V3) * xml)*(
+							1+((QUATSLERP_U4 * sqrD - QUATSLERP_V4) * xml)*(
+							1+((QUATSLERP_U5 * sqrD - QUATSLERP_V5) * xml)*(
+							1+((QUATSLERP_U6 * sqrD - QUATSLERP_V6) * xml)*(
+							1+((QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml)
+							))))))));
+						
+						_quat[0] = f0 * _quatlast[0] + f1 * _quat[0];
+						_quat[1] = f0 * _quatlast[1] + f1 * _quat[1];
+						_quat[2] = f0 * _quatlast[2] + f1 * _quat[2];
+						_quat[3] = f0 * _quatlast[3] + f1 * _quat[3];
+					}
+					//*/
+					// Quaternion Slerp
+					/*
+					// Calculate angle between them.
+					var cosHalfTheta = _quatlast[3] * _quat[3] + _quatlast[0] * _quat[0] + _quatlast[1] * _quat[1] + _quatlast[2] * _quat[2];
+					// if q1=q2 or q1=-q2 then theta = 0 and we can return q1
+					if (abs(cosHalfTheta) >= 1.0)
+					{
+						_quat[@ 3] = _quatlast[3];
+						_quat[@ 0] = _quatlast[0];
+						_quat[@ 1] = _quatlast[1];
+						_quat[@ 2] = _quatlast[2];
+					}
+					else
+					{
+						// Calculate temporary values.
+						var halfTheta = arccos(cosHalfTheta);
+						var sinHalfTheta = sqrt(1.0 - cosHalfTheta*cosHalfTheta);
+						// if theta = 180 degrees then result is not fully defined
+						// we could rotate around any axis normal to q1 or q2
+						if (abs(sinHalfTheta) < 0.000001)
+						{
+							_quat[@ 3] = (_quatlast[3] * 0.5 + _quat[3] * 0.5);
+							_quat[@ 0] = (_quatlast[0] * 0.5 + _quat[0] * 0.5);
+							_quat[@ 1] = (_quatlast[1] * 0.5 + _quat[1] * 0.5);
+							_quat[@ 2] = (_quatlast[2] * 0.5 + _quat[2] * 0.5);
+						}
+						else
+						{
+							var ratioA = sin((1.0 - _lastblend) * halfTheta) / sinHalfTheta;
+							var ratioB = sin(_lastblend * halfTheta) / sinHalfTheta; 
+							// calculate Quaternion.
+							_quat[@ 3] = (_quatlast[3] * ratioA + _quat[3] * ratioB);
+							_quat[@ 0] = (_quatlast[0] * ratioA + _quat[0] * ratioB);
+							_quat[@ 1] = (_quatlast[1] * ratioA + _quat[1] * ratioB);
+							_quat[@ 2] = (_quatlast[2] * ratioA + _quat[2] * ratioB);
+						}
+					}
+					*/
+				}
+				
 				// Quat to Mat4. Small value is added for zero rotation
+				// TODO: Find the site this was sourced from and give credit
 				q_length = sqrt(_quat[1]*_quat[1] + _quat[2]*_quat[2] + _quat[3]*_quat[3]) + 0.00000000001;	
 				q_hyp_sqr = q_length*q_length + _quat[0]*_quat[0];
 				// Calculate trig coefficients
@@ -632,6 +761,22 @@ function VBM_Animation() constructor
 				_mat4[@ 8] = q_omc*_quat[1]*_quat[3] + q_s*_quat[2];
 				_mat4[@ 9] = q_omc*_quat[2]*_quat[3] - q_s*_quat[1];
 				_mat4[@10] = q_omc*_quat[3]*_quat[3] + q_c;
+				
+				// Save transforms
+				if ( _activetransforms != 0 )
+				{
+					// Normalize vector
+					q_length = sqrt(_quat[0]*_quat[0] + _quat[1]*_quat[1] + _quat[2]*_quat[2] + _quat[3]*_quat[3]);	
+					_quat[0] /= q_length; 
+					_quat[1] /= q_length; 
+					_quat[2] /= q_length; 
+					_quat[3] /= q_length;
+					
+					_activetransforms[@i][@1][@0] = _quat[0];
+					_activetransforms[@i][@1][@1] = _quat[1];
+					_activetransforms[@i][@1][@2] = _quat[2];
+					_activetransforms[@i][@1][@3] = _quat[3];
+				}
 			}
 			
 			// Rotation Euler ----------------------------------------------------------
@@ -649,11 +794,31 @@ function VBM_Animation() constructor
 			
 			if ( variable_struct_exists(curvemap, _curvename) )
 			{
-				_matscale[ 0] = EvaluateValue(_curvename, 0, _pos, 1);
-				_matscale[ 5] = EvaluateValue(_curvename, 1, _pos, 1);
-				_matscale[10] = EvaluateValue(_curvename, 2, _pos, 1);
-			
+				// Blend last transforms
+				if ( _lastblend < 1 && _lasttransforms != 0 )
+				{
+					_matscale[ 0] = lerp(_lasttransforms[i][2][0], EvaluateValue(_curvename, 0, _pos, 1), _lastblend);
+					_matscale[ 5] = lerp(_lasttransforms[i][2][1], EvaluateValue(_curvename, 1, _pos, 1), _lastblend );
+					_matscale[10] = lerp(_lasttransforms[i][2][2], EvaluateValue(_curvename, 2, _pos, 1), _lastblend );
+				}
+				// Straight copy
+				else
+				{
+					_matscale[ 0] = EvaluateValue(_curvename, 0, _pos, 1);
+					_matscale[ 5] = EvaluateValue(_curvename, 1, _pos, 1);
+					_matscale[10] = EvaluateValue(_curvename, 2, _pos, 1);
+				}
+				
+				// Write to matrix
 				array_copy( _mat4, 0, matrix_multiply(_matscale, _mat4), 0, 16);
+				
+				// Save transforms
+				if ( _activetransforms != 0 )
+				{
+					_activetransforms[@i][@2][@0] = _matscale[ 0];
+					_activetransforms[@i][@2][@1] = _matscale[ 5];
+					_activetransforms[@i][@2][@2] = _matscale[10];
+				}
 			}
 			
 			// Location ----------------------------------------------------------
@@ -661,11 +826,31 @@ function VBM_Animation() constructor
 			
 			if ( variable_struct_exists(curvemap, _curvename) )
 			{
-				_loc[0] = EvaluateValue(_curvename, 0, _pos, 0);
-				_loc[1] = EvaluateValue(_curvename, 1, _pos, 0);
-				_loc[2] = EvaluateValue(_curvename, 2, _pos, 0);
+				// Blend last transforms
+				if ( _lastblend < 1 && _lasttransforms != 0 )
+				{
+					_loc[0] = lerp(_lasttransforms[i][0][0], EvaluateValue(_curvename, 0, _pos, 0), _lastblend);
+					_loc[1] = lerp(_lasttransforms[i][0][1], EvaluateValue(_curvename, 1, _pos, 0), _lastblend);
+					_loc[2] = lerp(_lasttransforms[i][0][2], EvaluateValue(_curvename, 2, _pos, 0), _lastblend);
+				}
+				// Straight copy
+				else
+				{
+					_loc[0] = EvaluateValue(_curvename, 0, _pos, 0);
+					_loc[1] = EvaluateValue(_curvename, 1, _pos, 0);
+					_loc[2] = EvaluateValue(_curvename, 2, _pos, 0);
+				}
 				
+				// Write to matrix
 				array_copy(_mat4, 12, _loc, 0, 3);
+				
+				// Save transforms
+				if ( _activetransforms != 0 )
+				{
+					_activetransforms[@i][@0][@0] = _loc[0];
+					_activetransforms[@i][@0][@1] = _loc[1];
+					_activetransforms[@i][@0][@2] = _loc[2];
+				}
 			}
 			
 			i += 1;
@@ -675,7 +860,14 @@ function VBM_Animation() constructor
 	}
 	
 	// Populates matrix array with transforms from curves. Uses pre-baked values if baked beforehand
-	function EvaluatePose(_pos, _outmat4array, _bonenames, _force_evaluate=false)
+	function EvaluatePose(
+		_pos, 
+		_outmat4array, 
+		_bonenames, 
+		_force_evaluate=false, 
+		_activetransforms=0, 
+		_lasttransforms=0, 
+		_lastblend=1.0)
 	{
 		// Use baked values
 		if ( !_force_evaluate && isbakedlocal )
@@ -706,7 +898,7 @@ function VBM_Animation() constructor
 		// Calculate values at runtime
 		else
 		{
-			EvaluatePoseIntermediate(_pos, _outmat4array, _bonenames);
+			EvaluatePoseIntermediate(_pos, _outmat4array, _bonenames, _activetransforms, _lasttransforms, _lastblend);
 		}
 	}
 	
@@ -764,6 +956,8 @@ function VBM_Animator() constructor
 	bonematlocal = array_create(VBM_MATPOSEMAX);
 	bonematinverse = array_create(VBM_MATPOSEMAX);
 	localbonetransform = array_create(VBM_MATPOSEMAX);
+	
+	blendamt = 0;
 	
 	function Initialize()
 	{
@@ -835,6 +1029,7 @@ function VBM_Animator() constructor
 	// -------------------------------------------------------------------------------------
 	
 	function AnimationCount() {return animationcount;}
+	function AnimationOver(_layerindex=0) {return layers[0].animationposition >= 1.0;}
 	
 	// Pre-calculate transformations
 	function BakeAnimations(_bonenames=0)
@@ -876,6 +1071,17 @@ function VBM_Animator() constructor
 	
 	function LocalPose() {return poseintermediate;}	// Array of local space matrices
 	function OutputPose() {return posefinal;}	// Flat array of final pose matrices
+	function OutputMatrix(_index)
+	{
+		var m = matrix_build_identity();
+		array_copy(m, 0, posefinal, _index*16, 16);
+		return m;
+	}
+	function OutputMatrixNamed(_name)
+	{
+		return variable_struct_exists(boneindexmap, _name)? OutputMatrix(boneindexmap[$ _name]): undefined;
+	}
+	
 	
 	function GetMatrixIntermediate(_index) {return poseintermediate[_index];}
 	function FindMatriIntermediate(_name) 
@@ -947,20 +1153,20 @@ function VBM_Animator() constructor
 	// ------------------------------------------------------------------------
 	
 	// Plays animation via key
-	function PlayAnimation(_animationkey, _loop=-1)
+	function PlayAnimation(_animationkey, _loop=-1, _blendframes=0)
 	{
 		for (var i = 0; i < layercount; i++)
 		{
-			layers[i].PlayAnimation(_animationkey, _loop);
+			layers[i].PlayAnimation(_animationkey, _loop, _blendframes);
 		}
 	}
 	
 	// Set animation struct to play
-	function SetAnimation(_animation, _loop=-1)
+	function SetAnimation(_animation, _loop=-1, _blendframes=0)
 	{
 		for (var i = 0; i < layercount; i++)
 		{
-			layers[i].SetAnimation(_animation, _loop);
+			layers[i].SetAnimation(_animation, _loop, _blendframes);
 		}
 	}
 	
@@ -1057,6 +1263,11 @@ function VBM_Animator_Layer(_root) constructor
 	
 	forcelocalposes = false;	// Prevents evaluated animations from being used when true
 	
+	activetransforms = array_create(VBM_MATPOSEMAX);
+	lasttransforms = array_create(VBM_MATPOSEMAX);
+	animationblendframes = 0;
+	animationblendframesstep = 0;
+	
 	// ==================================================================================
 	
 	function toString() 
@@ -1064,8 +1275,19 @@ function VBM_Animator_Layer(_root) constructor
 		return "VBM_Animator_Layer: {" + 
 			string(index) + ", " + 
 			string(animation) + ", " + 
-			string(evaluationposition) + " = " + string(animationelapsed) + "/" + string(animationduration) + "f" + 
+			string_format(evaluationposition, 1, 2) + " = " + 
+			string_format(animationelapsed, 1, 2) + "/" + 
+			string_format(animationduration, 1, 2) + "f" + 
 			"}";
+	}
+	
+	function Initialize()
+	{
+		for (var i = 0; i < VBM_MATPOSEMAX; i++)
+		{
+			activetransforms[i] = [[0,0,0], [1,0,0,0.00001], [1,1,1]];	// [Location Quat Scale]
+			lasttransforms[i] = [[0,0,0], [1,0,0,0.00001], [1,1,1]];	// [Location Quat Scale]
+		}
 	}
 	
 	function AnimationCount() {return animationcount;}
@@ -1116,13 +1338,13 @@ function VBM_Animator_Layer(_root) constructor
 	}
 	
 	// Plays animation via name
-	function PlayAnimation(_animationkey, _loop=true)
+	function PlayAnimation(_animationkey, _loop=true, _blendframes=0)
 	{
 		SetAnimation(animationpool[$ _animationkey], _loop);
 	}
 	
 	// Set animation struct
-	function SetAnimation(_animation, _loop=true)
+	function SetAnimation(_animation, _loop=true, _blendframes=0)
 	{
 		if (animation != _animation)
 		{
@@ -1130,6 +1352,7 @@ function VBM_Animator_Layer(_root) constructor
 			
 			if (animation)
 			{
+				// Update variables
 				animationduration = animation.duration;
 				animationloop = _loop != 0;
 				animationposition = 0;
@@ -1137,6 +1360,16 @@ function VBM_Animator_Layer(_root) constructor
 				animationfps = animation.framespersecond;
 				evaluationposition = 0;
 				evaluationpositionlast = -1;
+				
+				// Blend variables
+				animationblendframes = _blendframes;
+				animationblendframesstep = 0;
+				lasttransforms = activetransforms;
+				activetransforms = array_create(VBM_MATPOSEMAX);
+				for ( var i = 0; i < VBM_MATPOSEMAX; i++ )
+				{
+					activetransforms[i] = [ [0,0,0], [1,0,0,0.00001], [1,1,1] ];
+				}
 			}
 		}
 	}
@@ -1147,6 +1380,7 @@ function VBM_Animator_Layer(_root) constructor
 		if (pausefield == 0)
 		{
 			animationelapsed += _deltaframe * animationspeed;
+			animationblendframesstep = min(animationblendframesstep+_deltaframe*animationspeed, animationblendframes);
 		}
 		
 		if (animation)
@@ -1163,7 +1397,10 @@ function VBM_Animator_Layer(_root) constructor
 						evaluationposition, 
 						animator.poseintermediate, 
 						animator.bonenames, 
-						forcelocalposes
+						forcelocalposes,
+						activetransforms,
+						lasttransforms,
+						(animationblendframes > 0)? (animationblendframesstep/animationblendframes): 1
 						);
 					evaluationpositionlast = evaluationposition;
 				}
@@ -1188,6 +1425,7 @@ function VBM_Animator_Layer(_root) constructor
 		}
 	}
 	
+	Initialize();
 }
 
 // ======================================================================================================

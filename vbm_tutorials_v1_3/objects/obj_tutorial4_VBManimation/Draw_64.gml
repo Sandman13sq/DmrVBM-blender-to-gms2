@@ -36,3 +36,6 @@ for (var i = animator.layercount-1; i >= 0; i--)
 }
 
 draw_text(16, yy, vbm_treat);
+draw_text(16, yy-32, animator.Layer(0).activetransforms[16]);
+draw_text(16, yy-64, animator.Layer(0).lasttransforms[16]);
+
