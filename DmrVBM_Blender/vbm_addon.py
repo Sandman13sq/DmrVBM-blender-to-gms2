@@ -3090,7 +3090,6 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             layer = LYR_SELECT
                         elif line == "units":
                             defaultvalue = [x/255.0 for x in defaultvalue]
-                            print(k, "UNITS", defaultvalue)
                         
                     i += 1
                 
