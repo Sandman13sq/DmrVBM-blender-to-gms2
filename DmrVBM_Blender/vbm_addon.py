@@ -439,13 +439,13 @@ class VBM_PG_ExportList(bpy.types.PropertyGroup):
 classlist.append(VBM_PG_ExportList)
 
 # ========================================================================================================
-class VBM_PG_Action(bpy.types.PropertyGroup):
+class VBM_PG_ActionList_Action(bpy.types.PropertyGroup):
     action : bpy.props.PointerProperty(type=bpy.types.Action)
     all_curves : bpy.props.BoolProperty(
         name="All Bone Curves", default=True,
         description="Write curves for all bones. If false, non-transformed curves will be omitted"
     )
-classlist.append(VBM_PG_Action)
+classlist.append(VBM_PG_ActionList_Action)
 
 class VBM_PG_Action_Settings(bpy.types.PropertyGroup):
     all_curves : bpy.props.BoolProperty(
@@ -553,7 +553,7 @@ class VBM_OT_ClearRecent(bpy.types.Operator):
     def execute(self, context):
         hits = 0
         for obj in bpy.data.objects:
-            if obj.type == 'MESH':
+            if obj.data:
                 hit = 0
                 for k in list(obj.keys())[::-1]:
                     if k == 'VBM_LASTEXPORT':
@@ -962,6 +962,30 @@ class VBM_OT_ActionList_Play(bpy.types.Operator):
         
         return {'FINISHED'}
 classlist.append(VBM_OT_ActionList_Play)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_ActionList_Sort(bpy.types.Operator):
+    """Sorts action list"""
+    bl_label = "Sort Action List"
+    bl_idname = 'vbm.actionlist_sort'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    reverse : bpy.props.BoolProperty(name="Reverse Sort", default=False)
+    
+    def execute(self, context):
+        obj = context.active_object
+        rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
+        armature = rig.data
+        actionlist = armature.vbm_action_list
+        
+        sorted = [x.action.name for x in actionlist]
+        sorted.sort(key=lambda x: x)
+        
+        for i,name in list(enumerate(sorted))[::-1]:
+            actionlist.move([x.action.name for x in actionlist].index(name), i)
+        
+        return {'FINISHED'}
+classlist.append(VBM_OT_ActionList_Sort)
 
 '========================================================================================================'
 
@@ -2191,10 +2215,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                         workingrig = None
                     
                     for action in actions:
-                        actionchecksum = int(sum((
+                        actionchecksum = int(13 * sum((
                             [ord(x) for fc in action.fcurves for dp in fc.data_path for x in dp] + 
                             [x*10 for fc in action.fcurves for k in fc.keyframe_points for x in k.co] + 
-                            [action.frame_start, action.frame_end]
+                            [action.frame_start, action.frame_end] +
+                            [action.vbm.all_curves]
                         )))
                         
                         if workingrig:
@@ -2485,13 +2510,18 @@ class VBM_UL_ActionList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         r = layout.row(align=True)
         if item.action:
-            r.prop(item.action, 'name', text="", icon='ACTION', emboss=False)
+            rr = r.row(align=True)
+            rr.scale_x = 0.5
+            rr.prop(item, 'action', text="", emboss=False, icon_only=True)
+            
+            r.prop(item.action, 'name', text="", emboss=False)
             r.prop(item.action.vbm, 'all_curves', text="", icon='WORLD')
+            r.prop(item.action, 'use_frame_range', text="", icon='MOD_TIME', toggle=True)
             
             rr = r.row(align=True)
             rr.scale_x = 0.6
-            rr.prop(item.action, 'frame_start', text="S:")
-            rr.prop(item.action, 'frame_end', text="E:")
+            rr.prop(item.action, 'frame_start', text="")
+            rr.prop(item.action, 'frame_end', text="")
             r.operator('vbm.actionlist_play', text="", icon='PLAY').action = item.action.name
         else:
             r.label(text="(Missing Action)", icon='QUESTION')
@@ -2863,6 +2893,8 @@ class VBM_PT_ActionList(bpy.types.Panel):
             
             r = c.row(align=True)
             r.label(text=rig.name, icon='ARMATURE_DATA')
+            r.prop(vbm, 'sync_selected_action', text="", icon='FILE_REFRESH', toggle=True)
+            r.separator()
             r.operator('vbm.actionlist_from_pattern').dialog = True
             r.operator('vbm.actionlist_from_pattern', text="", icon='SOLO_ON').dialog = False
             
@@ -2879,6 +2911,8 @@ class VBM_PT_ActionList(bpy.types.Panel):
             cc.separator()
             cc.operator('vbm.actionlist_move', text="", icon='TRIA_UP').move_down = False
             cc.operator('vbm.actionlist_move', text="", icon='TRIA_DOWN').move_down = True
+            cc.separator()
+            cc.operator('vbm.actionlist_sort', text="", icon='SORTALPHA')
             cc.separator()
             cc.operator('vbm.actionlist_clear', text="", icon='X')
 classlist.append(VBM_PT_ActionList)
@@ -2902,6 +2936,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
     display_queue_group_indices : bpy.props.BoolProperty(name="Display Group Indices", default=False)
     display_queue_group_paths : bpy.props.BoolProperty(name="Display Group Paths", default=False)
     display_queue_active : bpy.props.BoolProperty(name="Display Active Queue Properties", default=True)
+    sync_selected_action : bpy.props.BoolProperty(name="Sync Selected Action", default=False)
     
     write_to_cache : bpy.props.BoolProperty(
         name="Write To Cache", default=True,
@@ -3590,12 +3625,26 @@ def register():
     for c in classlist:
         bpy.utils.register_class(c)
     
+    def OnActionSelected(self, context):
+        if context.scene.vbm.sync_selected_action:
+            obj = context.active_object
+            obj = (obj.find_armature() if obj.find_armature() else obj) if obj else None
+            
+            if obj and obj.type == 'ARMATURE' and obj.data == self:
+                action = self.vbm_action_list[self.vbm_action_list_index].action
+                if action:
+                    obj.animation_data.action = action
+                    if action.use_frame_range:
+                        context.scene.frame_start = int(action.frame_start)
+                        context.scene.frame_end = int(action.frame_end)
+                    
+    
     bpy.types.Scene.vbm = bpy.props.PointerProperty(type=VBM_PG_Master)
     bpy.types.Action.vbm = bpy.props.PointerProperty(name="VBM Settings", type=VBM_PG_Action_Settings)
     
     bpy.types.Armature.vbm_dissolve_list = bpy.props.PointerProperty(type=VBM_PG_BoneDissolveList)
-    bpy.types.Armature.vbm_action_list = bpy.props.CollectionProperty(type=VBM_PG_Action)
-    bpy.types.Armature.vbm_action_list_index = bpy.props.IntProperty(name="Index")
+    bpy.types.Armature.vbm_action_list = bpy.props.CollectionProperty(type=VBM_PG_ActionList_Action)
+    bpy.types.Armature.vbm_action_list_index = bpy.props.IntProperty(name="Index", update=OnActionSelected)
     bpy.types.Object.vbm_format = bpy.props.StringProperty(name="Format")
 
 def unregister():
