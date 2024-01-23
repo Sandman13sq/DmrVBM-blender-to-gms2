@@ -1318,6 +1318,10 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         name="Collection", default="",
         description="Collection to export. If empty, all scene objects are used"
     )
+    use_collection_nested : bpy.props.BoolProperty(
+        name="Use Nested Collection Objects", default=False,
+        description="Use all nested objects for collection export"
+    )
     
     items_armatures : bpy.props.CollectionProperty(type=VBM_PG_Name, options={'SKIP_SAVE', 'HIDDEN'})
     armature : bpy.props.StringProperty(
@@ -1336,6 +1340,10 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             #('EMPTY', 'By Parent Empty', 'Objects will be written to "<filename><emptyname>.ext" by parent empty'),
         ),
         description="Method to write files. Can be set to single file or write multiple based on criteria"
+    )
+    batching_filename : bpy.props.BoolProperty(
+        name="Include Filename", default=False,
+        description="Prepends filename to each file in batched export."
     )
     
     grouping : bpy.props.EnumProperty(
@@ -1515,7 +1523,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         elif self.collection != "":
             collection = bpy.data.collections.get(self.collection)
             if collection:
-                objects = list(collection.objects)
+                objects = list(collection.all_objects if self.use_collection_nested else collection.objects)
         else:
             objects = list(bpy.context.selected_objects)
         
@@ -1529,6 +1537,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 armatures.append(obj.find_armature())
         
         if self.batching == 'ARMATURE':
+            if not self.batching_filename:
+                fbasename = ""
             files = [ 
                 [
                     fbasename + armature.name + fext, 
@@ -1539,6 +1549,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 for armature in armatures
             ]
         elif self.batching == 'OBJECT':
+            if not self.batching_filename:
+                fbasename = ""
             files = [
                 [fbasename + obj.name + fext, [obj], None, []]
                 for obj in objects if obj.type != 'ARMATURE' and (
@@ -1546,6 +1558,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 )
             ]
         elif self.batching == 'MESH':
+            if not self.batching_filename:
+                fbasename = ""
             files = [
                 [fbasename + obj.data.name + fext, [obj], None, []]
                 for obj in objects if obj.type == 'MESH' and (
@@ -1665,10 +1679,13 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         r = c.row(align=True)
         r.enabled = self.armature == ""
         r.prop_search(self, 'collection', self, 'items_collections', icon='OUTLINER_COLLECTION')
+        r.prop(self, 'use_collection_nested', text="", icon='OUTLINER_OB_GROUP_INSTANCE' if self.use_collection_nested else 'GROUP', toggle=True)
         c.prop_search(self, 'armature', self, 'items_armatures', icon='ARMATURE_DATA')
         
         c = layout.column(align=True)
-        c.prop(self, 'batching')
+        r = c.row(align=True)
+        r.prop(self, 'batching')
+        r.prop(self, 'batching_filename', text="", icon='CURRENT_FILE', toggle=True, emboss=self.batching!='NONE')
         c.prop(self, 'grouping')
         
         c = layout.column(align=True)
