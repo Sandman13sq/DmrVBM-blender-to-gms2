@@ -654,9 +654,10 @@ function VBM_Animation() constructor
 				_quat[3] = EvaluateValue(_curvename, 3, _pos, 0);
 				
 				// Blend last transforms
-				if ( false && _lasttransforms != 0 )
+				if ( _lastblend < 1 && _lasttransforms != 0 )
 				{
 					_quatlast = _lasttransforms[i][1];
+					
 					// Fast Quaternion Slerp =====================================================
 					/*
 						Sourced from this paper by David Eberly, licensed under CC 4.0.
@@ -664,7 +665,6 @@ function VBM_Animation() constructor
 						CC License: https://creativecommons.org/licenses/by/4.0/
 					*/
 					
-					///*
 					xml = (_quat[0]*_quatlast[0] + _quat[1]*_quatlast[1] + _quat[2]*_quatlast[2] + _quat[3]*_quatlast[3])-1.0;
 					
 					if ( xml != 0 )
@@ -695,50 +695,55 @@ function VBM_Animation() constructor
 							1+((QUATSLERP_U7 * sqrD - QUATSLERP_V7) * xml)
 							))))))));
 						
-						_quat[0] = f0 * _quatlast[0] + f1 * _quat[0];
-						_quat[1] = f0 * _quatlast[1] + f1 * _quat[1];
-						_quat[2] = f0 * _quatlast[2] + f1 * _quat[2];
-						_quat[3] = f0 * _quatlast[3] + f1 * _quat[3];
+						_quat[0] = f0 * _quat[0] + f1 * _quatlast[0];
+						_quat[1] = f0 * _quat[1] + f1 * _quatlast[1];
+						_quat[2] = f0 * _quat[2] + f1 * _quatlast[2];
+						_quat[3] = f0 * _quat[3] + f1 * _quatlast[3];
 					}
-					//*/
-					// Quaternion Slerp
+					
 					/*
-					// Calculate angle between them.
-					var cosHalfTheta = _quatlast[3] * _quat[3] + _quatlast[0] * _quat[0] + _quatlast[1] * _quat[1] + _quatlast[2] * _quat[2];
-					// if q1=q2 or q1=-q2 then theta = 0 and we can return q1
-					if (abs(cosHalfTheta) >= 1.0)
+					// "Long" Quaternion slerp
+					// Source: https://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/slerp/index.htm
+					var cosHalfTheta = _quat[0]*_quatlast[0] + _quat[1]*_quatlast[1] + _quat[2]*_quatlast[2] + _quat[3]*_quatlast[3];
+					
+					if ( abs(cosHalfTheta) < 1.0 )
 					{
-						_quat[@ 3] = _quatlast[3];
-						_quat[@ 0] = _quatlast[0];
-						_quat[@ 1] = _quatlast[1];
-						_quat[@ 2] = _quatlast[2];
-					}
-					else
-					{
-						// Calculate temporary values.
 						var halfTheta = arccos(cosHalfTheta);
-						var sinHalfTheta = sqrt(1.0 - cosHalfTheta*cosHalfTheta);
-						// if theta = 180 degrees then result is not fully defined
-						// we could rotate around any axis normal to q1 or q2
-						if (abs(sinHalfTheta) < 0.000001)
+						var sinHalfTheta = sqrt(1.0-cosHalfTheta*cosHalfTheta);
+						
+						if ( abs(sinHalfTheta) < 0.001 )
 						{
-							_quat[@ 3] = (_quatlast[3] * 0.5 + _quat[3] * 0.5);
-							_quat[@ 0] = (_quatlast[0] * 0.5 + _quat[0] * 0.5);
-							_quat[@ 1] = (_quatlast[1] * 0.5 + _quat[1] * 0.5);
-							_quat[@ 2] = (_quatlast[2] * 0.5 + _quat[2] * 0.5);
+							_quat[0] = _quatlast[0] * 0.5 + _quat[0] * 0.5;
+							_quat[1] = _quatlast[1] * 0.5 + _quat[1] * 0.5;
+							_quat[2] = _quatlast[2] * 0.5 + _quat[2] * 0.5;
+							_quat[3] = _quatlast[3] * 0.5 + _quat[3] * 0.5;
 						}
 						else
 						{
-							var ratioA = sin((1.0 - _lastblend) * halfTheta) / sinHalfTheta;
-							var ratioB = sin(_lastblend * halfTheta) / sinHalfTheta; 
-							// calculate Quaternion.
-							_quat[@ 3] = (_quatlast[3] * ratioA + _quat[3] * ratioB);
-							_quat[@ 0] = (_quatlast[0] * ratioA + _quat[0] * ratioB);
-							_quat[@ 1] = (_quatlast[1] * ratioA + _quat[1] * ratioB);
-							_quat[@ 2] = (_quatlast[2] * ratioA + _quat[2] * ratioB);
+							var ratioA = sin((1-_lastblend)*halfTheta) / sinHalfTheta;
+							var ratioB = sin(_lastblend*halfTheta) / sinHalfTheta;
+							
+							_quat[0] = _quatlast[0] * ratioA + _quat[0] * ratioB;
+							_quat[1] = _quatlast[1] * ratioA + _quat[1] * ratioB;
+							_quat[2] = _quatlast[2] * ratioA + _quat[2] * ratioB;
+							_quat[3] = _quatlast[3] * ratioA + _quat[3] * ratioB;
 						}
 					}
 					*/
+					
+				}
+				
+				// Save transforms
+				if ( _activetransforms != 0 )
+				{
+					// Normalize vector
+					q_length = sqrt(_quat[0]*_quat[0] + _quat[1]*_quat[1] + _quat[2]*_quat[2] + _quat[3]*_quat[3]);	
+					_quat[0] /= q_length; _quat[1] /= q_length; _quat[2] /= q_length; _quat[3] /= q_length;
+					
+					_activetransforms[@i][@1][@0] = _quat[0];
+					_activetransforms[@i][@1][@1] = _quat[1];
+					_activetransforms[@i][@1][@2] = _quat[2];
+					_activetransforms[@i][@1][@3] = _quat[3];
 				}
 				
 				// Quat to Mat4. Small value is added for zero rotation
@@ -761,22 +766,6 @@ function VBM_Animation() constructor
 				_mat4[@ 8] = q_omc*_quat[1]*_quat[3] + q_s*_quat[2];
 				_mat4[@ 9] = q_omc*_quat[2]*_quat[3] - q_s*_quat[1];
 				_mat4[@10] = q_omc*_quat[3]*_quat[3] + q_c;
-				
-				// Save transforms
-				if ( _activetransforms != 0 )
-				{
-					// Normalize vector
-					q_length = sqrt(_quat[0]*_quat[0] + _quat[1]*_quat[1] + _quat[2]*_quat[2] + _quat[3]*_quat[3]);	
-					_quat[0] /= q_length; 
-					_quat[1] /= q_length; 
-					_quat[2] /= q_length; 
-					_quat[3] /= q_length;
-					
-					_activetransforms[@i][@1][@0] = _quat[0];
-					_activetransforms[@i][@1][@1] = _quat[1];
-					_activetransforms[@i][@1][@2] = _quat[2];
-					_activetransforms[@i][@1][@3] = _quat[3];
-				}
 			}
 			
 			// Rotation Euler ----------------------------------------------------------
