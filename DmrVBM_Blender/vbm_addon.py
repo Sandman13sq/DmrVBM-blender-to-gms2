@@ -1550,6 +1550,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             for obj in bpy.context.scene.collection.all_objects:
                 if obj.type == 'ARMATURE':
                     self.items_armatures.add().name = obj.name
+            
+            if self.filepath == "":
+                if vbm.datafiles_path != "":
+                    self.filepath = vbm.datafiles_path
+            
             return super().invoke(context, event)
         else:
             return self.execute(context)
@@ -2813,7 +2818,6 @@ class VBM_PT_ActionList(bpy.types.Panel):
             cc.operator('vbm.actionlist_item_op', text="", icon='SORTALPHA').operation='SORT'
             cc.separator()
             cc.operator('vbm.actionlist_item_op', text="", icon='X').operation='CLEAR'
-            
 classlist.append(VBM_PT_ActionList)
 
 '# =========================================================================================================================='
@@ -2822,6 +2826,13 @@ classlist.append(VBM_PT_ActionList)
 
 '-----------------------------------------------------------------------------------------------------------'
 class VBM_PG_Master(bpy.types.PropertyGroup):
+    def UpdateDataFilesPath(self, context):
+        # Fix queue paths if data files path is cleared
+        if self.datafiles_path == "" and self.datafiles_last:
+            for queue in self.queues:
+                queue['filepath'] = queue['filepath'].replace(VBM_PROJECTPATHKEY, self.datafiles_last).replace("\\/", "/").replace("/\\", "/")
+        self.datafiles_last = self.datafiles_path
+        
     formats : bpy.props.CollectionProperty(name="Formats", type=VBM_PG_Format)
     formats_index : bpy.props.IntProperty(name="Formats Index")
     
@@ -2846,9 +2857,10 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         description="Save export parameters on object for one-click re-exports")
     
     datafiles_path : bpy.props.StringProperty(
-        name="Data Files Path", default="", subtype='DIR_PATH',
+        name="Data Files Path", default="", subtype='DIR_PATH', update=UpdateDataFilesPath,
         description="Path to prepend to queue paths."
     )
+    datafiles_last : bpy.props.StringProperty()
     
     def ToProjectPath(self, path):
         datafilespath = os.path.abspath(bpy.path.abspath(self.datafiles_path))
