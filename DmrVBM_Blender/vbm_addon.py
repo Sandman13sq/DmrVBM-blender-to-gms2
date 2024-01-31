@@ -275,12 +275,12 @@ if 1: # Folding
 '# PROPERTY GROUPS'
 '# =========================================================================================================================='
 
-# -------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 class VBM_PG_Name(bpy.types.PropertyGroup):
     pass
 classlist.append(VBM_PG_Name)
 
-# -------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 class VBM_PG_Format_Attribute(bpy.types.PropertyGroup):
     def UpdateFormatString(self, context):
         if not self.format_code_mutex:
@@ -334,7 +334,7 @@ class VBM_PG_Format_Attribute(bpy.types.PropertyGroup):
         description="Use normalized bytes for default value. This means the value will be divided by 255 on export")
 classlist.append(VBM_PG_Format_Attribute)
 
-# -------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 class VBM_PG_Format(bpy.types.PropertyGroup):
     def UpdateFormatString(self, context=None):
         if not self.format_code_mutex:
@@ -409,13 +409,11 @@ class VBM_PG_Format(bpy.types.PropertyGroup):
             r.separator()
             
             c = r.column(align=True)
-            c.operator('vbm.attribute_add', text="", icon='ADD')
-            c.operator('vbm.attribute_remove', text="", icon='REMOVE').index = format.attributes_index
+            c.operator('vbm.attribute_item_op', text="", icon='ADD').operation='ADD'
+            c.operator('vbm.attribute_item_op', text="", icon='REMOVE').operation='REMOVE'
             c.separator()
-            op = c.operator('vbm.attribute_move', text="", icon='TRIA_UP')
-            op.move_down = False
-            op = c.operator('vbm.attribute_move', text="", icon='TRIA_DOWN')
-            op.move_down = True
+            c.operator('vbm.attribute_item_op', text="", icon='TRIA_UP').operation='MOVE_UP'
+            c.operator('vbm.attribute_item_op', text="", icon='TRIA_DOWN').operation='MOVE_DOWN'
     
     name : bpy.props.StringProperty(name="Name", default="Format")
     attributes : bpy.props.CollectionProperty(name="Attribute", type=VBM_PG_Format_Attribute)
@@ -432,27 +430,29 @@ class VBM_PG_ExportList_Object(bpy.types.PropertyGroup):
     object : bpy.props.PointerProperty(type=bpy.types.Object)
 classlist.append(VBM_PG_ExportList_Object)
 
-# ---------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 class VBM_PG_ExportList(bpy.types.PropertyGroup):
     name : bpy.props.StringProperty(name="Name", default="List")
     objects : bpy.props.CollectionProperty(type=VBM_PG_ExportList_Object)
 classlist.append(VBM_PG_ExportList)
 
 # ========================================================================================================
+
 class VBM_PG_ActionList_Action(bpy.types.PropertyGroup):
-    action : bpy.props.PointerProperty(type=bpy.types.Action)
-    all_curves : bpy.props.BoolProperty(
-        name="All Bone Curves", default=True,
-        description="Write curves for all bones. If false, non-transformed curves will be omitted"
-    )
+    def UpdateAction(self, context):
+        if self.action:
+            self.name = self.action.name
+    
+    action : bpy.props.PointerProperty(type=bpy.types.Action, update=UpdateAction)
 classlist.append(VBM_PG_ActionList_Action)
 
-class VBM_PG_Action_Settings(bpy.types.PropertyGroup):
+# ------------------------------------------------------------------------------
+class VBM_PG_ActionSettings(bpy.types.PropertyGroup):
     all_curves : bpy.props.BoolProperty(
         name="All Bone Curves", default=True,
         description="Write curves for all bones. If false, non-transformed curves will be omitted"
     )
-classlist.append(VBM_PG_Action_Settings)
+classlist.append(VBM_PG_ActionSettings)
 
 # ========================================================================================================
 
@@ -566,70 +566,51 @@ classlist.append(VBM_OT_ClearRecent)
 
 '========================================================================================================'
 
-# -------------------------------------------------------------------------------------------
-class VBM_OT_Format_Add(bpy.types.Operator):
-    """Add vertex format to scene"""
-    bl_label = "Add Format"
-    bl_idname = 'vbm.format_add'
+class VBM_OT_Format_ItemOperation(bpy.types.Operator):
+    """Operations for format items"""
+    bl_label = "Format Item Operation"
+    bl_idname = 'vbm.format_item_op'
     bl_options = {'REGISTER', 'UNDO'}
+    
+    operation : bpy.props.EnumProperty(name="Operation", items=(
+        ('ADD', 'Add', 'Add item to list'),
+        ('REMOVE', 'Remove', 'Remove active item from list'),
+        ('MOVE_UP', 'Move Up', 'Move item up'),
+        ('MOVE_DOWN', 'Move Down', 'Move item down'),
+        ('CLEAR', 'Clear', 'Clears all items from list'),
+    ))
     
     def execute(self, context):
         vbm = context.scene.vbm
-        formats = vbm.formats
-        format = formats.add()
-        format.name = format.name
-        if len(formats) > 1:
-            format.format_code = formats[vbm.formats_index].format_code
-        else:
-            format.format_code = "POSITION3 COLORBYTES4 UV4"
+        
+        itemlist = vbm.formats
+        index = vbm.formats_index
+        operation = self.operation
+        
+        if operation == 'ADD':
+            item = itemlist.add()
+            itemlist.move(len(itemlist)-1, index)
+            
+            if len(itemlist) > 1:
+                active = itemlist[index]
+                item.format_code = active.format_code
+            else:
+                item.format_code = "POSITION3 COLORBYTES4 UV4"
+            item.name = item.name
+        elif operation == 'REMOVE':
+            itemlist.remove(index)
+        elif operation == 'MOVE_UP':
+            itemlist.move(index, max(0, index-1))
+            vbm.formats_index -= 1
+        elif operation == 'MOVE_DOWN':
+            itemlist.move(index, min(index+1, len(itemlist)-1))
+            vbm.formats_index += 1
+        elif operation == 'CLEAR':
+            itemlist.clear()
+        
+        vbm.formats_index = min(vbm.formats_index, len(itemlist)-1)
         return {'FINISHED'}
-classlist.append(VBM_OT_Format_Add)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_Format_Remove(bpy.types.Operator):
-    """Remove vertex format by index"""
-    bl_label = "Remove Format"
-    bl_idname = 'vbm.format_remove'
-    bl_options = {'REGISTER', 'UNDO'}
-    index : bpy.props.IntProperty(name="Index")
-    
-    def execute(self, context):
-        vbm = context.scene.vbm
-        vbm.formats.remove(self.index)
-        vbm.formats_index = max(min(vbm.formats_index, len(vbm.formats)-1), 0)
-        return {'FINISHED'}
-classlist.append(VBM_OT_Format_Remove)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_Format_Clear(bpy.types.Operator):
-    """Removes all vertex formats from scene"""
-    bl_label = "Clear Format"
-    bl_idname = 'vbm.format_clear'
-    bl_options = {'REGISTER', 'UNDO'}
-    index : bpy.props.IntProperty(name="Index")
-    
-    def execute(self, context):
-        vbm = context.scene.vbm
-        vbm.formats.clear()
-        vbm.formats_index = max(min(vbm.formats_index, len(vbm.formats)-1), 0)
-        return {'FINISHED'}
-classlist.append(VBM_OT_Format_Clear)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_Format_Move(bpy.types.Operator):
-    """Moves format in list"""
-    bl_label = "Move Format"
-    bl_idname = 'vbm.format_move'
-    bl_options = {'REGISTER', 'UNDO'}
-    move_down : bpy.props.BoolProperty(name="Move Down", default=True)
-    
-    def execute(self, context):
-        vbm = context.scene.vbm
-        formats = context.scene.vbm.formats
-        formats.move(vbm.formats_index, vbm.formats_index + (1 if self.move_down else -1))
-        vbm.formats_index = max(0, min(vbm.formats_index + (1 if self.move_down else -1), len(formats)-1))
-        return {'FINISHED'}
-classlist.append(VBM_OT_Format_Move)
+classlist.append(VBM_OT_Format_ItemOperation)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_Format_Export(ExportHelper, bpy.types.Operator):
@@ -731,54 +712,46 @@ class VBM_OT_Format_Import(ImportHelper, bpy.types.Operator):
 classlist.append(VBM_OT_Format_Import)
 
 # -------------------------------------------------------------------------------------------
-class VBM_OT_Attribute_Add(bpy.types.Operator):
-    """Add attribute to format"""
-    bl_label = "Add Attribute"
-    bl_idname = 'vbm.attribute_add'
+class VBM_OT_Attribute_ItemOperation(bpy.types.Operator):
+    """Operations for format attribute items"""
+    bl_label = "Attribute Item Operation"
+    bl_idname = 'vbm.attribute_item_op'
     bl_options = {'REGISTER', 'UNDO'}
+    
+    operation : bpy.props.EnumProperty(name="Operation", items=(
+        ('ADD', 'Add', 'Add item to list'),
+        ('REMOVE', 'Remove', 'Remove active item from list'),
+        ('MOVE_UP', 'Move Up', 'Move item up'),
+        ('MOVE_DOWN', 'Move Down', 'Move item down'),
+        ('CLEAR', 'Clear', 'Clears all items from list'),
+    ))
     
     def execute(self, context):
         vbm = context.scene.vbm
         format = vbm.formats[vbm.formats_index]
-        format.attributes.add()
-        format.attributes.move(len(format.attributes)-1, format.attributes_index+1)
-        format.UpdateFormatString()
+        
+        itemlist = format.attributes
+        index = format.attributes_index
+        operation = self.operation
+        
+        if operation == 'ADD':
+            item = itemlist.add()
+            itemlist.move(len(itemlist)-1, index)
+            format.UpdateFormatString()
+        elif operation == 'REMOVE':
+            itemlist.remove(index)
+        elif operation == 'MOVE_UP':
+            itemlist.move(index, max(0, index-1))
+            format.attributes_index -= 1
+        elif operation == 'MOVE_DOWN':
+            itemlist.move(index, min(index+1, len(itemlist)-1))
+            format.attributes_index += 1
+        elif operation == 'CLEAR':
+            itemlist.clear()
+        
+        format.attributes_index = min(format.attributes_index, len(itemlist)-1)
         return {'FINISHED'}
-classlist.append(VBM_OT_Attribute_Add)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_Attribute_Remove(bpy.types.Operator):
-    """Remove attribute from format"""
-    bl_label = "Remove Attribute"
-    bl_idname = 'vbm.attribute_remove'
-    bl_options = {'REGISTER', 'UNDO'}
-    index : bpy.props.IntProperty(name="Index")
-    
-    def execute(self, context):
-        vbm = context.scene.vbm
-        format = vbm.formats[vbm.formats_index]
-        format.attributes.remove(self.index)
-        format.attributes_index = max(0, min(format.attributes_index, len(format.attributes)-1))
-        format.UpdateFormatString()
-        return {'FINISHED'}
-classlist.append(VBM_OT_Attribute_Remove)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_Attribute_Move(bpy.types.Operator):
-    """Move attribute up or down in list"""
-    bl_label = "Move Attribute"
-    bl_idname = 'vbm.attribute_move'
-    bl_options = {'REGISTER', 'UNDO'}
-    move_down : bpy.props.BoolProperty(name="Move Down", default=True)
-    
-    def execute(self, context):
-        vbm = context.scene.vbm
-        format = vbm.formats[vbm.formats_index]
-        format.attributes.move(format.attributes_index, format.attributes_index + (1 if self.move_down else -1))
-        format.attributes_index = max(0, min(format.attributes_index + (1 if self.move_down else -1), len(format.attributes)-1))
-        format.UpdateFormatString()
-        return {'FINISHED'}
-classlist.append(VBM_OT_Attribute_Move)
+classlist.append(VBM_OT_Attribute_ItemOperation)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_Attribute_SetLayer(bpy.types.Operator):
@@ -845,100 +818,56 @@ class VBM_OT_ActionList_FromPattern(bpy.types.Operator):
 classlist.append(VBM_OT_ActionList_FromPattern)
 
 # -------------------------------------------------------------------------------------------
-class VBM_OT_ActionList_Add(bpy.types.Operator):
-    """Add action to action list"""
-    bl_label = "Add Action"
-    bl_idname = 'vbm.actionlist_add'
+class VBM_OT_ActionList_ItemOperation(bpy.types.Operator):
+    """Operations for action list items"""
+    bl_label = "Action List Item Operation"
+    bl_idname = 'vbm.actionlist_item_op'
     bl_options = {'REGISTER', 'UNDO'}
     
-    action : bpy.props.StringProperty(name="Action", default="")
+    operation : bpy.props.EnumProperty(name="Operation", items=(
+        ('ADD', 'Add', 'Add item to list'),
+        ('REMOVE', 'Remove', 'Remove active item from list'),
+        ('MOVE_UP', 'Move Up', 'Move item up'),
+        ('MOVE_DOWN', 'Move Down', 'Move item down'),
+        ('CLEAR', 'Clear', 'Clears all items from list'),
+        ('SORT', 'Sort', 'Sorts items in list'),
+    ))
     
     def execute(self, context):
         obj = context.active_object
         rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
         armature = rig.data
-        actionlist = armature.vbm_action_list
-        action = bpy.data.actions[self.action]
         
-        actionlist.add().action = action
-        actionlist.move(len(actionlist)-1, armature.vbm_action_list_index+1)
-        armature.vbm_action_list_index += 1
-        return {'FINISHED'}
-classlist.append(VBM_OT_ActionList_Add)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_ActionList_Duplicate(bpy.types.Operator):
-    """Duplicates action to action list"""
-    bl_label = "Duplicate Action"
-    bl_idname = 'vbm.actionlist_duplicate'
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    def execute(self, context):
-        obj = context.active_object
-        rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
-        armature = rig.data
-        actionlist = armature.vbm_action_list
-        action = bpy.data.actions[actionlist[armature.vbm_action_list_index].action.name].copy()
+        itemlist = armature.vbm_action_list
+        index = armature.vbm_action_list_index
+        operation = self.operation
         
-        actionlist.add().action = action
-        actionlist.move(len(actionlist)-1, armature.vbm_action_list_index+1)
-        armature.vbm_action_list_index += 1
+        if operation == 'ADD':
+            item = itemlist.add()
+            itemlist.move(len(itemlist)-1, index)
+            
+            if rig.animation_data and rig.animation_data.action:
+                item.action = rig.animation_data.action
+        elif operation == 'REMOVE':
+            itemlist.remove(index)
+        elif operation == 'MOVE_UP':
+            itemlist.move(index, max(0, index-1))
+            armature.vbm_action_list_index -= 1
+        elif operation == 'MOVE_DOWN':
+            itemlist.move(index, min(index+1, len(itemlist)-1))
+            armature.vbm_action_list_index += 1
+        elif operation == 'CLEAR':
+            itemlist.clear()
+        elif operation == 'SORT':
+            sorted = [x.action.name for x in itemlist]
+            sorted.sort(key=lambda x: x)
+            
+            for i,name in list(enumerate(sorted))[::-1]:
+                itemlist.move([x.action.name for x in itemlist].index(name), i)
+        
+        armature.vbm_action_list_index = min(armature.vbm_action_list_index, len(itemlist)-1)
         return {'FINISHED'}
-classlist.append(VBM_OT_ActionList_Duplicate)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_ActionList_Remove(bpy.types.Operator):
-    """Remove action from list"""
-    bl_label = "Remove Action"
-    bl_idname = 'vbm.actionlist_remove'
-    bl_options = {'REGISTER', 'UNDO'}
-    index : bpy.props.IntProperty(name="Index")
-    
-    def execute(self, context):
-        obj = context.active_object
-        rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
-        armature = rig.data
-        actionlist = armature.vbm_action_list
-        actionlist.remove(self.index)
-        armature.vbm_action_list_index = max(0, min(armature.vbm_action_list_index, len(actionlist)-1))
-        return {'FINISHED'}
-classlist.append(VBM_OT_ActionList_Remove)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_ActionList_Clear(bpy.types.Operator):
-    """Remove all actions from list"""
-    bl_label = "Clear Actions"
-    bl_idname = 'vbm.actionlist_clear'
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    def execute(self, context):
-        obj = context.active_object
-        rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
-        armature = rig.data
-        actionlist = armature.vbm_action_list
-        actionlist.clear()
-        armature.vbm_action_list_index = 0
-        return {'FINISHED'}
-classlist.append(VBM_OT_ActionList_Clear)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_ActionList_Move(bpy.types.Operator):
-    """Move action up or down"""
-    bl_label = "Move Action"
-    bl_idname = 'vbm.actionlist_move'
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    move_down : bpy.props.BoolProperty(name="Move Down", default=True)
-    
-    def execute(self, context):
-        obj = context.active_object
-        rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
-        armature = rig.data
-        actionlist = armature.vbm_action_list
-        actionlist.move(armature.vbm_action_list_index, armature.vbm_action_list_index + (1 if self.move_down else -1))
-        armature.vbm_action_list_index = max(0, min(armature.vbm_action_list_index + (1 if self.move_down else -1), len(actionlist)-1))
-        return {'FINISHED'}
-classlist.append(VBM_OT_ActionList_Move)
+classlist.append(VBM_OT_ActionList_ItemOperation)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_ActionList_Play(bpy.types.Operator):
@@ -962,30 +891,6 @@ class VBM_OT_ActionList_Play(bpy.types.Operator):
         
         return {'FINISHED'}
 classlist.append(VBM_OT_ActionList_Play)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_ActionList_Sort(bpy.types.Operator):
-    """Sorts action list"""
-    bl_label = "Sort Action List"
-    bl_idname = 'vbm.actionlist_sort'
-    bl_options = {'REGISTER', 'UNDO'}
-    
-    reverse : bpy.props.BoolProperty(name="Reverse Sort", default=False)
-    
-    def execute(self, context):
-        obj = context.active_object
-        rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
-        armature = rig.data
-        actionlist = armature.vbm_action_list
-        
-        sorted = [x.action.name for x in actionlist]
-        sorted.sort(key=lambda x: x)
-        
-        for i,name in list(enumerate(sorted))[::-1]:
-            actionlist.move([x.action.name for x in actionlist].index(name), i)
-        
-        return {'FINISHED'}
-classlist.append(VBM_OT_ActionList_Sort)
 
 '========================================================================================================'
 
@@ -1050,61 +955,53 @@ classlist.append(VBM_OT_BoneDissolve_Init)
 
 '========================================================================================================'
 
-class VBM_OT_ExportQueue_AddEntry(bpy.types.Operator):
-    """Add export queue to scene"""
-    bl_label = "Add Queue"
-    bl_idname = 'vbm.queue_entry_add'
+class VBM_OT_ExportQueue_EntryOperation(bpy.types.Operator):
+    """Operations for export queue entries"""
+    bl_label = "Entry Operator"
+    bl_idname = 'vbm.queue_entry_op'
     bl_options = {'REGISTER', 'UNDO'}
+    
+    operation : bpy.props.EnumProperty(name="Operation", items=(
+        ('ADD', 'Add', 'Add item to list'),
+        ('REMOVE', 'Remove', 'Remove active item from list'),
+        ('MOVE_UP', 'Move Up', 'Move item up'),
+        ('MOVE_DOWN', 'Move Down', 'Move item down'),
+        ('CLEAR', 'Clear', 'Clears all items from list'),
+    ))
     
     def execute(self, context):
         vbm = context.scene.vbm
-        active = vbm.queues[vbm.queues_index] if vbm.queues else None
-        item = vbm.queues.add()
-        item['filepath'] = "//model.vbm"
-        item['selected_only'] = True
-        item['visible_only'] = True
+        operation = self.operation
         
-        if active:
-            for k in active.keys():
-                item[k] = active[k]
+        itemlist = vbm.queues
+        index = vbm.queues_index
         
-        item.name = item.name
+        if operation == 'ADD':
+            item = itemlist.add()
+            item['filepath'] = "//model.vbm"
+            item['selected_only'] = True
+            item['visible_only'] = True
+            itemlist.move(len(itemlist)-1, index)
+            
+            if len(itemlist) > 1:
+                active = itemlist[index]
+                for k in active.keys():
+                    item[k] = active[k]
+            item.name = item.name
+        elif operation == 'REMOVE':
+            itemlist.remove(index)
+        elif operation == 'MOVE_UP':
+            itemlist.move(index, max(0, index-1))
+            vbm.queues_index -= 1
+        elif operation == 'MOVE_DOWN':
+            itemlist.move(index, min(index+1, len(itemlist)-1))
+            vbm.queues_index += 1
+        elif operation == 'CLEAR':
+            itemlist.clear()
         
-        vbm.queues.move(len(vbm.queues)-1, vbm.queues_index+1)
-        
+        vbm.queues_index = min(vbm.queues_index, len(itemlist)-1)
         return {'FINISHED'}
-classlist.append(VBM_OT_ExportQueue_AddEntry)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_ExportQueue_RemoveEntry(bpy.types.Operator):
-    """Remove export queue by index"""
-    bl_label = "Remove Queue"
-    bl_idname = 'vbm.queue_entry_remove'
-    bl_options = {'REGISTER', 'UNDO'}
-    index : bpy.props.IntProperty(name="Index")
-    
-    def execute(self, context):
-        vbm = context.scene.vbm
-        vbm.queues.remove(self.index)
-        vbm.queues_index = min(max(vbm.queues_index, 0), len(vbm.queues)-1)
-        return {'FINISHED'}
-classlist.append(VBM_OT_ExportQueue_RemoveEntry)
-
-# -------------------------------------------------------------------------------------------
-class VBM_OT_ExportQueue_MoveEntry(bpy.types.Operator):
-    """Move queue up or down in list"""
-    bl_label = "Queue Move"
-    bl_idname = 'vbm.queue_entry_move'
-    bl_options = {'REGISTER', 'UNDO'}
-    move_down : bpy.props.BoolProperty(name="Move Down", default=True)
-    
-    def execute(self, context):
-        vbm = context.scene.vbm
-        items = vbm.queues
-        items.move(vbm.queues_index, vbm.queues_index + (1 if self.move_down else -1))
-        vbm.queues_index = max(0, min(vbm.queues_index + (1 if self.move_down else -1), len(items)-1))
-        return {'FINISHED'}
-classlist.append(VBM_OT_ExportQueue_MoveEntry)
+classlist.append(VBM_OT_ExportQueue_EntryOperation)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_ExportQueue_SetGroup(bpy.types.Operator):
@@ -1879,6 +1776,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         elif self.queue:
             queue = self.ReadQueue(self.queue)
         
+        # Checkout
         self.filename_ext = "." + self.file_type.lower()
         self.filepath = vbm.FromProjectPath(self.filepath)
         fpath = os.path.abspath(bpy.path.abspath( self.filepath ))
@@ -2746,11 +2644,13 @@ class VBM_PT_Queues(bpy.types.Panel):
         # List Ops
         c = r.column(align=True)
         c.scale_y = 0.9
-        c.operator('vbm.queue_entry_add', text="", icon='ADD')
-        c.operator('vbm.queue_entry_remove', text="", icon='REMOVE').index = vbm.queues_index
+        c.operator('vbm.queue_entry_op', text="", icon='ADD').operation='ADD'
+        c.operator('vbm.queue_entry_op', text="", icon='REMOVE').operation='REMOVE'
         c.separator()
-        c.operator('vbm.queue_entry_move', text="", icon='TRIA_UP').move_down = False
-        c.operator('vbm.queue_entry_move', text="", icon='TRIA_DOWN').move_down = True
+        c.operator('vbm.queue_entry_op', text="", icon='TRIA_UP').operation='MOVE_UP'
+        c.operator('vbm.queue_entry_op', text="", icon='TRIA_DOWN').operation='MOVE_DOWN'
+        c.separator()
+        c.operator('vbm.queue_entry_op', text="", icon='X').operation='CLEAR'
         
         # Active
         if len(vbm.queues) > 0:
@@ -2819,13 +2719,11 @@ class VBM_PT_Format(bpy.types.Panel):
         
         c = r.column(align=True)
         c.scale_y = 0.9
-        c.operator('vbm.format_add', text="", icon='ADD')
-        c.operator('vbm.format_remove', text="", icon='REMOVE').index = vbm.formats_index
+        c.operator('vbm.format_item_op', text="", icon='ADD').operation='ADD'
+        c.operator('vbm.format_item_op', text="", icon='REMOVE').operation='REMOVE'
         c.separator()
-        c.operator('vbm.format_move', text="", icon='TRIA_UP').move_down = False
-        c.operator('vbm.format_move', text="", icon='TRIA_DOWN').move_down = True
-        c.separator()
-        c.operator('vbm.format_clear', text="", icon='X')
+        c.operator('vbm.format_item_op', text="", icon='TRIA_UP').operation='MOVE_UP'
+        c.operator('vbm.format_item_op', text="", icon='TRIA_DOWN').operation='MOVE_DOWN'
         
         # Attributes
         if len(vbm.formats) > 0:
@@ -2904,17 +2802,18 @@ class VBM_PT_ActionList(bpy.types.Panel):
             cc.template_list("VBM_UL_ActionList", "", armature, "vbm_action_list", armature, "vbm_action_list_index", rows=6)
             
             cc = r.column(align=True)
-            cc.scale_y = 0.9
-            cc.operator('vbm.actionlist_add', text="", icon='NLA_PUSHDOWN').action = rig.animation_data.action.name if rig.animation_data and rig.animation_data.action else ""
-            cc.operator('vbm.actionlist_duplicate', text="", icon='ADD')
-            cc.operator('vbm.actionlist_remove', text="", icon='REMOVE').index = index
+            cc.scale_y = 0.85
+            
+            cc.operator('vbm.actionlist_item_op', text="", icon='ADD').operation='ADD'
+            cc.operator('vbm.actionlist_item_op', text="", icon='REMOVE').operation='REMOVE'
             cc.separator()
-            cc.operator('vbm.actionlist_move', text="", icon='TRIA_UP').move_down = False
-            cc.operator('vbm.actionlist_move', text="", icon='TRIA_DOWN').move_down = True
+            cc.operator('vbm.actionlist_item_op', text="", icon='TRIA_UP').operation='MOVE_UP'
+            cc.operator('vbm.actionlist_item_op', text="", icon='TRIA_DOWN').operation='MOVE_DOWN'
             cc.separator()
-            cc.operator('vbm.actionlist_sort', text="", icon='SORTALPHA')
+            cc.operator('vbm.actionlist_item_op', text="", icon='SORTALPHA').operation='SORT'
             cc.separator()
-            cc.operator('vbm.actionlist_clear', text="", icon='X')
+            cc.operator('vbm.actionlist_item_op', text="", icon='X').operation='CLEAR'
+            
 classlist.append(VBM_PT_ActionList)
 
 '# =========================================================================================================================='
@@ -3639,7 +3538,7 @@ def register():
                     
     
     bpy.types.Scene.vbm = bpy.props.PointerProperty(type=VBM_PG_Master)
-    bpy.types.Action.vbm = bpy.props.PointerProperty(name="VBM Settings", type=VBM_PG_Action_Settings)
+    bpy.types.Action.vbm = bpy.props.PointerProperty(type=VBM_PG_ActionSettings)
     
     bpy.types.Armature.vbm_dissolve_list = bpy.props.PointerProperty(type=VBM_PG_BoneDissolveList)
     bpy.types.Armature.vbm_action_list = bpy.props.CollectionProperty(type=VBM_PG_ActionList_Action)
