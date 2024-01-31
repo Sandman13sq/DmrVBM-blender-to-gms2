@@ -10,7 +10,8 @@ if (keyboard_check_pressed(vk_space))
 if (keyboard_check_pressed(ord("Z"))) 
 {
 	playbackkeyindex = (playbackkeyindex+1) mod animator.AnimationCount();
-	animator.Layer(0).SetAnimation(vbm_treat.AnimationGet(playbackkeyindex), 1, 10);
+	animator.Layer(0).SetAnimation(vbm_treat.AnimationGet(playbackkeyindex), 1);
+	animator.Layer(0).SetBlend(10);
 }
 
 // Switch between matrices and track evaluation

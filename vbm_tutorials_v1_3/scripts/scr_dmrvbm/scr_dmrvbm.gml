@@ -1148,6 +1148,7 @@ function VBM_Animator() constructor
 		{
 			layers[i].PlayAnimation(_animationkey, _loop, _blendframes);
 		}
+		return self;
 	}
 	
 	// Set animation struct to play
@@ -1157,6 +1158,7 @@ function VBM_Animator() constructor
 		{
 			layers[i].SetAnimation(_animation, _loop, _blendframes);
 		}
+		return self;
 	}
 	
 	
@@ -1167,6 +1169,17 @@ function VBM_Animator() constructor
 		{
 			layers[i].SetPosition(_frame);
 		}
+		return self;
+	}
+	
+	// Sets blend time for layers
+	function SetBlend(_blendframes)
+	{
+		for (var i = 0; i < layercount; i++)
+		{
+			layers[i].SetBlend(_blendframes);
+		}
+		return self;
 	}
 	
 	// Process all layers
@@ -1256,6 +1269,7 @@ function VBM_Animator_Layer(_root) constructor
 	lasttransforms = array_create(VBM_MATPOSEMAX);
 	animationblendframes = 0;
 	animationblendframesstep = 0;
+	animationblendframessteplast = 0;
 	
 	// ==================================================================================
 	
@@ -1312,24 +1326,35 @@ function VBM_Animator_Layer(_root) constructor
 	function SetPosition(_pos)
 	{
 		animationelapsed = _pos * animationduration;
+		return self;
 	}
 	
 	// Sets position to frame
 	function SetPositionFrame(_frame)
 	{
 		animationelapsed = _frame / animationduration;
+		return self;
 	}
 	
 	// Sets position to time in seconds
 	function SetPositionSec(_pos_seconds)
 	{
 		animationelapsed = _pos_seconds / animationfps;
+		return self;
+	}
+	
+	// Sets time to blend into next animation
+	function SetBlend(_blendframes)
+	{
+		animationblendframes = _blendframes;
+		return self;
 	}
 	
 	// Plays animation via name
 	function PlayAnimation(_animationkey, _loop=true, _blendframes=0)
 	{
-		SetAnimation(animationpool[$ _animationkey], _loop);
+		SetAnimation(animationpool[$ _animationkey], _loop, _blendframes);
+		return self;
 	}
 	
 	// Set animation struct
@@ -1353,14 +1378,18 @@ function VBM_Animator_Layer(_root) constructor
 				// Blend variables
 				animationblendframes = _blendframes;
 				animationblendframesstep = 0;
+				animationblendframessteplast = -1;
 				lasttransforms = activetransforms;
 				activetransforms = array_create(VBM_MATPOSEMAX);
-				for ( var i = 0; i < VBM_MATPOSEMAX; i++ )
+				var i = 0; 
+				repeat(VBM_MATPOSEMAX)
 				{
 					activetransforms[i] = [ [0,0,0], [1,0,0,0.00001], [1,1,1] ];
+					i++;
 				}
 			}
 		}
+		return self;
 	}
 	
 	// Calculate transforms and curves
@@ -1369,7 +1398,11 @@ function VBM_Animator_Layer(_root) constructor
 		if (pausefield == 0)
 		{
 			animationelapsed += _deltaframe * animationspeed;
-			animationblendframesstep = min(animationblendframesstep+_deltaframe*animationspeed, animationblendframes);
+			
+			if (animationblendframesstep < animationblendframes)
+			{
+				animationblendframesstep = min(animationblendframesstep+_deltaframe*animationspeed, animationblendframes);
+			}
 		}
 		
 		if (animation)
@@ -1380,7 +1413,10 @@ function VBM_Animator_Layer(_root) constructor
 			// Update Bone Transforms
 			if (_process_intermediate)
 			{
-				if (evaluationpositionlast != evaluationposition)
+				if (
+					(evaluationpositionlast != evaluationposition) ||
+					(animationblendframessteplast < animationblendframesstep)
+				)
 				{
 					animation.EvaluatePose(
 						evaluationposition, 
@@ -1392,6 +1428,7 @@ function VBM_Animator_Layer(_root) constructor
 						(animationblendframes > 0)? (animationblendframesstep/animationblendframes): 1
 						);
 					evaluationpositionlast = evaluationposition;
+					animationblendframessteplast = animationblendframesstep;
 				}
 			}
 			
