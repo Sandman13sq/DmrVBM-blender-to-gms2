@@ -23,7 +23,7 @@ if (keyboard_check_pressed(ord("X")))
 		animator.BakeAnimations();	// Pre-evaluate animations
 		_t = get_timer()-_t;
 		
-		show_debug_message("Animations baked in {0} mcs", _t/1000000);
+		show_debug_message("Animations baked in " + string(_t/1000000) + " mcs");
 	}
 	else
 	{
