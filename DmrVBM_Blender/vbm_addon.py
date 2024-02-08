@@ -25,6 +25,7 @@ classlist = []
     
     -- Vertex Buffers ----------------------------------------------
     meshflags (1I)
+        1<<0 = +materialname
     
     numvbuffers (1I)
     
@@ -535,7 +536,7 @@ class VBM_OT_ClearCache(bpy.types.Operator):
             if obj.type == 'MESH':
                 hit = 0
                 for k in list(obj.keys())[::-1]:
-                    if k[:6] in ('VBDAT_', 'VBNUM_', 'VBSUM_') or k in 'VBM_LASTCOUNT VBM_LASTDATA'.split():
+                    if k[:6] in ('VBDAT_', 'VBNUM_', 'VBSUM_', 'VBMTL_') or k in 'VBM_LASTCOUNT VBM_LASTDATA'.split():
                         del obj[k]
                         hit = 1
                 hits += hit
@@ -1467,7 +1468,9 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     armature, 
                     [x.action for x in armature.data.vbm_action_list if x.action]
                 ] 
-                for armature in armatures
+                for armature in armatures if (
+                    (not self.alphanumeric_only or armature.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890')
+                )
             ]
         elif self.batching == 'OBJECT':
             if not self.batching_filename:
@@ -1874,7 +1877,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     flip_uvs=self.flip_uvs,
                     )
                 
-                outbytes = b''.join([vbmeta[0] for name, vbmeta in vbdata.items()])
+                outbytes = b''.join([vb for vb, count, mtlname in vbdata])
                 
                 rawlen = len(outbytes)
                 
@@ -1934,16 +1937,19 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 outskeleton = b''
                 outskeleton += Pack('I', 0) # Flags
                 
+                rigmatrix = None
                 parentmap = {}
                 if armature:
                     parentmap = vbm.DeformArmatureMap(armature) if deformonly else {b.name: b.parent.name if b.parent else "" for b in armature.data.bones}
                     boneorder = list(parentmap.keys())
+                    rigmatrix = armature.matrix_world.copy()
                 
                 if self.export_skeleton:
                     matidentity = mathutils.Matrix.Identity(4)
                     
                     # Use armature bone data
                     if armature:
+                        armature.matrix_world = matidentity
                         bones = [armature.data.bones[bname] for bname in parentmap.keys()]
                         bonemat = {b.name: b.matrix_local.copy() for b in bones}
                         bonematinv = {b: m.copy().inverted() for b,m in bonemat.items()}
@@ -1983,10 +1989,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     outskeleton += Pack('I', 0)
                 
                 # VBs -------------------------------------------------------------
-                outvbs = b''
-                outvbs += Pack('I', 0) # Flags
-                
-                vbmap = {}
+                vbmeshes = []   # [ (name, vb, vertexcount, mtlname) ]
                 
                 workingobjects = []
                 apply_armature = (armature is not None) and not self.export_skeleton
@@ -2013,9 +2016,10 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                         armature.animation_data.action = pose_action
                     
                     print("> Creating VB Data")
-                    if grouping == 'OBJECT':
+                    # By Object
+                    if grouping in ('OBJECT', 'MATERIAL'):
                         for obj in objects:
-                            for name,vbmeta in context.scene.vbm.MeshToVB(
+                            for vb, count, mtlname in context.scene.vbm.MeshToVB(
                                 [obj], 
                                 format if format else self.format_code,
                                 boneorder=boneorder,
@@ -2026,14 +2030,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 fast=self.fast_vb,
                                 alphanumeric_modifiers=self.alphanumeric_modifiers,
                                 flip_uvs=self.flip_uvs,
-                            ).items():
-                                name = FixName(name, self.mesh_delimiter_start, self.mesh_delimiter_end)
-                                
-                                vbmap[name] = vbmap.get(name, [b'', 0])
-                                vbmap[name][0] += vbmeta[0]
-                                vbmap[name][1] += vbmeta[1]
-                    elif grouping == 'MATERIAL':
-                        print("> MATERIAL grouping not implemented")
+                                group_by_material=grouping=='MATERIAL',
+                            ):
+                                name = FixName(obj.name, self.mesh_delimiter_start, self.mesh_delimiter_end)
+                                vbmeshes.append( [name, vb, count, mtlname] )
+                    # By Action
                     elif grouping == 'ACTION':
                         frame_range = (sc.frame_start, sc.frame_end)
                         
@@ -2042,11 +2043,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                             print("> Frame:", f)
                             sc.frame_set(f)
                             
-                            vb = b''
+                            framevb = b''
                             numelements = 0
                             
                             # For each object...
-                            for k,vbmeta in vbm.MeshToVB(
+                            for vb, count, mtlname in vbm.MeshToVB(
                                 objects, 
                                 format if format else self.format_code,
                                 boneorder=boneorder,
@@ -2055,21 +2056,35 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 post_script=self.post_script,
                                 use_cache=False,
                                 fast=self.fast_vb,
-                            ).items():
-                                vb += vbmeta[0]
-                                numelements += vbmeta[1]
+                                alphanumeric_modifiers=self.alphanumeric_modifiers,
+                                flip_uvs=self.flip_uvs,
+                                group_by_material=False,
+                            ):
+                                framevb += vb
+                                numelements += count
                             
-                            vbmap[str(f)] = (vb, numelements)
-                
+                            vbmeshes.append( [str(f), framevb, numelements, mtlname] )
+                    
+                    if grouping == 'MATERIAL':
+                        names = list(set([mtlname for name, vb, n, mtlname in vbmeshes]))
+                        vbmap = {mtlname: [mtlname, b'', 0, mtlname] for mtlname in names}
+                        for name, vb, n, mtlname in vbmeshes:
+                            vbmap[mtlname][1] += vb
+                            vbmap[mtlname][2] += n
+                        vbmeshes = list( vbmap.values() )
+                    
                     if armature and armature.animation_data:
                         armature.animation_data.action = lastaction
                 
-                outvbs += Pack('I', len(vbmap))
+                outvbs = b''
+                outvbs += Pack('I', 1) # Flags
+                
+                outvbs += Pack('I', len(vbmeshes))
                 
                 formatserialized = vbm.ParseFormatString(format if format else self.format_code) if self.export_meshes else []
                 
                 # VBs
-                for name, vbmeta in vbmap.items():
+                for name, vb, numvertices, mtlname in vbmeshes:
                     # Name
                     outvbs += PackString(name)
                     # Format
@@ -2079,10 +2094,13 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                         outvbs += Pack('B', VBFTypeIndex[k] | (128 if k in VBFUseBytes else 0))
                         outvbs += Pack('B', size)
                     # Buffer
-                    vb, numvertices = vbmeta
                     outvbs += Pack('I', len(vb))
                     outvbs += Pack('I', numvertices)
                     outvbs += vb
+                
+                # Material names
+                for name, vb, numvertices, mtlname in vbmeshes:
+                    outvbs += PackString(mtlname)
                 
                 # Animation --------------------------------------------------------
                 outanimations = b''
@@ -2263,6 +2281,9 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 else:
                     outanimations += Pack('I', 0)
                 
+                if self.export_skeleton and armature:
+                    armature.matrix_world = rigmatrix
+                
                 # Output -----------------------------------------------------
                 outbytes = b''
                 
@@ -2291,7 +2312,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 outlen = [rawlen, len(outbytes)]
                 print(
                     "Objects:", len(objects), 
-                    "-> Meshes:", len(vbmap.items()) * self.export_meshes, 
+                    "-> Meshes:", len(vbmeshes) * self.export_meshes, 
                     "| Bones:", len(boneorder)  * self.export_skeleton, 
                     "| Actions:", len(actions) * self.export_animations
                     )
@@ -3120,7 +3141,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         
         return workingobj
     
-    # Returns map {meshname: (vbdata, numvertices, material_name)}
+    # Returns list of [ (vbdata, numvertices, materialname) ]
     def MeshToVB(
         self, 
         objects, 
@@ -3134,10 +3155,9 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         fast=False,
         alphanumeric_modifiers=True,
         group_by_material=False,
+        mesh_per_instance=False,
         ):
         vbm = self
-        outmap = {} # {mtl_name: data}
-        mtlkey = {}
         
         context = bpy.context
         
@@ -3145,16 +3165,12 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         post_script = bpy.data.texts.get(post_script, None) if post_script else None
         
         attribparams = bpy.context.scene.vbm.ParseFormatString(format)
-        vbmap = {}
+        
         process_bones = sum([att[0] in (VBF_BON, VBF_BOB) for att in attribparams]) > 0
         process_tangents = sum([att[0] in (VBF_TAN, VBF_BTN) for att in attribparams]) > 0
         process_groups = sum([att[0] in (VBF_GRO, VBF_GRB) for att in attribparams]) > 0
         apply_armature = apply_armature and not process_bones
         fast = fast and not process_bones
-        
-        for mtl in [slot.material for obj in objects for slot in obj.material_slots if slot.material]:
-            outmap[mtl.name] = []
-        outmap[""] = []
         
         bonetoindex = {bname: i for i,bname in enumerate(boneorder)}
         
@@ -3164,7 +3180,10 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             obj.data['__temp'] = True
             bpy.context.scene.collection.objects.link(obj)
             
-            obj.matrix_world = src.matrix_world.copy()
+            if src.find_armature():
+                obj.matrix_basis = src.matrix_basis.copy()
+            else:
+                obj.matrix_world = src.matrix_world.copy()
             
             for m1 in src.modifiers:
                 if not alphanumeric_modifiers or m1.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890':
@@ -3215,6 +3234,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         
         # Cache Key
         attribstr = ""
+        attribstride = 0
         
         for att in attribparams: # [key, size, layer, srgb, default_value]
             k, size, layer, srgb, default_value = att
@@ -3225,10 +3245,15 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             if k in VBFUseVCLayer and srgb:
                 s += "c"
             attribstr += s
+            
+            attribstride += size if k in VBFUseBytes else size*4
         
-        # Object Loop -------------------------------------------------------------------
+        # Object Loop >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+        netvbs = [] # [ (vb, vertexcount, mtlname) ]
+        
         for sourceobj in objects:
-            vbmesh = b''
+            objectvbs = []    # [ (vb, vertexcount, mtlname) ]
+            
             armature = sourceobj.find_armature()
             
             checksum = ObjChecksum(sourceobj)
@@ -3236,7 +3261,15 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             
             # Use Cached Data
             if use_cache and (sourceobj.get('VBSUM_'+checksumkey, 0) == checksum):
-                vbmap[sourceobj.name] = (zlib.decompress(sourceobj['VBDAT_'+checksumkey]), sourceobj['VBNUM_'+checksumkey])
+                netvbs += [
+                    [
+                        zlib.decompress(vb),
+                        sourceobj['VBNUM_'+checksumkey][i],
+                        sourceobj['VBMTL_'+checksumkey][i]
+                    ]
+                    for i,vb in enumerate(sourceobj['VBDAT_'+checksumkey])
+                ]
+            # Calculate VB Data
             else:
                 instobjects = [sourceobj]
                 
@@ -3255,7 +3288,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             obj.data['__temp'] = True
                         sourceobj.instance_type = insttype
                 
-                # Matrix Loop ----------------------------------------------------------------
+                # Matrix Loop >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
                 vbinstances = []
                 netnumelements = 0
                 depsgraph = context.evaluated_depsgraph_get()
@@ -3287,6 +3320,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             exec(pre_script.as_string())
                             context.scene['VBM_EXPORTING'] = False
                         
+                        # Armature Modifier
                         if not apply_armature:
                             armaturemodifiers = [m for m in obj.modifiers if m.type == 'ARMATURE' and m.show_viewport]
                             for m in armaturemodifiers:
@@ -3369,9 +3403,16 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 vweights[vi] = numpy.array([x[1] for x in wpairs]+excessw)
                                 vnumbones[vi] = n
                     
-                    # Buffer Data ------------------------------------------------------------------------------------------
-                    bcontiguous = []
+                    mtlloops = []
+                    if mesh.materials:
+                        mtlloops = [
+                            (mtl.name, tuple([l for p in mesh.loop_triangles if p.material_index == mtlindex for l in p.loops]))
+                            for mtlindex, mtl in enumerate(mesh.materials)
+                        ]
+                    else:
+                        mtlloops = [("", tuple([l for p in mesh.loop_triangles for l in p.loops]))]
                     
+                    # Buffer Data ------------------------------------------------------------------------------------------
                     NumpyFloatToBytes = lambda nparray : numpy.frombuffer( nparray.astype(numpy.float32).tobytes(), dtype=numpy.uint8 )
                     NumpyUnitsToBytes = lambda nparray : numpy.frombuffer( (nparray * 255.0).astype(numpy.uint8).tobytes(), dtype=numpy.uint8 )
                     NumpyByteToBytes = lambda nparray : numpy.frombuffer( (nparray).astype(numpy.uint8).tobytes(), dtype=numpy.uint8 )
@@ -3382,149 +3423,170 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         nparray[:] = vector
                         return nparray
                     
-                    for k, size, layer, isSrgb, default_value in attribparams:
-                        # Position
-                        if k == VBF_POS:
-                            uniquedata = numpy.empty((numverts * 3), dtype=numpy.float32)
-                            mesh.vertices.foreach_get('co', uniquedata)
-                            attdata = numpy.array([ uniquedata[i*3:i*3+size] for i in facevertindices], dtype=numpy.float32)
-                            bcontiguous.append( NumpyFloatToBytes(attdata) )
-                        # Normals
-                        elif k == VBF_NOR:
-                            attdata = numpy.empty(numelements * 3, dtype=numpy.float32)
-                            mesh.loops.foreach_get('normal', attdata)
-                            attdata = numpy.array([ attdata[i*3:i*3+size] for i in faceloopindices], dtype=numpy.float32)
-                            bcontiguous.append( NumpyFloatToBytes(attdata) )
-                        # Tangents
-                        elif k == VBF_TAN:
-                            attdata = numpy.empty(numelements * 3, dtype=numpy.float32)
-                            mesh.loops.foreach_get('tangent', attdata)
-                            attdata = numpy.array([ attdata[i*3:i*3+size] for i in faceloopindices], dtype=numpy.float32)
-                            bcontiguous.append( NumpyFloatToBytes(attdata) )
-                        # Bitangents
-                        elif k == VBF_BTN:
-                            normals = numpy.empty(numelements * 3, dtype=numpy.float32)
-                            tangents = numpy.empty(numelements * 3, dtype=numpy.float32)
-                            mesh.loops.foreach_get('normal', normals)
-                            mesh.loops.foreach_get('tangent', tangents)
-                            
-                            normals = numpy.array( numpy.split(normals, numelements), dtype=numpy.float32 )
-                            tangents = numpy.array( numpy.split(tangents, numelements), dtype=numpy.float32 )
-                            attdata = numpy.cross(normals, tangents).flatten()
-                            
-                            attdata = numpy.array([ attdata[i*3:i*3+size] for i in faceloopindices], dtype=numpy.float32)
-                            bcontiguous.append( NumpyFloatToBytes(attdata) )
-                        # UVs
-                        elif k == VBF_UVS or k == VBF_UVB:
-                            lyr = mesh.uv_layers.get(layer) if layer in mesh.uv_layers.keys() else mesh.uv_layers.active
-                            if lyr:
-                                uniquedata = numpy.empty(numloops * 2, dtype=numpy.float32)
+                    instvbs = {}    # {mtlname: [ vb, vb, ... ]}
+                    
+                    # Material Loop for instance >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                    for mtlname, mtlloopindices in mtlloops:
+                        bcontiguous = []
+                        
+                        mtlvertindices = tuple([facevertindices[i] for i in mtlloopindices])
+                        mtlloopcount = len(mtlloopindices)
+                        mtlvertexcount = mtlloopcount / 3
+                        
+                        # Attribute Loop >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+                        for k, size, layer, isSrgb, default_value in attribparams:
+                            # Position
+                            if k == VBF_POS:
+                                uniquedata = numpy.empty((numverts * 3), dtype=numpy.float32)
+                                mesh.vertices.foreach_get('co', uniquedata)
+                                attdata = numpy.array([ uniquedata[i*3:i*3+size] for i in mtlvertindices], dtype=numpy.float32)
+                                bcontiguous.append( NumpyFloatToBytes(attdata) )
+                            # Normals
+                            elif k == VBF_NOR:
+                                attdata = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
+                                mesh.loops.foreach_get('normal', attdata)
+                                attdata = numpy.array([ attdata[i*3:i*3+size] for i in mtlloopindices], dtype=numpy.float32)
+                                bcontiguous.append( NumpyFloatToBytes(attdata) )
+                            # Tangents
+                            elif k == VBF_TAN:
+                                attdata = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
+                                mesh.loops.foreach_get('tangent', attdata)
+                                attdata = numpy.array([ attdata[i*3:i*3+size] for i in mtlloopindices], dtype=numpy.float32)
+                                bcontiguous.append( NumpyFloatToBytes(attdata) )
+                            # Bitangents
+                            elif k == VBF_BTN:
+                                normals = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
+                                tangents = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
+                                mesh.loops.foreach_get('normal', normals)
+                                mesh.loops.foreach_get('tangent', tangents)
                                 
-                                if USE_ATTRIBUTES:
-                                    lyr.data.foreach_get('uv', uniquedata)
+                                normals = numpy.array( numpy.split(normals, mtlloopcount), dtype=numpy.float32 )
+                                tangents = numpy.array( numpy.split(tangents, mtlloopcount), dtype=numpy.float32 )
+                                attdata = numpy.cross(normals, tangents).flatten()
+                                
+                                attdata = numpy.array([ attdata[i*3:i*3+size] for i in mtlloopindices], dtype=numpy.float32)
+                                bcontiguous.append( NumpyFloatToBytes(attdata) )
+                            # UVs
+                            elif k == VBF_UVS or k == VBF_UVB:
+                                lyr = mesh.uv_layers.get(layer) if layer in mesh.uv_layers.keys() else mesh.uv_layers.active
+                                if lyr:
+                                    uniquedata = numpy.empty(numloops * 2, dtype=numpy.float32)
+                                    
+                                    if USE_ATTRIBUTES:
+                                        lyr.data.foreach_get('uv', uniquedata)
+                                    else:
+                                        lyr.data.foreach_get('uv', uniquedata)
+                                    if flip_uvs:
+                                        attdata = numpy.array([ x for i in mtlloopindices for v in [uniquedata[i*2:i*2+size]] for x in (v[0], 1.0-v[1])], dtype=numpy.float32)
                                 else:
-                                    lyr.data.foreach_get('uv', uniquedata)
-                                if flip_uvs:
-                                    attdata = numpy.array([ x for i in faceloopindices for v in [uniquedata[i*2:i*2+size]] for x in (v[0], 1.0-v[1])], dtype=numpy.float32)
-                            else:
-                                attdata = NumpyCreatePattern(default_value[:size], numelements)
-                            if k == VBF_UVS:
-                                bcontiguous.append( NumpyFloatToBytes(attdata) )
-                            else:
-                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
-                        # Color
-                        elif k == VBF_COL or k == VBF_RGB:
-                            if USE_ATTRIBUTES:
-                                lyr = mesh.color_attributes.get(layer) if layer in mesh.color_attributes.keys() else mesh.color_attributes.active_color
-                            else:
-                                lyr = mesh.vertex_colors.get(layer) if layer in mesh.vertex_colors.keys() else mesh.vertex_colors.active
-                            if lyr:
-                                uniquedata = numpy.empty(numloops * 4, dtype=numpy.float32)
-                                lyr.data.foreach_get('color', uniquedata)
+                                    attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
+                                if k == VBF_UVS:
+                                    bcontiguous.append( NumpyFloatToBytes(attdata) )
+                                else:
+                                    bcontiguous.append( NumpyUnitsToBytes(attdata) )
+                            # Color
+                            elif k == VBF_COL or k == VBF_RGB:
+                                if USE_ATTRIBUTES:
+                                    lyr = mesh.color_attributes.get(layer) if layer in mesh.color_attributes.keys() else mesh.color_attributes.active_color
+                                else:
+                                    lyr = mesh.vertex_colors.get(layer) if layer in mesh.vertex_colors.keys() else mesh.vertex_colors.active
+                                if lyr:
+                                    uniquedata = numpy.empty(numloops * 4, dtype=numpy.float32)
+                                    lyr.data.foreach_get('color', uniquedata)
+                                    
+                                    if (USE_ATTRIBUTES and isSrgb):
+                                        numpy.power(uniquedata, numpy.array([.4545, .4545, .4545, 1.0] * numloops), uniquedata)
+                                    elif (not USE_ATTRIBUTES) and (not isSrgb):
+                                        numpy.power(uniquedata, numpy.array([2.2, 2.2, 2.2, 1.0] * numloops), uniquedata)
+                                    
+                                    attdata = numpy.array([ uniquedata[i*4:i*4+size] for i in mtlloopindices], dtype=numpy.float32)
+                                else:
+                                    attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
+                                if k == VBF_COL:
+                                    bcontiguous.append( NumpyFloatToBytes(attdata) )
+                                else:
+                                    bcontiguous.append( NumpyUnitsToBytes(attdata) )
+                            # Bones
+                            elif k == VBF_BON or k == VBF_BOB:
+                                uniquedata = numpy.empty((numverts * size), dtype=numpy.float32 if k == VBF_BON else numpy.int8)
+                                for vi in range(0, numverts):
+                                    uniquedata[vi*size:vi*size+size] = vbones[vi][:size]
                                 
-                                if (USE_ATTRIBUTES and isSrgb):
-                                    numpy.power(uniquedata, numpy.array([.4545, .4545, .4545, 1.0] * numloops), uniquedata)
-                                elif (not USE_ATTRIBUTES) and (not isSrgb):
-                                    numpy.power(uniquedata, numpy.array([2.2, 2.2, 2.2, 1.0] * numloops), uniquedata)
+                                attdata = numpy.array([ uniquedata[i*size:i*size+size] for i in mtlvertindices], dtype=numpy.float32)
+                                if k == VBF_BON:
+                                    bcontiguous.append( NumpyFloatToBytes(attdata) )
+                                else:
+                                    bcontiguous.append( NumpyUnitsToBytes(attdata/255.0) )
+                            # Weights
+                            elif k == VBF_WEI or k == VBF_WEB:
+                                uniquedata = numpy.empty((numverts * size), dtype=numpy.float32)
+                                for vi in range(0, numverts):
+                                    uniquedata[vi*size:vi*size+size] = vweights[vi][:size] / sum(vweights[vi][:size])
+                                attdata = numpy.array([ uniquedata[i*size:i*size+size] for i in mtlvertindices], dtype=numpy.float32)
+                                if k == VBF_WEI:
+                                    bcontiguous.append( NumpyFloatToBytes(attdata) )
+                                else:
+                                    bcontiguous.append( NumpyUnitsToBytes(attdata) )
+                            # Groups
+                            elif k == VBF_GRO or k == VBF_GRB:
+                                vg = obj.vertex_groups.get(layer, None)
+                                if vg != None:
+                                    vgindex = vg.index
+                                    uniquedata = numpy.array([
+                                        vg.weight(i) if sum([vge.group == vgindex for vge in v.groups]) else 0.0
+                                        for i,v in enumerate(meshverts) 
+                                    ], dtype=numpy.float32)
+                                    attdata = numpy.array([ uniquedata[i] for i in mtlvertindices], dtype=numpy.float32)
+                                else:
+                                    attdata = NumpyCreatePattern(default_value[:1], mtlloopcount)
                                 
-                                attdata = numpy.array([ uniquedata[i*4:i*4+size] for i in faceloopindices], dtype=numpy.float32)
-                            else:
-                                attdata = NumpyCreatePattern(default_value[:size], numelements)
-                            if k == VBF_COL:
-                                bcontiguous.append( NumpyFloatToBytes(attdata) )
-                            else:
-                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
-                        # Bones
-                        elif k == VBF_BON or k == VBF_BOB:
-                            uniquedata = numpy.empty((numverts * size), dtype=numpy.float32 if k == VBF_BON else numpy.int8)
-                            for vi in range(0, numverts):
-                                uniquedata[vi*size:vi*size+size] = vbones[vi][:size]
-                            
-                            attdata = numpy.array([ uniquedata[i*size:i*size+size] for i in facevertindices], dtype=numpy.float32)
-                            if k == VBF_BON:
-                                bcontiguous.append( NumpyFloatToBytes(attdata) )
-                            else:
-                                bcontiguous.append( NumpyUnitsToBytes(attdata/255.0) )
-                        # Weights
-                        elif k == VBF_WEI or k == VBF_WEB:
-                            uniquedata = numpy.empty((numverts * size), dtype=numpy.float32)
-                            for vi in range(0, numverts):
-                                uniquedata[vi*size:vi*size+size] = vweights[vi][:size] / sum(vweights[vi][:size])
-                            attdata = numpy.array([ uniquedata[i*size:i*size+size] for i in facevertindices], dtype=numpy.float32)
-                            if k == VBF_WEI:
-                                bcontiguous.append( NumpyFloatToBytes(attdata) )
-                            else:
-                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
-                        # Groups
-                        elif k == VBF_GRO or k == VBF_GRB:
-                            vg = obj.vertex_groups.get(layer, None)
-                            if vg != None:
-                                vgindex = vg.index
-                                uniquedata = numpy.array([
-                                    vg.weight(i) if sum([vge.group == vgindex for vge in v.groups]) else 0.0
-                                    for i,v in enumerate(meshverts) 
-                                ], dtype=numpy.float32)
-                                attdata = numpy.array([ uniquedata[i] for i in facevertindices], dtype=numpy.float32)
-                            else:
-                                attdata = NumpyCreatePattern(default_value[:1], numelements)
-                            
-                            if k == VBF_GRO:
-                                bcontiguous.append( NumpyFloatToBytes(attdata) )
-                            else:
-                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
-                        # Padding
-                        elif k == VBF_PAD or k == VBF_PAB:
-                            attdata = NumpyCreatePattern(default_value[:size], numelements)
-                            if k == VBF_PAD:
-                                bcontiguous.append( NumpyFloatToBytes(attdata) )
-                            else:
-                                bcontiguous.append( NumpyUnitsToBytes(attdata) )
+                                if k == VBF_GRO:
+                                    bcontiguous.append( NumpyFloatToBytes(attdata) )
+                                else:
+                                    bcontiguous.append( NumpyUnitsToBytes(attdata) )
+                            # Padding
+                            elif k == VBF_PAD or k == VBF_PAB:
+                                attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
+                                if k == VBF_PAD:
+                                    bcontiguous.append( NumpyFloatToBytes(attdata) )
+                                else:
+                                    bcontiguous.append( NumpyUnitsToBytes(attdata) )
+                        
+                        attributevectors = [ numpy.split(buffer, mtlloopcount) for buffer in bcontiguous ]
+                        
+                        if mtlname not in instvbs.keys():
+                            instvbs[mtlname] = []
+                        
+                        instvbs[mtlname].append(
+                            numpy.array([ 
+                                x 
+                                for vindex in range(0, mtlloopcount) 
+                                for vectors in attributevectors 
+                                for x in vectors[vindex]  
+                            ]).tobytes()
+                        )
                     
-                    attributevectors = [ numpy.split(buffer, numelements) for buffer in bcontiguous ]
+                    # After Attribute Loop, In Matrix Block <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+                    instvbs = {mtlname: b''.join(vb) for mtlname, vb in instvbs.items()}
                     
-                    vbinstances.append(
-                        numpy.array([ 
-                            x 
-                            for vindex in range(0, numelements) 
-                            for vectors in attributevectors 
-                            for x in vectors[vindex]  
-                        ]).tobytes()
-                    )
-                    netnumelements += numelements
+                    for mtlname, vb in instvbs.items():
+                        objectvbs.append(
+                            (vb, (len(vb)//attribstride)//3, mtlname)
+                        )
                 
-                vbmesh = b''.join(vbinstances)
-                vbmap[sourceobj.name] = (
-                    vbmesh, 
-                    netnumelements, 
-                    instobj.active_material.name if instobj.active_material else ""
-                )
-                
+                # After Matrix Loop, In Object Block (non-cached) <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 if vbm.write_to_cache:
-                    sourceobj['VBDAT_'+checksumkey] = zlib.compress(vbmesh, 9)
-                    sourceobj['VBNUM_'+checksumkey] = numelements
+                    # Only floats, ints, and dicts allowed in ID property arrays
+                    sourceobj['VBDAT_'+checksumkey] = [ zlib.compress(vb, 9) for vb, count, mtlname in objectvbs ]
+                    sourceobj['VBNUM_'+checksumkey] = [ count for vb, count, mtlname in objectvbs ]
+                    sourceobj['VBMTL_'+checksumkey] = [ mtlname for vb, count, mtlname in objectvbs ]
                     sourceobj['VBSUM_'+checksumkey] = checksum
+                
+                netvbs += objectvbs
         
-        return vbmap
+        # After Object Loop <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        
+        return netvbs
 classlist.append(VBM_PG_Master)
 
 '# =========================================================================================================================='

@@ -315,6 +315,11 @@ function VBM_Mesh() constructor
 	visible = true;
 	edges = false;
 	
+	function toString()
+	{
+		return "{VBM_Mesh " + name + ", Mtl: " + materialname + ", Tex: " + string(texture) + "}";
+	}
+	
 	function Free()
 	{
 		if (vertexbuffer != -1) {vertex_delete_buffer(vertexbuffer);}
@@ -1741,10 +1746,23 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 		
 		_outvbm.meshes[_vbcountoffset + _vbindex] = _mesh;
 		_outvbm.meshmap[$ _name] = _mesh;
-		_mesh.name = _name
+		_mesh.name = _name;
 		
 		// move to next _vb
 		buffer_seek(b, buffer_seek_relative, _vbuffersize);
+	}
+	
+	// Material Names
+	if ( (_flagsmesh & (1<<0)) != 0 )
+	{
+		for (var _vbindex = 0; _vbindex < _vbcount; _vbindex++)
+		{
+			_name = "";
+			_namelength = buffer_read(b, buffer_u8);
+			repeat(_namelength) {_name += chr(buffer_read(b, buffer_u8));}
+			
+			_outvbm.meshes[_vbcountoffset + _vbindex].materialname = _name;
+		}
 	}
 	
 	#endregion -------------------------------------------------------------
