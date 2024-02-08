@@ -1919,7 +1919,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     flip_uvs=self.flip_uvs,
                     )
                 
-                outbytes = b''.join([vb for vb, count, mtlname in vbdata])
+                outbytes = b''.join([vb for vb, count, mtlname, meshname in vbdata])
                 
                 rawlen = len(outbytes)
                 
@@ -2082,7 +2082,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     # By Object
                     if grouping in ('OBJECT', 'MATERIAL'):
                         for obj in objects:
-                            for vb, count, mtlname in context.scene.vbm.MeshToVB(
+                            for vb, count, mtlname, meshname in context.scene.vbm.MeshToVB(
                                 [obj], 
                                 format if format else self.format_code,
                                 boneorder=boneorder,
@@ -2096,7 +2096,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 flip_uvs=self.flip_uvs,
                                 group_by_material=grouping=='MATERIAL',
                             ):
-                                name = FixName(obj.name, self.mesh_delimiter_start, self.mesh_delimiter_end)
+                                name = FixName(meshname, self.mesh_delimiter_start, self.mesh_delimiter_end)
                                 vbmeshes.append( [name, vb, count, mtlname] )
                     # By Action
                     elif grouping == 'ACTION':
@@ -2111,7 +2111,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                             numelements = 0
                             
                             # For each object...
-                            for vb, count, mtlname in vbm.MeshToVB(
+                            for vb, count, mtlname, meshname in vbm.MeshToVB(
                                 objects, 
                                 format if format else self.format_code,
                                 boneorder=boneorder,
@@ -2130,6 +2130,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                             
                             vbmeshes.append( [str(f), framevb, numelements, mtlname] )
                     
+                    # Merge materials
                     if grouping == 'MATERIAL':
                         names = list(set([mtlname for name, vb, n, mtlname in vbmeshes]))
                         vbmap = {mtlname: [mtlname, b'', 0, mtlname] for mtlname in names}
@@ -3289,7 +3290,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             (sum([ord(x) for x in obj.data.color_attributes.active_color.name]) if obj.data.color_attributes else 0) if USE_ATTRIBUTES else
                             (sum([ord(x) for x in obj.data.vertex_colors.active.name]) if obj.data.vertex_colors else 0)
                         )
-                    ])
+                    ]) +
+                    ([ sum([sk.value+sum([x for v in sk.data for x in v.co]) for sk in obj.data.shape_keys.key_blocks]) if obj.data.shape_keys else 0])
                 ) if obj.type == 'MESH' else [] ) + 
                 ([x for b in armature.data.bones for v in b.matrix_local for x in v] if armature else []) + 
                 (
@@ -3318,10 +3320,11 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             attribstride += size if k in VBFUseBytes else size*4
         
         # Object Loop >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-        netvbs = [] # [ (vb, vertexcount, mtlname) ]
+        netvbs = [] # [ (vb, vertexcount, mtlname, meshname) ]
         
         for sourceobj in objects:
-            objectvbs = []    # [ (vb, vertexcount, mtlname) ]
+            objectvbs = []    # [ (vb, vertexcount, mtlname, meshname) ]
+            meshname = sourceobj.name
             
             armature = sourceobj.find_armature()
             
@@ -3333,14 +3336,15 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 netvbs += [
                     [
                         zlib.decompress(vb),
-                        sourceobj['VBNUM_'+checksumkey][i],
-                        sourceobj['VBMTL_'+checksumkey][i]
+                        meta.get('count', len(vb)/attribstride),
+                        meta.get('material', sourceobj.active_material.name if sourceobj.active_material else ""),
+                        meta.get('name', sourceobj.name)
                     ]
-                    for i,vb in enumerate(sourceobj['VBDAT_'+checksumkey])
+                    for vb,meta in zip(sourceobj['VBDAT_'+checksumkey], sourceobj['VBMTL_'+checksumkey])
                 ]
             # Calculate VB Data
             else:
-                instobjects = [sourceobj]
+                instobjects = [(sourceobj, {})]
                 
                 if len(sourceobj.children) > 0:
                     if sourceobj.instance_type in ('VERTICES', 'FACES'):
@@ -3350,7 +3354,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         sourceobj.select_set(True)
                         bpy.context.view_layer.objects.active = sourceobj
                         bpy.ops.object.duplicates_make_real(use_base_parent=True, use_hierarchy=True)
-                        instobjects = [x for x in context.selected_objects if x not in objects]
+                        instobjects = [(x, {}) for x in context.selected_objects if x not in objects]
                         for obj in instobjects:
                             obj['__temp'] = True
                             obj.data = obj.data.copy()
@@ -3358,11 +3362,28 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         sourceobj.instance_type = insttype
                 
                 # Matrix Loop >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-                vbinstances = []
-                netnumelements = 0
                 depsgraph = context.evaluated_depsgraph_get()
                 
-                for matrixindex, instobj in enumerate(instobjects):
+                splitmeshgroups = [vg.name for vg in sourceobj.vertex_groups if vg.name[:5]=='MESH=']
+                if splitmeshgroups:
+                    instobjects = []
+                    for groupname in splitmeshgroups:
+                        i = 5
+                        while (i < len(groupname) and groupname[i].lower() in 'qwertyuiopasdfghjklzxcvbnm1234567890_'):
+                            i += 1
+                        splitname = groupname[5:i]
+                        splitinfo = groupname[i:]
+                        splitkeys = []
+                        if splitinfo:
+                            pass
+                        instobjects.append((sourceobj, {'name': splitname, 'group': groupname, 'shapekeys': splitkeys}))
+                
+                for matrixindex, instdef in enumerate(instobjects):
+                    instobj, instinfo = instdef
+                    meshname = instinfo.get('name', meshname)
+                    meshgroup = instinfo.get('group', '')
+                    meshactiveshapekeys = instinfo.get('shapekeys', '')
+                    
                     # Fast = Use final evaluated mesh. No Pre Script or armature support
                     if fast or instobj.type != 'MESH':
                         obj = instobj.evaluated_get(depsgraph)
@@ -3396,6 +3417,11 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 m.use_vertex_groups = False
                         
                         obj.modifiers.new(name="Triangulate", type='TRIANGULATE').keep_custom_normals=True
+                        
+                        if meshgroup:
+                            m = obj.modifiers.new(name="GroupMask", type='MASK')
+                            m.vertex_group = meshgroup
+                        
                         bpy.ops.object.convert(target='MESH')
                         obj = bpy.context.active_object
                         obj.data['__temp'] = True
@@ -3498,8 +3524,6 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         ]
                     else:
                         mtlloops = [("", tuple([l for p in mesh.loop_triangles for l in p.loops]))]
-                    
-                    
                     
                     # Buffer Data ------------------------------------------------------------------------------------------
                     NumpyFloatToBytes = lambda nparray : numpy.frombuffer( nparray.astype(numpy.float32).tobytes(), dtype=numpy.uint8 )
@@ -3660,15 +3684,14 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     
                     for mtlname, vb in instvbs.items():
                         objectvbs.append(
-                            (vb, (len(vb)//attribstride)//3, mtlname)
+                            (vb, (len(vb)//attribstride)//3, mtlname, meshname)
                         )
                 
                 # After Matrix Loop, In Object Block (non-cached) <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
                 if vbm.write_to_cache:
                     # Only floats, ints, and dicts allowed in ID property arrays
-                    sourceobj['VBDAT_'+checksumkey] = [ zlib.compress(vb, 9) for vb, count, mtlname in objectvbs ]
-                    sourceobj['VBNUM_'+checksumkey] = [ count for vb, count, mtlname in objectvbs ]
-                    sourceobj['VBMTL_'+checksumkey] = [ mtlname for vb, count, mtlname in objectvbs ]
+                    sourceobj['VBDAT_'+checksumkey] = [ zlib.compress(vb, 9) for vb, count, mtlname, meshname in objectvbs ]
+                    sourceobj['VBMTL_'+checksumkey] = [ {"count": count, "material": mtlname, "name": meshname} for vb, count, mtlname, meshname in objectvbs ]
                     sourceobj['VBSUM_'+checksumkey] = checksum
                 
                 netvbs += objectvbs
