@@ -439,41 +439,6 @@ classlist.append(VBM_PG_ExportList)
 
 # ========================================================================================================
 
-class VBM_PG_ActionList_Action(bpy.types.PropertyGroup):
-    def UpdateAction(self, context):
-        if self.action:
-            self.name = self.action.name
-    
-    action : bpy.props.PointerProperty(type=bpy.types.Action, update=UpdateAction)
-classlist.append(VBM_PG_ActionList_Action)
-
-# ------------------------------------------------------------------------------
-class VBM_PG_ActionSettings(bpy.types.PropertyGroup):
-    all_curves : bpy.props.BoolProperty(
-        name="All Bone Curves", default=True,
-        description="Write curves for all bones. If false, non-transformed curves will be omitted"
-    )
-classlist.append(VBM_PG_ActionSettings)
-
-# ========================================================================================================
-
-class VBM_PG_BoneDissolveTree(bpy.types.PropertyGroup):
-    name : bpy.props.StringProperty(name="Name", default="")
-    depth : bpy.props.IntProperty()
-    parent : bpy.props.StringProperty()
-    children : bpy.props.CollectionProperty(name="Children", type=VBM_PG_Name)
-    all_parents : bpy.props.CollectionProperty(name="Children", type=VBM_PG_Name)
-    dissolve : bpy.props.BoolProperty()
-classlist.append(VBM_PG_BoneDissolveTree)
-
-# ------------------------------------------------------------------------------
-class VBM_PG_BoneDissolveList(bpy.types.PropertyGroup):
-    dissolves : bpy.props.CollectionProperty(name="Dissolves", type=VBM_PG_BoneDissolveTree)
-    index : bpy.props.IntProperty(name="Index", default=0)
-classlist.append(VBM_PG_BoneDissolveList)
-
-# ========================================================================================================
-
 class VBM_PG_ExportQueue_Entry(bpy.types.PropertyGroup):
     def UpdateName(self, context):
         allqueuenames = [q.name for q in context.scene.vbm.queues if q != self]
@@ -518,6 +483,60 @@ class VBM_PG_ExportQueue_Queue(bpy.types.PropertyGroup):
     active_index : bpy.props.IntProperty(name="Index", default=0)
     enabled : bpy.props.BoolProperty(name="Enabled", default=True)
 classlist.append(VBM_PG_ExportQueue_Queue)
+
+# ======================================================================================================
+class VBM_PG_ActionList_Action(bpy.types.PropertyGroup):
+    def UpdateAction(self, context):
+        if self.action:
+            self.name = self.action.name
+    
+    action : bpy.props.PointerProperty(type=bpy.types.Action, update=UpdateAction)
+classlist.append(VBM_PG_ActionList_Action)
+
+# ------------------------------------------------------------------------------
+class VBM_PG_ActionSettings(bpy.types.PropertyGroup):
+    all_curves : bpy.props.BoolProperty(
+        name="All Bone Curves", default=True,
+        description="Write curves for all bones. If false, non-transformed curves will be omitted"
+    )
+classlist.append(VBM_PG_ActionSettings)
+
+# ------------------------------------------------------------------------------
+class VBM_PG_DissolveTree(bpy.types.PropertyGroup):
+    name : bpy.props.StringProperty(name="Name", default="")
+    depth : bpy.props.IntProperty()
+    parent : bpy.props.StringProperty()
+    children : bpy.props.CollectionProperty(name="Children", type=VBM_PG_Name)
+    all_parents : bpy.props.CollectionProperty(name="Children", type=VBM_PG_Name)
+    dissolve : bpy.props.BoolProperty()
+classlist.append(VBM_PG_DissolveTree)
+
+# ---------------------------------------------------------------------------------
+class VBM_PG_Model(bpy.types.PropertyGroup):
+    def OnActionSelected(self, context):
+        if context.scene.vbm.sync_selected_action:
+            if len(self.action_list) > 0:
+                obj = context.active_object
+                obj = (obj.find_armature() if obj.find_armature() else obj) if obj else None
+                
+                if obj and obj.type == 'ARMATURE' and obj.vbm == self:
+                    action = self.action_list[self.action_list_index].action
+                    if action:
+                        obj.animation_data.action = action
+                        if action.use_frame_range:
+                            context.scene.frame_start = int(action.frame_start)
+                            context.scene.frame_end = int(action.frame_end)
+    
+    filepath : bpy.props.StringProperty(name="File Path", subtype='FILE_PATH')
+    
+    dissolve_tree : bpy.props.CollectionProperty(name="Dissolve Tree", type=WITCHKIT_PG_Export_DissolveTree)
+    dissolve_index : bpy.props.IntProperty(name="Dissolve Index", min=0)
+    
+    action_list : bpy.props.CollectionProperty(type=VBM_PG_ActionList_Action)
+    action_list_index : bpy.props.IntProperty(name="Index", update=OnActionSelected)
+    format : bpy.props.StringProperty(name="Format")
+    
+classlist.append(VBM_PG_Model)
 
 '# =========================================================================================================================='
 '# OPERATORS'
@@ -807,7 +826,7 @@ class VBM_OT_ActionList_FromPattern(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         rig = (obj if obj.type == 'ARMATURE' else obj.find_armature()) if obj else None
-        actionlist = rig.data.vbm_action_list
+        actionlist = rig.vbm.action_list
         actions = [a for a in bpy.data.actions if a.name[:len(self.pattern)] == self.pattern]
         actions = [a for a in actions if '_BAKED' not in a.name.upper()]
         
@@ -837,10 +856,9 @@ class VBM_OT_ActionList_ItemOperation(bpy.types.Operator):
     def execute(self, context):
         obj = context.active_object
         rig = (obj if obj.type == 'ARMATURE' else obj.find_armature())
-        armature = rig.data
         
-        itemlist = armature.vbm_action_list
-        index = armature.vbm_action_list_index
+        itemlist = rig.vbm.action_list
+        index = rig.vbm.action_list_index
         operation = self.operation
         
         if operation == 'ADD':
@@ -853,10 +871,10 @@ class VBM_OT_ActionList_ItemOperation(bpy.types.Operator):
             itemlist.remove(index)
         elif operation == 'MOVE_UP':
             itemlist.move(index, max(0, index-1))
-            armature.vbm_action_list_index -= 1
+            rig.vbm.action_list_index -= 1
         elif operation == 'MOVE_DOWN':
             itemlist.move(index, min(index+1, len(itemlist)-1))
-            armature.vbm_action_list_index += 1
+            rig.vbm.action_list_index += 1
         elif operation == 'CLEAR':
             itemlist.clear()
         elif operation == 'SORT':
@@ -866,7 +884,7 @@ class VBM_OT_ActionList_ItemOperation(bpy.types.Operator):
             for i,name in list(enumerate(sorted))[::-1]:
                 itemlist.move([x.action.name for x in itemlist].index(name), i)
         
-        armature.vbm_action_list_index = min(armature.vbm_action_list_index, len(itemlist)-1)
+        rig.vbm.action_list_index = min(rig.vbm.action_list_index, len(itemlist)-1)
         return {'FINISHED'}
 classlist.append(VBM_OT_ActionList_ItemOperation)
 
@@ -896,63 +914,87 @@ classlist.append(VBM_OT_ActionList_Play)
 '========================================================================================================'
 
 # -------------------------------------------------------------------------------------------
-class VBM_OT_BoneDissolve_Init(bpy.types.Operator):
-    """Create dissolve tree"""
-    bl_label = "Build Tree"
-    bl_idname = 'vbm.bonedissolve_initialize'
+class VBM_OT_DissolveTreeOp(bpy.types.Operator):
+    """Builds tree using deform bones of rig"""
+    bl_label = "Build Dissolve Tree"
+    bl_idname = 'vbm.dissolve_item_op'
     bl_options = {'REGISTER', 'UNDO'}
     
-    preserve : bpy.props.BoolProperty(name="Keep Last Values", default=True)
+    operation : bpy.props.EnumProperty(name="Operation", items=tuple([
+        (x,x,x) for x in 'BUILD CLEAR'.split()
+    ]))
     
     @classmethod
     def poll(self, context):
-        return context.object and context.object.type == 'ARMATURE'
+        return context.active_object and context.active_object.type == 'ARMATURE'
     
     def execute(self, context):
-        vbm = context.scene.vbm
-        rig = context.object
-        dissolves = rig.data.vbm_dissolve_list.dissolves
+        obj = context.active_object
+        rig = (obj.find_armature() if obj.find_armature() else obj) if obj else None
+        sourcerig = (rig)
+        
+        dissolves = rig.vbm.dissolve_tree
         lastdissolves = [x.name for x in dissolves if x.dissolve]
         dissolves.clear()
         
-        deformmap = vbm.DeformArmatureMap(rig) # {bname: pname}
-        tree = {}
-        leaf = {}
-        
-        for b,p in deformmap.items():
-            children = {}
-            # Root
-            if p not in leaf.keys():
-                tree[b] = children
-            # Leaf
-            else:
-                leaf[p][b] = children
-            leaf[b] = children
-        
-        def Iterate(t, item, depth=0, parentnames=[]):
-            item.depth = depth
-            parentnames.append(item.name)
+        if self.operation == 'BUILD':
+            # Deform Map
+            deformmap = {}
+            bones = sourcerig.data.bones
+            deformbones = [b for b in bones if b.use_deform]
             
-            for cname,ctree in t.items():
-                ditem = dissolves.add()
-                ditem.name = cname
-                ditem.parent = item.name
-                for g in parentnames:
-                    ditem.all_parents.add().name = g
-                item.children.add().name = cname
-                Iterate(ctree, ditem, depth+1)
-        
-        item = dissolves.add()
-        item.name="<Root>"
-        Iterate(tree, item)
-        
-        if self.preserve:
+            for b in deformbones:
+                p = b.parent
+                usedparents = []
+                if p and not p.use_deform:
+                    p1 = p
+                    while p and not p.use_deform:
+                        usedparents.append(p)
+                        d = bones.get(p.name.replace('ORG-', 'DEF-'))
+                        p = d if (d and d != b and (d.use_deform or d not in usedparents)) else p.parent
+                deformmap[b.name] = p.name if p else None
+            
+            CountParents = lambda name,num: CountParents(deformmap[name], num+1) if name in deformmap.keys() else num
+            deformlist = [x for x in list(deformmap.items())]
+            deformlist.sort(key=lambda x: CountParents(x[0], 0))
+            deformmap = {k:v for k,v in deformlist}
+            
+            # Build Tree
+            tree = {}
+            leaf = {}
+            
+            for b,p in deformmap.items():
+                children = {}
+                # Root
+                if p not in leaf.keys():
+                    tree[b] = children
+                # Leaf
+                else:
+                    leaf[p][b] = children
+                leaf[b] = children
+            
+            def Iterate(t, item, depth=0, parentnames=[]):
+                item.depth = depth
+                parentnames.append(item.name)
+                
+                for cname,ctree in t.items():
+                    ditem = dissolves.add()
+                    ditem.name = cname
+                    ditem.parent = item.name
+                    for g in parentnames:
+                        ditem.all_parents.add().name = g
+                    item.children.add().name = cname
+                    Iterate(ctree, ditem, depth+1)
+            
+            item = dissolves.add()
+            item.name="<Root>"
+            Iterate(tree, item)
+            
             for name in lastdissolves:
                 if name in dissolves:
                     dissolves[name].dissolve = True
-        
         return {'FINISHED'}
-classlist.append(VBM_OT_BoneDissolve_Init)
+classlist.append(VBM_OT_DissolveTreeOp)
 
 '========================================================================================================'
 
@@ -1466,7 +1508,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     fbasename + armature.name + fext, 
                     armature.children, 
                     armature, 
-                    [x.action for x in armature.data.vbm_action_list if x.action]
+                    [x.action for x in armature.vbm.action_list if x.action]
                 ] 
                 for armature in armatures if (
                     (not self.alphanumeric_only or armature.name[0] in 'qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890')
@@ -1494,7 +1536,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             objects = [obj for obj in objects if obj.type in VALIDOBJTYPES]
             if armatures:
                 armature = armatures[0]
-                files = [ [fname, list(objects), armature, [x.action for x in armature.data.vbm_action_list if x.action] ] ]
+                files = [ [fname, list(objects), armature, [x.action for x in armature.vbm.action_list if x.action] ] ]
             else:
                 files = [ [fname, list(objects), None, [] ] ]
         
@@ -1927,9 +1969,6 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                         for nd in slot.material.node_tree.nodes if (nd.type == 'TEX_IMAGE' and nd.image)
                     ]
                 
-                boneorder = []
-                bonedata = {}
-                
                 # Data order: Header, VBs, Skeleton, Animations
                 # Skeleton is read first here to get bone order
                 
@@ -1938,9 +1977,33 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 outskeleton += Pack('I', 0) # Flags
                 
                 rigmatrix = None
-                parentmap = {}
+                parentmap = {}  # {bonename: parentname}
+                dissolvemap = {}    # {dissolvedname: first_nondissolved_name}
+                
+                boneorder = []
+                bonedata = {}
+                
                 if armature:
                     parentmap = vbm.DeformArmatureMap(armature) if deformonly else {b.name: b.parent.name if b.parent else "" for b in armature.data.bones}
+                    
+                    # Read Dissolve Tree
+                    dissolvetree = armature.vbm.dissolve_tree
+                    if dissolvetree:
+                        # Find (dissolved: newbone) pairs
+                        for b in list(dissolvetree)[1:]:
+                            if b.parent:
+                                p = dissolvetree[b.parent]
+                                while (p.dissolve):
+                                    p = dissolvetree[p.parent]
+                                if b.dissolve:
+                                    dissolvemap[b.name] = p.name
+                        # Adjust parent map
+                        dissolvedbones = tuple(dissolvemap.keys())
+                        parentmap = {
+                            b: (dissolvemap[p] if p in dissolvedbones else p)
+                            for b,p in parentmap.items() if b not in dissolvedbones
+                        }
+                    
                     boneorder = list(parentmap.keys())
                     rigmatrix = armature.matrix_world.copy()
                 
@@ -2023,6 +2086,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 [obj], 
                                 format if format else self.format_code,
                                 boneorder=boneorder,
+                                dissolvemap=dissolvemap,
                                 apply_armature=apply_armature,
                                 pre_script=self.pre_script,
                                 post_script=self.post_script,
@@ -2051,6 +2115,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 objects, 
                                 format if format else self.format_code,
                                 boneorder=boneorder,
+                                dissolvemap=dissolvemap,
                                 apply_armature=apply_armature,
                                 pre_script=self.pre_script,
                                 post_script=self.post_script,
@@ -2426,7 +2491,7 @@ class VBM_UL_BoneDissolve(bpy.types.UIList):
         if item.depth > 0:
             rr = r.row(align=True)
             [rr.label(text="", icon='THREE_DOTS') for i in range(0, item.depth)]
-        r.prop(item, 'dissolve', text=item.name, emboss=True)
+        r.prop(item, 'dissolve', text=item.name, emboss=True, invert_checkbox=True)
 classlist.append(VBM_UL_BoneDissolve)
 
 # ------------------------------------------------------------------------------------------
@@ -2765,33 +2830,35 @@ classlist.append(VBM_PT_Format)
 
 # ------------------------------------------------------------------------------------------
 class VBM_PT_BoneDissolve(bpy.types.Panel):
-    bl_label = "Bone Dissolves"
+    bl_label = "VBM - Bone Dissolves"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "data"
     bl_options = {'DEFAULT_CLOSED'}
     
     def draw(self, context):
-        vbm = context.scene.vbm
         layout = self.layout
-        obj = context.object
+        obj = context.active_object
+        rig = (obj.find_armature() if obj.find_armature() else obj) if obj else None
         
-        if obj and obj.type == 'ARMATURE':
+        if rig:
             c = layout.column()
+            r = c.row()
+            r.operator('vbm.dissolve_item_op').operation = 'BUILD'
+            r.operator('vbm.dissolve_item_op', text="", icon='X').operation = 'CLEAR'
             
-            c.prop_search(obj, 'vbm_format', vbm, 'formats')
+            dissolvelist = rig.vbm.dissolve_tree
             
-            c.operator('vbm.bonedissolve_initialize')
-            
-            dissolvelist = obj.data.vbm_dissolve_list
-            cc = c.column(align=True)
-            cc.scale_y = 0.75
-            cc.template_list("VBM_UL_BoneDissolve", "", dissolvelist, "dissolves", dissolvelist, "index", rows=3)
-            
-            cc = c.column()
             if dissolvelist:
-                n = len(dissolvelist.dissolves)
-                cc.label(text="Used Bones: %d / %d" % (n-sum([d.dissolve for d in dissolvelist.dissolves]), n))
+                cc = c.column(align=True)
+                cc.scale_x = 0.9
+                cc.scale_y = 0.75
+                cc.template_list("VBM_UL_BoneDissolve", "", rig.vbm, "dissolve_tree", rig.vbm, "dissolve_index", rows=6)
+                
+                cc = c.column()
+                if dissolvelist:
+                    n = len(dissolvelist)
+                    cc.label(text="Used Bones: %d / %d" % (n-sum([d.dissolve for d in dissolvelist]), n))
 classlist.append(VBM_PT_BoneDissolve)
 
 # ------------------------------------------------------------------------------------------
@@ -2812,8 +2879,8 @@ class VBM_PT_ActionList(bpy.types.Panel):
         rig = (obj if obj.type == 'ARMATURE' else obj.find_armature()) if obj else None
         if rig and rig.type == 'ARMATURE':
             armature = rig.data
-            actionlist = armature.vbm_action_list
-            index = armature.vbm_action_list_index
+            actionlist = rig.vbm.action_list
+            index = rig.vbm.action_list_index
             
             r = c.row(align=True)
             r.label(text=rig.name, icon='ARMATURE_DATA')
@@ -2825,7 +2892,7 @@ class VBM_PT_ActionList(bpy.types.Panel):
             r = c.row()
             cc = r.column(align=True)
             cc.scale_y = 0.75
-            cc.template_list("VBM_UL_ActionList", "", armature, "vbm_action_list", armature, "vbm_action_list_index", rows=6)
+            cc.template_list("VBM_UL_ActionList", "", rig.vbm, "action_list", rig.vbm, "action_list_index", rows=6)
             
             cc = r.column(align=True)
             cc.scale_y = 0.85
@@ -3147,6 +3214,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         objects, 
         format, 
         boneorder=[], 
+        dissolvemap={}, 
         flip_uvs=True, 
         apply_armature=False, 
         pre_script=None, 
@@ -3229,6 +3297,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     if (apply_armature and armature and armature.animation_data and armature.animation_data.action) else []
                 ) + 
                 ([ord(x) for b in boneorder for x in b]) + 
+                ([len(b)+len(p) for b,p in dissolvemap.items()]) + 
                 ([ObjChecksum(c) for c in obj.children] if obj.instance_type in ('VERTICES', 'FACES') else [])
             ]))
         
@@ -3375,6 +3444,23 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     looptovertex = tuple([meshverts[i] for i in facevertindices])
                     
                     if process_bones:
+                        # Dissolve Map
+                        if dissolvemap:
+                            vgroups = obj.vertex_groups
+                            vertices = mesh.vertices
+                            for b,p in dissolvemap.items():
+                                if b in vgroups.keys():
+                                    vgindex = vgroups[b].index
+                                    vg2 = vgroups.get(p, None)
+                                    if not vg2:
+                                        vg2 = vgroups.new(name=p)
+                                    for v in vertices:
+                                        for vge in list(v.groups):
+                                            if vge.group == vgindex:
+                                                vg2.add([v.index], vge.weight, 'ADD')
+                                                break
+                        
+                        # Bone + Weight Data
                         vertices = tuple(mesh.vertices)
                         grouptoboneindex = {vg.index: bonetoindex[vg.name] for vg in obj.vertex_groups if vg.name in boneorder}
                         usedgroupindices = tuple(grouptoboneindex.keys())
@@ -3403,6 +3489,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 vweights[vi] = numpy.array([x[1] for x in wpairs]+excessw)
                                 vnumbones[vi] = n
                     
+                    # Split Meshes
                     mtlloops = []
                     if mesh.materials:
                         mtlloops = [
@@ -3411,6 +3498,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         ]
                     else:
                         mtlloops = [("", tuple([l for p in mesh.loop_triangles for l in p.loops]))]
+                    
+                    
                     
                     # Buffer Data ------------------------------------------------------------------------------------------
                     NumpyFloatToBytes = lambda nparray : numpy.frombuffer( nparray.astype(numpy.float32).tobytes(), dtype=numpy.uint8 )
@@ -3597,27 +3686,9 @@ def register():
     for c in classlist:
         bpy.utils.register_class(c)
     
-    def OnActionSelected(self, context):
-        if context.scene.vbm.sync_selected_action:
-            obj = context.active_object
-            obj = (obj.find_armature() if obj.find_armature() else obj) if obj else None
-            
-            if obj and obj.type == 'ARMATURE' and obj.data == self:
-                action = self.vbm_action_list[self.vbm_action_list_index].action
-                if action:
-                    obj.animation_data.action = action
-                    if action.use_frame_range:
-                        context.scene.frame_start = int(action.frame_start)
-                        context.scene.frame_end = int(action.frame_end)
-                    
-    
     bpy.types.Scene.vbm = bpy.props.PointerProperty(type=VBM_PG_Master)
     bpy.types.Action.vbm = bpy.props.PointerProperty(type=VBM_PG_ActionSettings)
-    
-    bpy.types.Armature.vbm_dissolve_list = bpy.props.PointerProperty(type=VBM_PG_BoneDissolveList)
-    bpy.types.Armature.vbm_action_list = bpy.props.CollectionProperty(type=VBM_PG_ActionList_Action)
-    bpy.types.Armature.vbm_action_list_index = bpy.props.IntProperty(name="Index", update=OnActionSelected)
-    bpy.types.Object.vbm_format = bpy.props.StringProperty(name="Format")
+    bpy.types.Object.vbm = bpy.props.PointerProperty(type=VBM_PG_Model)
 
 def unregister():
     for c in classlist[::-1]:
