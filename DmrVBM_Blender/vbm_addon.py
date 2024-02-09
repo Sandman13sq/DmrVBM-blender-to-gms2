@@ -427,17 +427,6 @@ class VBM_PG_Format(bpy.types.PropertyGroup):
 classlist.append(VBM_PG_Format)
 
 # ========================================================================================================
-class VBM_PG_ExportList_Object(bpy.types.PropertyGroup):
-    object : bpy.props.PointerProperty(type=bpy.types.Object)
-classlist.append(VBM_PG_ExportList_Object)
-
-# ------------------------------------------------------------------------------
-class VBM_PG_ExportList(bpy.types.PropertyGroup):
-    name : bpy.props.StringProperty(name="Name", default="List")
-    objects : bpy.props.CollectionProperty(type=VBM_PG_ExportList_Object)
-classlist.append(VBM_PG_ExportList)
-
-# ========================================================================================================
 
 class VBM_PG_ExportQueue_Entry(bpy.types.PropertyGroup):
     def UpdateName(self, context):
@@ -508,7 +497,8 @@ class VBM_PG_DissolveTree(bpy.types.PropertyGroup):
     parent : bpy.props.StringProperty()
     children : bpy.props.CollectionProperty(name="Children", type=VBM_PG_Name)
     all_parents : bpy.props.CollectionProperty(name="Children", type=VBM_PG_Name)
-    dissolve : bpy.props.BoolProperty()
+    dissolve : bpy.props.BoolProperty(name="Dissolve", default=False, 
+        description="Toggle export of this bone")
 classlist.append(VBM_PG_DissolveTree)
 
 # ---------------------------------------------------------------------------------
@@ -529,8 +519,11 @@ class VBM_PG_Model(bpy.types.PropertyGroup):
     
     filepath : bpy.props.StringProperty(name="File Path", subtype='FILE_PATH')
     
-    dissolve_tree : bpy.props.CollectionProperty(name="Dissolve Tree", type=WITCHKIT_PG_Export_DissolveTree)
+    dissolve_tree : bpy.props.CollectionProperty(name="Dissolve Tree", type=VBM_PG_DissolveTree)
     dissolve_index : bpy.props.IntProperty(name="Dissolve Index", min=0)
+    dissolve_enabled : bpy.props.BoolProperty(name="Dissolve Enabled", default=True, 
+        description="Uses dissolve tree in VBM mesh calculation."
+        )
     
     action_list : bpy.props.CollectionProperty(type=VBM_PG_ActionList_Action)
     action_list_index : bpy.props.IntProperty(name="Index", update=OnActionSelected)
@@ -926,7 +919,8 @@ class VBM_OT_DissolveTreeOp(bpy.types.Operator):
     
     @classmethod
     def poll(self, context):
-        return context.active_object and context.active_object.type == 'ARMATURE'
+        obj = context.active_object
+        return (obj.find_armature() if obj.find_armature() else obj).type == 'ARMATURE' if obj else None
     
     def execute(self, context):
         obj = context.active_object
@@ -1988,7 +1982,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     
                     # Read Dissolve Tree
                     dissolvetree = armature.vbm.dissolve_tree
-                    if dissolvetree:
+                    if dissolvetree and armature.vbm.dissolve_enabled:
                         # Find (dissolved: newbone) pairs
                         for b in list(dissolvetree)[1:]:
                             if b.parent:
@@ -2679,7 +2673,7 @@ class VBM_PT_Master(bpy.types.Panel):
 classlist.append(VBM_PT_Master)
 
 # ------------------------------------------------------------------------------------------
-class VBM_PT_Queues(bpy.types.Panel):
+class VBM_PT_Master_Queues(bpy.types.Panel):
     bl_label = "Export Queues"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -2782,10 +2776,10 @@ class VBM_PT_Queues(bpy.types.Panel):
                 r.prop(queue, 'copy_textures')
                 r = bb.row()
                 r.prop(queue, '["filepath"]', text="", icon='FILEBROWSER')
-classlist.append(VBM_PT_Queues)
+classlist.append(VBM_PT_Master_Queues)
 
 # ------------------------------------------------------------------------------------------
-class VBM_PT_Format(bpy.types.Panel):
+class VBM_PT_Master_Format(bpy.types.Panel):
     bl_label = "Vertex Formats"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -2825,9 +2819,61 @@ class VBM_PT_Format(bpy.types.Panel):
             format.DrawPanel(b, True)
         else:
             layout.label(text="(No Active Format)")
-classlist.append(VBM_PT_Format)
+classlist.append(VBM_PT_Master_Format)
 
 # ==============================================================================================
+
+def VBM_Panel_BoneDissolve(layout, context):
+    obj = context.active_object
+    rig = (obj.find_armature() if obj.find_armature() else obj) if obj else None
+    
+    c = layout.column()
+    
+    if rig:
+        r = c.row(align=True)
+        rr = r.row()
+        rr.scale_x = 0.7
+        rr.prop(rig, 'name', icon='OBJECT_DATA', text="", emboss=False)
+        rr.prop(rig.data, 'name', icon='ARMATURE_DATA', text="", emboss=False)
+        
+        r.operator('vbm.dissolve_item_op').operation = 'BUILD'
+        r.operator('vbm.dissolve_item_op', text="", icon='X').operation = 'CLEAR'
+        r.separator()
+        
+        rr = r.row()
+        rr.scale_x = 0.7
+        rr.prop(rig.vbm, 'dissolve_enabled', text="Enabled", toggle=True)
+        
+        dissolvelist = rig.vbm.dissolve_tree
+        
+        if dissolvelist:
+            cc = c.column(align=True)
+            cc.scale_x = 0.9
+            cc.scale_y = 0.75
+            cc.active = rig.vbm.dissolve_enabled
+            
+            cc.template_list("VBM_UL_BoneDissolve", "", rig.vbm, "dissolve_tree", rig.vbm, "dissolve_index", rows=6)
+            
+            cc = c.column()
+            if dissolvelist:
+                n = len(dissolvelist)
+                cc.label(text="Used Bones: %d / %d" % (n-sum([d.dissolve for d in dissolvelist]), n))
+    else:
+        c.label(text="(No Active Armature)")
+
+# ------------------------------------------------------------------------------------------
+class VBM_PT_Master_BoneDissolve(bpy.types.Panel):
+    bl_label = "Bone Dissolves"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = "scene"
+    bl_parent_id = 'VBM_PT_Master'
+    bl_options = {'DEFAULT_CLOSED'}
+    
+    def draw(self, context):
+        layout = self.layout
+        VBM_Panel_BoneDissolve(self.layout, context)
+classlist.append(VBM_PT_Master_BoneDissolve)
 
 # ------------------------------------------------------------------------------------------
 class VBM_PT_BoneDissolve(bpy.types.Panel):
@@ -2839,31 +2885,11 @@ class VBM_PT_BoneDissolve(bpy.types.Panel):
     
     def draw(self, context):
         layout = self.layout
-        obj = context.active_object
-        rig = (obj.find_armature() if obj.find_armature() else obj) if obj else None
-        
-        if rig:
-            c = layout.column()
-            r = c.row()
-            r.operator('vbm.dissolve_item_op').operation = 'BUILD'
-            r.operator('vbm.dissolve_item_op', text="", icon='X').operation = 'CLEAR'
-            
-            dissolvelist = rig.vbm.dissolve_tree
-            
-            if dissolvelist:
-                cc = c.column(align=True)
-                cc.scale_x = 0.9
-                cc.scale_y = 0.75
-                cc.template_list("VBM_UL_BoneDissolve", "", rig.vbm, "dissolve_tree", rig.vbm, "dissolve_index", rows=6)
-                
-                cc = c.column()
-                if dissolvelist:
-                    n = len(dissolvelist)
-                    cc.label(text="Used Bones: %d / %d" % (n-sum([d.dissolve for d in dissolvelist]), n))
+        VBM_Panel_BoneDissolve(self.layout, context)
 classlist.append(VBM_PT_BoneDissolve)
 
 # ------------------------------------------------------------------------------------------
-class VBM_PT_ActionList(bpy.types.Panel):
+class VBM_PT_Master_ActionList(bpy.types.Panel):
     bl_label = "Action List"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
@@ -2907,7 +2933,7 @@ class VBM_PT_ActionList(bpy.types.Panel):
             cc.operator('vbm.actionlist_item_op', text="", icon='SORTALPHA').operation='SORT'
             cc.separator()
             cc.operator('vbm.actionlist_item_op', text="", icon='X').operation='CLEAR'
-classlist.append(VBM_PT_ActionList)
+classlist.append(VBM_PT_Master_ActionList)
 
 '# =========================================================================================================================='
 '# MASTER'
@@ -2924,9 +2950,6 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         
     formats : bpy.props.CollectionProperty(name="Formats", type=VBM_PG_Format)
     formats_index : bpy.props.IntProperty(name="Formats Index")
-    
-    export_lists : bpy.props.CollectionProperty(name="Export Lists", type=VBM_PG_ExportList)
-    export_lists_index : bpy.props.IntProperty(name="Export Lists Index")
     
     queues : bpy.props.CollectionProperty(name="Queues", type=VBM_PG_ExportQueue_Entry)
     queues_index : bpy.props.IntProperty(name="Queue Index", min=0)
