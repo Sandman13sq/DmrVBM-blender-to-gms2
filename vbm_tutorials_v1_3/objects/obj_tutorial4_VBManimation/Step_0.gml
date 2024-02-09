@@ -31,6 +31,24 @@ if (keyboard_check_pressed(ord("X")))
 	}
 }
 
+//if ( keyboard_check_pressed(vk_anykey) ) {show_debug_message(keyboard_lastkey);}
+
+// Navigate Meshes
+if ( keyboard_check_pressed(188) )	// [<]
+{
+	meshselect = (meshselect == 0)? vbm_treat.meshcount-1: meshselect-1;
+}
+
+if ( keyboard_check_pressed(190) )	// [>]
+{
+	meshselect = (meshselect+1) mod vbm_treat.meshcount;
+}
+
+if ( keyboard_check_pressed(191) )	// [?]
+{
+	vbm_treat.VisibleToggleIndex(meshselect);
+}
+
 // Playback Speed
 if (keyboard_check_pressed(vk_add) || keyboard_check_pressed(187))	// [+] || [=]
 {

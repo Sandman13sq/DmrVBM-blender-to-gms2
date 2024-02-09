@@ -127,22 +127,14 @@ function VBM_Model() constructor
 	function AnimationGet(_animationindex) {return animations[_animationindex];}
 	function AnimationFind(_animationname) {return variable_struct_get(animationmap, _animationname);}
 	
-	function CreateAnimator(_numlayers=1)
-	{
-		animator = new VBM_Animator();
-		animator.ReadTransforms(self);
-		animator.LayerInitialize(_numlayers);
-		animator.AnimationAddArray(animations);
-		
-		return animator;
-	}
-	
-	// Methods -------------------------------------------------------------------
+	// Methods ==============================================================================
 	
 	static toString = function()
 	{
 		return "VBM_Model: {" +string(meshcount)+" meshes, " + string(bonecount) + " bones, " + string(animationcount) + " animations" + "}";
 	}
+	
+	// Data --------------------------------------------------------------------
 	
 	function Duplicate()
 	{
@@ -243,11 +235,19 @@ function VBM_Model() constructor
 		animator = 0;
 	}
 	
+	// Freezes all mesh vertex buffers
+	function Freeze()
+	{
+		for (var i = 0; i < meshcount; i++) {meshes[i].Freeze();} return self;
+	}
+	
 	// Returns bone index from given name. -1 if not found
 	static FindBone = function(_name)
 	{
 		return variable_struct_exists(bonemap, _name)? meshmap[$ _name]: -1;
 	}
+	
+	// Meshes -----------------------------------------------------------------------
 	
 	// Submits all vertex buffers
 	function Submit(_primitive_type=pr_trianglelist, _texture=-1)
@@ -284,6 +284,56 @@ function VBM_Model() constructor
 		}
 	}
 	
+	// Mesh Visibility -------------------------------------------------------------------
+	function VisibleSet(_isvisible)
+	{
+		for (var i = 0; i < meshcount; i++)
+		{
+			meshes[_meshindex].visible = _isvisible;
+		}
+	}
+	
+	function VisibleSetIndex(_meshindex, _isvisible)
+	{
+		if ( _meshindex >= 0 && _meshindex < meshcount ) {meshes[_meshindex].visible = _isvisible;}
+	}
+	
+	function VisibleSetName(_meshname, _isvisible)
+	{
+		for (var i = 0; i < meshcount; i++)
+		{
+			if ( meshes[i].name == _meshname ) {meshes[i].visible = _isvisible;}
+		}
+	}
+	
+	function VisibleToggleIndex(_meshindex)
+	{
+		if ( _meshindex >= 0 && _meshindex < meshcount ) {meshes[_meshindex].visible = !meshes[_meshindex].visible;}
+	}
+	
+	function VisibleToggleName(_meshname)
+	{
+		var _allon = true;
+		for (var i = 0; i < meshcount; i++) 
+		{
+			if ( meshes[i].name == _meshname && !meshes[i].visible ) 
+			{
+				_allon = false; 
+				break
+			}
+		}
+		
+		for (var i = 0; i < meshcount; i++)
+		{
+			if ( meshes[i].name == _meshname )
+			{
+				meshes[i].visible = !_allon;
+			}
+		}
+	}
+	
+	// Animations ----------------------------------------------------------
+	
 	// Pre-calculate transformations
 	function BakeAnimations()
 	{
@@ -295,17 +345,26 @@ function VBM_Model() constructor
 		return self;
 	}
 	
-	function Freeze()
+	// Creates, stores, and returns new animator
+	function CreateAnimator(_numlayers=1)
 	{
-		for (var i = 0; i < meshcount; i++) {meshes[i].Freeze();} return self;
+		animator = new VBM_Animator();
+		animator.ReadTransforms(self);
+		animator.LayerInitialize(_numlayers);
+		animator.AnimationAddArray(animations);
+		
+		return animator;
 	}
+	
 }
 
+// Holds vertex buffer and related data (format, formatcode, materialname, texture, etc.)
 function VBM_Mesh() constructor
 {
 	name = "";
 	materialname = "";	// Optional. Can be used as a shader key
 	texture = -1;
+	color = c_white;
 	
 	vertexbuffer = -1;
 	rawbuffer = -1;
@@ -314,6 +373,8 @@ function VBM_Mesh() constructor
 	
 	visible = true;
 	edges = false;
+	
+	// Methods ======================================================================
 	
 	function toString()
 	{
@@ -372,8 +433,12 @@ function VBM_Mesh() constructor
 	{
 		if (vertexbuffer) {vertex_freeze(vertexbuffer);}
 	}
+	
+	function VisibleSet(_isvisible) {visible = bool(visible);}
+	function VisibleToggle() {visible = !visible;}
 }
 
+// Holds curves for animation data
 function VBM_Animation() constructor
 {
 	name = "";	// Animation name
@@ -925,6 +990,7 @@ function VBM_Animation() constructor
 	}
 }
 
+// Processes a sequence of animation layers to compose one final array of matrix values
 function VBM_Animator() constructor
 {
 	layers = [];
@@ -1245,6 +1311,7 @@ function VBM_Animator() constructor
 	}
 }
 
+// Stored in Animator. Calculates animation poses
 function VBM_Animator_Layer(_root) constructor
 {
 	index = 0;

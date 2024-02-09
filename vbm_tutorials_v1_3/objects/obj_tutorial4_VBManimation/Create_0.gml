@@ -64,6 +64,7 @@ tex_col = sprite_get_texture(spr_col, 0);
 // *Model Controls -------------------------------------
 zrot = 0;
 lightpos = [4, -8, 4];
+meshselect = 0;
 
 // *Playback Controls ----------------------------------
 playbackspeed = 1;

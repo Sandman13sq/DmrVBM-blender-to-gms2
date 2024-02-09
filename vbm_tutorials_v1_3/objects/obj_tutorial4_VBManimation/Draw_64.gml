@@ -1,5 +1,10 @@
 /// @desc Draw mesh visiblity
 
+var xx, yy;
+var ww = display_get_gui_width();
+var hh = display_get_gui_height();
+var _color;
+
 draw_set_halign(0);
 draw_set_valign(0);
 
@@ -12,6 +17,8 @@ draw_text(16, i*20, "Press Z to move to next animation"); i++;
 draw_text(16, i*20, "Press X to switch animation modes"); i++;
 draw_text(16, i*20, "Press SPACE to Play/Pause Layer 0"); i++;
 draw_text(16, i*20, "Press +/- to change animation speed"); i++;
+draw_text(16, i*20, "Press </> to navigate meshes"); i++;
+draw_text(16, i*20, "Press ? to toggle mesh visibility"); i++;
 
 draw_text(16, i*20, "Animation Mode: " + (
 	(!animator.Layer(0).forcelocalposes && animator.Layer(0).ActiveAnimation().isbakedlocal)? "Local": "Evaluated")); i++;
@@ -19,12 +26,30 @@ draw_text(16, i*20, "Animation Speed: " + string(playbackspeed)); i++;
 draw_text(16, i*20, "Animation Elapsed: " + string(animator.Layer(0).animationelapsed)); i++;
 draw_text(16, i*20, "Animation Position: " + string(animator.Layer(0).animationposition)); i++;
 
-// Draw Layers
-var ww = display_get_gui_width();
-var hh = display_get_gui_height();
-var yy = hh-48;
-var _color;
+// Draw Model Info
+xx = ww-8;
+yy = 40;
+_color = c_white;
 
+draw_set_halign(fa_right);
+draw_text(xx, yy, vbm_treat);
+
+yy += 40;
+for (var i = 0; i < vbm_treat.meshcount; i++)
+{
+	if ( i == meshselect )
+	{
+		draw_rectangle_color(xx-128, yy, xx, yy+20, _color,_color,_color,_color, true);
+	}
+	
+	draw_text(xx, yy, vbm_treat.MeshGet(i).name + (vbm_treat.MeshGet(i).visible? "  [O]": "  [ ]"));
+	yy += 20;
+}
+
+// Draw Layers
+yy = hh-48;
+
+draw_set_halign(fa_left);
 for (var i = animator.layercount-1; i >= 0; i--)
 {
 	_color = (c_green + i*131313) % 0xFFFFFF
@@ -34,8 +59,4 @@ for (var i = animator.layercount-1; i >= 0; i--)
 	draw_text(20, yy, string(animator.Layer(i)));
 	yy -= 20;
 }
-
-draw_text(16, yy, vbm_treat);
-draw_text(16, yy-32, string(animator.Layer(0).activetransforms[16]));
-draw_text(16, yy-64, string(animator.Layer(0).lasttransforms[16]));
 
