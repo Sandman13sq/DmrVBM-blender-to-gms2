@@ -3282,6 +3282,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     m2 = obj.modifiers.new(name=m1.name, type=m1.type)
                     for prop in [p.identifier for p in m1.bl_rna.properties if not p.is_readonly]:
                         setattr(m2, prop, getattr(m1, prop))
+                    m2.show_viewport = True # Necessary when using convert op
             return obj
         
         def ObjChecksum(obj):
