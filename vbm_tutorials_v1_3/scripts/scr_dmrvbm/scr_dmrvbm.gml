@@ -79,6 +79,7 @@ VBM_MATPOSEMAX = 128;	// <- Change at start of game as you wish
 
 // ======================================================================================================
 
+// Contains array of VBM_Mesh, VBM_Animations, and bone data. Created and returned when calling OpenVBM().
 function VBM_Model() constructor 
 {
 	// Meshes
@@ -117,8 +118,8 @@ function VBM_Model() constructor
 	function BoneParentIndices() {return bone_parentindices;}
 	function BoneLocalMatrices() {return bone_localmatricies;}
 	function BoneInverseMatrices() {return bone_inversematricies;}
-	function BoneNameGet(_index) {return bonenames[_index];}
-	function BoneIndexGet(_name) {return bonemap[$ _name];}
+	function BoneGet(_index) {return bonenames[_index];}
+	function BoneFind(_name) {return bonemap[$ _name];}
 	
 	// Animations
 	function Animations() {return animations;}
@@ -235,19 +236,14 @@ function VBM_Model() constructor
 		animator = 0;
 	}
 	
+	// Meshes -----------------------------------------------------------------------
+	
 	// Freezes all mesh vertex buffers
 	function Freeze()
 	{
 		for (var i = 0; i < meshcount; i++) {meshes[i].Freeze();} return self;
 	}
 	
-	// Returns bone index from given name. -1 if not found
-	static FindBone = function(_name)
-	{
-		return variable_struct_exists(bonemap, _name)? meshmap[$ _name]: -1;
-	}
-	
-	// Meshes -----------------------------------------------------------------------
 	
 	// Submits all vertex buffers
 	function Submit(_primitive_type=pr_trianglelist, _texture=-1)
@@ -261,6 +257,7 @@ function VBM_Model() constructor
 			}
 			i += 1;
 		}
+		return self;
 	}
 	
 	// Submits vertex buffer using index
@@ -273,15 +270,22 @@ function VBM_Model() constructor
 				meshes[_index].Submit(_primitive_type, _texture);
 			}
 		}
+		return self;
 	}
 	
 	// Submits vertex buffer using name
 	static SubmitName = function(_vbname, _primitive_type=pr_trianglelist, _texture=-1)
 	{
-		if (variable_struct_exists(meshmap, _vbname))
+		var i = 0;
+		repeat(meshcount)
 		{
-			meshmap[$ _vbname].Submit(_primitive_type, _texture);
+			if (meshes[i].name == _vbname)
+			{
+				meshes[i].Submit(_primitive_type, _texture);
+			}
+			i += 1;
 		}
+		return self;
 	}
 	
 	// Mesh Visibility -------------------------------------------------------------------
@@ -289,13 +293,16 @@ function VBM_Model() constructor
 	{
 		for (var i = 0; i < meshcount; i++)
 		{
-			meshes[_meshindex].visible = _isvisible;
+			meshes[i].visible = _isvisible;
 		}
+		return self;
 	}
 	
 	function VisibleSetIndex(_meshindex, _isvisible)
 	{
-		if ( _meshindex >= 0 && _meshindex < meshcount ) {meshes[_meshindex].visible = _isvisible;}
+		if ( _meshindex >= 0 && _meshindex < meshcount ) 
+			{meshes[_meshindex].visible = _isvisible;}
+		return self;
 	}
 	
 	function VisibleSetName(_meshname, _isvisible)
@@ -304,22 +311,44 @@ function VBM_Model() constructor
 		{
 			if ( meshes[i].name == _meshname ) {meshes[i].visible = _isvisible;}
 		}
+		return self;
 	}
 	
 	function VisibleToggleIndex(_meshindex)
 	{
-		if ( _meshindex >= 0 && _meshindex < meshcount ) {meshes[_meshindex].visible = !meshes[_meshindex].visible;}
+		if ( _meshindex >= 0 && _meshindex < meshcount ) 
+			{meshes[_meshindex].visible = !meshes[_meshindex].visible;}
+		return self;
 	}
 	
-	function VisibleToggleName(_meshname)
+	function VisibleToggleName(_meshname, _prioritize_on=false)
 	{
-		var _allon = true;
-		for (var i = 0; i < meshcount; i++) 
+		var _visible;
+		
+		// Set meshes to visible if any are not
+		if ( _prioritize_on )
 		{
-			if ( meshes[i].name == _meshname && !meshes[i].visible ) 
+			_visible = false;
+			for (var i = 0; i < meshcount; i++) 
 			{
-				_allon = false; 
-				break
+				if ( meshes[i].name == _meshname && !meshes[i].visible ) 
+				{
+					_visible = true; 
+					break;
+				}
+			}
+		}
+		// Set meshes to not visible if any already are
+		else
+		{
+			_visible = true;
+			for (var i = 0; i < meshcount; i++) 
+			{
+				if ( meshes[i].name == _meshname && meshes[i].visible ) 
+				{
+					_visible = false; 
+					break;
+				}
 			}
 		}
 		
@@ -327,9 +356,10 @@ function VBM_Model() constructor
 		{
 			if ( meshes[i].name == _meshname )
 			{
-				meshes[i].visible = !_allon;
+				meshes[i].visible = _visible;
 			}
 		}
+		return self;
 	}
 	
 	// Animations ----------------------------------------------------------
