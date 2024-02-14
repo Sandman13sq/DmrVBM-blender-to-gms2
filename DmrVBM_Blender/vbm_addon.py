@@ -3598,20 +3598,20 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             # Normals
                             elif k == VBF_NOR:
-                                attdata = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
+                                attdata = numpy.empty(numelements * 3, dtype=numpy.float32)
                                 mesh.loops.foreach_get('normal', attdata)
                                 attdata = numpy.array([ attdata[i*3:i*3+size] for i in mtlloopindices], dtype=numpy.float32)
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             # Tangents
                             elif k == VBF_TAN:
-                                attdata = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
+                                attdata = numpy.empty(numelements * 3, dtype=numpy.float32)
                                 mesh.loops.foreach_get('tangent', attdata)
                                 attdata = numpy.array([ attdata[i*3:i*3+size] for i in mtlloopindices], dtype=numpy.float32)
                                 bcontiguous.append( NumpyFloatToBytes(attdata) )
                             # Bitangents
                             elif k == VBF_BTN:
-                                normals = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
-                                tangents = numpy.empty(mtlloopcount * 3, dtype=numpy.float32)
+                                normals = numpy.empty(numelements * 3, dtype=numpy.float32)
+                                tangents = numpy.empty(numelements * 3, dtype=numpy.float32)
                                 mesh.loops.foreach_get('normal', normals)
                                 mesh.loops.foreach_get('tangent', tangents)
                                 
@@ -3656,7 +3656,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                     
                                     attdata = numpy.array([ uniquedata[i*4:i*4+size] for i in mtlloopindices], dtype=numpy.float32)
                                 else:
-                                    attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
+                                    #attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
+                                    attdata = numpy.array(list(default_value[:size]) * mtlloopcount)
                                 if k == VBF_COL:
                                     bcontiguous.append( NumpyFloatToBytes(attdata) )
                                 else:
@@ -3701,7 +3702,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                     bcontiguous.append( NumpyUnitsToBytes(attdata) )
                             # Padding
                             elif k == VBF_PAD or k == VBF_PAB:
-                                attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
+                                #attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
+                                attdata = numpy.array(list(default_value[:size]) * mtlloopcount)
                                 if k == VBF_PAD:
                                     bcontiguous.append( NumpyFloatToBytes(attdata) )
                                 else:
