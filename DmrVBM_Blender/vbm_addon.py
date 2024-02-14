@@ -1172,7 +1172,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     
     savepropnames = ('''
         filepath filename_ext file_type compression collection armature use_collection_nested batching_filename
-        alphanumeric_modifiers mesh_delimiter_start mesh_delimiter_end flip_uvs
+        alphanumeric_modifiers mesh_delimiter_start mesh_delimiter_end flip_uvs mesh_merge_names
         add_root_bone deform_only pose armature_delimiter_start armature_delimiter_end
         action_delimiter_start action_delimiter_end
         visible_only selected_only alphanumeric_only format_code format grouping batching fast_vb cache_vb
@@ -1226,7 +1226,6 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                     queue['filepath'] = vbm.ToProjectPath(bpy.path.abspath(self.filepath))
                 
                 print("> Saved props to Queue: " + queue.name)
-                
     
     def ReadQueue(self, queuename):
         vbm = bpy.context.scene.vbm
@@ -1307,7 +1306,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     grouping : bpy.props.EnumProperty(
         name="Grouping", default='OBJECT', items=(
             ('OBJECT', "By Object", "Objects -> VBs"),
-            #('MATERIAL', "By Material", "Materials -> VBs"),
+            ('MATERIAL', "By Material", "Materials -> VBs"),
             ('ACTION', "By Frame", "Object at frame -> VBs"),
         ),
         description="Method to split vertex buffers."
@@ -1351,6 +1350,11 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     mesh_delimiter_show : bpy.props.BoolProperty(
         name="Show Corrected Names", default=True,
         description="Show corrected action names"
+    )
+    
+    mesh_merge_names : bpy.props.BoolProperty(
+        name="Merge Mesh Names", default=True,
+        description="Merge meshes with the same name. (After applying delimiters)"
     )
     
     use_object_formats : bpy.props.BoolProperty(
@@ -1681,6 +1685,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
             rr.prop(self, "cache_vb")
             rr = c.row()
             rr.prop(self, "alphanumeric_modifiers")
+            c.prop(self, "mesh_merge_names")
         else:
             r.prop_search(self, "format", vbm, 'formats', text="")
         
@@ -1877,9 +1882,10 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         outputimages = []
         
         def FixName(name, delimstart, delimend):
-            if delimstart and delimstart in name:
+            srcname = name
+            if delimstart != "" and (delimstart in name):
                 name = name[name.find(delimstart)+len(delimstart):]
-            if delimend and delimend in name:
+            if delimend != "" and (delimend in name):
                 name = name[:name.find(delimend)]
             return name
         
@@ -2091,7 +2097,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                                 group_by_material=grouping=='MATERIAL',
                             ):
                                 name = FixName(meshname, self.mesh_delimiter_start, self.mesh_delimiter_end)
-                                vbmeshes.append( [name, vb, count, mtlname] )
+                                vbmeshes.append( [name, vb, count, mtlname] )        
                     # By Action
                     elif grouping == 'ACTION':
                         frame_range = (sc.frame_start, sc.frame_end)
@@ -2131,6 +2137,17 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                         for name, vb, n, mtlname in vbmeshes:
                             vbmap[mtlname][1] += vb
                             vbmap[mtlname][2] += n
+                        vbmeshes = list( vbmap.values() )
+                    
+                    # Merge similar names
+                    if self.mesh_merge_names:
+                        names = list(set([x[0] for x in vbmeshes]))
+                        print(names)
+                        vbmap = {name: [name, b'', 0, ''] for name in names}
+                        for name, vb, count, mtlname in vbmeshes:
+                            vbmap[name][1] += vb
+                            vbmap[name][2] += count
+                            vbmap[name][3] = mtlname
                         vbmeshes = list( vbmap.values() )
                     
                     if armature and armature.animation_data:
@@ -3315,7 +3332,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             (sum([ord(x) for x in obj.data.vertex_colors.active.name]) if obj.data.vertex_colors else 0)
                         )
                     ]) +
-                    ([ sum([sk.value+sum([x for v in sk.data for x in v.co]) for sk in obj.data.shape_keys.key_blocks]) if obj.data.shape_keys else 0])
+                    ([ sum([sk.value+sum([x for v in sk.data for x in v.co]) for sk in obj.data.shape_keys.key_blocks]) if obj.data.shape_keys else 0]) +
+                    ([ sum([ord(x) for x in mtl.name]) for mtl in obj.data.materials if mtl ])
                 ) if obj.type == 'MESH' else [] ) + 
                 ([x for b in armature.data.bones for v in b.matrix_local for x in v] if armature else []) + 
                 (
@@ -3362,7 +3380,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         zlib.decompress(vb),
                         meta.get('count', len(vb)/attribstride),
                         meta.get('material', sourceobj.active_material.name if sourceobj.active_material else ""),
-                        meta.get('name', sourceobj.name)
+                        meta.get('name') if meta.get('name', None) != None else sourceobj.name
                     ]
                     for vb,meta in zip(sourceobj['VBDAT_'+checksumkey], sourceobj['VBMTL_'+checksumkey])
                 ]
@@ -3715,7 +3733,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 if vbm.write_to_cache:
                     # Only floats, ints, and dicts allowed in ID property arrays
                     sourceobj['VBDAT_'+checksumkey] = [ zlib.compress(vb, 9) for vb, count, mtlname, meshname in objectvbs ]
-                    sourceobj['VBMTL_'+checksumkey] = [ {"count": count, "material": mtlname, "name": meshname} for vb, count, mtlname, meshname in objectvbs ]
+                    sourceobj['VBMTL_'+checksumkey] = [ {"count": count, "material": mtlname, "name": meshname if meshname!=sourceobj.name else None} for vb, count, mtlname, meshname in objectvbs ]
                     sourceobj['VBSUM_'+checksumkey] = checksum
                 
                 netvbs += objectvbs
