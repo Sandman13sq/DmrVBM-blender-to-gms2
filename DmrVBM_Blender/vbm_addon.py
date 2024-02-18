@@ -1892,7 +1892,8 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
         # Vertex Buffer
         if self.file_type == 'VB':
             for fname, objects, armature, actions in files:
-                filepath = fdir + fname
+                filepath = bpy.path.ensure_ext(fdir + fname, self.filename_ext)
+                
                 objects = [obj for obj in objects if (
                     (not self.visible_only or obj.visible_get()) and
                     (not self.selected_only or obj.select_get()) and
@@ -1953,7 +1954,13 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
                 if self.batching == 'ARMATURE':
                     fname = FixName(fname, self.armature_delimiter_start, self.armature_delimiter_end)
                 
-                filepath = fdir + fname
+                filepath = bpy.path.ensure_ext(fdir + fname, self.filename_ext)
+                filedir = os.path.split(filepath)[0]
+                
+                if not os.path.exists( filedir ):
+                    self.report({'WARNING'}, "> Directory \"%s\" not found" % filedir)
+                    exporterror = 2
+                    continue
                 
                 objects = [obj for obj in objects if (
                     (not self.visible_only or obj.visible_get()) and
