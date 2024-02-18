@@ -856,10 +856,9 @@ class VBM_OT_ActionList_ItemOperation(bpy.types.Operator):
         
         if operation == 'ADD':
             item = itemlist.add()
-            itemlist.move(len(itemlist)-1, index)
-            
             if rig.animation_data and rig.animation_data.action:
                 item.action = rig.animation_data.action
+            itemlist.move(len(itemlist)-1, index)
         elif operation == 'REMOVE':
             itemlist.remove(index)
         elif operation == 'MOVE_UP':
