@@ -157,3 +157,8 @@ mattran = matrix_build(x, y, 0, 0, 0, zrot, 1, 1, 1);
 
 // Update Animator
 animator.Update(playbackspeed);
+
+processtime = animator.Layer(0).benchmark[0];
+processcount += 1;
+processnet += processtime;
+

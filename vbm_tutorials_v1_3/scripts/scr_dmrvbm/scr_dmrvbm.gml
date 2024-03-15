@@ -49,6 +49,14 @@ VBM_MATPOSEMAX = 128;	// <- Change at start of game as you wish
 #macro VBM_IMPORTFLAG_SAVETRIANGLES (1<<2)
 #macro VBM_ATTBYTEFLAG 128
 
+enum VBM_AnimCurveArray
+{
+	positions,
+	values,
+	interpolations,
+	numkeyframes
+}
+
 #region // Fast Quaternion Constants. Used in VBM_Animation.EvaluateIntermediate()
 
 /*
@@ -314,6 +322,19 @@ function VBM_Model() constructor
 		return self;
 	}
 	
+	function VisibleSetPattern(_patternstring, _isvisible)
+	{
+		var _numchars = string_length(_patternstring);
+		for (var i = 0; i < meshcount; i++)
+		{
+			if ( string_copy(_patternstring, 1, _numchars) == _patternstring ) 
+			{
+				meshes[i].visible = _isvisible;
+			}
+		}
+		return self;
+	}
+	
 	function VisibleToggleIndex(_meshindex)
 	{
 		if ( _meshindex >= 0 && _meshindex < meshcount ) 
@@ -478,6 +499,8 @@ function VBM_Animation() constructor
 	size = 0;	// Number of curves
 	curvearray = [];	// Array of channels[]
 	curvenames = [];	// Curve names
+	curvesize = [];	// Number of channels for curve at index
+	curvesizemap = {};	// Number of channels for curve with given name
 	curvemap = {};	// {curvename: curvechannels}
 	
 	markercount = 0;
@@ -531,7 +554,7 @@ function VBM_Animation() constructor
 		var _curve1, _curve2;
 		var _channel1, _channel2;
 		var _numchannels;
-		var _numvalues;
+		var _numkeyframes;
 		
 		_out.name = name;
 		_out.framespersecond = framespersecond;
@@ -541,8 +564,10 @@ function VBM_Animation() constructor
 		
 		array_resize(_out.curvearray, size);
 		array_resize(_out.curvenames, size);
+		array_resize(_out.curvesize, size);
 		
 		array_copy(_out.curvenames, 0, curvenames, 0, size);
+		array_copy(_out.curvesize, 0, curvesize, 0, size);
 		
 		// Copy curves
 		for (var i = 0; i < size; i++)
@@ -554,25 +579,30 @@ function VBM_Animation() constructor
 			for (var c = 0; c < _numchannels; c++)
 			{
 				_channel1 = _curve1[c];
-				_channel2 = [[], [], []];	// [positions, values, interpolations]
+				_numkeyframes = _channel1[VBM_AnimCurveArray.numkeyframes];
 				
-				_numvalues = array_length(_channel1[0]);
-				array_resize(_channel2[0], _numvalues);				
-				array_copy(_channel2[0], 0, _channel1[0], 0, _numvalues);
+				_channel2 = [ // [positions, values, interpolations, numkeyframes]
+					array_create(_numkeyframes),
+					array_create(_numkeyframes), 
+					array_create(_numkeyframes),
+					_channel1[3]
+				];
 				
-				_numvalues = array_length(_channel1[1]);
-				array_resize(_channel2[1], _numvalues);				
-				array_copy(_channel2[1], 0, _channel1[1], 0, _numvalues);
+				array_resize(_channel2[VBM_AnimCurveArray.positions], _numkeyframes);				
+				array_copy(_channel2[VBM_AnimCurveArray.positions], 0, _channel1[VBM_AnimCurveArray.positions], 0, _numkeyframes);
 				
-				_numvalues = array_length(_channel1[2]);
-				array_resize(_channel2[2], _numvalues);				
-				array_copy(_channel2[2], 0, _channel1[2], 0, _numvalues);
+				array_resize(_channel2[VBM_AnimCurveArray.values], _numkeyframes);				
+				array_copy(_channel2[VBM_AnimCurveArray.values], 0, _channel1[VBM_AnimCurveArray.values], 0, _numkeyframes);
+				
+				array_resize(_channel2[VBM_AnimCurveArray.interpolations], _numkeyframes);				
+				array_copy(_channel2[VBM_AnimCurveArray.interpolations], 0, _channel1[VBM_AnimCurveArray.interpolations], 0, _numkeyframes);
 				
 				_curve2[c] = _channel2;
 			}
 			
 			_out.curvearray[i] = _curve2;
 			_out.curvemap[$ curvenames[i]] = _curve2;
+			_out.curvesizemap[$ curvenames[i]] = _out.curvesizemap[$ curvenames[i]];
 		}
 		
 		// Copy Baked
@@ -622,29 +652,39 @@ function VBM_Animation() constructor
 		// Check curve exists
 		if ( !variable_struct_exists(curvemap, _curvename) ) {return _default_value;}
 		
+		// Check size
+		if ( _channel_index >= curvesizemap[$ _curvename] ) {return _default_value;}
+		
+		// Set up values
 		var _channels = curvemap[$ _curvename];
+		var _positions = _channels[_channel_index][VBM_AnimCurveArray.positions];
+		var _values = _channels[_channel_index][VBM_AnimCurveArray.values];
+		var n = _channels[_channel_index][VBM_AnimCurveArray.numkeyframes];
 		
-		if ( _channel_index >= array_length(_channels) ) {return _default_value;}
-		
-		var _channel = _channels[_channel_index];
-		var _positions = _channel[0];
-		var _values = _channel[1];
-		
-		var n = array_length(_values);
-		
+		// Fast checks
 		if (n == 0) {return _default_value;}
 		if (n == 1) {return _values[0];}
+		if (n == 2)
+		{
+			return lerp(
+				_values[0],
+				_values[1],
+				(_pos-_positions[0]) / (_positions[1]-_positions[0])
+			);
+		}
 		
+		// Interpolate using prev and next frame
 		var i, iprev;
 		i = clamp(_pos * n, 0, n-1);
 		while ((i > 0) && _pos < _positions[i]) {i -= 1;}
 		while ((i < n-1) && _pos >= _positions[i]) {i += 1;}
 		iprev = max(0, i-1);
 		
+		// All positions have a tiny offset added per index to prevent divisions by 0 without needing to use max()
 		return lerp(
 			_values[iprev],
 			_values[i],
-			(_pos-_positions[iprev]) / max(0.001, _positions[i]-_positions[iprev])
+			(_pos-_positions[iprev]) / (_positions[i]-_positions[iprev])
 		);
 	}
 	
@@ -1373,6 +1413,8 @@ function VBM_Animator_Layer(_root) constructor
 	animationblendframesstep = 0;
 	animationblendframessteplast = 0;
 	
+	benchmark = [0, 0, 0, 0];
+	
 	// ==================================================================================
 	
 	function toString() 
@@ -1497,6 +1539,8 @@ function VBM_Animator_Layer(_root) constructor
 	// Calculate transforms and curves
 	function Update(_deltaframe, _process_intermediate=true, _process_output=true)
 	{
+		var t;
+		
 		if (pausefield == 0)
 		{
 			animationelapsed += _deltaframe * animationspeed;
@@ -1520,6 +1564,7 @@ function VBM_Animator_Layer(_root) constructor
 					(animationblendframessteplast < animationblendframesstep)
 				)
 				{
+					t = get_timer();
 					animation.EvaluatePose(
 						evaluationposition, 
 						animator.poseintermediate, 
@@ -1529,6 +1574,7 @@ function VBM_Animator_Layer(_root) constructor
 						lasttransforms,
 						(animationblendframes > 0)? (animationblendframesstep/animationblendframes): 1
 						);
+					benchmark[0] = get_timer()-t;
 					evaluationpositionlast = evaluationposition;
 					animationblendframessteplast = animationblendframesstep;
 				}
@@ -1715,9 +1761,9 @@ function OpenVBM(
 	// Check for compression headers
 	var _header = buffer_peek(_bzipped, 0, buffer_u8) | (buffer_peek(_bzipped, 1, buffer_u8) << 8);
 	if (
-		(_header & 0x0178) == 0x0178 ||
-		(_header & 0x9C78) == 0x9C78 ||
-		(_header & 0xDA78) == 0xDA78
+		( _header == 0x0178 ) ||
+		( _header == 0x9C78 ) ||
+		( _header == 0xDA78 )
 		)
 	{
 		_b = buffer_decompress(_bzipped);
@@ -1929,6 +1975,7 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 	var _numframes;
 	var _nummarkers;
 	var _markerframe;
+	var _positionoffset;	// Very small addend to prevent divisions by 0
 	
 	_numanimations = buffer_read(b, buffer_u32);
 	_outvbm.animationcount = _numanimations;
@@ -1956,6 +2003,7 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 		// Curves
 		array_resize(_animation.curvearray, _numcurves);
 		array_resize(_animation.curvenames, _numcurves);
+		array_resize(_animation.curvesize, _numcurves);	// Number of channels
 		
 		for (var t = 0; t < _numcurves; t++)
 		{
@@ -1972,10 +2020,11 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 				_channel = [
 					array_create(_numframes),	// Positions
 					array_create(_numframes),	// Keyframes
-					array_create(_numframes)	// Interpolation Modes
+					array_create(_numframes),	// Interpolation Modes
+					_numframes	// Number of keyframes
 				];
-				
-				for (var j = 0; j < _numframes; j++) {_channel[0][j] = buffer_read(b, buffer_f32);}
+				_positionoffset = 0;
+				for (var j = 0; j < _numframes; j++) {_channel[0][j] = buffer_read(b, buffer_f32)+_positionoffset; _positionoffset += 0.00000001;}
 				for (var j = 0; j < _numframes; j++) {_channel[1][j] = buffer_read(b, buffer_f32);}
 				for (var j = 0; j < _numframes; j++) {_channel[2][j] = buffer_read(b, buffer_u8);}
 				
@@ -1985,6 +2034,8 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 			_animation.curvearray[t] = _curve;
 			_animation.curvemap[$ _name] = _curve;
 			_animation.curvenames[t] = _name;
+			_animation.curvesize[t] = _numchannels;
+			_animation.curvesizemap[$ _name] = _numchannels;
 		}
 		
 		// Markers

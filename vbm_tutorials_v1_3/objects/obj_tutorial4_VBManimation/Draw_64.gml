@@ -25,6 +25,9 @@ draw_text(16, i*20, "Animation Mode: " + (
 draw_text(16, i*20, "Animation Speed: " + string(playbackspeed)); i++;
 draw_text(16, i*20, "Animation Elapsed: " + string(animator.Layer(0).animationelapsed)); i++;
 draw_text(16, i*20, "Animation Position: " + string(animator.Layer(0).animationposition)); i++;
+i++;
+draw_text(16, i*20, "Process Time: " + string(processtime)); i++;
+draw_text(16, i*20, "Process Avg: " + string(processnet / processcount)); i++;
 
 // Draw Model Info
 xx = ww-8;

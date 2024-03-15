@@ -69,6 +69,9 @@ meshselect = 0;
 // *Playback Controls ----------------------------------
 playbackspeed = 1;
 playbackkeyindex = 0;
+processtime = 0;
+processnet = 0;
+processcount = 0;
 
 // *Shader Uniforms ------------------------------------
 u_rigged_light = shader_get_uniform(shd_rigged, "u_lightpos");
