@@ -116,6 +116,7 @@ if 1: # Folding
     
     EXPORTLISTHEADER = "|"
     USE_ATTRIBUTES = bpy.app.version >= (3,2,2)
+    BLENDER_4_0 = bpy.app.version >= (4,0,0)
     VBM_PROJECTPATHKEY = '<DATAFILES>'
     
     VBF_000 = '0'
@@ -1327,7 +1328,7 @@ class VBM_OT_ExportVBM(ExportHelper, bpy.types.Operator):
     )
     
     cache_vb : bpy.props.BoolProperty(
-        name="Use Cache", default=True,
+        name="Use Cache", default=False,
         description="Write and use cached vertex buffers if meshes are not changed between exports. Takes into account format as well as mesh data"
     )
     
