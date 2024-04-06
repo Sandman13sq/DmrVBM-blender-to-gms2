@@ -669,7 +669,7 @@ function VBM_Animation() constructor
 			return lerp(
 				_values[0],
 				_values[1],
-				(_pos-_positions[0]) / (_positions[1]-_positions[0])
+				(_pos-_positions[0]) / (_positions[1]-_positions[0] + 0.00000000001)	// Small value to avoid max(0, x)
 			);
 		}
 		
@@ -684,7 +684,7 @@ function VBM_Animation() constructor
 		return lerp(
 			_values[iprev],
 			_values[i],
-			(_pos-_positions[iprev]) / (_positions[i]-_positions[iprev])
+			(_pos-_positions[iprev]) / (_positions[i]-_positions[iprev] + 0.00000000001)	// Small value to avoid max(0, x)
 		);
 	}
 	
@@ -2024,7 +2024,7 @@ function __VBMOpen_v2(_outvbm, b, _userflags)
 					_numframes	// Number of keyframes
 				];
 				_positionoffset = 0;
-				for (var j = 0; j < _numframes; j++) {_channel[0][j] = buffer_read(b, buffer_f32)+_positionoffset; _positionoffset += 0.00000001;}
+				for (var j = 0; j < _numframes; j++) {_channel[0][j] = buffer_read(b, buffer_f32)+_positionoffset;}
 				for (var j = 0; j < _numframes; j++) {_channel[1][j] = buffer_read(b, buffer_f32);}
 				for (var j = 0; j < _numframes; j++) {_channel[2][j] = buffer_read(b, buffer_u8);}
 				
