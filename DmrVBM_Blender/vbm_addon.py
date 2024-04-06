@@ -3591,9 +3591,12 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     for mtlname, mtlloopindices in mtlloops:
                         bcontiguous = []
                         
-                        mtlvertindices = tuple([facevertindices[i] for i in mtlloopindices])
                         mtlloopcount = len(mtlloopindices)
                         mtlvertexcount = mtlloopcount / 3
+                        mtlvertindices = tuple([facevertindices[i] for i in mtlloopindices])
+                        
+                        if (mtlvertexcount == 0):
+                            continue
                         
                         # Attribute Loop >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
                         for k, size, layer, isSrgb, default_value in attribparams:
