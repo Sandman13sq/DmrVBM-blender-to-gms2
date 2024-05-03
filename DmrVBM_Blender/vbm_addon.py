@@ -117,6 +117,7 @@ if 1: # Folding
     EXPORTLISTHEADER = "|"
     USE_ATTRIBUTES = bpy.app.version >= (3,2,2)
     BLENDER_4_0 = bpy.app.version >= (4,0,0)
+    BLENDER_4_1 = bpy.app.version >= (4,1,0)
     VBM_PROJECTPATHKEY = '<DATAFILES>'
     
     VBF_000 = '0'
@@ -3491,7 +3492,13 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         # Blender corrects normals for negative scale on display, not in raw data
                         mesh.flip_normals()
                     mesh.calc_loop_triangles()
-                    mesh.calc_normals_split()
+                    
+                    if BLENDER_4_1: # 4.1 removed calc_normals_split() and replaced with Auto Smooth Modifier
+                        if not instobj.data.has_custom_normals and sum([m.type=='NODES' and "auto smooth" in m.name.lower() for m in instobj.modifiers]) > 0:
+                            mesh.normals_split_custom_set_from_vertices([(0,0,0)]*len(mesh.vertices))
+                            mesh.validate()
+                    else:
+                        mesh.calc_normals_split()
                     
                     if mesh.uv_layers and process_tangents:
                         mesh.calc_tangents()
