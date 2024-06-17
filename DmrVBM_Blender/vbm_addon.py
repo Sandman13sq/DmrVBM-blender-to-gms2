@@ -10,6 +10,8 @@ import json
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 from bl_ui.utils import PresetPanel
 
+VBM_PANEL_TITLE = "DmrVBM v1.3.1" # Helps with screenshots from issues
+
 classlist = []
 
 # VBM spec:
@@ -2592,7 +2594,7 @@ classlist.append(VBM_UL_ExportQueues_File)
 '# =========================================================================================================================='
 
 class VBM_PT_Master(bpy.types.Panel):
-    bl_label = "Dmr VBM"
+    bl_label = VBM_PANEL_TITLE
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "scene"

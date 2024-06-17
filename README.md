@@ -55,6 +55,16 @@ Game Maker's native format is [Position, Color Bytes, UV]
 
 # FEATURE CHANGELOG
 
+## v1.3.1 June 2024 Update
+- Blender Addon
+	- Updated to support Blender 4.1.x
+	- Implemented exporting objects by material.
+	- Added Bone Dissolve panel for omitting specific bones on export.
+- GMS2 Scripts
+	- New VBMModel methods for managing mesh visibility.
+	- Animator can blend transforms from last animation to new animation.
+	- Small animation optimizations and bugfixes.
+
 ## v1.3 January 2024 Update
 - Blender Addon
 	- Addon code condensed to single script
