@@ -3664,10 +3664,18 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                     lyr = mesh.color_attributes.get(layer) if layer in mesh.color_attributes.keys() else mesh.color_attributes.active_color
                                 else:
                                     lyr = mesh.vertex_colors.get(layer) if layer in mesh.vertex_colors.keys() else mesh.vertex_colors.active
+                                
                                 if lyr:
-                                    uniquedata = numpy.empty(numloops * 4, dtype=numpy.float32)
-                                    lyr.data.foreach_get('color', uniquedata)
+                                    lyrdata = numpy.empty(len(lyr.data)*4, dtype=numpy.float32)
+                                    lyr.data.foreach_get('color', lyrdata)
                                     
+                                    # Convert vertex domain to loop domain
+                                    if lyr.domain == 'POINT': # Map vertex to loops
+                                        uniquedata = numpy.array([x for l in mesh.loops for x in lyrdata[ l.vertex_index*size:l.vertex_index*size+size ]])
+                                    else:
+                                        uniquedata = lyrdata
+                                    
+                                    # Apply SRGB power
                                     if (USE_ATTRIBUTES and isSrgb):
                                         numpy.power(uniquedata, numpy.array([.4545, .4545, .4545, 1.0] * numloops), uniquedata)
                                     elif (not USE_ATTRIBUTES) and (not isSrgb):
@@ -3675,7 +3683,6 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                     
                                     attdata = numpy.array([ uniquedata[i*4:i*4+size] for i in mtlloopindices], dtype=numpy.float32)
                                 else:
-                                    #attdata = NumpyCreatePattern(default_value[:size], mtlloopcount)
                                     attdata = numpy.array(list(default_value[:size]) * mtlloopcount)
                                 if k == VBF_COL:
                                     bcontiguous.append( NumpyFloatToBytes(attdata) )
