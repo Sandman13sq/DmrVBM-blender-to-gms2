@@ -1,9 +1,9 @@
 ![Repo Banner](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/banner.png)
 
 # Vertex Buffer Model Exporter and Importer by Sandman13sq
-### Import/Export tools for loading vertex buffer data out of Blender and in to Game Maker Studio 2.
+### Import/Export tools for loading vertex buffer data out of Blender and in to GameMaker.
 
-#### .vb is Game Maker Studio's **vertex buffer data** format used for `vertex_submit()`.
+#### .vb is GameMaker's **vertex buffer data** format used for `vertex_submit()`.
 #### .vbm is a custom file format for exporting mesh data, skeleton bones, and action curves. 
 
 NOTE: If cloned straight from GitHub not all features are guranteed to work correctly.  
@@ -13,7 +13,7 @@ For stable versions see the **Releases** on the GitHub page.
 
 -----
   
-## Blender 3.x Addon Installation
+## Blender 4.x Addon Installation
 * In Blender, go to `Edit` > `Preferences` > `Add-ons`
 * Click `Install` on the top right of the Preferences window
 * Navigate to the `DmrVBM_Blender.zip` file (keep this zipped). Select it and click `Install Add-on`
@@ -21,31 +21,44 @@ For stable versions see the **Releases** on the GitHub page.
 * The VBM export panel can be found in the `Properties` > `Scene`
      * If nothing shows up try `Edit` > `Preferences` > `Interface` > `Display` > Enable `Developer Extras`
 
-## Game Maker Studio 2 Installation
-* With a GMS2 project open, go to `Tools` > `Import Local Package`
+## GameMaker Installation
+* With a GameMaker project open, go to `Tools` > `Import Local Package`
 * Navigate to the `DmrVBM_GameMaker.yymps` file. Select the file and click `Open`
 * Choose *scr_dmrvbm* to import into the project
-* NOTE: To avoid conflicts when upgrading to v1.3, remove existing v1.2 scripts before importing.
-* NOTE again: v1.3 is NOT backwards compatible with v1.2 models or below. Old models will have to be re-exported.
+* NOTE: To avoid conflicts when upgrading to v1.4, remove existing DmrVBM scripts before importing.
+* NOTE again: v1.4 is NOT backwards compatible with v1.3 models or below. Old models will have to be re-exported.
 
-### Supported Attributes
-- Position - Location of vertex.
-- UV - Texture coordinate per loop. 
-- Normal - Surface orientation of vertex
-- Tangent - Vector perpendicular to the normal.
-- Bitangent - Cross product of normal and tangent.
-- Color - Vertex colors as floats.
-- Color Bytes - Vertex colors as 4 bytes
-- Bone Indices - Index of bone from deform vertex groups.
-- Bone Index Bytes - Above as 4 bytes
-- Weights - Weight from deform vertex groups.
-- Weight Bytes - Above as 4 bytes
-- Group Value - Vertex weight value from named vertex group.  
-- Group Byte - Above as 1 byte.  
-- Padding - A constant value for all vertices
-- Padding Bytes - Above as X bytes
+# FEATURES
+### Blender Addon
+- Mesh exports
+	- Design vertex format attributes to export model with.
+		- Position - Location of vertex.
+		- UV - Texture coordinate per loop. 
+		- Normal - Surface orientation of vertex
+		- Tangent - Vector perpendicular to the normal.
+		- Bitangent - Cross product of normal and tangent.
+		- Color - Vertex colors as floats.
+		- Bone Indices - Index of bone from deform vertex groups.
+		- Weights - Weight from deform vertex groups.
+		- Group Value - Vertex weight value from named vertex group.
+		- Padding - A constant value for all vertices
+	- Pack textures from materials into files.
+	- Override materials on export.
+- Skeleton exports
+	- Choose to export deform only bones
+	- Mask out bones for export to reduce bone count
+- Animation exports
+	- Mask out bones to export curves for
+- Queues
+	- Design a custom export queue with specific object order.
+	- Exports can be repeated in a single click with the Star button.
+- 
 
-Game Maker's native format is [Position, Color Bytes, UV]
+### Game Maker Package
+- 
+
+All attributes can be set to export as floats or bytes. 
+Game Maker's native format is [Position, Color (Bytes), UV]
 
 -----------------------------------------------------------------------------------------------
 
@@ -54,6 +67,17 @@ Game Maker's native format is [Position, Color Bytes, UV]
 -----------------------------------------------------------------------------------------------
 
 # FEATURE CHANGELOG
+
+## v1.4-BETA
+- Blender Addon
+	- Rewritten from scratch focused on Blender 4.x support.
+	- Attribute byte option moved to a boolean.
+	- Queues have a checkout list for more customizable exports.
+	- Bone mask option added to action exports.
+	- Added option to replace materials during export.
+	- Textures can now be packed into model file.
+- GMS2 Package
+	- Rewritten from scratch focused on data-driven style.
 
 ## v1.3.1 June 2024 Update
 - Blender Addon
