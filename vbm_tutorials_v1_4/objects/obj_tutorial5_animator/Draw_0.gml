@@ -35,6 +35,17 @@ if ( mesh_flash > 0.0 ) {
 }
 shader_reset();
 
+// Draw Swing Bones
+if ( show_bones ) {
+	var s = 0.02;
+	gpu_set_ztestenable(false);
+	for (var i = 0; i < animator.swing_count; i++) {
+		var swg = animator.swing_bones[i];
+		matrix_set(matrix_world, matrix_build(swg.vcurr[0],swg.vcurr[1],swg.vcurr[2],0,0,0,s,s,s));
+		VBM_Model_Submit(model_rotation, -1);
+	}
+}
+
 // Restore previous room matrices
 matrix_set(matrix_projection, camera_get_proj_mat(camera_get_active()));
 matrix_set(matrix_view, camera_get_view_mat(camera_get_active()));

@@ -14,13 +14,13 @@ matproj = matrix_build_projection_perspective_fov(
 	window_get_width()/window_get_height(),	// Screen ratio
 	znear,
 	zfar
-	);
+);
 // View Matrix maps world to camera eye
 matview = matrix_build_lookat(
 	viewposition[0], viewposition[1], viewposition[2],	// Camera location 
 	cameralookat[0], cameralookat[1], cameralookat[2],	// Camera eye target
 	0, 0, 1												// "Up" orientation of camera
-	);
+);
 mattran = matrix_build_identity(); // World/Model transform
 
 // *Load Vertex Buffer ----------------------------------

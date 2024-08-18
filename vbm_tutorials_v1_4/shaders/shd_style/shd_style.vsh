@@ -44,7 +44,7 @@ void main()
 	object_space_pos = m * object_space_pos;	// Matrix MUST be left operand
 	object_space_nor = m * object_space_nor;	// Matrix MUST be left operand
 	
-	object_space_pos += object_space_nor * 0.004 * u_outline * in_Colour2.w;	// Offset outline shell
+	object_space_pos += object_space_nor * 0.002 * u_outline * in_Colour2.w;	// Offset outline shell
 	
     gl_Position = gm_Matrices[MATRIX_WORLD_VIEW_PROJECTION] * object_space_pos;
     

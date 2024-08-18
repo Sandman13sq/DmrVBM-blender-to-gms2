@@ -2436,6 +2436,9 @@ def vbm_draw_gpu():
 	if obj and rig and obj.mode in ('POSE', 'OBJECT'):
 		if not getattr(rig, 'vbm', None):
 			return
+
+		if not rig.vbm.deform_mask:
+			return
 		
 		r = context.region_data
 		viewpos = r.view_location + (r.view_rotation.to_matrix() @ Vector((0,0,-1))) * r.view_distance

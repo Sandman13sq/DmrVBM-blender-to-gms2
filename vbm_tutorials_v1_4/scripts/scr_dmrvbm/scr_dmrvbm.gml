@@ -1103,6 +1103,7 @@ function VBM_Animator_SwingReset(animator) {
 	
 	bone_count = animator.bone_count;
 	swing_count = animator.swing_count;
+	
 	for (var bone_index = 0; bone_index < bone_count; bone_index++) {
 		// Model-Space Offset (Parent x Local)
 		animator.matworld[bone_index] = matrix_multiply(
@@ -1113,7 +1114,7 @@ function VBM_Animator_SwingReset(animator) {
 		
 		for (swing_index = 0; swing_index < swing_count; swing_index++) {
 			swg = animator.swing_bones[swing_index];
-			if ( bone_hash == swg.bone_name ) {
+			if ( bone_hash == swg.bone_hash) {
 				parent_index = animator.bone_parentindex[bone_index];
 				
 				// Get position of goal = (Bone.Local x Swing.Offset) x Parent.Absolute

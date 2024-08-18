@@ -18,6 +18,7 @@
   ],
   "IncludedFiles":[
     {"$GMIncludedFile":"","%Name":"axis.vbm","CopyToMask":-1,"filePath":"datafiles","name":"axis.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"rotation.vbm","CopyToMask":-1,"filePath":"datafiles","name":"rotation.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial3_native.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial3_native.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial3_normal.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial3_normal.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial4_model.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial4_model.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},

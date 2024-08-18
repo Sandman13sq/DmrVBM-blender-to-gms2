@@ -25,6 +25,8 @@ if ( keyboard_check_pressed(0xDD) ) {	// "]"
 	bone_select = (bone_select+1) mod VBM_Model_GetBoneCount(model);
 }
 
+show_bones ^= keyboard_check_pressed(0xDC);	// "|"
+
 // Navigate animation
 if ( keyboard_check_pressed(0xBD) ) {	// "-"
 	playback_index = (playback_index == 0)? VBM_Animator_GetAnimationCount(animator)-1: (playback_index-1);
@@ -36,6 +38,10 @@ if ( keyboard_check_pressed(0xBB) ) {	// "+"
 	playback_index = (playback_index+1) mod VBM_Animator_GetAnimationCount(animator);
 	VBM_Animator_PlayAnimationIndex(animator, 0, playback_index);
 	VBM_Animator_Update(animator, 0.0);
+	VBM_Animator_SwingReset(animator);
+}
+
+if ( keyboard_check(vk_space) ) {	// "]"
 	VBM_Animator_SwingReset(animator);
 }
 

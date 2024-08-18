@@ -32,6 +32,9 @@ rotationspd = 0;
 model = VBM_Model_Create();	// Initialize model data
 VBM_OpenVBM("tutorial5_model.vbm", model);
 
+model_rotation = VBM_Model_Create();
+VBM_OpenVBM("rotation.vbm", model_rotation, 0);
+
 animator = VBM_Animator_Create();	// Initialize animator
 VBM_Animator_FromModel(animator, model);	// Read bone and animation data from model
 VBM_Animator_ResizeLayers(animator, 2);	// Ensure that there are two layers
@@ -57,6 +60,7 @@ mesh_flash = 0;
 mesh_hide_bits = 0;
 bone_select = 0;
 bone_matrices = VBM_CreateMatrixArrayFlat(VBM_BONECAPACITY);
+show_bones = 0;
 
 // *Playback Controls ----------------------------------
 playback_speed = 1;

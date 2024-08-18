@@ -11,6 +11,7 @@ var hh = display_get_gui_height();
 draw_text(16, yy, "Use the arrow keys to rotate model"); yy += ysep;
 draw_text(16, yy, "Hold SHIFT and use arrow keys to rotate camera"); yy += ysep;
 draw_text(16, yy, "Press </> to navigate meshes"); yy += ysep;
+draw_text(16, yy, "Press -/+ to navigate animations"); yy += ysep;
 draw_text(16, yy, "Press ? to toggle mesh visibility"); yy += ysep;
 yy += ysep;
 draw_text(16, yy, "Camera Position: " + string(viewposition)); yy += ysep;
