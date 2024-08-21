@@ -52,10 +52,12 @@ For stable versions see the **Releases** on the GitHub page.
 - Queues
 	- Design a custom export queue with specific object order.
 	- Exports can be repeated in a single click with the Star button.
-- 
 
 ### Game Maker Package
-- 
+- No-fuss Rendering
+	- Rendering models takes very few steps.
+	- Data relevant to model is stored with model, including vertex format and textures.
+	- 
 
 All attributes can be set to export as floats or bytes. 
 Game Maker's native format is [Position, Color (Bytes), UV]
@@ -78,6 +80,7 @@ Game Maker's native format is [Position, Color (Bytes), UV]
 	- Textures can now be packed into model file.
 - GMS2 Package
 	- Rewritten from scratch focused on data-driven style.
+	- Added basic support for dynamic bone animation.
 
 ## v1.3.1 June 2024 Update
 - Blender Addon
