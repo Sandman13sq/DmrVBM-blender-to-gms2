@@ -14,9 +14,10 @@
 #macro VBM_PROJECTPATH global.__vbm_projectpath
 VBM_PROJECTPATH = "";
 
-//#macro VBM_PROJECTPATH ""
+// Limit on v2022 LTS is 128...?
+#macro VBM_BONELIMIT 192
 #macro VBM_BONECAPACITY 192
-#macro VBM_CURVECAPACITY 192
+#macro VBM_CURVECAPACITY 160
 #macro VBM_CHANNELCAPACITY 2048
 
 // M[Y][X]
@@ -80,6 +81,7 @@ function VBM_StringHash(s) {
 
 // Returns new single array for matrix values
 function VBM_CreateMatrixArrayFlat(n) {
+	n = min(n, VBM_BONELIMIT);
 	var outmat4arrayflat = array_create(n*16);
 	
 	// Write identity
@@ -87,14 +89,14 @@ function VBM_CreateMatrixArrayFlat(n) {
 	outmat4arrayflat[@ 4] = 0.0; outmat4arrayflat[@ 5] = 1.0; outmat4arrayflat[@ 6] = 0.0; outmat4arrayflat[@ 7] = 0.0;
 	outmat4arrayflat[@ 8] = 0.0; outmat4arrayflat[@ 9] = 0.0; outmat4arrayflat[@10] = 1.0; outmat4arrayflat[@11] = 0.0;
 	outmat4arrayflat[@12] = 0.0; outmat4arrayflat[@13] = 0.0; outmat4arrayflat[@14] = 0.0; outmat4arrayflat[@15] = 1.0;
-	
+
 	// Fill in steps of base 2
 	var p = 1;
-	while (p < n) {
+	while ( (p<<1) < n) {
 		array_copy(outmat4arrayflat, 16*p, outmat4arrayflat, 0, 16*p);
 		p = p << 1;	// p = 2^i
 	}
-	array_copy(outmat4arrayflat, 16*(p-n), outmat4arrayflat, 0, 16*(p-n));
+	array_copy(outmat4arrayflat, (n-p)*16, outmat4arrayflat, 0, 16*p);	// Last power of 2 to n
 	
 	return outmat4arrayflat;
 }
@@ -733,6 +735,7 @@ function VBM_Model_SubmitExt(vbmmodel, texture, hidebits, flags) {
 	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
 		if (hidebits & (1<<mesh_index)) {continue;}
 		mesh = vbmmodel.meshes[mesh_index];
+		
 		if (texture == VBM_SUBMIT_TEXNONE) {
 			tex = -1;
 		}
@@ -749,15 +752,17 @@ function VBM_Model_SubmitExt(vbmmodel, texture, hidebits, flags) {
 }
 
 function VBM_Model_SubmitMesh(vbmmodel, texture, mesh_index) {
-	var mesh = vbmmodel.meshes[mesh_index];
-	if (texture == VBM_SUBMIT_TEXNONE) {
-		texture = -1;
+	if ( mesh_index >= 0 && mesh_index < vbmmodel.mesh_count ) {
+		var mesh = vbmmodel.meshes[mesh_index];
+		if (texture == VBM_SUBMIT_TEXNONE) {
+			texture = -1;
+		}
+		else if (texture == VBM_SUBMIT_TEXDEFAULT) {
+			texture = mesh.texture_override? mesh.texture_override: 
+				((mesh.texture_sprite > -1)? sprite_get_texture(mesh.texture_sprite, 0): texture);
+		}
+		vertex_submit(mesh.vertex_buffer, mesh.is_edge? pr_linelist: pr_trianglelist, texture);
 	}
-	else if (texture == VBM_SUBMIT_TEXDEFAULT) {
-		texture = mesh.texture_override? mesh.texture_override: 
-			((mesh.texture_sprite > -1)? sprite_get_texture(mesh.texture_sprite, 0): texture);
-	}
-	vertex_submit(mesh.vertex_buffer, mesh.is_edge? pr_linelist: pr_trianglelist, texture);
 }
 
 function VBM_Model_SubmitMeshName(vbmmodel, texture, mesh_name) {
@@ -802,11 +807,11 @@ function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4array
 		outmat4arrayflat[@12] = 0; outmat4arrayflat[@13] = 0; outmat4arrayflat[@14] = 0; outmat4arrayflat[@15] = 1;
 		
 		var p = 1;
-		while (p < bone_count) {
+		while ( (p<<1) < bone_count) {
 			array_copy(outmat4arrayflat, 16*p, outmat4arrayflat, 0, 16*p);
 			p = p << 1;	// p = 2^i
 		}
-		array_copy(outmat4arrayflat, 16*(p-bone_count), outmat4arrayflat, 0, 16*(p-bone_count));
+		array_copy(outmat4arrayflat, 16*(bone_count-p), outmat4arrayflat, 0, 16*p);	// Last power of 2 to n
 		return;	// yeet out of function
 	}
 	
@@ -821,11 +826,11 @@ function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4array
 	outmat4arrayflat[@ VBM_T_SCALEX] = 1.0; outmat4arrayflat[@ VBM_T_SCALEY] = 1.0; outmat4arrayflat[@ VBM_T_SCALEZ] = 1.0;
 	
 	var p = 1;
-	while (p < bone_count) {
+	while ( (p<<1) < bone_count) {
 		array_copy(outmat4arrayflat, 16*p, outmat4arrayflat, 0, 16*p);
 		p = p << 1;	// p = 2^i
 	}
-	array_copy(outmat4arrayflat, 16*(p-bone_count), outmat4arrayflat, 0, 16*(p-bone_count));
+	array_copy(outmat4arrayflat, 16*(bone_count-p), outmat4arrayflat, 0, 16*p);
 	
 	// Matrix 0 = Identity
 	outmat4arrayflat[@ 0] = 1; outmat4arrayflat[@ 1] = 0; outmat4arrayflat[@ 2] = 0; outmat4arrayflat[@ 3] = 0;
@@ -892,6 +897,7 @@ function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4array
 	}
 	
 	t = 1;
+	bone_count = min(bone_count, VBM_BONELIMIT);	// If array exceeds 128, crashes on some devices
 	repeat(bone_count-1) {
 		// Vertex-Space Offset (Model x InverseBind)
 		array_copy(mA, 0, outmat4arrayflat, t*16, 16);
@@ -946,7 +952,7 @@ function VBM_Animator() constructor {
 	transforms = array_create(10*VBM_BONECAPACITY);	// Flat array of [locx, locy, locz, quatw, quatx, quaty, quatz, scalex, scaley, scalez]
 	transforms_last = array_create(10*VBM_BONECAPACITY);
 	matworld = array_create(VBM_BONECAPACITY, matrix_build_identity());
-	matfinal = array_create(VBM_BONECAPACITY);	// Flat array of [mat4]
+	matfinal = array_create(VBM_BONECAPACITY*16);	// Flat array of [mat4]
 	
 	bone_count = 0;
 	bone_names = array_create(VBM_BONECAPACITY);
@@ -1313,27 +1319,14 @@ function VBM_Animator_SetRootTransform(animator, x,y,z, radiansx,radiansy,radian
 	animator.transforms[VBM_T_SCALEY] = sy;
 	animator.transforms[VBM_T_SCALEZ] = sz;
 	
-	animator.transforms[VBM_T_QUATW] = cos(radiansz * 0.5);
-	animator.transforms[VBM_T_QUATX] = 0.0;
-	animator.transforms[VBM_T_QUATY] = 0.0;
-	animator.transforms[VBM_T_QUATZ] = sin(radiansz * 0.5);
+	animator.transforms[VBM_T_QUATW] = cos(radiansx)*cos(radiansy)*cos(radiansz) - sin(radiansx)*sin(radiansy)*sin(radiansz);
+	animator.transforms[VBM_T_QUATX] = sin(radiansx)*cos(radiansy)*cos(radiansz) + cos(radiansx)*sin(radiansy)*sin(radiansz);
+	animator.transforms[VBM_T_QUATY] = cos(radiansx)*sin(radiansy)*cos(radiansz) - sin(radiansx)*cos(radiansy)*sin(radiansz);
+	animator.transforms[VBM_T_QUATZ] = cos(radiansx)*cos(radiansy)*sin(radiansz) + sin(radiansx)*sin(radiansy)*cos(radiansz);
 	
 	animator.transforms[VBM_T_LOCX] = x;
 	animator.transforms[VBM_T_LOCY] = y;
 	animator.transforms[VBM_T_LOCZ] = z;
-}
-
-function VBM_Animator_SetRootMatrix(animator, m) {
-	var sx = point_distance_3d(0,0,0, m[0], m[1], m[2]);
-	var sy = point_distance_3d(0,0,0, m[4], m[5], m[6]);
-	var sz = point_distance_3d(0,0,0, m[8], m[9], m[10]);
-	animator.transforms[VBM_T_SCALEX] = sx;
-	animator.transforms[VBM_T_SCALEY] = sy;
-	animator.transforms[VBM_T_SCALEZ] = sz;
-	
-	animator.transforms[VBM_T_LOCX] = m[12];
-	animator.transforms[VBM_T_LOCY] = m[13];
-	animator.transforms[VBM_T_LOCZ] = m[14];
 }
 
 function VBM_Animator_Update(animator, delta) {
@@ -1369,7 +1362,7 @@ function VBM_Animator_Update(animator, delta) {
 	var transform_offset = 0;
 	var sx, sy, sz;
 	var qw, qx, qy, qz;
-	var xx, xy, xz, xw, yy, yz, yw, zz, zw, ww;
+	var xx, xy, xz, xw, yy, yz, yw, zz, zw;
 	
 	// Root transform
 	qw = transforms[VBM_T_QUATW];
@@ -1406,7 +1399,7 @@ function VBM_Animator_Update(animator, delta) {
 	
 	// Matrices
 	var voffset = [0,0,0], vsource = [0,0,0], vlast = [0,0,0], vgoal = [0,0,0];
-	var vlocal = [0,0,0], lsource = [0,0,0], llast = [0,0,0], lgoal = [0,0,0];
+	var vlocal = [0,0,0], lsource = [0,0,0], lgoal = [0,0,0];
 	var vcoll = [0,0,0];
 	var vel = [0,0,0];
 	var acc = [0,0,0];
@@ -1539,9 +1532,9 @@ function VBM_Animator_Update(animator, delta) {
 				}
 				
 				// Convert from world-space Back to local-space
-				vlocal = matrix_transform_vertex(minv, v[0], v[1], v[2], 0.0);
-				lsource = matrix_transform_vertex(minv, vsource[0], vsource[1], vsource[2], 0.0);
-				lgoal = matrix_transform_vertex(minv, vgoal[0], vgoal[1], vgoal[2], 0.0);
+				vlocal = matrix_transform_vertex(minv, v[0], v[1], v[2]);
+				lsource = matrix_transform_vertex(minv, vsource[0], vsource[1], vsource[2]);
+				lgoal = matrix_transform_vertex(minv, vgoal[0], vgoal[1], vgoal[2]);
 				
 				// Write rotation back to transform
 				rollpt5 = clamp(arctan2(vlocal[2]-lsource[2], vlocal[1]-lsource[1]) * 0.5, swg.angle_min_y, swg.angle_max_y);
@@ -1699,15 +1692,35 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 	buffer_delete(b);
 	b = bdecompressed;
 	
+	// Header Check ========================================================
+	var headerchars = [0,0,0];
+	headerchars[0] = buffer_read(b, buffer_u8);
+	headerchars[1] = buffer_read(b, buffer_u8);
+	headerchars[2] = buffer_read(b, buffer_u8);
+	var header_version = buffer_read(b, buffer_u8);
+	
+	var header_is_vbm = (
+		headerchars[0] == ord("V") &&
+		headerchars[1] == ord("B") &&
+		headerchars[2] == ord("M")
+	);
+	
+	if ( !header_is_vbm ) {
+		show_debug_message("File does not contain VBM header: " + fpath);
+		return outvbm;
+	}
+	
+	if ( header_version != 4 ) {
+		show_debug_message("VBM Version invalid (Version " + string(header_version) + "): " + fpath);
+		return outvbm;
+	}
+	
+	// Resource Loop =====================================================
 	var word = "";
 	
 	var mesh_index = 0;
 	var animation_index = 0;
 	var texture_index = 0;
-	
-	// Header ==================================================
-	//var jump_skeleton = buffer_read(b, buffer_u32);
-	//var jump_mesh = buffer_read(b, buffer_u32);
 	
 	var restypestr = "", restypeversion = 0, reslength = 0;
 	var rescount = buffer_read(b, buffer_u32);
