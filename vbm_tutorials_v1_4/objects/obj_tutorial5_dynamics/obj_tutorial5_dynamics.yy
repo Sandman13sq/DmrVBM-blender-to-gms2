@@ -1,7 +1,7 @@
 {
   "resourceType": "GMObject",
   "resourceVersion": "1.0",
-  "name": "obj_tutorial4_animation",
+  "name": "obj_tutorial5_dynamics",
   "spriteId": null,
   "solid": false,
   "visible": true,

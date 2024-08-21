@@ -11,7 +11,7 @@ matrix_set(matrix_projection, matproj);
 matrix_set(matrix_view, matview);
 
 // Shader Uniforms
-shader_set(shd_style);
+shader_set(shd_tutorial5_style);
 shader_set_uniform_f_array(u_style_eyeforward, viewforward);	// Eye Forward
 shader_set_uniform_f_array(u_style_eyeright, viewright);	// Eye Right
 shader_set_uniform_f_array(u_style_eyeup, viewup);			// Eye Up

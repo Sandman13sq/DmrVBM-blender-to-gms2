@@ -121,12 +121,13 @@ matview = matrix_build_lookat(
 	viewup[0], viewup[1], viewup[2]
 	);
 
+var projection_yflip = (os_type==os_windows)? -1: 1;
 matproj = matrix_build_projection_perspective_fov(
-	-fieldofview, 
-	window_get_width()/window_get_height(),	// May need to be negated on certain devices
+	fieldofview, 
+	window_get_width()/window_get_height() * projection_yflip,
 	znear, 
 	zfar
-	);
+);
 
 #endregion
 

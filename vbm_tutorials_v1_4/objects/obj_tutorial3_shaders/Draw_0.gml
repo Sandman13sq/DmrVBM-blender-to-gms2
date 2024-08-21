@@ -14,11 +14,11 @@ matrix_set(matrix_view, matview);
 matrix_set(matrix_world, mattran); // Model transform matrix
 
 if (shadermode == 0) { // Draw native model
-	shader_set(shd_native);	// Set shader for next draw calls
+	shader_set(shd_tutorial3_native);	// Set shader for next draw calls
 	VBM_Model_Submit(model_native, VBM_SUBMIT_TEXNONE);	// Ignore texture, only use vertex color
 }
 else { // Draw model with normals
-	shader_set(shd_normal);	// Set shader for next draw calls
+	shader_set(shd_tutorial3_normal);	// Set shader for next draw calls
 	shader_set_uniform_f_array(u_normal_lightpos, lightpos); // Set light position for shader
 	shader_set_uniform_f_array(u_normal_eyepos, eyepos); // Set eye position for shader
 	VBM_Model_Submit(model_normal, VBM_SUBMIT_TEXNONE);	// Ignore texture, only use vertex color

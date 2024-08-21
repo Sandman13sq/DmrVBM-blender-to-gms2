@@ -27,12 +27,11 @@ void main()
 	float v2 = distance(c2, vec2(0.5, 0.5)) * 1.0;
 	float r2 = fract(sin( dot(i2, vec2(12.9898, 78.233)) ) * 43758.5);
 	
-	vec3 cBack = vec3(0.07, 0.0, 0.2);
-	vec3 cFill = vec3(0.13, 0.0, 0.3);
+	vec3 color = vec3(0.04, 0.02, 0.13);
 	
-	gl_FragColor.rgb = cBack;
-	gl_FragColor.rgb = mix(gl_FragColor.rgb, cFill, 0.3 * float(v2 < 0.5 && r2 > 0.2));
-	gl_FragColor.rgb = mix(gl_FragColor.rgb, cFill, 0.9 * float(v1 < 0.5 && r1 > 0.2));
+	gl_FragColor.rgb = color * 0.3;
+	gl_FragColor.rgb = mix(gl_FragColor.rgb, color, 0.5 * float(v2 < 0.5 && r2 > 0.2));
+	gl_FragColor.rgb = mix(gl_FragColor.rgb, color, 0.9 * float(v1 < 0.5 && r1 > 0.2));
 	
 	gl_FragColor.a = 1.0;
 }

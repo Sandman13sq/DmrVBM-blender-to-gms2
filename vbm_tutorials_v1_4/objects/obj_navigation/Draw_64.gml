@@ -1,5 +1,4 @@
-/// @description Insert description here
-// You can write your code in this editor
+/// @description
 
 draw_text(16, 20, "Navigate tutorials with Number Keys");
 draw_text(16, 40, "Tutorial: ");

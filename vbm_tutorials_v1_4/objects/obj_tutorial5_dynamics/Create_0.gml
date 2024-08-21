@@ -4,7 +4,7 @@
 viewposition = [0, 0, 1];	// Location to point the camera at
 viewhrot = 0;	// Camera's vertical rotation
 viewvrot = 10;	// Camera's horizontal rotation
-viewdistance = 2.4;	// Distance from camera position
+viewdistance = 2.5;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 0.1;	// Clipping distance for close triangles
@@ -32,7 +32,7 @@ rotationspd = 0;
 model = VBM_Model_Create();	// Initialize model data
 VBM_OpenVBM("tutorial5_model.vbm", model);
 
-model_rotation = VBM_Model_Create();
+model_rotation = VBM_Model_Create();	// Shape to draw for swing bones
 VBM_OpenVBM("rotation.vbm", model_rotation, 0);
 
 animator = VBM_Animator_Create();	// Initialize animator
@@ -59,7 +59,6 @@ mesh_select = 0;
 mesh_flash = 0;
 mesh_hide_bits = 0;
 bone_select = 0;
-bone_matrices = VBM_CreateMatrixArrayFlat(VBM_BONECAPACITY);
 show_bones = 0;
 
 // *Playback Controls ----------------------------------
@@ -67,12 +66,12 @@ playback_speed = 1;
 playback_index = 0;
 
 // *Shader Uniforms
-u_style_bonematrices = shader_get_uniform(shd_style, "u_bonematrices"); // Get uniform handle for transform array in shd_style
-u_style_boneselect = shader_get_uniform(shd_style, "u_boneselect"); // Get uniform handle for bone selection in shd_style
-u_style_meshflash = shader_get_uniform(shd_style, "u_meshflash"); // Get uniform handle for mesh selection in shd_style
-u_style_outline = shader_get_uniform(shd_style, "u_outline"); // Get uniform handle for outline value in shd_style
-u_style_eyeforward = shader_get_uniform(shd_style, "u_eyeforward"); // Get uniform handle for forward vector in shd_style
-u_style_eyeright = shader_get_uniform(shd_style, "u_eyeright"); // Get uniform handle for right vector in shd_style
-u_style_eyeup = shader_get_uniform(shd_style, "u_eyeup"); // Get uniform handle for up vector in shd_style
+u_style_bonematrices = shader_get_uniform(shd_tutorial5_style, "u_bonematrices"); // Get uniform handle for transform array in shd_tutorial5_style
+u_style_boneselect = shader_get_uniform(shd_tutorial5_style, "u_boneselect"); // Get uniform handle for bone selection in shd_tutorial5_style
+u_style_meshflash = shader_get_uniform(shd_tutorial5_style, "u_meshflash"); // Get uniform handle for mesh selection in shd_tutorial5_style
+u_style_outline = shader_get_uniform(shd_tutorial5_style, "u_outline"); // Get uniform handle for outline value in shd_tutorial5_style
+u_style_eyeforward = shader_get_uniform(shd_tutorial5_style, "u_eyeforward"); // Get uniform handle for forward vector in shd_tutorial5_style
+u_style_eyeright = shader_get_uniform(shd_tutorial5_style, "u_eyeright"); // Get uniform handle for right vector in shd_tutorial5_style
+u_style_eyeup = shader_get_uniform(shd_tutorial5_style, "u_eyeup"); // Get uniform handle for up vector in shd_tutorial5_style
 
 event_perform(ev_step, 0);	// Force an update

@@ -61,7 +61,7 @@ void main()
 	// Net weight for bone selection. Color set in fragment shader
 	float netweight = 0.0;
 	for (int i = 0; i < 4; i++) {
-		netweight += weight[i] * max(0.0, (0.5-abs(u_boneselect-bone[i])) * 2.0);
+		netweight += weight[i] * max(0.0, (0.5-abs(u_boneselect-float(bone[i]))) * 2.0);
 	}
 	netweight = mix(-1.0, netweight, float(u_boneselect > 0.0));
 	v_netweight = netweight;

@@ -22,7 +22,7 @@ void main()
 	
 	// Calculations
 	float dp = dot(normalize(n), l);
-	float rim = dot(normalize(incoming + vec3(.0, .0, -.2)), n);
+	float rim = 1.0-dot(normalize(incoming + vec3(.0, .0, -.2)), n);
 	float spe = dot(reflect(-l, n), incoming);
 	float ani = ((1.0 - abs( dot( normalize( n+(incoming+vec3(.0,.0,.5))*vec3(-.5) ), vec3(.0,.0,1.) ))) * dot(n,l));
 	
@@ -36,17 +36,22 @@ void main()
 	// Style Color
 	if (false) {
 		gl_FragColor = color;
-	    gl_FragColor.rgb = mix(gl_FragColor.rgb, cspec.rgb, float((rim < 0.4) || (ani > 0.95)));
+	    gl_FragColor.rgb = mix(gl_FragColor.rgb, cspec.rgb, float((rim > 0.6) || (ani > 0.95)));
 	    gl_FragColor.rgb = mix(gl_FragColor.rgb, cdark1.rgb, float(dp < 0.0));
 	    gl_FragColor.rgb = mix(gl_FragColor.rgb, cdark2.rgb, float(dp <-0.5));
 		gl_FragColor.rgb = mix(gl_FragColor.rgb, coutline, v_outline);
 	}
 	else {
+		dp = dp*0.5+0.5;
 		gl_FragColor = color;
-		//gl_FragColor.rgb = mix(gl_FragColor.rgb, cspec.rgb, float((rim < 0.4) || (ani > 0.95)));
-		gl_FragColor.rgb = mix(gl_FragColor.rgb, cdark1.rgb, 1.0-max(dp*.5+.5, 0.0));
-		gl_FragColor.rgb = mix(gl_FragColor.rgb, cdark2.rgb, 1.0-max((dp*.5+.5)+0.5, 0.0));
+		gl_FragColor.rgb = mix(gl_FragColor.rgb, cspec.rgb, pow(clamp(rim*1.5, 0.0, 1.0), 4.0) );	// rim
+		gl_FragColor.rgb = mix(gl_FragColor.rgb, cspec.rgb, pow(clamp(ani*1.5, 0.0, 1.0), 4.0) );	// anisotrophic
+		
+		gl_FragColor.rgb = mix(gl_FragColor.rgb, cdark1.rgb, 1.0-clamp(dp, 0.0, 1.0));
+		gl_FragColor.rgb = mix(gl_FragColor.rgb, cdark2.rgb, 1.0-clamp(dp*2.0, 0.0, 1.0));
 		gl_FragColor.rgb = mix(gl_FragColor.rgb, coutline, v_outline);
+		
+		//gl_FragColor.rgb = vec3(rim);
 	}
 	
 	// Weight Color

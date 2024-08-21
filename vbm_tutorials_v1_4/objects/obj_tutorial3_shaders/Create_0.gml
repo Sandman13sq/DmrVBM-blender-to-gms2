@@ -4,7 +4,7 @@
 viewposition = [0, 0, 1];	// Location to point the camera at
 viewhrot = 0;	// Camera's vertical rotation
 viewvrot = 10;	// Camera's horizontal rotation
-viewdistance = 2.4;	// Distance from camera position
+viewdistance = 2.5;	// Distance from camera position
 
 fieldofview = 50;	// Angle of vision
 znear = 0.1;	// Clipping distance for close triangles
@@ -42,7 +42,7 @@ lightpos = [8, -16, 8];	// Light position to pass to shader
 eyepos = [0, 0, 0];	// View position to pass to shader. Calculated with matview
 
 // *Shader Uniforms
-u_normal_lightpos = shader_get_uniform(shd_normal, "u_lightpos"); // Get uniform handle for light position in shd_normal
-u_normal_eyepos = shader_get_uniform(shd_normal, "u_eyepos"); // Get uniform handle for eye position in shd_normal
+u_normal_lightpos = shader_get_uniform(shd_tutorial3_normal, "u_lightpos"); // Get uniform handle for light position in shd_tutorial3_normal
+u_normal_eyepos = shader_get_uniform(shd_tutorial3_normal, "u_eyepos"); // Get uniform handle for eye position in shd_tutorial3_normal
 
 event_perform(ev_step, 0);	// Force an update

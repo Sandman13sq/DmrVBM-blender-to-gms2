@@ -1,12 +1,13 @@
 /// @desc Initializing Variables
 
 // *Camera ----------------------------------------------
-viewposition = [1, 4, 4]; // Camera position
+viewposition = [1, 3, 6]; // Camera position
 cameralookat = [0, 0, 0];	// Camera eye target
 
 fieldofview = 50;	// Angle of vision
 znear = 1;	// Clipping distance for close triangles
 zfar = 100;	// Clipping distance for far triangles
+yflip = (os_type==os_windows);	// Yflip if on Windows (no need on Linux)
 
 // Projection Matrix maps pixels to the screen
 matproj = matrix_build_projection_perspective_fov(
@@ -15,6 +16,7 @@ matproj = matrix_build_projection_perspective_fov(
 	znear,
 	zfar
 );
+
 // View Matrix maps world to camera eye
 matview = matrix_build_lookat(
 	viewposition[0], viewposition[1], viewposition[2],	// Camera location 

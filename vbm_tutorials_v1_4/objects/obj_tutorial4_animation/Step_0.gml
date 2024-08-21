@@ -1,7 +1,6 @@
 /// @desc Move camera + Toggle Shader
 
 // Animation Controls ----------------------------------------
-
 mesh_flash = max(0.0, mesh_flash - 0.05);
 
 // Navigate Meshes
@@ -25,13 +24,17 @@ if ( keyboard_check_pressed(0xDD) ) {	// "]"
 	bone_select = (bone_select+1) mod VBM_Model_GetBoneCount(model);
 }
 
+// Animation ...................................................
+
+// Increment playback frame
 playback_frame += playback_speed;
+
+// Sample animation index at <frame> and store values into <bone_matrices>
 VBM_Model_SampleAnimationIndex_Mat4(model, 0, playback_frame, bone_matrices);
 
 #region Camera =============================================================
 
 var _spd = 0.2;
-
 var matviewrot = matrix_build(0,0,0, viewvrot,0,viewhrot, 1,1,1);
 viewforward = matrix_transform_vertex(matviewrot, 0,1,0);
 viewright = matrix_transform_vertex(matviewrot, 1,0,0);
@@ -68,7 +71,6 @@ if (movingcamera != 0 && (bool(movingcamera) != bool(movingcameralast))) {	// In
 	viewpositionanchor[0] = viewposition[0];
 	viewpositionanchor[1] = viewposition[1];
 	viewpositionanchor[2] = viewposition[2];
-	
 	cameramovemode = keyboard_check(vk_shift);
 }
 
@@ -101,15 +103,16 @@ eyepos = [
 matview = matrix_build_lookat(
 	eyepos[0], eyepos[1], eyepos[2],
 	viewposition[0], viewposition[1], viewposition[2],
-	0,0,-1
+	0,0,1
 	);
 
+var projection_yflip = (os_type==os_windows)? -1: 1;
 matproj = matrix_build_projection_perspective_fov(
 	fieldofview, 
-	window_get_width()/window_get_height(),	// May need to be negated on certain devices
+	window_get_width()/window_get_height() * projection_yflip,
 	znear, 
 	zfar
-	);
+);
 
 #endregion
 

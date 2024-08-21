@@ -11,19 +11,21 @@ matrix_set(matrix_projection, matproj);
 matrix_set(matrix_view, matview);
 
 // Shader Uniforms
-shader_set(shd_rigged);
+shader_set(shd_tutorial4_rigged);
 
 matrix_set(matrix_world, mattran); // Transform matrix
 shader_set_uniform_f(u_rigged_boneselect, bone_select);
-shader_set_uniform_f(u_rigged_meshflash, 0);
+shader_set_uniform_f(u_rigged_meshflash, 0);	// Clear mesh flash uniform value
+
+// Animation matrices are sent as single array representing matrix values
 shader_set_uniform_matrix_array(u_rigged_transforms, bone_matrices);	// Send final pose to shader
 
 // Draw all meshes for model
 VBM_Model_SubmitExt(model, VBM_SUBMIT_TEXDEFAULT, mesh_hide_bits, 0);	// Draw with texture
 
 if ( mesh_flash > 0.0 ) {
-	shader_set_uniform_f(u_rigged_meshflash, sin(2.0*pi*mesh_flash)*0.5 + 0.5);
-	VBM_Model_SubmitMesh(model, VBM_SUBMIT_TEXDEFAULT, mesh_select);	// Draw single mesh
+	shader_set_uniform_f(u_rigged_meshflash, sin(2.0*pi*mesh_flash)*0.5 + 0.5);	// Set flash for next draw call
+	VBM_Model_SubmitMesh(model, VBM_SUBMIT_TEXDEFAULT, mesh_select);	// Draw single mesh with flash value
 }
 shader_reset();
 

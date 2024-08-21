@@ -1,12 +1,20 @@
-/// @description Insert description here
-// You can write your code in this editor
-
+/// @description
 
 var _tutlast = tutorial_index;
 
 for (var i = 1; i < array_length(tutorials); i++) {
 	if ( keyboard_check_pressed(ord("0") + i) ) {
 		tutorial_index = i;
+	}
+}
+
+if ( keyboard_check_pressed(vk_f4) ) {
+	window_set_fullscreen(!window_get_fullscreen());
+}
+
+if ( keyboard_check_pressed(vk_escape) ) {
+	if ( window_get_fullscreen() ) {
+		window_set_fullscreen(false);
 	}
 }
 

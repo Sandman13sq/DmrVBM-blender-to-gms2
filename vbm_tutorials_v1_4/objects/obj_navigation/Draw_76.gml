@@ -1,5 +1,4 @@
-/// @description Insert description here
-// You can write your code in this editor
+/// @description
 
 if ( 
 	surface_get_width(application_surface) != window_get_width() ||

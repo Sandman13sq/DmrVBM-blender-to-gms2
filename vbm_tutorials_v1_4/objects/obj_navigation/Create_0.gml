@@ -1,5 +1,4 @@
-/// @description Insert description here
-// You can write your code in this editor
+/// @description 
 
 tutorials = [
 	0,
@@ -7,7 +6,7 @@ tutorials = [
 	obj_tutorial2_loadModel,
 	obj_tutorial3_shaders,
 	obj_tutorial4_animation,
-	obj_tutorial5_animator,
+	obj_tutorial5_dynamics,
 ];
 
 tutorial_index = 1;
