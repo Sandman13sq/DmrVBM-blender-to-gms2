@@ -2106,7 +2106,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 collidermap = {}   # { bname: swing_index }
                 
                 for bname in deformorder:
-                    if vbmskeleton.deform_mask[bname].enabled:
+                    if not vbmskeleton.deform_mask or vbmskeleton.deform_mask[bname].enabled:
                         swinglabel = vbmskeleton.swing_bones.get(bname, "")
                         swing = vbmskeleton.deform_mask.get(swinglabel.name, None).swing if swinglabel else None
                         if not swing:
