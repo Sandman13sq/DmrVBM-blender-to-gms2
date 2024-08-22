@@ -1352,18 +1352,20 @@ class VBM_PT_Structs(bpy.types.Panel):
             c = layout.column(align=1)
             r = c.row(align=1)
             r.scale_x=0.15; r.prop_search(vbm, 'queue_name', vbm, 'queues', text="", icon=VBM_QUEUE_GROUPICON[0]); r.scale_x=1.0
-            r.prop(queue, 'name', text="")
+            if queue:
+                r.prop(queue, 'name', text="")
             r.operator('vbm.queue_operation', text="", icon='ADD').operation='ADD'
             r.operator('vbm.queue_operation', text="", icon='REMOVE').operation='REMOVE'
             
-            r = c.row(align=1)
-            r.prop(queue, 'group', text="", icon_only=1)
-            r.operator('vbm.queue_operation', text="", icon='FOLDER_REDIRECT').operation='PROJECT_PATH'
-            r.prop(queue, 'filepath', text="")
-            op = r.operator('vbm.export_model', text="", icon='WINDOW')
-            op.dialog, op.queue = (True, queue.name)
-            op = r.operator('vbm.export_model', text="", icon='SOLO_ON')
-            op.dialog, op.queue = (False, queue.name)
+            if queue:
+                r = c.row(align=1)
+                r.prop(queue, 'group', text="", icon_only=1)
+                r.operator('vbm.queue_operation', text="", icon='FOLDER_REDIRECT').operation='PROJECT_PATH'
+                r.prop(queue, 'filepath', text="")
+                op = r.operator('vbm.export_model', text="", icon='WINDOW')
+                op.dialog, op.queue = (True, queue.name)
+                op = r.operator('vbm.export_model', text="", icon='SOLO_ON')
+                op.dialog, op.queue = (False, queue.name)
             Panel_Queues(context, layout)
         elif tab_select == 'MATERIAL':
             Panel_Materials(context, layout)
