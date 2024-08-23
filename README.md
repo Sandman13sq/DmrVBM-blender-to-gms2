@@ -37,30 +37,31 @@ For stable versions see the **Releases** on the GitHub page.
 		- Normal - Surface orientation of vertex
 		- Tangent - Vector perpendicular to the normal.
 		- Bitangent - Cross product of normal and tangent.
-		- Color - Vertex colors as floats.
+		- Color - Vertex colors as Linear or sRGB values.
 		- Bone Indices - Index of bone from deform vertex groups.
 		- Weights - Weight from deform vertex groups.
 		- Group Value - Vertex weight value from named vertex group.
 		- Padding - A constant value for all vertices
+	- Attributes can be set to export as floats or bytes
 	- Pack textures from materials into files.
 	- Override materials on export.
 - Skeleton exports
 	- Choose to export deform only bones
 	- Mask out bones for export to reduce bone count
+	- Set dynamic bone settings for things like hair/clothing, etc.
 - Animation exports
-	- Mask out bones to export curves for
+	- Mask out bones to export curves for.
 - Queues
 	- Design a custom export queue with specific object order.
-	- Exports can be repeated in a single click with the Star button.
+	- Exports can be repeated in a single click via the Star button.
 
 ### Game Maker Package
 - No-fuss Rendering
-	- Rendering models takes very few steps.
+	- Rendering models takes very few steps. 
+		- Load model from file > evaluate animation > set matrices > submit model
 	- Data relevant to model is stored with model, including vertex format and textures.
-	- 
 
-All attributes can be set to export as floats or bytes. 
-Game Maker's native format is [Position, Color (Bytes), UV]
+Game Maker's native format is [Position 3f, Color 4B, UV 2f]
 
 -----------------------------------------------------------------------------------------------
 

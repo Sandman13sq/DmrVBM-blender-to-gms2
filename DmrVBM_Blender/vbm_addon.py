@@ -1724,8 +1724,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     elif item.object:
                         if not armature and item.object.type == 'ARMATURE':
                             armature = item.object
-                        else:
-                            objectentries.append((item.object, item))
+                        objectentries.append((item.object, item))
                         if item.include_child_objects:
                             objectentries += [(x, item) for x in list(item.object.children)]
                         if item.action:
@@ -1745,9 +1744,11 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         use_skinning = sum([x in [f[0] for f in format_params] for x in 'BONE WEIGHT'.split()]) > 0
         
         objectentries = [x for x in objectentries if x[0].name[0].lower() in 'qwertyuiopasdfghjklzxcvbnm']
-        sourcerigs = list(set([x.find_armature() for x,item in objectentries if x.find_armature()])) if use_skinning else []
+        sourcerigs = list(set( [x for x in [y for obj,item in objectentries for y in [obj, obj.find_armature()]] if x and x.type=='ARMATURE' ] ))
         netmaterials = []
         netimages = []
+        
+        print("sourcerigs:",sourcerigs)
         
         for rig in sourcerigs:
             vbm.EvaluateDeformOrder(rig, [x.name for x in rig.vbm.deform_mask if x.enabled])
