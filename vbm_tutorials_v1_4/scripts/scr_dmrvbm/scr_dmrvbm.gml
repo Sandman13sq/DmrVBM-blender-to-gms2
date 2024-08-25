@@ -1429,147 +1429,152 @@ function VBM_Animator_Update(animator, delta) {
 		bone_hash = animator.bone_hashes[bone_index];
 		
 		// Swing bone ......................................................
-		for (var i = 0; i < animator.swing_count; i++) {
-			if ( bone_hash == animator.swing_bones[i].bone_hash ) {
-				swg = animator.swing_bones[i];
-				parent_index = parentindices[bone_index];
+		if ( animator.swing_enabled )
+			for (var i = 0; i < animator.swing_count; i++) {
+				if ( bone_hash == animator.swing_bones[i].bone_hash ) {
+					swg = animator.swing_bones[i];
+					parent_index = parentindices[bone_index];
 				
-				// Get position of bone before local transform = Bone.Local x Parent.Absolute
-				mswg = matrix_multiply(animator.bone_matlocal[bone_index], animator.matworld[parent_index]);
-				vsource[0] = mswg[VBM_M03];
-				vsource[1] = mswg[VBM_M13];
-				vsource[2] = mswg[VBM_M23];
-				__vbm_mat4inverse(minv, mswg);	// Used when converting back to local transform
+					// Get position of bone before local transform = Bone.Local x Parent.Absolute
+					mswg = matrix_multiply(animator.bone_matlocal[bone_index], animator.matworld[parent_index]);
+					vsource[0] = mswg[VBM_M03];
+					vsource[1] = mswg[VBM_M13];
+					vsource[2] = mswg[VBM_M23];
+					__vbm_mat4inverse(minv, mswg);	// Used when converting back to local transform
 				
-				// Get position of goal = (Bone.Local x Swing.Offset) x Parent.Absolute
-				array_copy(voffset, 0, swg.offset, 0, 3);
-				if ( voffset[0] == 0 && voffset[1] == 0 && voffset[2] == 0 ) {
-					voffset[1] = animator.bone_segments[bone_index][7];
-				}
+					// Get position of goal = (Bone.Local x Swing.Offset) x Parent.Absolute
+					array_copy(voffset, 0, swg.offset, 0, 3);
+					if ( voffset[0] == 0 && voffset[1] == 0 && voffset[2] == 0 ) {
+						voffset[1] = animator.bone_segments[bone_index][7];
+					}
 				
-				mswg = matrix_build(voffset[0],voffset[1],voffset[2], 0,0,0, 1,1,1);
-				mswg = matrix_multiply(mswg, animator.bone_matlocal[bone_index]);
-				mswg = matrix_multiply(mswg, animator.matworld[parent_index]);
+					mswg = matrix_build(voffset[0],voffset[1],voffset[2], 0,0,0, 1,1,1);
+					mswg = matrix_multiply(mswg, animator.bone_matlocal[bone_index]);
+					mswg = matrix_multiply(mswg, animator.matworld[parent_index]);
 				
-				vgoal[0] = mswg[VBM_M03];
-				vgoal[1] = mswg[VBM_M13];
-				vgoal[2] = mswg[VBM_M23];
+					vgoal[0] = mswg[VBM_M03];
+					vgoal[1] = mswg[VBM_M13];
+					vgoal[2] = mswg[VBM_M23];
 				
-				// Calculate Particle
-				if (1) {
-					frictionrate = (1.0-swg.friction);
-					stiffness = swg.stiffness;
-					dampness = swg.dampness;
-					
-					array_copy(vlast, 0, swg.vcurr, 0, 3);
-					acc[0] = swg.force[0] / swg.mass;
-					acc[1] = swg.force[1] / swg.mass;
-					acc[2] = swg.force[2] / swg.mass;
-	
-					vel[0] = swg.vcurr[0] - swg.vprev[0];
-					vel[1] = swg.vcurr[1] - swg.vprev[1];
-					vel[2] = swg.vcurr[2] - swg.vprev[2];
-	
-					v[0] = vlast[0] + vel[0] * dt * frictionrate + acc[0] * dt * dt;
-					v[1] = vlast[1] + vel[1] * dt * frictionrate + acc[1] * dt * dt;
-					v[2] = vlast[2] + vel[2] * dt * frictionrate + acc[2] * dt * dt;
-				
-					vlast[0] -= (vgoal[0] - v[0]) * stiffness;
-					vlast[1] -= (vgoal[1] - v[1]) * stiffness;
-					vlast[2] -= (vgoal[2] - v[2]) * stiffness;
-	
-					vlast[0] = lerp(vlast[0], v[0], dampness);
-					vlast[1] = lerp(vlast[1], v[1], dampness);
-					vlast[2] = lerp(vlast[2], v[2], dampness);
-					
-					// Apply Constraints .................................
-					
-					// Collision Constraint
+					// Calculate Particle
 					if (1) {
-						for (collider_index = 0; collider_index < animator.collider_count; collider_index++) {
-							collider = animator.colliders[collider_index];
-							vcoll = collider.vcurr;
-							vel[0] = v[0] - vcoll[0];
-							vel[1] = v[1] - vcoll[1];
-							vel[2] = v[2] - vcoll[2];
-							d = point_distance_3d(0,0,0, vel[0], vel[1], vel[2]) + 0.000001;
-							if ( d < collider.radius ) {
-								vel[0] /= d; vel[1] /= d; vel[2] /= d;
-								d = collider.radius;
-								v[0] = vcoll[0] + vel[0] * d;
-								v[1] = vcoll[1] + vel[1] * d;
-								v[2] = vcoll[2] + vel[2] * d;
-								d *= 0.9;
-								vlast[0] = vcoll[0] + vel[0] * d;
-								vlast[1] = vcoll[1] + vel[1] * d;
-								vlast[2] = vcoll[2] + vel[2] * d;
+						frictionrate = (1.0-swg.friction);
+						stiffness = swg.stiffness;
+						dampness = swg.dampness;
+					
+						array_copy(vlast, 0, swg.vcurr, 0, 3);
+						acc[0] = swg.force[0] / swg.mass;
+						acc[1] = swg.force[1] / swg.mass;
+						acc[2] = swg.force[2] / swg.mass;
+	
+						vel[0] = swg.vcurr[0] - swg.vprev[0];
+						vel[1] = swg.vcurr[1] - swg.vprev[1];
+						vel[2] = swg.vcurr[2] - swg.vprev[2];
+	
+						v[0] = vlast[0] + vel[0] * dt * frictionrate + acc[0] * dt * dt;
+						v[1] = vlast[1] + vel[1] * dt * frictionrate + acc[1] * dt * dt;
+						v[2] = vlast[2] + vel[2] * dt * frictionrate + acc[2] * dt * dt;
+				
+						v[0] = lerp(v[0], vgoal[0], dampness);
+						v[1] = lerp(v[1], vgoal[1], dampness);
+						v[2] = lerp(v[2], vgoal[2], dampness);
+						
+						vlast[0] = lerp(vlast[0], vgoal[0], dampness);
+						vlast[1] = lerp(vlast[1], vgoal[1], dampness);
+						vlast[2] = lerp(vlast[2], vgoal[2], dampness);
+						
+						vlast[0] -= (vgoal[0] - v[0]) * stiffness;
+						vlast[1] -= (vgoal[1] - v[1]) * stiffness;
+						vlast[2] -= (vgoal[2] - v[2]) * stiffness;
+						
+						// Apply Constraints .................................
+					
+						// Collision Constraint
+						if ( animator.colliders_enabled ) {
+							for (collider_index = 0; collider_index < animator.collider_count; collider_index++) {
+								collider = animator.colliders[collider_index];
+								vcoll = collider.vcurr;
+								vel[0] = v[0] - vcoll[0];
+								vel[1] = v[1] - vcoll[1];
+								vel[2] = v[2] - vcoll[2];
+								d = point_distance_3d(0,0,0, vel[0], vel[1], vel[2]) + 0.000001;
+								if ( d < collider.radius ) {
+									vel[0] /= d; vel[1] /= d; vel[2] /= d;
+									d = collider.radius;
+									v[0] = vcoll[0] + vel[0] * d;
+									v[1] = vcoll[1] + vel[1] * d;
+									v[2] = vcoll[2] + vel[2] * d;
+									d *= 0.9;
+									vlast[0] = vcoll[0] + vel[0] * d;
+									vlast[1] = vcoll[1] + vel[1] * d;
+									vlast[2] = vcoll[2] + vel[2] * d;
+								}
 							}
 						}
-					}
 					
-					// Distance constraint
-					if (1) {
-						// * Get direction vector from source to point
-						// * v = source + dir * offset.length
+						// Distance constraint
+						if (1) {
+							// * Get direction vector from source to point
+							// * v = source + dir * offset.length
 						
-						// vCurrent
-						vel[0] = v[0] - vsource[0];
-						vel[1] = v[1] - vsource[1];
-						vel[2] = v[2] - vsource[2];
-						d = point_distance_3d(0,0,0, vel[0], vel[1], vel[2]) + 0.000001;
-						vel[0] /= d; vel[1] /= d; vel[2] /= d;
+							// vCurrent
+							vel[0] = v[0] - vsource[0];
+							vel[1] = v[1] - vsource[1];
+							vel[2] = v[2] - vsource[2];
+							d = point_distance_3d(0,0,0, vel[0], vel[1], vel[2]) + 0.000001;
+							vel[0] /= d; vel[1] /= d; vel[2] /= d;
 						
-						d = point_distance_3d(0,0,0, voffset[0], voffset[1], voffset[2]) + 0.000001;
-						v[0] = vsource[0] + vel[0] * d;
-						v[1] = vsource[1] + vel[1] * d;
-						v[2] = vsource[2] + vel[2] * d;
-					}
+							d = point_distance_3d(0,0,0, voffset[0], voffset[1], voffset[2]) + 0.000001;
+							v[0] = vsource[0] + vel[0] * d;
+							v[1] = vsource[1] + vel[1] * d;
+							v[2] = vsource[2] + vel[2] * d;
+						}
 					
-					// Angle Constraint
-					if (1) {
+						// Angle Constraint
+						if (1) {
 						
-					}
+						}
 					
-					array_copy(swg.vcurr, 0, v, 0, 3);
-					array_copy(swg.vgoal, 0, vgoal, 0, 3);
-					array_copy(swg.vprev, 0, vlast, 0, 3);
+						array_copy(swg.vcurr, 0, v, 0, 3);
+						array_copy(swg.vgoal, 0, vgoal, 0, 3);
+						array_copy(swg.vprev, 0, vlast, 0, 3);
+					}
+					else {
+						array_copy(swg.vcurr, 0, v, 0, 3);
+						array_copy(swg.vgoal, 0, vgoal, 0, 3);
+						array_copy(swg.vprev, 0, vlast, 0, 3);
+					}
+				
+					// Convert from world-space Back to local-space
+					vlocal = matrix_transform_vertex(minv, v[0], v[1], v[2]);
+					lsource = matrix_transform_vertex(minv, vsource[0], vsource[1], vsource[2]);
+					lgoal = matrix_transform_vertex(minv, vgoal[0], vgoal[1], vgoal[2]);
+				
+					// Write rotation back to transform
+					rollpt5 = clamp(arctan2(vlocal[2]-lsource[2], vlocal[1]-lsource[1]) * 0.5, swg.angle_min_y, swg.angle_max_y);
+					pitchpt5 = 0.0;
+					yawpt5 = clamp(-arctan2(vlocal[0]-lsource[0], vlocal[1]-lsource[1]) * 0.5, swg.angle_min_z, swg.angle_max_z);
+				
+					transforms[@ transform_offset + VBM_T_LOCX] = (vlocal[0]-lgoal[0]) * swg.stretch;
+					transforms[@ transform_offset + VBM_T_LOCY] = (vlocal[1]-lgoal[1]) * swg.stretch;
+					transforms[@ transform_offset + VBM_T_LOCZ] = (vlocal[2]-lgoal[2]) * swg.stretch;
+				
+					transforms[@ transform_offset + VBM_T_QUATW] = cos(rollpt5)*cos(pitchpt5)*cos(yawpt5) - sin(rollpt5)*sin(pitchpt5)*sin(yawpt5);
+					transforms[@ transform_offset + VBM_T_QUATX] = sin(rollpt5)*cos(pitchpt5)*cos(yawpt5) + cos(rollpt5)*sin(pitchpt5)*sin(yawpt5);
+					transforms[@ transform_offset + VBM_T_QUATY] = cos(rollpt5)*sin(pitchpt5)*cos(yawpt5) - sin(rollpt5)*cos(pitchpt5)*sin(yawpt5);
+					transforms[@ transform_offset + VBM_T_QUATZ] = cos(rollpt5)*cos(pitchpt5)*sin(yawpt5) + sin(rollpt5)*sin(pitchpt5)*cos(yawpt5);
+					break;
 				}
-				else {
-					array_copy(swg.vcurr, 0, v, 0, 3);
-					array_copy(swg.vgoal, 0, vgoal, 0, 3);
-					array_copy(swg.vprev, 0, vlast, 0, 3);
-				}
-				
-				// Convert from world-space Back to local-space
-				vlocal = matrix_transform_vertex(minv, v[0], v[1], v[2]);
-				lsource = matrix_transform_vertex(minv, vsource[0], vsource[1], vsource[2]);
-				lgoal = matrix_transform_vertex(minv, vgoal[0], vgoal[1], vgoal[2]);
-				
-				// Write rotation back to transform
-				rollpt5 = clamp(arctan2(vlocal[2]-lsource[2], vlocal[1]-lsource[1]) * 0.5, swg.angle_min_y, swg.angle_max_y);
-				pitchpt5 = 0.0;
-				yawpt5 = clamp(-arctan2(vlocal[0]-lsource[0], vlocal[1]-lsource[1]) * 0.5, swg.angle_min_z, swg.angle_max_z);
-				
-				transforms[@ transform_offset + VBM_T_LOCX] = (vlocal[0]-lgoal[0]) * swg.stretch;
-				transforms[@ transform_offset + VBM_T_LOCY] = (vlocal[1]-lgoal[1]) * swg.stretch;
-				transforms[@ transform_offset + VBM_T_LOCZ] = (vlocal[2]-lgoal[2]) * swg.stretch;
-				
-				transforms[@ transform_offset + VBM_T_QUATW] = cos(rollpt5)*cos(pitchpt5)*cos(yawpt5) - sin(rollpt5)*sin(pitchpt5)*sin(yawpt5);
-				transforms[@ transform_offset + VBM_T_QUATX] = sin(rollpt5)*cos(pitchpt5)*cos(yawpt5) + cos(rollpt5)*sin(pitchpt5)*sin(yawpt5);
-				transforms[@ transform_offset + VBM_T_QUATY] = cos(rollpt5)*sin(pitchpt5)*cos(yawpt5) - sin(rollpt5)*cos(pitchpt5)*sin(yawpt5);
-				transforms[@ transform_offset + VBM_T_QUATZ] = cos(rollpt5)*cos(pitchpt5)*sin(yawpt5) + sin(rollpt5)*sin(pitchpt5)*cos(yawpt5);
-				break;
 			}
-		}
 		
 		// Transform to Mat4 ...............................................
 		qw = transforms[transform_offset+VBM_T_QUATW];
 		qx = transforms[transform_offset+VBM_T_QUATX];
 		qy = transforms[transform_offset+VBM_T_QUATY];
 		qz = transforms[transform_offset+VBM_T_QUATZ]; 
-		sx = transforms[VBM_T_SCALEX];
-		sy = transforms[VBM_T_SCALEY];
-		sz = transforms[VBM_T_SCALEZ];
+		sx = abs(transforms[VBM_T_SCALEX]);
+		sy = abs(transforms[VBM_T_SCALEY]);
+		sz = abs(transforms[VBM_T_SCALEZ]);
 		
 		d = 1.0 / (sqrt(qw*qw+qx*qx+qy*qy+qz*qz) + 0.000001);
 		qw *= d; qx *= d; qy *= d; qz *= d;
