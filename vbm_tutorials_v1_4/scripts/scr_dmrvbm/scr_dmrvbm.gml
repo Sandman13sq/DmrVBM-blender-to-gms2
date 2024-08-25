@@ -488,7 +488,7 @@ function VBM_Animation_SampleBoneTransforms(animation, frame, bonehashes, outtra
 					
 					value = valuebuffer[kprev] + 
 						(valuebuffer[knext] - valuebuffer[kprev]) * 
-						(frame - framebuffer[kprev]) / (framebuffer[knext] - framebuffer[kprev]);
+						clamp((frame - framebuffer[kprev]) / (framebuffer[knext] - framebuffer[kprev]), 0.0, 1.0);
 				}
 				// Temporarily Store transforms at output location
 				outtransforms[@ bone_index*stride + transform_index] = value;
@@ -639,6 +639,16 @@ function VBM_Model_GetMeshName(vbmmodel, mesh_index) {
 		"<nullModel>";
 }
 
+function VBM_Model_GetMeshNameArray(vbmmodel) {
+	var names = [];
+	if ( vbmmodel ) {
+		var n = vbmmodel.mesh_count;
+		array_resize(names, n);
+		for (var i = 0; i < n; i++) {names[i] = vbmmodel.meshes[i].name;}
+	}
+	return names;
+}
+
 function VBM_Model_FindMeshIndex(vbmmodel, mesh_name) {
 	if (vbmmodel) {
 		var n = vbmmodel.mesh_count;
@@ -661,6 +671,16 @@ function VBM_Model_GetBoneName(vbmmodel, bone_index) {
 		"<nullModel>";
 }
 
+function VBM_Model_GetBoneNameArray(vbmmodel) {
+	var names = [];
+	if ( vbmmodel ) {
+		var n = vbmmodel.skeleton.bone_count;
+		array_resize(names, n);
+		for (var i = 0; i < n; i++) {names[i] = vbmmodel.skeleton.bone_names[i];}
+	}
+	return names;
+}
+
 function VBM_Model_FindBoneIndex(vbmmodel, bone_name) {
 	if (vbmmodel && vbmmodel.skeleton.bone_count > 0) {
 		var n = vbmmodel.skeleton.bone_count;
@@ -681,6 +701,16 @@ function VBM_Model_GetAnimation(vbmmodel, animation_index) {
 function VBM_Model_GetAnimationName(vbmmodel, animation_index) {
 	return (vbmmodel && animation_index >= 0 && animation_index < vbmmodel.animation_count)?
 		vbmmodel.animations[animation_index].name: "<nullAnimation>";
+}
+
+function VBM_Model_GetAnimationNameArray(vbmmodel) {
+	var names = [];
+	if ( vbmmodel ) {
+		var n = vbmmodel.animation_count;
+		array_resize(names, n);
+		for (var i = 0; i < n; i++) {names[i] = vbmmodel.animations[i].name;}
+	}
+	return names;
 }
 
 function VBM_Model_GetAnimationDuration(vbmmodel, animation_index) {
@@ -709,6 +739,7 @@ function VBM_Model_HasAnimation(vbmmodel, animation_name) {
 }
 
 function VBM_Model_Submit(vbmmodel, texture) {
+	if (!vbmmodel) {return;}
 	var n = vbmmodel.mesh_count;
 	var mesh;
 	var tex;
@@ -951,8 +982,10 @@ function VBM_AnimatorCollider() constructor {
 function VBM_Animator() constructor {
 	transforms = array_create(10*VBM_BONECAPACITY);	// Flat array of [locx, locy, locz, quatw, quatx, quaty, quatz, scalex, scaley, scalez]
 	transforms_last = array_create(10*VBM_BONECAPACITY);
+	transform_root = array_create(10);
 	matworld = array_create(VBM_BONECAPACITY, matrix_build_identity());
 	matfinal = array_create(VBM_BONECAPACITY*16);	// Flat array of [mat4]
+	matroot = matrix_build_identity();
 	
 	bone_count = 0;
 	bone_names = array_create(VBM_BONECAPACITY);
@@ -964,9 +997,11 @@ function VBM_Animator() constructor {
 	
 	swing_bones = [];	// array of VBM_AnimatorSwing
 	swing_count = 0;
+	swing_enabled = true;
 	
 	colliders = [];	// array of VBM_AnimatorCollider
 	collider_count = 0;
+	colliders_enabled = true;
 	
 	layer_count = 0;
 	layers = array_create(8);
@@ -1230,6 +1265,18 @@ function VBM_Animator_PlayAnimationKey(animator, layer_index, animation_name) {
 	}
 }
 
+function VBM_Animator_SetAnimationFrame(animator, layer_index, frame) {
+	if ( animator ) {
+		animator.layers[layer_index].animation_frame = frame;
+	}
+}
+
+function VBM_Animator_SetAnimationPosition(animator, layer_index, position) {
+	if ( animator ) {
+		animator.layers[layer_index].animation_frame = position * animator.layers[layer_index].animation.duration;
+	}
+}
+
 function VBM_Animator_GetLayerCount(animator) {
 	return animator? animator.layer_count: 0;
 }
@@ -1238,10 +1285,36 @@ function VBM_Animator_GetAnimationCount(animator) {
 	return animator? animator.animation_count: 0;
 }
 
+function VBM_Animator_GetAnimationName(animator, animation_index) {
+	return animator?
+		((animation_index >= 0 && animation_index < animator.animation_count)? animator.animations[animation_index].name: "<nullAnimation>"): 
+		"<nullAnimator>";
+}
+
+function VBM_Animator_GetAnimationNameArray(animator) {
+	var names = [];
+	if ( animator ) {
+		var n = animator.animation_count;
+		array_resize(names, n);
+		for (var i = 0; i < n; i++) {names[i] = animator.animations[i].name;}
+	}
+	return names;
+}
+
 function VBM_Animator_GetBoneName(animator, bone_index) {
 	return animator?
 		((bone_index >= 0 && bone_index < animator.bone_count)? animator.bone_names[bone_index]: "<nullBone>"): 
 		"<nullAnimator>";
+}
+
+function VBM_Animator_GetBoneNameArray(animator) {
+	var names = [];
+	if ( animator ) {
+		var n = animator.bone_count;
+		array_resize(names, n);
+		for (var i = 0; i < n; i++) {names[i] = animator.bone_names[i].name;}
+	}
+	return names;
 }
 
 function VBM_Animator_FindBoneIndex(animator, bone_name) {
@@ -1336,6 +1409,7 @@ function VBM_Animator_SetRootTransform(animator, x,y,z, radiansx,radiansy,radian
 	animator.transforms[VBM_T_LOCX] = x;
 	animator.transforms[VBM_T_LOCY] = y;
 	animator.transforms[VBM_T_LOCZ] = z;
+	array_copy(animator.transform_root, 0, animator.transforms, 0, 10);
 }
 
 function VBM_Animator_Update(animator, delta) {
