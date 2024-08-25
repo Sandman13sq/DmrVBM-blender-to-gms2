@@ -1694,6 +1694,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         mesh_delimiter = (settings.get('mesh_delimiter_start', ""), settings.get('mesh_delimiter_end', ""))
         mesh_grouping = settings.get('mesh_grouping', 'OBJECT')
         mesh_alledges = settings.get('mesh_alledges', 0)
+        skeleton_swing = settings.get('skeleton_swing', 1)
+        skeleton_colliders = settings.get('skeleton_colliders', 1)
         action_clean_threshold = settings.get('action_clean_threshold', 0.0001)
         format_code = settings.get('format_code', VBM_FORMAT_CODEDEFAULT)
         
@@ -2090,49 +2092,50 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 DeformChain = lambda chain: ([chain.append(bname) for bname,pname in deformmapraw.items() if pname in chain], chain)[-1]
                 
                 # Swing + Colliders
-                swingchains = []
-                colliderchains = []
-                for pb in rig.pose.bones:
-                    if pb.bone.use_deform:
-                        swinglabel = vbmskeleton.swing_bones.get(pb.name, "")
-                        swing = vbmskeleton.deform_mask.get(swinglabel.name, None).swing if swinglabel else None
-                        if swing and swing.is_chain:
-                            swingchains.append(DeformChain([pb.name]))
-                        
-                        colliderlabel = vbmskeleton.collider_bones.get(pb.name, "")
-                        collider = vbmskeleton.deform_mask.get(colliderlabel.name, None).collider if colliderlabel else None
-                        if collider and collider.is_chain:
-                            colliderchains.append(DeformChain([pb.name]))
                 swinglist = []
                 colliderlist = []
                 swingmap = {}   # { bname: swing_index }
                 collidermap = {}   # { bname: swing_index }
-                
-                for bname in deformorder:
-                    if not vbmskeleton.deform_mask or vbmskeleton.deform_mask[bname].enabled:
-                        swinglabel = vbmskeleton.swing_bones.get(bname, "")
-                        swing = vbmskeleton.deform_mask.get(swinglabel.name, None).swing if swinglabel else None
-                        if not swing:
-                            for chain in swingchains[::-1]:
-                                if bname in chain:
-                                    swing = vbmskeleton.deform_mask.get(chain[0]).swing
-                                    break
-                        if swing:
-                            if swing not in swinglist:
-                                swinglist.append(swing)
-                            swingmap[bname] = swinglist.index(swing)
-                        
-                        colliderlabel = vbmskeleton.collider_bones.get(bname, "")
-                        collider = vbmskeleton.deform_mask.get(colliderlabel.name, None).collider if colliderlabel else None
-                        if not collider:
-                            for chain in colliderchains[::-1]:
-                                if bname in chain:
-                                    collider = vbmskeleton.deform_mask.get(chain[0]).collider
-                                    break
-                        if collider:
-                            if collider not in colliderlist:
-                                colliderlist.append(collider)
-                            collidermap[bname] = colliderlist.index(collider)
+                if skeleton_swing or skeleton_colliders:
+                    swingchains = []
+                    colliderchains = []
+                    for pb in rig.pose.bones:
+                        if pb.bone.use_deform:
+                            swinglabel = vbmskeleton.swing_bones.get(pb.name, "")
+                            swing = vbmskeleton.deform_mask.get(swinglabel.name, None).swing if swinglabel else None
+                            if swing and swing.is_chain:
+                                swingchains.append(DeformChain([pb.name]))
+                            
+                            colliderlabel = vbmskeleton.collider_bones.get(pb.name, "")
+                            collider = vbmskeleton.deform_mask.get(colliderlabel.name, None).collider if colliderlabel else None
+                            if collider and collider.is_chain:
+                                colliderchains.append(DeformChain([pb.name]))
+                    
+                    for bname in deformorder:
+                        if not vbmskeleton.deform_mask or vbmskeleton.deform_mask[bname].enabled:
+                            swinglabel = vbmskeleton.swing_bones.get(bname, "")
+                            swing = vbmskeleton.deform_mask.get(swinglabel.name, None).swing if swinglabel else None
+                            if not swing:
+                                for chain in swingchains[::-1]:
+                                    if bname in chain:
+                                        swing = vbmskeleton.deform_mask.get(chain[0]).swing
+                                        break
+                            if swing:
+                                if swing not in swinglist:
+                                    swinglist.append(swing)
+                                swingmap[bname] = swinglist.index(swing)
+                            
+                            colliderlabel = vbmskeleton.collider_bones.get(bname, "")
+                            collider = vbmskeleton.deform_mask.get(colliderlabel.name, None).collider if colliderlabel else None
+                            if not collider:
+                                for chain in colliderchains[::-1]:
+                                    if bname in chain:
+                                        collider = vbmskeleton.deform_mask.get(chain[0]).collider
+                                        break
+                            if collider:
+                                if collider not in colliderlist:
+                                    colliderlist.append(collider)
+                                collidermap[bname] = colliderlist.index(collider)
                 
                 # Bone meta
                 for bname in deformorder:
@@ -2151,21 +2154,23 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         boneentries.append({'name': "0", 'head': (0,0,0), 'tail': (0,1,0), 'roll': 0.0, 'parent': "0", 'swing_index': 255, 'collider_index': 255})
                 
                 outskeleton = b''
-                outskeleton += Pack('I', len(swinglist))
-                for swing in swinglist:
-                    outskeleton += Pack('f', swing.friction)
-                    outskeleton += Pack('f', swing.stiffness)
-                    outskeleton += Pack('f', swing.dampness)
-                    outskeleton += Pack('f', swing.gravity)
-                    outskeleton += PackVector('f', swing.offset)
-                    outskeleton += PackVector('f', [swing.angle_min_x, swing.angle_max_x])
-                    outskeleton += PackVector('f', [swing.angle_min_z, swing.angle_max_z])
+                outskeleton += Pack('I', len(swinglist) * skeleton_swing)
+                if skeleton_swing:
+                    for swing in swinglist:
+                        outskeleton += Pack('f', swing.friction)
+                        outskeleton += Pack('f', swing.stiffness)
+                        outskeleton += Pack('f', swing.dampness)
+                        outskeleton += Pack('f', swing.gravity)
+                        outskeleton += PackVector('f', swing.offset)
+                        outskeleton += PackVector('f', [swing.angle_min_x, swing.angle_max_x])
+                        outskeleton += PackVector('f', [swing.angle_min_z, swing.angle_max_z])
                 
-                outskeleton += Pack('I', len(colliderlist))
-                for collider in colliderlist:
-                    outskeleton += Pack('f', collider.radius)
-                    outskeleton += Pack('f', collider.length)
-                    outskeleton += PackVector('f', collider.offset)
+                outskeleton += Pack('I', len(colliderlist) * skeleton_colliders)
+                if skeleton_colliders:
+                    for collider in colliderlist:
+                        outskeleton += Pack('f', collider.radius)
+                        outskeleton += Pack('f', collider.length)
+                        outskeleton += PackVector('f', collider.offset)
                 
                 outskeleton += Pack('I', len(boneentries))
                 for bone in boneentries:
@@ -2283,7 +2288,6 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         bonemask = deformorder
                         if src.vbm.deform_mask:
                             bonemask = [x.name for x in src.vbm.deform_mask if x.enabled]
-                        print(src.name)
                         def CurveBytes(curvegroup):
                             hits = 0
                             outchunk = b''
@@ -2336,7 +2340,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         outfile = b''
         outfile += b'VBM' + Pack('B', 4)
         
-        numresources = len(resources['meshes']) + len(resources['meshes']) + len(resources['meshes'])
+        numresources = len(resources['meshes']) + len(resources['skeletons']) + len(resources['animations']) + len(resources['textures'])
         outfile += Pack('I', numresources)
         for data in resources['textures']:
             outfile += ResItem('TEX', 0, data)
@@ -2509,8 +2513,8 @@ def vbm_draw_gpu():
         # Parse Bones ..............................................................................
         for pb in rig.pose.bones:
             if pb.bone.use_deform:
-                deform = vbmskeleton.deform_mask[pb.name].enabled
-                if deform:
+                deform = vbmskeleton.deform_mask.get(pb.name)
+                if deform and deform.enabled:
                     # Swing
                     if vbm.show_bone_swing and (vbm.show_bone_swing_hidden or pb.name in visible):
                         swinglabel = vbmskeleton.swing_bones.get(pb.name, "")
