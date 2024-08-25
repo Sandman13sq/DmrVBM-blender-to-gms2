@@ -1013,47 +1013,56 @@ function VBM_Animator_Clear(animator) {
 }
 
 function VBM_Animator_FromModel(animator, vbmmodel) {
-	var ske = vbmmodel.skeleton;
-	animator.bone_count = ske.bone_count;
-	array_copy(animator.bone_parentindex, 0, ske.bone_parentindex, 0, animator.bone_count);
-	array_copy(animator.bone_names, 0, ske.bone_names, 0, animator.bone_count);
-	array_copy(animator.bone_hashes, 0, ske.bone_hashes, 0, animator.bone_count);
+	VBM_Animator_FromModelExt(animator, vbmmodel, 1, 1);
+}
+
+function VBM_Animator_FromModelExt(animator, vbmmodel, read_skeleton, read_animations) {
+	if (!animator || !vbmmodel) {return;}
 	
 	// Bones
-	for (var i = 0; i < animator.bone_count; i++) {
-		array_copy(animator.bone_matlocal[i], 0, ske.bone_matlocal[i], 0, 16);
-		array_copy(animator.bone_matinverse[i], 0, ske.bone_matinverse[i], 0, 16);
-		animator.bone_segments[i] = array_create(8);
-		array_copy(animator.bone_segments[i], 0, vbmmodel.skeleton.bone_segments[i], 0, 8);
+	if ( read_skeleton ) {
+		var ske = vbmmodel.skeleton;
+		animator.bone_count = ske.bone_count;
+		array_copy(animator.bone_parentindex, 0, ske.bone_parentindex, 0, animator.bone_count);
+		array_copy(animator.bone_names, 0, ske.bone_names, 0, animator.bone_count);
+		array_copy(animator.bone_hashes, 0, ske.bone_hashes, 0, animator.bone_count);
 		
-		if (ske.bone_swingindex[i] >= 0) {
-			var swg = ske.swing_bones[ske.bone_swingindex[i]];
-			VBM_Animator_SwingDefine(
-				animator, animator.bone_names[i],
-				swg.offset[0], swg.offset[1], swg.offset[2],
-				10.0,
-				swg.friction, 
-				swg.stiffness, 
-				swg.dampness, 
-				0.0, 0.0, swg.gravity
-			);
-		}
+		for (var i = 0; i < animator.bone_count; i++) {
+			array_copy(animator.bone_matlocal[i], 0, ske.bone_matlocal[i], 0, 16);
+			array_copy(animator.bone_matinverse[i], 0, ske.bone_matinverse[i], 0, 16);
+			animator.bone_segments[i] = array_create(8);
+			array_copy(animator.bone_segments[i], 0, vbmmodel.skeleton.bone_segments[i], 0, 8);
 		
-		if (ske.bone_colliderindex[i] >= 0) {
-			var collider = ske.collider_bones[ske.bone_colliderindex[i]];
-			VBM_Animator_ColliderDefine(
-				animator, animator.bone_names[i],
-				collider.radius
-			);
+			if (ske.bone_swingindex[i] >= 0) {
+				var swg = ske.swing_bones[ske.bone_swingindex[i]];
+				VBM_Animator_SwingDefine(
+					animator, animator.bone_names[i],
+					swg.offset[0], swg.offset[1], swg.offset[2],
+					10.0,
+					swg.friction, 
+					swg.stiffness, 
+					swg.dampness, 
+					0.0, 0.0, swg.gravity
+				);
+			}
+		
+			if (ske.bone_colliderindex[i] >= 0) {
+				var collider = ske.collider_bones[ske.bone_colliderindex[i]];
+				VBM_Animator_ColliderDefine(
+					animator, animator.bone_names[i],
+					collider.radius
+				);
+			}
 		}
 	}
-	
 	// Animations
-	array_resize(animator.animations, animator.animation_count+vbmmodel.animation_count);
-	for (var i = 0; i < vbmmodel.animation_count; i++) {
-		animator.animations[animator.animation_count] = new VBM_Animation();
-		VBM_Animation_Copy(animator.animations[animator.animation_count], vbmmodel.animations[i]);
-		animator.animation_count += 1;
+	if ( read_animations ) {
+		array_resize(animator.animations, animator.animation_count+vbmmodel.animation_count);
+		for (var i = 0; i < vbmmodel.animation_count; i++) {
+			animator.animations[animator.animation_count] = new VBM_Animation();
+			VBM_Animation_Copy(animator.animations[animator.animation_count], vbmmodel.animations[i]);
+			animator.animation_count += 1;
+		}
 	}
 }
 
