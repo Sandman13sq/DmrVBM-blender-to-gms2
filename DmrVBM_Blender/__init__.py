@@ -3,8 +3,8 @@ bl_info = {
     'description': 'Export tools to export vertex buffer data to Game Maker Studio 2',
     'author': 'Sandman13sq',
     'category': 'Import-Export',
-    'version': (1, 3, 0),
-    'blender': (3, 3, 0),
+    'version': (1, 4, 0),
+    'blender': (4, 0, 0),
     'support': 'COMMUNITY',
     'doc_url': 'https://github.com/Sandman13sq/DmrVBM-blender-to-gms2',
 }
