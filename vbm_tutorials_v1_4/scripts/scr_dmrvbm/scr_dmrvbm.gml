@@ -1646,9 +1646,9 @@ function VBM_Animator_Update(animator, delta) {
 		qx = transforms[transform_offset+VBM_T_QUATX];
 		qy = transforms[transform_offset+VBM_T_QUATY];
 		qz = transforms[transform_offset+VBM_T_QUATZ]; 
-		sx = abs(transforms[VBM_T_SCALEX]);
-		sy = abs(transforms[VBM_T_SCALEY]);
-		sz = abs(transforms[VBM_T_SCALEZ]);
+		sx = transforms[transform_offset+VBM_T_SCALEX];
+		sy = transforms[transform_offset+VBM_T_SCALEY];
+		sz = transforms[transform_offset+VBM_T_SCALEZ];
 		
 		d = 1.0 / (sqrt(qw*qw+qx*qx+qy*qy+qz*qz) + 0.000001);
 		qw *= d; qx *= d; qy *= d; qz *= d;
