@@ -60,10 +60,13 @@ mesh_flash = 0;
 mesh_hide_bits = 0;
 bone_select = 0;
 show_bones = 0;
+animcurve = -1;
 
 // *Playback Controls ----------------------------------
 playback_speed = 1;
 playback_index = 0;
+benchmark_count = 0;
+benchmark_net = [0,0,0];
 
 // *Shader Uniforms
 u_style_bonematrices = shader_get_uniform(shd_tutorial5_style, "u_bonematrices"); // Get uniform handle for transform array in shd_tutorial5_style

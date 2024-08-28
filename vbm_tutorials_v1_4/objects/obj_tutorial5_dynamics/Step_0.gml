@@ -33,16 +33,33 @@ if ( keyboard_check_pressed(0xBD) ) {	// "-"
 	VBM_Animator_PlayAnimationIndex(animator, 0, playback_index);
 	VBM_Animator_Update(animator, 0.0);
 	VBM_Animator_SwingReset(animator);
+	benchmark_count = 0;
+	benchmark_net = [0,0,0];
 }
 if ( keyboard_check_pressed(0xBB) ) {	// "+"
 	playback_index = (playback_index+1) mod VBM_Animator_GetAnimationCount(animator);
 	VBM_Animator_PlayAnimationIndex(animator, 0, playback_index);
 	VBM_Animator_Update(animator, 0.0);
 	VBM_Animator_SwingReset(animator);
+	benchmark_count = 0;
+	benchmark_net = [0,0,0];
 }
 
 if ( keyboard_check(vk_space) ) {	// "]"
 	VBM_Animator_SwingReset(animator);
+}
+
+if ( keyboard_check_pressed(ord("C")) ) {	// "]"
+	if ( animator.layers[0].animation.animcurve ) {
+		animcurve = animator.layers[0].animation.animcurve;
+		animator.layers[0].animation.animcurve = -1;
+	}
+	else {
+		animator.layers[0].animation.animcurve = animcurve;
+		animcurve = -1;
+	}
+	benchmark_count = 0;
+	benchmark_net = [0,0,0];
 }
 
 #region Camera =============================================================
@@ -136,3 +153,7 @@ zrot = max(zrot mod 360, (360+zrot) mod 360);
 // Model matrix
 VBM_Animator_SetRootTransform(animator, x,y,0, 0, 0, zrot*pi/180.0, 1,1,1);
 VBM_Animator_Update(animator, 1.0);
+benchmark_net[0] += animator.benchmark[0];
+benchmark_net[1] += animator.benchmark[1];
+benchmark_net[2] += animator.benchmark[2];
+benchmark_count += 1;
