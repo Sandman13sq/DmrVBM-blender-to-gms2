@@ -101,6 +101,7 @@ VBM_DESCRIPTIONS = {
     'mesh_delimiter_end': "Remove end of mesh name including this character",
     'mesh_flip_uvs': "Flip UVs such that top left of texture is y = 0",
     'mesh_alledges': "Export mesh as edges",
+    'mesh_fast_staging': "Export mesh as it appears in viewport instead of evaluating modifiers, constraints, etc. Disables Mesh Pre Script",
     'skeleton_export': "Write skeleton data to file",
     'skeleton_delimiter_start': "Remove beginning of bone name up to and including this character",
     'skeleton_delimiter_end': "Remove end of bone name including this character",
@@ -236,6 +237,7 @@ class VBM_PG_Queue(bpy.types.PropertyGroup):
     mesh_material_override: bpy.props.PointerProperty(name="Material Override", type=bpy.types.Material, description=VBM_DESCRIPTIONS['mesh_material_override'], options=set())
     mesh_script_pre: bpy.props.PointerProperty(name="Mesh Script Pre", type=bpy.types.Text, description=VBM_DESCRIPTIONS['mesh_script_pre'], options=set())
     mesh_script_post: bpy.props.PointerProperty(name="Mesh Script Post", type=bpy.types.Text, description=VBM_DESCRIPTIONS['mesh_script_post'], options=set())
+    mesh_fast_staging: bpy.props.BoolProperty(name="Mesh Fast", default=False, description=VBM_DESCRIPTIONS['mesh_fast_staging'], options=set())
     
     mesh_delimiter_start: bpy.props.StringProperty(name="Mesh Delimiter Start", default="", description=VBM_DESCRIPTIONS['mesh_delimiter_start'], options=set())
     mesh_delimiter_end: bpy.props.StringProperty(name="Mesh Delimiter End", default="", description=VBM_DESCRIPTIONS['mesh_delimiter_end'], options=set())
@@ -416,6 +418,29 @@ class VBM_OT_SceneTransfer(bpy.types.Operator):
         
         return {'FINISHED'}
 classlist.append(VBM_OT_SceneTransfer)
+
+# -------------------------------------------------------------------------------------------
+class VBM_OT_ClearCache(bpy.types.Operator):
+    """Clear export cache for all objects"""
+    bl_label = "Clear Cache"
+    bl_idname = 'vbm.clear_cache'
+    bl_options = {'REGISTER', 'UNDO'}
+    
+    def execute(self, context):
+        hits = 0
+        for obj in context.scene.collection.all_objects:
+            hit = 0
+            if obj.get('VBM_CHECKSUM'):
+                del obj['VBM_CHECKSUM']
+                hit = 1
+            for k in obj.keys():
+                if 'VBM_DATA' in k:
+                    del obj[k]
+                    hit += 1
+            hits += hit
+        self.report({'INFO'}, "> Cache cleared for all objects (Hits: %d)" % hits)
+        return {'FINISHED'}
+classlist.append(VBM_OT_ClearCache)
 
 # -------------------------------------------------------------------------------------------
 class VBM_OT_ActionOperator(bpy.types.Operator):
@@ -683,6 +708,7 @@ class VBM_OT_ExportModel(bpy.types.Operator, ExportHelper):
     mesh_script_post: bpy.props.StringProperty(name="Mesh Script Post", default="", description=VBM_DESCRIPTIONS['mesh_script_post'])
     mesh_flip_uvs: bpy.props.BoolProperty(name="Flip UVs", default=True, description=VBM_DESCRIPTIONS['mesh_flip_uvs'])
     mesh_alledges: bpy.props.BoolProperty(name="All Edges", default=False, description=VBM_DESCRIPTIONS['mesh_alledges'])
+    mesh_fast_staging: bpy.props.BoolProperty(name="Fast Staging", default=False, description=VBM_DESCRIPTIONS['mesh_fast_staging'])
     
     skeleton_export: bpy.props.BoolProperty(name="Export Armature", default=True, description=VBM_DESCRIPTIONS['skeleton_export'])
     skeleton_delimiter_start: bpy.props.StringProperty(name="Armature Delimiter Start", default="", description=VBM_DESCRIPTIONS['skeleton_delimiter_start'])
@@ -697,7 +723,7 @@ class VBM_OT_ExportModel(bpy.types.Operator, ExportHelper):
     
     saveprops = '''
         file_type filepath batching collection
-        mesh_export mesh_grouping mesh_delimiter_start mesh_delimiter_end mesh_script_post mesh_script_pre mesh_alledges mesh_material_override format
+        mesh_export mesh_grouping mesh_delimiter_start mesh_delimiter_end mesh_script_post mesh_script_pre mesh_alledges mesh_material_override mesh_fast_staging format
         skeleton_export skeleton_delimiter_start skeleton_delimiter_end skeleton_swing skeleton_colliders
         action_export action_delimiter_start action_delimiter_end action_clean_threshold
     '''.split()
@@ -734,7 +760,9 @@ class VBM_OT_ExportModel(bpy.types.Operator, ExportHelper):
         r.prop(self, 'mesh_delimiter_end', text="", icon='TRACKING_CLEAR_BACKWARDS')
         b.prop(self, 'mesh_grouping')
         b.prop_search(self, 'mesh_material_override', bpy.data, 'materials', text="Mtl Override")
-        b.prop_search(self, 'mesh_script_pre', bpy.data, 'texts', text="Pre Script")
+        b.prop(self, 'mesh_fast_staging')
+        bb = b.column(align=1); bb.use_property_split=1; bb.active=not self.mesh_fast_staging
+        bb.prop_search(self, 'mesh_script_pre', bpy.data, 'texts', text="Pre Script")
         b.prop_search(self, 'mesh_script_post', bpy.data, 'texts', text="Post Script")
         b.prop(self, 'mesh_flip_uvs')
         b.prop(self, 'mesh_alledges')
@@ -1259,7 +1287,9 @@ def Panel_Settings(context, layout):
     layout = layout.column()
     layout.prop(vbm, 'project_path')
     layout.prop(vbm, 'cache_actions')
-    layout.operator('vbm.action_operation', text="Clear Checksum", icon='ACTION').operation='RESET'
+    r = layout.row()
+    r.operator('vbm.clear_cache', text="Clear Object Checksum", icon='OBJECT_DATA')
+    r.operator('vbm.action_operation', text="Clear Action Checksum", icon='ACTION').operation='RESET'
     r = layout.row()
     r.scale_x = 1.4; r.label(text="Clean Exclude:"); r.scale_x = 1.0
     r.prop(vbm, 'export_cleanup_exclude', expand=True)
@@ -1694,6 +1724,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         mesh_delimiter = (settings.get('mesh_delimiter_start', ""), settings.get('mesh_delimiter_end', ""))
         mesh_grouping = settings.get('mesh_grouping', 'OBJECT')
         mesh_alledges = settings.get('mesh_alledges', 0)
+        mesh_fast_staging = settings.get('mesh_fast_staging', False)
         skeleton_swing = settings.get('skeleton_swing', 1)
         skeleton_colliders = settings.get('skeleton_colliders', 1)
         action_clean_threshold = settings.get('action_clean_threshold', 0.0001)
@@ -1774,63 +1805,76 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             print("> Mesh Staging")
             benchmark['mesh_staging'] = time.time()
             targetmeshes = []
+            depsgraph = context.evaluated_depsgraph_get()
             
             # Copy source objects as temporary
             for src,item in objectentries:
                 if src and src.type == 'MESH':
-                    obj = bpy.data.objects.new(name="__temp_VBMEXPORT-"+src.name, object_data=src.data.copy())
-                    obj.data.name = "__temp_VBMEXPORT-"+src.data.name
-                    obj.matrix_world = src.matrix_world
-                    context.scene.collection.objects.link(obj)
-                    
-                    if item and item.action and src.find_armature():
-                        src.find_armature().animation_data.action = item.action
-                        src.find_armature().data.pose_position = 'POSE'
-                    
-                    # Run Pre Script
-                    if mesh_script_pre:
-                        print("> Mesh Script Pre:")
-                        obj.select_set(True)
-                        bpy.context.view_layer.update()
-                        context.scene['VBM_EXPORTING'] = True
-                        try:
-                            exec(mesh_script_pre.as_string())
-                        except:
-                            print("Error executing export pre script")
-                        context.scene['VBM_EXPORTING'] = False
-                    
-                    # Copy modifiers
-                    for msrc in src.modifiers:
-                        if msrc.name[0].lower() in 'qwertyuiopasdfghjklzxcvbnm':
-                            m = obj.modifiers.new(name=msrc.name, type=msrc.type)
-                            [setattr(m, p.identifier, getattr(msrc, p.identifier)) for p in msrc.bl_rna.properties if not p.is_readonly]
-                            m.show_viewport = True
-                            if m.type == 'NODES':
-                                m['Socket_2'] = msrc['Socket_2']
-                            if m.type == 'ARMATURE':
-                                m.use_vertex_groups = not use_skinning
-                    
-                    # Use instances
-                    instsrc = src.children[0] if src.children else None
-                    if src.instance_type=='FACES' and instsrc:
-                        instscale = src.instance_faces_scale if src.use_instance_faces_scale else 1.0
-                        for p in obj.data.polygons:
-                            # TODO: Implement rotation for instanced objects
-                            inst = bpy.data.objects.new(name="__temp_VBMEXPORT-"+instsrc.name, object_data=instsrc.data.copy())
-                            scale = (p.area ** 0.5) * instscale
-                            inst.matrix_world = src.matrix_world @ mathutils.Matrix.LocRotScale(p.center, None, [scale]*3)
-                            context.scene.collection.objects.link(inst)
+                    if mesh_fast_staging and not (use_skinning and src.find_armature()):
+                        # Grab evaluated object and copy over its evaluated mesh
+                        obj = bpy.data.objects.new(name="__temp_VBMEXPORT-"+src.name, object_data=src.evaluated_get(depsgraph).data.copy())
+                        obj.data.name = "__temp_VBMEXPORT-"+src.data.name
+                        obj.matrix_world = src.matrix_world
+                        context.scene.collection.objects.link(obj)
+                        m = obj.modifiers.new(name="Triangle", type='TRIANGULATE')
+                        if bpy.app.version < (4,2,0):
+                            m.keep_custom_normals=True
+                        targetmeshes.append((obj, src, item))
+                    else:
+                        # Create object and copy mesh data
+                        obj = bpy.data.objects.new(name="__temp_VBMEXPORT-"+src.name, object_data=src.data.copy())
+                        obj.data.name = "__temp_VBMEXPORT-"+src.data.name
+                        obj.matrix_world = src.matrix_world
+                        context.scene.collection.objects.link(obj)
+                        
+                        if item and item.action and src.find_armature():
+                            src.find_armature().animation_data.action = item.action
+                            src.find_armature().data.pose_position = 'POSE'
+                        
+                        # Run Pre Script
+                        if mesh_script_pre:
+                            print("> Mesh Script Pre:")
+                            obj.select_set(True)
+                            bpy.context.view_layer.update()
+                            context.scene['VBM_EXPORTING'] = True
+                            try:
+                                exec(mesh_script_pre.as_string())
+                            except:
+                                print("Error executing export pre script")
+                            context.scene['VBM_EXPORTING'] = False
+                        
+                        # Copy modifiers
+                        for msrc in src.modifiers:
+                            if msrc.name[0].lower() in 'qwertyuiopasdfghjklzxcvbnm':
+                                m = obj.modifiers.new(name=msrc.name, type=msrc.type)
+                                [setattr(m, p.identifier, getattr(msrc, p.identifier)) for p in msrc.bl_rna.properties if not p.is_readonly]
+                                m.show_viewport = True
+                                if m.type == 'NODES':
+                                    m['Socket_2'] = msrc['Socket_2']
+                                if m.type == 'ARMATURE':
+                                    m.use_vertex_groups = not use_skinning
+                        
+                        # Use instances
+                        instsrc = src.children[0] if src.children else None
+                        if src.instance_type=='FACES' and instsrc:
+                            instscale = src.instance_faces_scale if src.use_instance_faces_scale else 1.0
+                            for p in obj.data.polygons:
+                                # TODO: Implement rotation for instanced objects
+                                inst = bpy.data.objects.new(name="__temp_VBMEXPORT-"+instsrc.name, object_data=instsrc.data.copy())
+                                scale = (p.area ** 0.5) * instscale
+                                inst.matrix_world = src.matrix_world @ mathutils.Matrix.LocRotScale(p.center, None, [scale]*3)
+                                context.scene.collection.objects.link(inst)
+                                if not mesh_alledges:
+                                    m = inst.modifiers.new(name="Triangle", type='TRIANGULATE')
+                                    if bpy.app.version < (4,2,0):
+                                        m.keep_custom_normals=True
+                                targetmeshes.append((inst, instsrc, item))
+                        else:
                             if not mesh_alledges:
-                                m = inst.modifiers.new(name="Triangle", type='TRIANGULATE')
+                                m = obj.modifiers.new(name="Triangle", type='TRIANGULATE')
                                 if bpy.app.version < (4,2,0):
                                     m.keep_custom_normals=True
-                            targetmeshes.append((inst, instsrc, item))
-                    else:
-                        if not mesh_alledges:
-                            m = obj.modifiers.new(name="Triangle", type='TRIANGULATE')
-                            if bpy.app.version < (4,2,0):
-                                m.keep_custom_normals=True
-                        targetmeshes.append((obj, src, item))
+                            targetmeshes.append((obj, src, item))
             
             # Finalize objects
             if targetmeshes:
@@ -2380,6 +2424,7 @@ classlist.append(VBM_PG_Master)
 '# GPU'
 '# =========================================================================================================================='
 
+PI = 3.14
 shader = gpu.shader.from_builtin('UNIFORM_COLOR')
 ringverts = [(x,y) for j in range(0, VBM_SWINGCIRCLEPRECISION) for i in [j,j+1] for a in [(i/VBM_SWINGCIRCLEPRECISION)*PI*2] for x,y in [(cos(a), sin(a))]]
 batch_ring_y = batch_for_shader(shader, 'LINES', {"pos": [(x,0,y) for x,y in ringverts] + [(.1,1,0), (0,1.2,0), (0,1.2,0), (-.1,1,0)] })
@@ -2389,54 +2434,7 @@ batch_swing_limit_z = batch_for_shader(shader, 'LINES', {"pos": [(0,0,0), (0,1,0
 batch_sphere = batch_for_shader(shader, 'LINES', {"pos": [(x,y,0) for x,y in ringverts] + [(x,0,y) for x,y in ringverts] + [(0,x,y) for x,y in ringverts]})
 batch_semi = batch_for_shader(shader, 'LINES', {"pos": [(x,0,y) for x,y in ringverts] + [(0,y,x) for x,y in ringverts[:len(ringverts)//2]] + [(x,y,0) for x,y in ringverts[:len(ringverts)//2]]})
 batch_shell = batch_for_shader(shader, 'LINES', {"pos": [(1,0,0),(1,1,0), (-1,0,0),(-1,1,0), (0,0,1),(0,1,1), (0,0,-1),(0,1,-1)]})
-batch_cone = batch_for_shader(shader, 'TRIS', {"pos": [
-    (-0.92,1.00,0.38),(-0.71,1.00,0.71),(0.00,0.00,0.00),
-    (-0.92,1.00,0.38),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.92,1.00,-0.38),(0.71,1.00,-0.71),(0.00,0.00,0.00),
-    (0.92,1.00,-0.38),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (-1.00,1.00,-0.00),(-0.92,1.00,0.38),(0.00,0.00,0.00),
-    (-1.00,1.00,-0.00),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (1.00,1.00,-0.00),(0.92,1.00,-0.38),(0.00,0.00,0.00),
-    (1.00,1.00,-0.00),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (-0.92,1.00,-0.38),(-1.00,1.00,-0.00),(0.00,0.00,0.00),
-    (-0.92,1.00,-0.38),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.92,1.00,0.38),(1.00,1.00,-0.00),(0.00,0.00,0.00),
-    (0.92,1.00,0.38),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (-0.71,1.00,-0.71),(-0.92,1.00,-0.38),(0.00,0.00,0.00),
-    (-0.71,1.00,-0.71),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.71,1.00,0.71),(0.92,1.00,0.38),(0.00,0.00,0.00),
-    (0.71,1.00,0.71),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (-0.38,1.00,-0.92),(-0.71,1.00,-0.71),(0.00,0.00,0.00),
-    (-0.38,1.00,-0.92),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.38,1.00,0.92),(0.71,1.00,0.71),(0.00,0.00,0.00),
-    (0.38,1.00,0.92),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.00,1.00,-1.00),(-0.38,1.00,-0.92),(0.00,0.00,0.00),
-    (0.00,1.00,-1.00),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (-0.38,1.00,0.92),(0.00,1.00,1.00),(0.00,0.00,0.00),
-    (-0.38,1.00,0.92),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.00,1.00,1.00),(0.38,1.00,0.92),(0.00,0.00,0.00),
-    (0.00,1.00,1.00),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.38,1.00,-0.92),(0.00,1.00,-1.00),(0.00,0.00,0.00),
-    (0.38,1.00,-0.92),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (-0.71,1.00,0.71),(-0.38,1.00,0.92),(0.00,0.00,0.00),
-    (-0.71,1.00,0.71),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.71,1.00,-0.71),(0.38,1.00,-0.92),(0.00,0.00,0.00),
-    (0.71,1.00,-0.71),(0.00,0.00,0.00),(0.00,0.00,0.00),
-    (0.00,1.00,1.00),(-0.38,1.00,0.92),(-0.71,1.00,0.71),
-    (-0.71,1.00,0.71),(-0.92,1.00,0.38),(-1.00,1.00,-0.00),
-    (-1.00,1.00,-0.00),(-0.92,1.00,-0.38),(-0.71,1.00,-0.71),
-    (-0.71,1.00,-0.71),(-0.38,1.00,-0.92),(0.00,1.00,-1.00),
-    (0.00,1.00,-1.00),(0.38,1.00,-0.92),(0.71,1.00,-0.71),
-    (0.71,1.00,-0.71),(0.92,1.00,-0.38),(1.00,1.00,-0.00),
-    (1.00,1.00,-0.00),(0.92,1.00,0.38),(0.71,1.00,0.71),
-    (0.71,1.00,0.71),(0.38,1.00,0.92),(0.00,1.00,1.00),
-    (0.00,1.00,1.00),(-0.71,1.00,0.71),(-1.00,1.00,-0.00),
-    (-1.00,1.00,-0.00),(-0.71,1.00,-0.71),(0.00,1.00,-1.00),
-    (0.00,1.00,-1.00),(0.71,1.00,-0.71),(1.00,1.00,-0.00),
-    (1.00,1.00,-0.00),(0.71,1.00,0.71),(0.00,1.00,1.00),
-    (0.00,1.00,1.00),(-1.00,1.00,-0.00),(0.00,1.00,-1.00),
-    (0.00,1.00,-1.00),(1.00,1.00,-0.00),(0.00,1.00,1.00)
-]})
+batch_cone = batch_for_shader(shader, 'TRIS', {"pos": [ v for i in range(0, 16) for v in [ (0,0,0), (cos(PI*i/8), 1, sin(PI*i/8)), (cos(PI*(i+1)/8), 1, sin(PI*(i+1)/8)) ] ]})
 
 VBM_GPUSWING_HDLKEY = int(time.time())
 def vbm_draw_gpu():
