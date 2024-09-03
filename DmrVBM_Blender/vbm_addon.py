@@ -264,9 +264,10 @@ classlist.append(VBM_PG_Queue)
 # -----------------------------------------------------------------
 class VBM_PG_SkeletonMask_Bone_Swing(bpy.types.PropertyGroup):
     def UpdateEnabled(self, context):
+        self['dirty'] = self.enabled or self.get('dirty', False)
         rig = [rig for rig in bpy.data.objects if rig.type=='ARMATURE' and self in [x.swing for x in rig.vbm.deform_mask]][0]
         rig.vbm.swing_bones.clear()
-        for bone in [x for x in rig.vbm.deform_mask if x.swing.enabled]:
+        for bone in [x for x in rig.vbm.deform_mask if x.swing.get('dirty', False)]:
             rig.vbm.swing_bones.add().name = bone.name
     
     enabled: bpy.props.BoolProperty(name="Enabled", default=False, options=set(), update=UpdateEnabled)
@@ -285,9 +286,10 @@ classlist.append(VBM_PG_SkeletonMask_Bone_Swing)
 # -----------------------------------------------------------------
 class VBM_PG_SkeletonMask_Bone_Collider(bpy.types.PropertyGroup):
     def UpdateEnabled(self, context):
+        self['dirty'] = self.enabled or self.get('dirty', False)
         rig = [rig for rig in bpy.data.objects if rig.type=='ARMATURE' and self in [x.collider for x in rig.vbm.deform_mask]][0]
         rig.vbm.collider_bones.clear()
-        for bone in [x for x in rig.vbm.deform_mask if x.collider.enabled]:
+        for bone in [x for x in rig.vbm.deform_mask if x.collider.get('dirty', False)]:
             rig.vbm.collider_bones.add().name = bone.name
     
     enabled: bpy.props.BoolProperty(name="Enabled", default=False, options=set(), update=UpdateEnabled)
@@ -2099,6 +2101,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             benchmark['mesh_file'] = time.time()-benchmark['mesh_file']
         
         # Texture ==================================================================================
+        netimages = [x for x in netimages if x]
         for image in netimages:
             w,h = image.size
             pixels = numpy.array(image.pixels).reshape((-1,h,4))[::-1,:,:].flatten() # Partition to rows, columns, channels; Flip rows; Flatten
