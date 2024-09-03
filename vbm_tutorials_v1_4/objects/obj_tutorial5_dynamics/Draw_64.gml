@@ -53,4 +53,4 @@ for (var i = 0; i < VBM_Animator_GetLayerCount(animator); i++) {
 draw_text(xx, yy, "Exec Time: " + string(benchmark_net[0] / benchmark_count));
 draw_text(xx+200, yy, "Transforms: " + string(benchmark_net[1] / benchmark_count));
 draw_text(xx+400, yy, "Matrices: " + string(benchmark_net[2] / benchmark_count));
-draw_text(xx+600, yy, animcurve_exists(animator.layers[0].animation.animcurve)? "Curves": "Array");
+draw_text(xx+600, yy, (animator.layers[0].animation.animcurve)? "Curves": "Array");

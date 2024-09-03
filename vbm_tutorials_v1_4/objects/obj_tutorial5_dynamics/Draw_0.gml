@@ -38,10 +38,20 @@ shader_reset();
 // Draw Swing Bones
 if ( show_bones ) {
 	var s = 0.02;
+	var swg;
+	var collider;
 	gpu_set_ztestenable(false);
 	for (var i = 0; i < animator.swing_count; i++) {
-		var swg = animator.swing_bones[i];
+		swg = animator.swing_bones[i];
 		matrix_set(matrix_world, matrix_build(swg.vcurr[0],swg.vcurr[1],swg.vcurr[2],0,0,0,s,s,s));
+		VBM_Model_Submit(model_rotation, -1);
+	}
+	for (var i = 0; i < animator.collider_count; i++) {
+		collider = animator.colliders[i];
+		s = collider.radius;
+		matrix_set(matrix_world, matrix_build(collider.vcurr[0],collider.vcurr[1],collider.vcurr[2],0,0,0,s,s,s));
+		VBM_Model_Submit(model_rotation, -1);
+		matrix_set(matrix_world, matrix_build(collider.vend[0],collider.vend[1],collider.vend[2],0,0,0,s,s,s));
 		VBM_Model_Submit(model_rotation, -1);
 	}
 }

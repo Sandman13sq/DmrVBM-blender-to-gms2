@@ -49,7 +49,7 @@ if ( keyboard_check(vk_space) ) {	// "]"
 	VBM_Animator_SwingReset(animator);
 }
 
-if ( keyboard_check_pressed(ord("C")) ) {	// "]"
+if ( keyboard_check_pressed(ord("C")) ) {	// Toggle Curves
 	if ( animator.layers[0].animation.animcurve ) {
 		animcurve = animator.layers[0].animation.animcurve;
 		animator.layers[0].animation.animcurve = -1;
@@ -60,6 +60,10 @@ if ( keyboard_check_pressed(ord("C")) ) {	// "]"
 	}
 	benchmark_count = 0;
 	benchmark_net = [0,0,0];
+}
+
+if ( keyboard_check_pressed(ord("S")) ) {	// Toggle Swing
+	animator.swing_enabled ^= 1;
 }
 
 #region Camera =============================================================
