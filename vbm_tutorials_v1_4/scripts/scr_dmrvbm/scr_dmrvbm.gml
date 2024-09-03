@@ -1752,7 +1752,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 					if ( colliders_enabled ) {
 						for (collider_index = 0; collider_index < animator.collider_count; collider_index++) {
 							collider = animator.colliders[collider_index];
-							n = floor(collider.length / collider.radius);
+							n = 4;
 							for (var i = 0; i <= n; i++) {
 								cx = lerp(collider.vcurr[0], collider.vend[0], i/n);
 								cy = lerp(collider.vcurr[1], collider.vend[1], i/n);
