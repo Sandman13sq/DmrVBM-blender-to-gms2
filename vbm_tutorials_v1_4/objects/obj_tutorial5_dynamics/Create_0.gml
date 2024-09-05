@@ -41,11 +41,11 @@ VBM_Animator_ResizeLayers(animator, 2);	// Ensure that there are two layers
 VBM_Animator_PlayAnimationIndex(animator, 0, 0);	// Layer 0 animation = First animation
 VBM_Animator_PlayAnimationKey(animator, 1, "taroh-blink");	// Layer 1 animation = Blink
 
-//VBM_Animator_SwingDefinePattern(animator, "hair",	0,0,0, 10.0, 0.1, 0.1, 0.2, 0.0, 0.0, -0.001);
-//VBM_Animator_SwingDefinePattern(animator, "sleeve",	0,0,0, 10.0, 0.1, 0.1, 0.2, 0.0, 0.0, -0.001);
-//VBM_Animator_SwingDefinePattern(animator, "coat",	0,0,0, 10.0, 0.1, 0.1, 0.1, 0.0, 0.0, -0.01);
-//VBM_Animator_SwingDefinePattern(animator, "hat",	0,0,0, 10.0, 0.0, 0.1, 0.2, 0.0, 0.0, 0.0);
-//VBM_Animator_SwingDefinePattern(animator, "breast", 0,0,0, 10.0, 0.0, 0.25, 0.25, 0.0, 0.0, -0.001);
+//VBM_Animator_SwingDefinePattern(animator, "hair",	10.0, 0.1, 0.1, 0.2, 0.0, 0.0, -0.001);
+//VBM_Animator_SwingDefinePattern(animator, "sleeve",	10.0, 0.1, 0.1, 0.2, 0.0, 0.0, -0.001);
+//VBM_Animator_SwingDefinePattern(animator, "coat",	10.0, 0.1, 0.1, 0.1, 0.0, 0.0, -0.01);
+//VBM_Animator_SwingDefinePattern(animator, "hat",	10.0, 0.0, 0.1, 0.2, 0.0, 0.0, 0.0);
+//VBM_Animator_SwingDefinePattern(animator, "breast", 10.0, 0.0, 0.25, 0.25, 0.0, 0.0, -0.001);
 
 //VBM_Animator_ColliderDefine(animator, "thigh.L", 0.5);
 //VBM_Animator_ColliderDefine(animator, "thigh.R", 0.5);
