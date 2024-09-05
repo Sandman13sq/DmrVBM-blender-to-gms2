@@ -1775,6 +1775,8 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 		var collider_count = animator.collider_count;
 		var bone_length = 0;
 		
+		var m00, m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15;
+		
 		while (bone_index < bone_count) {
 			transform_offset = bone_index*10;
 			bone_hash = animator.bone_hashes[bone_index];
@@ -1793,7 +1795,37 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 					bx = mswg[VBM_M03];
 					by = mswg[VBM_M13];
 					bz = mswg[VBM_M23];
-					__vbm_mat4inverse(minv, mswg);	// Used when converting back to local transform
+					
+					// Calculate inverse of swing base position for later converting back to local transform 
+					//__vbm_mat4inverse(minv, mswg);	// <-- Inlined below
+					m00 = mswg[ 0]; m01 = mswg[ 1]; m02 = mswg[ 2]; m03 = mswg[ 3];
+					m04 = mswg[ 4];	m05 = mswg[ 5]; m06 = mswg[ 6]; m07 = mswg[ 7];
+					m08 = mswg[ 8]; m09 = mswg[ 9]; m10 = mswg[10]; m11 = mswg[11]; 
+					m12 = mswg[12]; m13 = mswg[13]; m14 = mswg[14]; m15 = mswg[15];
+					
+					minv[ 0] = m05*m10*m15-m05*m11*m14-m09*m06*m15+m09*m07*m14+m13*m06*m11-m13*m07*m10;
+				    minv[ 4] =-m04*m10*m15+m04*m11*m14+m08*m06*m15-m08*m07*m14-m12*m06*m11+m12*m07*m10;
+				    minv[ 8] = m04*m09*m15-m04*m11*m13-m08*m05*m15+m08*m07*m13+m12*m05*m11-m12*m07*m09;
+				    minv[12] =-m04*m09*m14+m04*m10*m13+m08*m05*m14-m08*m06*m13-m12*m05*m10+m12*m06*m09;
+				    minv[ 1] =-m01*m10*m15+m01*m11*m14+m09*m02*m15-m09*m03*m14-m13*m02*m11+m13*m03*m10;
+				    minv[ 5] = m00*m10*m15-m00*m11*m14-m08*m02*m15+m08*m03*m14+m12*m02*m11-m12*m03*m10;
+				    minv[ 9] =-m00*m09*m15+m00*m11*m13+m08*m01*m15-m08*m03*m13-m12*m01*m11+m12*m03*m09;
+				    minv[13] = m00*m09*m14-m00*m10*m13-m08*m01*m14+m08*m02*m13+m12*m01*m10-m12*m02*m09;
+				    minv[ 2] = m01*m06*m15-m01*m07*m14-m05*m02*m15+m05*m03*m14+m13*m02*m07-m13*m03*m06;
+				    minv[ 6] =-m00*m06*m15+m00*m07*m14+m04*m02*m15-m04*m03*m14-m12*m02*m07+m12*m03*m06;
+				    minv[10] = m00*m05*m15-m00*m07*m13-m04*m01*m15+m04*m03*m13+m12*m01*m07-m12*m03*m05;
+				    minv[14] =-m00*m05*m14+m00*m06*m13+m04*m01*m14-m04*m02*m13-m12*m01*m06+m12*m02*m05;
+				    minv[ 3] =-m01*m06*m11+m01*m07*m10+m05*m02*m11-m05*m03*m10-m09*m02*m07+m09*m03*m06;
+				    minv[ 7] = m00*m06*m11-m00*m07*m10-m04*m02*m11+m04*m03*m10+m08*m02*m07-m08*m03*m06;
+				    minv[11] =-m00*m05*m11+m00*m07*m09+m04*m01*m11-m04*m03*m09-m08*m01*m07+m08*m03*m05;
+				    minv[15] = m00*m05*m10-m00*m06*m09-m04*m01*m10+m04*m02*m09+m08*m01*m06-m08*m02*m05;
+	
+				    d = 1.0 / (m00 * minv[0] + m01 * minv[4] + m02 * minv[8] + m03 * minv[12] + 0.00001);	// Assumes determinant > 0. Error otherwise
+				    minv[ 0] *= d; minv[ 1] *= d; minv[ 2] *= d; minv[ 3] *= d;
+				    minv[ 4] *= d; minv[ 5] *= d; minv[ 6] *= d; minv[ 7] *= d;
+				    minv[ 8] *= d; minv[ 9] *= d; minv[10] *= d; minv[11] *= d;
+				    minv[12] *= d; minv[13] *= d; minv[14] *= d; minv[15] *= d;
+					
 					// Get position of goal = Swing.Offset x Bone.Local x Parent.Absolute
 					vlocal = matrix_transform_vertex(mswg, 0, bone_length, 0);
 					gx = vlocal[0];
@@ -2477,30 +2509,34 @@ function __vbm_mat4decompose(outfloat10, m) {
 function __vbm_mat4inverse(outmat4, msrc) {
 	// Source MESA GLu library: https://www.mesa3d.org/
 	gml_pragma("forceinline");
+	var m00 = msrc[ 0], m01 = msrc[ 1], m02 = msrc[ 2], m03 = msrc[ 3];
+	var m04 = msrc[ 4], m05 = msrc[ 5], m06 = msrc[ 6], m07 = msrc[ 7];
+	var m08 = msrc[ 8], m09 = msrc[ 9], m10 = msrc[10], m11 = msrc[11];
+	var m12 = msrc[12], m13 = msrc[13], m14 = msrc[14], m15 = msrc[15];
 	
     var d;	// Determinant
-    outmat4[@ 0] = msrc[ 5]*msrc[10]*msrc[15]-msrc[ 5]*msrc[11]*msrc[14]-msrc[ 9]*msrc[ 6]*msrc[15]+msrc[ 9]*msrc[ 7]*msrc[14]+msrc[13]*msrc[ 6]*msrc[11]-msrc[13]*msrc[ 7]*msrc[10];
-    outmat4[@ 4] =-msrc[ 4]*msrc[10]*msrc[15]+msrc[ 4]*msrc[11]*msrc[14]+msrc[ 8]*msrc[ 6]*msrc[15]-msrc[ 8]*msrc[ 7]*msrc[14]-msrc[12]*msrc[ 6]*msrc[11]+msrc[12]*msrc[ 7]*msrc[10];
-    outmat4[@ 8] = msrc[ 4]*msrc[ 9]*msrc[15]-msrc[ 4]*msrc[11]*msrc[13]-msrc[ 8]*msrc[ 5]*msrc[15]+msrc[ 8]*msrc[ 7]*msrc[13]+msrc[12]*msrc[ 5]*msrc[11]-msrc[12]*msrc[ 7]*msrc[ 9];
-    outmat4[@12] =-msrc[ 4]*msrc[ 9]*msrc[14]+msrc[ 4]*msrc[10]*msrc[13]+msrc[ 8]*msrc[ 5]*msrc[14]-msrc[ 8]*msrc[ 6]*msrc[13]-msrc[12]*msrc[ 5]*msrc[10]+msrc[12]*msrc[ 6]*msrc[ 9];
-    outmat4[@ 1] =-msrc[ 1]*msrc[10]*msrc[15]+msrc[ 1]*msrc[11]*msrc[14]+msrc[ 9]*msrc[ 2]*msrc[15]-msrc[ 9]*msrc[ 3]*msrc[14]-msrc[13]*msrc[ 2]*msrc[11]+msrc[13]*msrc[ 3]*msrc[10];
-    outmat4[@ 5] = msrc[ 0]*msrc[10]*msrc[15]-msrc[ 0]*msrc[11]*msrc[14]-msrc[ 8]*msrc[ 2]*msrc[15]+msrc[ 8]*msrc[ 3]*msrc[14]+msrc[12]*msrc[ 2]*msrc[11]-msrc[12]*msrc[ 3]*msrc[10];
-    outmat4[@ 9] =-msrc[ 0]*msrc[ 9]*msrc[15]+msrc[ 0]*msrc[11]*msrc[13]+msrc[ 8]*msrc[ 1]*msrc[15]-msrc[ 8]*msrc[ 3]*msrc[13]-msrc[12]*msrc[ 1]*msrc[11]+msrc[12]*msrc[ 3]*msrc[ 9];
-    outmat4[@13] = msrc[ 0]*msrc[ 9]*msrc[14]-msrc[ 0]*msrc[10]*msrc[13]-msrc[ 8]*msrc[ 1]*msrc[14]+msrc[ 8]*msrc[ 2]*msrc[13]+msrc[12]*msrc[ 1]*msrc[10]-msrc[12]*msrc[ 2]*msrc[ 9];
-    outmat4[@ 2] = msrc[ 1]*msrc[ 6]*msrc[15]-msrc[ 1]*msrc[ 7]*msrc[14]-msrc[ 5]*msrc[ 2]*msrc[15]+msrc[ 5]*msrc[ 3]*msrc[14]+msrc[13]*msrc[ 2]*msrc[ 7]-msrc[13]*msrc[ 3]*msrc[ 6];
-    outmat4[@ 6] =-msrc[ 0]*msrc[ 6]*msrc[15]+msrc[ 0]*msrc[ 7]*msrc[14]+msrc[ 4]*msrc[ 2]*msrc[15]-msrc[ 4]*msrc[ 3]*msrc[14]-msrc[12]*msrc[ 2]*msrc[ 7]+msrc[12]*msrc[ 3]*msrc[ 6];
-    outmat4[@10] = msrc[ 0]*msrc[ 5]*msrc[15]-msrc[ 0]*msrc[ 7]*msrc[13]-msrc[ 4]*msrc[ 1]*msrc[15]+msrc[ 4]*msrc[ 3]*msrc[13]+msrc[12]*msrc[ 1]*msrc[ 7]-msrc[12]*msrc[ 3]*msrc[ 5];
-    outmat4[@14] =-msrc[ 0]*msrc[ 5]*msrc[14]+msrc[ 0]*msrc[ 6]*msrc[13]+msrc[ 4]*msrc[ 1]*msrc[14]-msrc[ 4]*msrc[ 2]*msrc[13]-msrc[12]*msrc[ 1]*msrc[ 6]+msrc[12]*msrc[ 2]*msrc[ 5];
-    outmat4[@ 3] =-msrc[ 1]*msrc[ 6]*msrc[11]+msrc[ 1]*msrc[ 7]*msrc[10]+msrc[ 5]*msrc[ 2]*msrc[11]-msrc[ 5]*msrc[ 3]*msrc[10]-msrc[ 9]*msrc[ 2]*msrc[ 7]+msrc[ 9]*msrc[ 3]*msrc[ 6];
-    outmat4[@ 7] = msrc[ 0]*msrc[ 6]*msrc[11]-msrc[ 0]*msrc[ 7]*msrc[10]-msrc[ 4]*msrc[ 2]*msrc[11]+msrc[ 4]*msrc[ 3]*msrc[10]+msrc[ 8]*msrc[ 2]*msrc[ 7]-msrc[ 8]*msrc[ 3]*msrc[ 6];
-    outmat4[@11] =-msrc[ 0]*msrc[ 5]*msrc[11]+msrc[ 0]*msrc[ 7]*msrc[ 9]+msrc[ 4]*msrc[ 1]*msrc[11]-msrc[ 4]*msrc[ 3]*msrc[ 9]-msrc[ 8]*msrc[ 1]*msrc[ 7]+msrc[ 8]*msrc[ 3]*msrc[ 5];
-    outmat4[@15] = msrc[ 0]*msrc[ 5]*msrc[10]-msrc[ 0]*msrc[ 6]*msrc[ 9]-msrc[ 4]*msrc[ 1]*msrc[10]+msrc[ 4]*msrc[ 2]*msrc[ 9]+msrc[ 8]*msrc[ 1]*msrc[ 6]-msrc[ 8]*msrc[ 2]*msrc[ 5];
-
-    d = 1.0 / (msrc[0] * outmat4[0] + msrc[1] * outmat4[4] + msrc[2] * outmat4[8] + msrc[3] * outmat4[12] + 0.00001);	// Assumes determinant > 0. Error otherwise
-    outmat4[@ 0] = outmat4[ 0] * d; outmat4[@ 1] = outmat4[ 1] * d; outmat4[@ 2] = outmat4[ 2] * d; outmat4[@ 3] = outmat4[ 3] * d;
-    outmat4[@ 4] = outmat4[ 4] * d; outmat4[@ 5] = outmat4[ 5] * d; outmat4[@ 6] = outmat4[ 6] * d; outmat4[@ 7] = outmat4[ 7] * d;
-    outmat4[@ 8] = outmat4[ 8] * d; outmat4[@ 9] = outmat4[ 9] * d; outmat4[@10] = outmat4[10] * d; outmat4[@11] = outmat4[11] * d;
-    outmat4[@12] = outmat4[12] * d; outmat4[@13] = outmat4[13] * d; outmat4[@14] = outmat4[14] * d; outmat4[@15] = outmat4[15] * d;
+	outmat4[@ 0] = m05*m10*m15-m05*m11*m14-m09*m06*m15+m09*m07*m14+m13*m06*m11-m13*m07*m10;
+    outmat4[@ 4] =-m04*m10*m15+m04*m11*m14+m08*m06*m15-m08*m07*m14-m12*m06*m11+m12*m07*m10;
+    outmat4[@ 8] = m04*m09*m15-m04*m11*m13-m08*m05*m15+m08*m07*m13+m12*m05*m11-m12*m07*m09;
+    outmat4[@12] =-m04*m09*m14+m04*m10*m13+m08*m05*m14-m08*m06*m13-m12*m05*m10+m12*m06*m09;
+    outmat4[@ 1] =-m01*m10*m15+m01*m11*m14+m09*m02*m15-m09*m03*m14-m13*m02*m11+m13*m03*m10;
+    outmat4[@ 5] = m00*m10*m15-m00*m11*m14-m08*m02*m15+m08*m03*m14+m12*m02*m11-m12*m03*m10;
+    outmat4[@ 9] =-m00*m09*m15+m00*m11*m13+m08*m01*m15-m08*m03*m13-m12*m01*m11+m12*m03*m09;
+    outmat4[@13] = m00*m09*m14-m00*m10*m13-m08*m01*m14+m08*m02*m13+m12*m01*m10-m12*m02*m09;
+    outmat4[@ 2] = m01*m06*m15-m01*m07*m14-m05*m02*m15+m05*m03*m14+m13*m02*m07-m13*m03*m06;
+    outmat4[@ 6] =-m00*m06*m15+m00*m07*m14+m04*m02*m15-m04*m03*m14-m12*m02*m07+m12*m03*m06;
+    outmat4[@10] = m00*m05*m15-m00*m07*m13-m04*m01*m15+m04*m03*m13+m12*m01*m07-m12*m03*m05;
+    outmat4[@14] =-m00*m05*m14+m00*m06*m13+m04*m01*m14-m04*m02*m13-m12*m01*m06+m12*m02*m05;
+    outmat4[@ 3] =-m01*m06*m11+m01*m07*m10+m05*m02*m11-m05*m03*m10-m09*m02*m07+m09*m03*m06;
+    outmat4[@ 7] = m00*m06*m11-m00*m07*m10-m04*m02*m11+m04*m03*m10+m08*m02*m07-m08*m03*m06;
+    outmat4[@11] =-m00*m05*m11+m00*m07*m09+m04*m01*m11-m04*m03*m09-m08*m01*m07+m08*m03*m05;
+    outmat4[@15] = m00*m05*m10-m00*m06*m09-m04*m01*m10+m04*m02*m09+m08*m01*m06-m08*m02*m05;
+	
+    d = 1.0 / (m00 * outmat4[0] + m01 * outmat4[4] + m02 * outmat4[8] + m03 * outmat4[12] + 0.00001);	// Assumes determinant > 0. Error otherwise
+    outmat4[@ 0] *= d; outmat4[@ 1] *= d; outmat4[@ 2] *= d; outmat4[@ 3] *= d;
+    outmat4[@ 4] *= d; outmat4[@ 5] *= d; outmat4[@ 6] *= d; outmat4[@ 7] *= d;
+    outmat4[@ 8] *= d; outmat4[@ 9] *= d; outmat4[@10] *= d; outmat4[@11] *= d;
+    outmat4[@12] *= d; outmat4[@13] *= d; outmat4[@14] *= d; outmat4[@15] *= d;
 }
 
 function __vbm_mat4axisroll(outmat4, headx, heady, headz, tailx, taily, tailz, roll) {
