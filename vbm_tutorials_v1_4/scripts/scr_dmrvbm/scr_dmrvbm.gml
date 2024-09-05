@@ -190,6 +190,10 @@ function VBM_Animation() constructor {
 	framebuffer = array_create(VBM_CHANNELCAPACITY);
 	
 	animcurve = -1;	// Single animcurve containing all channels for animation
+	
+	baked_transforms = [];
+	baked_local = [];	// Array of array of flat matrices for each frame of animation
+	baked_final = [];
 }
 
 function VBM_Animation_Free(animation) constructor {
@@ -215,6 +219,10 @@ function VBM_Animation_Copy(animation_dest, animation_src) {
 	array_copy(animation_dest.channel_views, 0, animation_src.channel_views, 0, array_length(animation_src.channel_views));
 	array_copy(animation_dest.valuebuffer, 0, animation_src.valuebuffer, 0, array_length(animation_src.valuebuffer));
 	array_copy(animation_dest.framebuffer, 0, animation_src.framebuffer, 0, array_length(animation_src.framebuffer));
+	
+	array_copy(animation_dest.baked_transforms, 0, animation_src.baked_transforms, 0, array_length(animation_src.baked_transforms));
+	array_copy(animation_dest.baked_local, 0, animation_src.baked_local, 0, array_length(animation_src.baked_local));
+	array_copy(animation_dest.baked_final, 0, animation_src.baked_final, 0, array_length(animation_src.baked_final));
 	
 	// Copy animcurve
 	if ( animation_src.animcurve ) {
@@ -519,10 +527,25 @@ function VBM_Animation_SampleBoneTransforms(animation, frame, bonehashes, outtra
 	var bone_index = 0, curve_index = 0;
 	var channel_index, transform_index;
 	var animchannel;
-	
 	var use_animcurves = animcurve_exists(animation.animcurve);
 	
-	if ( use_animcurves ) {
+	// Use baked transforms
+	if ( array_length(animation.baked_transforms) > 0 ) {
+		repeat(numbonecurves) {
+			// Map curve to boneindex
+			curvenamehash = curvehashes[curve_index];
+			repeat(bone_count) {
+				if (curvenamehash == bonehashes[bone_index]) {
+					array_copy(outtransforms, bone_index*stride, animation.baked_transforms[frame], curve_index*10, 10);
+					break;	// Break when bonename == curvename
+				}
+				bone_index = (bone_index+1) mod bone_count;	// Loop bone index (keep progress from last curve)
+			}
+			curve_index++;
+		}
+	}
+	// Use GM Animation curve
+	else if ( use_animcurves ) {
 		repeat(numbonecurves) {
 			// Map curve to boneindex
 			curvenamehash = curvehashes[curve_index];
@@ -545,6 +568,7 @@ function VBM_Animation_SampleBoneTransforms(animation, frame, bonehashes, outtra
 			curve_index++;
 		}
 	}
+	// Use static arrays
 	else {
 		repeat(numbonecurves) {
 			// Map curve to boneindex
@@ -609,6 +633,81 @@ function VBM_Animation_SampleBoneTransforms(animation, frame, bonehashes, outtra
 	}
 }
 
+function VBM_Animation_BakeAnimationTransforms(animation) {
+	var duration = animation.duration;
+	var transforms;
+	var baked = array_create(duration);
+	animation.baked_transforms = [];
+	for (var frame = 0; frame < duration; frame++) {
+		transforms = array_create(VBM_BONECAPACITY*10);
+		VBM_Animation_SampleBoneTransforms(animation, frame, animation.curve_namehashes, transforms, 10);
+		baked[frame] = transforms;
+	}
+	animation.baked_transforms = baked;
+}
+
+function VBM_Animation_BakeAnimationLocal(animation) {
+	var duration = animation.duration;
+	var transforms = array_create(VBM_BONECAPACITY*10);
+	var baked = array_create(duration);
+	var framematrices;
+	var curve_count = animation.curve_count;
+	
+	var xx, xy, xz, xw, yy, yz, yw, zz, zw;
+	var qw, qx, qy, qz, sx, sy, sz;
+	var curve_index;
+	var bone_offset;
+	var mA = matrix_build_identity();
+	
+	array_resize(animation.baked_local, 0);
+	for (var frame = duration-1; frame >= 0; frame--) {
+		framematrices = array_create(curve_count);
+		VBM_Animation_SampleBoneTransforms(animation, frame, animation.curve_namehashes, transforms, 10);
+		
+		curve_index = 0;
+		bone_offset = 0;
+		repeat(curve_count) {
+			// M = T * R * S, Mat4Compose(loc, quat, scale):
+			qw = transforms[curve_index+VBM_T_QUATW];
+			qx = transforms[curve_index+VBM_T_QUATX];
+			qy = transforms[curve_index+VBM_T_QUATY];
+			qz = transforms[curve_index+VBM_T_QUATZ];
+		
+			sx = transforms[curve_index+VBM_T_SCALEX];
+			sy = transforms[curve_index+VBM_T_SCALEY];
+			sz = transforms[curve_index+VBM_T_SCALEZ];
+		
+			xx = qx*qx; xy = qx*qy; xz = qx*qz; xw = qx*qw;
+			yy = qy*qy; yz = qy*qz; yw = qy*qw;
+			zz = qz*qz; zw = qz*qw;
+		
+			mA[VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
+		    mA[VBM_M01] = (2.0 * (xy - zw)) * sx;
+		    mA[VBM_M02] = (2.0 * (xz + yw)) * sx;
+		    mA[VBM_M03] = transforms[curve_index+VBM_T_LOCX];
+		    mA[VBM_M10] = (2.0 * (xy + zw)) * sy;
+		    mA[VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
+		    mA[VBM_M12] = (2.0 * (yz - xw)) * sy;
+			mA[VBM_M13] = transforms[curve_index+VBM_T_LOCY];
+		    mA[VBM_M20] = (2.0 * (xz - yw)) * sz;
+		    mA[VBM_M21] = (2.0 * (yz + xw)) * sz;
+		    mA[VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
+			mA[VBM_M23] = transforms[curve_index+VBM_T_LOCZ];
+		    mA[VBM_M30] = 0.0; 
+			mA[VBM_M31] = 0.0; 
+			mA[VBM_M32] = 0.0; 
+			mA[VBM_M33] = 1.0;
+			array_copy(framematrices, bone_offset, mA, 0, 16);
+			bone_offset += 16;
+			curve_index += 1;
+		}
+		
+		baked[@ frame] = framematrices;
+	}
+	animation.baked_local = baked;
+}
+
+#endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 // ============================================================================
 // Model Struct
