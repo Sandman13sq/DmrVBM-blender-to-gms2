@@ -29,6 +29,10 @@ VBM_FORMAT_KEY = 'PADDING POSITION COLOR UV NORMAL TANGENT BITANGENT BONE WEIGHT
 
 VBM_BLENDER_4_0 = bpy.app.version < (4,2,0)
 
+VBM_VERSION_MESH = 0
+VBM_VERSION_SKELETON = 1
+VBM_VERSION_ANIMATION = 0
+
 VBM_FORMAT_FL_ISBYTE = 1<<0
 VBM_FORMAT_FL_SRGB = 1<<1
 VBM_FORMAT_CODEDEFAULT = 'POSITION COLOR4B-SRGB UV'
@@ -114,6 +118,13 @@ VBM_DESCRIPTIONS = {
     'action_clean_threshold': "Clean keyframes of animation spaced within this threshold",
     'is_srgb': "Apply gamma correction to values. Enable for color values, disable for data values",
     'is_byte': "Export values as bytes",
+    
+    'friction': "Amount to slow bone particle velocity",
+    'dampness': "Amount to add bias towards end position",
+    'stiffness': "Speed of particle when approaching goal",
+    'stretch': "Amount to constrain particle to original bone length",
+    'looseness': "Amount that bone can leave root position",
+    'gravity': "Force applied to particle's z coordinate",
 }
 
 VBM_CLEANUPKEYS = 'OBJECT ARMATURE ACTION IMAGE'.split()
@@ -228,6 +239,7 @@ class VBM_PG_Queue(bpy.types.PropertyGroup):
     group: bpy.props.EnumProperty(name="Group", default=0, items=tuple([(str(i),str(i),str(i), VBM_QUEUE_GROUPICON[i], i) for i in range(0, 8)]))
     enabled: bpy.props.BoolProperty(name="Enabled", default=True)
     
+    compression_level: bpy.props.IntProperty(name="Compression Level", default=5, min=0)
     format: bpy.props.StringProperty(name="Format", options=set())
     format_code: bpy.props.StringProperty(name="Format Code") # Overwrites above
     texture_export: bpy.props.BoolProperty(name="Copy Textures", default=True, description=VBM_DESCRIPTIONS['texture_export'])
@@ -273,10 +285,12 @@ class VBM_PG_SkeletonMask_Bone_Swing(bpy.types.PropertyGroup):
     
     enabled: bpy.props.BoolProperty(name="Enabled", default=False, options=set(), update=UpdateEnabled)
     is_chain: bpy.props.BoolProperty(name="Is Chain", default=True, options=set())
-    friction: bpy.props.FloatProperty(name="Friction", default=0.1, precision=3, options=set())
-    stiffness: bpy.props.FloatProperty(name="Stiffness", default=0.1, min=0.0, max=1.0, precision=3, options=set())
-    dampness: bpy.props.FloatProperty(name="Dampness", default=0.1, min=0.0, max=1.0, precision=3, options=set())
-    gravity: bpy.props.FloatProperty(name="Gravity", default=0.0, precision=3, options=set())
+    friction: bpy.props.FloatProperty(name="Friction", default=0.1, precision=3, options=set(), description=VBM_DESCRIPTIONS['friction'])
+    stiffness: bpy.props.FloatProperty(name="Stiffness", default=0.1, min=0.001, max=1.0, precision=3, options=set(), description=VBM_DESCRIPTIONS['stiffness'])
+    dampness: bpy.props.FloatProperty(name="Dampness", default=0.1, min=0.001, max=1.0, precision=3, options=set(), description=VBM_DESCRIPTIONS['dampness'])
+    stretch: bpy.props.FloatProperty(name="Stretch", default=0.0, min=0.0, soft_max=1.0, precision=3, options=set(), description=VBM_DESCRIPTIONS['stretch'])
+    gravity: bpy.props.FloatProperty(name="Gravity", default=0.0, precision=3, options=set(), description=VBM_DESCRIPTIONS['gravity'])
+    looseness: bpy.props.FloatProperty(name="Looseness", default=0.0, min=0.0, soft_max=1.0, precision=3, options=set(), description=VBM_DESCRIPTIONS['looseness'])
     offset: bpy.props.FloatVectorProperty(name="Offset", size=3, default=(0,0,0), options=set())
     angle_min_x: bpy.props.FloatProperty(name="Angle Min X", default=-.5, min=-3.14, max=3.14, precision=3, options=set())
     angle_max_x: bpy.props.FloatProperty(name="Angle Max X", default=+.5, min=-3.14, max=3.14, precision=3, options=set())
@@ -697,6 +711,7 @@ class VBM_OT_ExportModel(bpy.types.Operator, ExportHelper):
     queue: bpy.props.StringProperty(name="Queue", default="")
     
     # Queue Params
+    compression_level: bpy.props.IntProperty(name="Compression Level", default=5, min=0)
     batching: bpy.props.EnumProperty(name="Batching", default='NONE', items=VBM_BATCH_ITEMS, description=VBM_DESCRIPTIONS['batching'])
     format: bpy.props.StringProperty(name="Format", description=VBM_DESCRIPTIONS['format'])
     collection: bpy.props.StringProperty(name="Collection", description=VBM_DESCRIPTIONS['collection'])
@@ -725,7 +740,7 @@ class VBM_OT_ExportModel(bpy.types.Operator, ExportHelper):
     action_clean_threshold: bpy.props.FloatProperty(name="Animation Clean Threshold", default=0.0005, precision=4, description=VBM_DESCRIPTIONS['action_clean_threshold'])
     
     saveprops = '''
-        file_type filepath batching collection
+        file_type filepath batching compression_level collection
         mesh_export mesh_grouping mesh_delimiter_start mesh_delimiter_end mesh_script_post mesh_script_pre mesh_alledges mesh_material_override mesh_fast_staging format
         skeleton_export skeleton_delimiter_start skeleton_delimiter_end skeleton_swing skeleton_colliders
         action_export action_delimiter_start action_delimiter_end action_clean_threshold
@@ -741,6 +756,7 @@ class VBM_OT_ExportModel(bpy.types.Operator, ExportHelper):
         
         # File
         b = layout.box().column(align=0)
+        b.prop(self, 'compression_level')
         b.prop(self, 'batching')
         r = b.row(align=1)
         r.prop(self, 'mesh_export', text="Meshes", toggle=True)
@@ -1142,8 +1158,8 @@ def Panel_Queues(context, layout):
         r.prop(queue, 'skeleton_delimiter_start', text="", icon='OUTLINER_OB_ARMATURE')
         r.prop(queue, 'skeleton_delimiter_end', text="")
         r.separator()
-        r.prop(queue, 'skeleton_delimiter_start', text="", icon='ACTION')
-        r.prop(queue, 'skeleton_delimiter_end', text="")
+        r.prop(queue, 'action_delimiter_start', text="", icon='ACTION')
+        r.prop(queue, 'action_delimiter_end', text="")
         
         # List
         br = b.row()
@@ -1205,9 +1221,11 @@ def Panel_Rig(context, layout):
         r = layout.row()
         r.prop(rig.data, 'pose_position', text="")
         if rig.animation_data:
-            r.prop(rig.animation_data, 'action')
-        layout.operator('vbm.dissolvetree_operation', text="Update", icon='FILE_REFRESH').operation='UPDATE'
-        c = layout.column(align=1)
+            r.prop(rig.animation_data, 'action', text="")
+        
+        b = layout.box().column()
+        b.operator('vbm.dissolvetree_operation', text="Update Tree", icon='FILE_REFRESH').operation='UPDATE'
+        c = b.column(align=1)
         c.row(align=1).prop(vbm, 'tab_select_skeleton', expand=True)
         c = c.column(align=1)
         if vbm.tab_select_skeleton=='BONE':
@@ -1232,8 +1250,8 @@ def Panel_Rig(context, layout):
                 c.prop(swing, 'friction')
                 c.prop(swing, 'stiffness')
                 c.prop(swing, 'dampness')
+                c.prop(swing, 'stretch')
                 c.prop(swing, 'gravity')
-                c.row().prop(swing, 'offset')
                 r = c.row(align=1, heading="Angle X")
                 r.prop(swing, 'angle_min_x', text="")
                 r.prop(swing, 'angle_max_x', text="")
@@ -1270,15 +1288,23 @@ def Panel_Rig_Visuals(context, layout):
     rig = context.active_object; rig = (rig if rig.type=='ARMATURE' else rig.find_armature()) if rig else None
     layout = layout.column()
     
+    layout.row(heading="Preview:").prop(context.scene.vbm, 'update_swing_animation', expand=True)
+    
     b = layout.column(align=1)
     rr = b.row(align=1)
     c = rr.box().column(align=1)
     c.prop(vbm, 'show_bone_swing', text="Swing", toggle=True, icon=VBM_ICON_SWING)
-    c = c.column(align=1); c.active=vbm.show_bone_swing
+    r = c.row(align=1); r.scale_x=0.9
+    c = r.column(align=1); c.active=vbm.show_bone_swing
     c.prop(vbm, 'show_bone_swing_hidden', text="Hidden")
     c.prop(vbm, 'show_bone_swing_cones', text="Cones")
     c.prop(vbm, 'show_bone_swing_limits', text="Limits")
     c.prop(vbm, 'show_bone_swing_axis', text="Axes")
+    c = r.column(align=1); c.active=vbm.show_bone_swing
+    c.prop(vbm, 'show_bone_particle_current', text="PCurr")
+    c.prop(vbm, 'show_bone_particle_last', text="PLast")
+    c.prop(vbm, 'show_bone_particle_goal', text="PGoal")
+    
     c = rr.box().column(align=1)
     c.prop(vbm, 'show_bone_colliders', text="Colliders", toggle=True, icon=VBM_ICON_COLLIDER)
     c = c.column(align=1); c.active=vbm.show_bone_colliders
@@ -1297,13 +1323,20 @@ def Panel_Settings(context, layout):
     r.scale_x = 1.4; r.label(text="Clean Exclude:"); r.scale_x = 1.0
     r.prop(vbm, 'export_cleanup_exclude', expand=True)
     
-    c = layout.column(align=1)
+    layout.row(heading="Swing Update").prop(vbm, 'update_swing_animation', expand=True)
+    r = layout.row(align=1)
+    r.scale_y=0.8
+    c = r.column(align=1)
     c.prop(vbm, 'show_bone_swing')
     c.prop(vbm, 'show_bone_swing_hidden')
     c.prop(vbm, 'show_bone_swing_cones')
     c.prop(vbm, 'show_bone_swing_limits')
     c.prop(vbm, 'show_bone_swing_axis')
-    c = layout.column(align=1)
+    c = r.column(align=1)
+    c.prop(vbm, 'show_bone_particle_current')
+    c.prop(vbm, 'show_bone_particle_last')
+    c.prop(vbm, 'show_bone_particle_goal')
+    c.separator()
     c.prop(vbm, 'show_bone_colliders')
     c.prop(vbm, 'show_bone_collider_hidden')
     
@@ -1745,6 +1778,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         skeleton_swing = settings.get('skeleton_swing', 1)
         skeleton_colliders = settings.get('skeleton_colliders', 1)
         action_clean_threshold = settings.get('action_clean_threshold', 0.0001)
+        action_delimiter = (settings.get('action_delimiter_start', ""), settings.get('action_delimiter_end', ""))
         format_code = settings.get('format_code', VBM_FORMAT_CODEDEFAULT)
         
         mesh_material_override = bpy.data.materials.get(mesh_material_override, "") if isinstance(mesh_material_override, str) else mesh_material_override
@@ -2123,7 +2157,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             benchmark['mesh_file'] = time.time()-benchmark['mesh_file']
         
         # Texture ==================================================================================
-        netimages = [x for x in netimages if x]
+        netimages = [x for x in netimages if x and x.pixels]
         for image in netimages:
             w,h = image.size
             pixels = numpy.array(image.pixels).reshape((-1,h,4))[::-1,:,:].flatten() # Partition to rows, columns, channels; Flip rows; Flatten
@@ -2230,6 +2264,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         outskeleton += Pack('f', swing.stiffness)
                         outskeleton += Pack('f', swing.dampness)
                         outskeleton += Pack('f', swing.gravity)
+                        outskeleton += Pack('f', swing.stretch)
                         outskeleton += PackVector('f', swing.offset)
                         outskeleton += PackVector('f', [swing.angle_min_x, swing.angle_max_x])
                         outskeleton += PackVector('f', [swing.angle_min_z, swing.angle_max_z])
@@ -2391,7 +2426,10 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                 for anim in animationentries:
                     outanimation = b''
                     action = anim['action']
-                    outanimation += PackString(action.name) # String
+                    groupkey = action.name
+                    groupkey = groupkey[groupkey.find(action_delimiter[0])+1:] if action_delimiter[0] and action_delimiter[0] in groupkey else groupkey
+                    groupkey = groupkey[:groupkey.find(action_delimiter[1])] if action_delimiter[1] and action_delimiter[1] in groupkey else groupkey
+                    outanimation += PackString(groupkey) # String
                     outanimation += Pack('I', action.use_cyclic) # Flags
                     outanimation += Pack('I', int(action.frame_end-action.frame_start)) # Duration
                     outanimation += Pack('I', anim['numbonecurves']) # Num Curves
@@ -2416,14 +2454,14 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         for data in resources['textures']:
             outfile += ResItem('TEX', 0, data)
         for data in resources['meshes']:
-            outfile += ResItem('MSH', 0, data)
+            outfile += ResItem('MSH', VBM_VERSION_MESH, data)
         for data in resources['skeletons']:
-            outfile += ResItem('SKE', 0, data)
+            outfile += ResItem('SKE', VBM_VERSION_SKELETON, data)
         for data in resources['animations']:
-            outfile += ResItem('ANI', 0, data)
+            outfile += ResItem('ANI', VBM_VERSION_ANIMATION, data)
         
         filelength = [len(outfile), 0]
-        outfile = zlib.compress(outfile, compression_level)
+        outfile = zlib.compress(outfile, compression_level) if compression_level != 0 else outfile
         filelength[1] = len(outfile)
         
         f = open(vbm.ToFullPath(filepath), 'wb')
@@ -2552,7 +2590,7 @@ def VBM_ProcessSwingBones(sc, mode):
                 frictionrate = min(1.0, (1.0 - swing.friction) * dt)
                 stiffness = min(1.0, swing.stiffness * dt)
                 dampness = min(1.0, swing.dampness * dt)
-                gravity = swing.gravity * dt
+                gravity = swing.gravity
                 stretch = swing.stretch
                 noise = 0.5 * dt
                 looseness = 0.0
@@ -2561,7 +2599,7 @@ def VBM_ProcessSwingBones(sc, mode):
                 angle_min_z = swing.angle_min_z
                 angle_max_z = swing.angle_max_z
                 
-                force = Vector((0.0, 0.0, -gravity)) * dt * dt
+                force = Vector((0.0, 0.0, gravity)) * dt * dt
                 #mlocal = Matrix(pb['MATLOCAL'])
                 mlocal = pb.parent.bone.matrix_local.inverted() @ pb.bone.matrix_local
                 mroot = rig.convert_space(pose_bone=pb, matrix=parent.matrix, from_space='POSE', to_space='WORLD') @ mlocal
