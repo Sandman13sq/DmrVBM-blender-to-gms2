@@ -11,10 +11,12 @@ For stable versions see the **Releases** on the GitHub page.
 
 Support me on: [Patreon](https://www.patreon.com/sandman13sq) | [Ko-fi](https://ko-fi.com/sandman13sq)
 
+![Preview](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/preview.gif)
+
 # [Quick Start Guide](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/wiki/Quick-Start-Guide)
 
 -----
-  
+
 ## Blender 4.x Addon Installation
 * In Blender, go to `Edit` > `Preferences` > `Add-ons`
 * Click `Install` on the top right of the Preferences window
