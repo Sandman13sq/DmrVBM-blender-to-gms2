@@ -7,15 +7,16 @@ import struct
 import timeit
 import time
 import json
+import random
 
 import gpu
 import math
+import ctypes
 from gpu_extras.batch import batch_for_shader
-from math import sin, cos
-from mathutils import Matrix, Vector
-PI = math.pi
-
+from math import sin, cos, atan2
+from mathutils import Vector, Euler, Matrix
 from bpy_extras.io_utils import ExportHelper, ImportHelper
+PI = math.pi
 
 classlist = []
 
@@ -1477,6 +1478,9 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
             self.queue_name = self.queues[self.queues_index].name if self.queues else ""
             self['mutex'] = False
     
+    def UpdateSwingAnimationState(self, context):
+        VBM_CreateSwingHandlers()
+    
     tab_select: bpy.props.EnumProperty(name="VBM Tab", items=(
         ('FORMAT', "Formats", "Vertex Formats"),
         ('QUEUE', "Queues", "Export Queues"),
@@ -1521,6 +1525,17 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
     
     show_bone_colliders: bpy.props.BoolProperty(default=True)
     show_bone_collider_hidden: bpy.props.BoolProperty(default=False)
+    
+    show_bone_particle_last: bpy.props.BoolProperty(default=False)
+    show_bone_particle_current: bpy.props.BoolProperty(default=False)
+    show_bone_particle_goal: bpy.props.BoolProperty(default=False)
+    
+    update_swing_animation: bpy.props.EnumProperty(update=UpdateSwingAnimationState, items=(
+        ('NONE', "None", "Swing animaton will not process"),
+        ('ANIMATION', "Animation", "Swing animation will process while animation is playing"),
+        ('LIVE', "Live", "Swing animation will process while scene is updated")
+    ))
+    update_swing_quality: bpy.props.BoolProperty(default=False)
         
     # ..........................................................................
     def AsProjectPath(self, path):
@@ -1827,6 +1842,10 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         obj = bpy.data.objects.new(name="__temp_VBMEXPORT-"+src.name, object_data=src.data.copy())
                         obj.data.name = "__temp_VBMEXPORT-"+src.data.name
                         obj.matrix_world = src.matrix_world
+                        
+                        if src.find_armature():
+                            obj.matrix_world = src.find_armature().matrix_world.inverted() @ src.matrix_world
+                        
                         context.scene.collection.objects.link(obj)
                         
                         if item and item.action and src.find_armature():
@@ -1855,6 +1874,9 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                                     m['Socket_2'] = msrc['Socket_2']
                                 if m.type == 'ARMATURE':
                                     m.use_vertex_groups = not use_skinning
+                                if m.type == 'DATA_TRANSFER':
+                                    if src.find_armature() and m.object in src.find_armature().children:
+                                        m.use_object_transform = False
                         
                         # Use instances
                         instsrc = src.children[0] if src.children else None
@@ -2234,6 +2256,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         # Animations ================================================================================
         animationentries = []
         if export_animation:
+            swing_state = context.scene.vbm.update_swing_animation
+            context.scene.vbm.update_swing_animation = 'NONE'
             for rig in sourcerigs:
                 sourceactions = []
                 #nlaactions = [s.action for t in rig.animation_data.nla_tracks for s in t.strips if s.action][::-1] if rig and rig.animation_data else []
@@ -2375,7 +2399,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     outanimation += anim['data'] # Data
                     resources['animations'].append(outanimation)
                 benchmark['anim_file'] = time.time()-benchmark['anim_file']
-        
+            context.scene.vbm.update_swing_animation = swing_state
         Cleanup()
         
         # Output ====================================================================================
@@ -2424,6 +2448,200 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
 classlist.append(VBM_PG_Master)
 
 '# =========================================================================================================================='
+'# HANDLER'
+'# =========================================================================================================================='
+
+# <- TODO: Is the PoseBone struct consistent between Blender versions?
+POSEBONE_LOCATION_PTR_OFFSET = 61*4   
+POSEBONE_SCALE_PTR_OFFSET = 64*4   
+POSEBONE_QUATERNION_PTR_OFFSET = 70*4   
+def VBM_ProcessSwingBones(sc, mode):
+    context = bpy.context
+    if context.mode not in ('OBJECT', 'POSE'):
+        return
+    
+    # Check if animation is enabled
+    swing_mode = sc.vbm.update_swing_animation
+    last_mode = sc.vbm.get('SWING_PLAYSTATE', 'NONE')
+    swing_enabled = swing_mode != 'NONE'
+    
+    if swing_mode != last_mode:
+        print("> VBM Swing Update State Change:", swing_mode)
+        sc.vbm['SWING_PLAYSTATE'] = swing_mode
+        for rig in [obj for obj in sc.collection.all_objects if obj.type=='ARMATURE' and len(obj.vbm.deform_mask) > 0]:
+            deformmask = rig.vbm.deform_mask
+            deformmap = rig['DEFORM_MAP']
+            usedswing = {}
+            for dbone in deformmask:
+                pb = rig.pose.bones.get(dbone.name, None)
+                if pb:
+                    pname = deformmap.get(dbone.name, "")
+                    pb['MATLOCAL'] = pb.parent.bone.matrix_local.inverted() @ pb.bone.matrix_local
+                    pb['SWG_CURR'] = pb.get('SWG_CURR', (0,0,0))
+                    pb['SWG_LAST'] = pb.get('SWG_LAST', (0,0,0))
+                    pb['SWG_GOAL'] = pb.get('SWG_GOAL', (0,0,0))
+                    pb.location = (0.0, 0.0, 0.0)
+                    pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+                    pb.scale = (1.0, 1.0, 1.0)
+                    swing = dbone.swing
+                    if not swing.enabled and pname in usedswing.keys():
+                        swing = usedswing[pname]
+                        
+                    if swing.enabled:
+                        if swing.is_chain:
+                            usedswing[dbone.name] = swing
+                        for c in pb.constraints:
+                            c.influence = 0.0 if swing_enabled else 1.0
+        sc.vbm['SWING_ENABLED'] = swing_enabled
+        sc.vbm['SWING_MUTEX'] = 0
+    
+    # Early outs
+    frame_last = sc.get('FRAME_LAST', 0)
+    frame_current = sc.frame_current
+    sc['FRAME_LAST'] = frame_current
+    
+    if not swing_enabled:
+        return
+    
+    if swing_mode == 'ANIMATION' and frame_current <= frame_last:
+        return
+    
+    if sc.vbm['SWING_MUTEX']:
+        return
+    sc.vbm['SWING_MUTEX'] = 1
+    
+    clamp = lambda x,a,b: max(a, min(x,b))
+    
+    # Scene Params .........................................................................
+    sample_frame_range = [frame_current] if frame_current<=frame_last else range(frame_last, frame_current)
+    sample_frame_duration = max(1.0, frame_current-frame_last)
+    dt = len(sample_frame_range) / sample_frame_duration
+    
+    # Loop through all armatures .............................................................
+    for rig in tuple([obj for obj in tuple(sc.collection.all_objects) if obj.type=='ARMATURE' and obj.vbm.deform_mask]):
+        deformorder = rig.get('DEFORM_ORDER', [])
+        deformmap = rig.get('DEFORM_MAP', {})
+        deform_mask = rig.vbm.deform_mask
+        usedswing = {}  # {bname: swing}
+        usedswingkeys = []
+        bonenames = tuple(rig.data.bones.keys())
+        deformposebones = tuple([rig.pose.bones[bname] for bname in deformorder[1:]])
+        
+        for pb_index, pb in enumerate(deformposebones):
+            bname = pb.name
+            pname = deformmap.get(bname, "")
+            vbmbone = deform_mask.get(bname, None)
+            
+            swing = vbmbone.swing
+            if not swing.enabled: 
+                if pname in usedswingkeys:
+                    swing = usedswing[pname]
+            
+            if swing.enabled:
+                # Params
+                if swing.is_chain:
+                    usedswing[bname] = swing
+                    usedswingkeys.append(bname)
+                
+                # Values consistent between samples
+                bone = pb.bone
+                parent = rig.pose.bones[pname]
+                bone_length = bone.length
+                length_vector = Vector((0.0, bone_length, 0.0))
+                
+                frictionrate = min(1.0, (1.0 - swing.friction) * dt)
+                stiffness = min(1.0, swing.stiffness * dt)
+                dampness = min(1.0, swing.dampness * dt)
+                gravity = swing.gravity * dt
+                stretch = swing.stretch
+                noise = 0.5 * dt
+                looseness = 0.0
+                angle_min_x = swing.angle_min_x
+                angle_max_x = swing.angle_max_x
+                angle_min_z = swing.angle_min_z
+                angle_max_z = swing.angle_max_z
+                
+                force = Vector((0.0, 0.0, -gravity)) * dt * dt
+                #mlocal = Matrix(pb['MATLOCAL'])
+                mlocal = pb.parent.bone.matrix_local.inverted() @ pb.bone.matrix_local
+                mroot = rig.convert_space(pose_bone=pb, matrix=parent.matrix, from_space='POSE', to_space='WORLD') @ mlocal
+                minv = mroot.inverted()
+                
+                particle_goal = mroot @ length_vector
+                particle_root = Vector( (mroot[0][3], mroot[1][3], mroot[2][3]) )
+                pb['SWG_GOAL'] = particle_goal
+                
+                # Calculate particle for each frame ..............
+                for frame in sample_frame_range:
+                    # Verlet integration
+                    particle_last = Vector( pb['SWG_CURR'] )
+                    velocity = (particle_last - Vector( pb['SWG_LAST'] )) * (1.0 + noise * random.uniform(-.5, .5))
+                    
+                    particle_curr = (particle_last + velocity * frictionrate + force).lerp(particle_goal, dampness)
+                    particle_last = particle_last.lerp(particle_goal, dampness) - (particle_goal-particle_last) * stiffness
+                    
+                    # Stretch
+                    if stretch < 0.99:
+                        particle_curr = (particle_root + (particle_curr-particle_root).normalized() * bone_length).lerp(particle_curr, stretch)
+                        particle_last = (particle_root + (particle_last-particle_root).normalized() * bone_length).lerp(particle_last, stretch)
+                    
+                    # Update State
+                    pb['SWG_CURR'] = particle_curr
+                    pb['SWG_LAST'] = particle_last
+                
+                # Update Transform ...............................
+                v = minv @ particle_curr
+                b = minv @ particle_root
+                g = minv @ particle_goal
+                
+                rollpt5 = clamp(atan2(v[2]-b[2], v[1]-b[1]) * 0.5, angle_min_x, angle_max_x)
+                pitchpt5 = 0.0
+                yawpt5 = clamp(-atan2(v[0]-b[0], v[1]-b[1]) * 0.5, angle_min_z, angle_max_z)
+                quat = Euler((rollpt5, pitchpt5, yawpt5)).to_quaternion()
+                
+                particle_length = (v-b).length / bone_length
+                
+                # Set the values directly via pointer to avoid depsgraph call for EVERY single assignment
+                poseboneptr = pb.as_pointer()
+                
+                #floatptr = ctypes.cast(poseboneptr + POSEBONE_LOCATION_PTR_OFFSET, ctypes.POINTER(ctypes.c_float) )
+                #floatptr[0] = (v[0]-g[0]) * looseness
+                #floatptr[1] = (v[1]-g[1]) * looseness
+                #floatptr[2] = (v[2]-g[2]) * looseness
+                
+                floatptr = ctypes.cast(poseboneptr + POSEBONE_QUATERNION_PTR_OFFSET, ctypes.POINTER(ctypes.c_float) )
+                floatptr[0] = quat[0]
+                floatptr[1] = quat[1]
+                floatptr[2] = quat[2]
+                floatptr[3] = quat[3]
+                
+                floatptr = ctypes.cast(poseboneptr + POSEBONE_SCALE_PTR_OFFSET, ctypes.POINTER(ctypes.c_float) )
+                floatptr[0] = 1.0
+                floatptr[1] = particle_length
+                floatptr[2] = 1.0
+        rig.pose.bones.update() # Update once after all values have been updated. HOTSPOT of the entire modal
+    sc.vbm['SWING_MUTEX'] = 0
+
+def VBM_CreateSwingHandlers():
+    # Animation Update
+    def VBM_HL_SwingBoneHandler_Animation(sc):
+        VBM_ProcessSwingBones(sc, 'ANIMATION')
+    h = VBM_HL_SwingBoneHandler_Animation
+    event = bpy.app.handlers.frame_change_pre
+    for i,x in list(enumerate([x for x in event if x.__name__==h.__name__]))[::-1]:
+        del event[i]
+    event.append(h)
+
+    # Live Update
+    def VBM_HL_SwingBoneHandler_Live(sc):
+        VBM_ProcessSwingBones(sc, 'LIVE')
+    h = VBM_HL_SwingBoneHandler_Live
+    event = bpy.app.handlers.depsgraph_update_post
+    for i,x in list(enumerate([x for x in event if x.__name__==h.__name__]))[::-1]:
+        del event[i]
+    event.append(h)
+
+'# =========================================================================================================================='
 '# GPU'
 '# =========================================================================================================================='
 
@@ -2455,6 +2673,13 @@ def vbm_draw_gpu():
     if not context.space_data.overlay.show_overlays:
         return
     
+    if not (
+        ( vbm.show_bone_swing and ( vbm.show_bone_swing_axis or vbm.show_bone_swing_limits or vbm.show_bone_swing_cones ) ) or
+        ( vbm.show_bone_swing and ( vbm.show_bone_particle_current or vbm.show_bone_particle_last ) ) or
+        ( vbm.show_bone_colliders )
+        ):
+        return
+    
     obj = context.active_object
     rig = (obj if obj.type=='ARMATURE' else obj.find_armature()) if obj else None
     rig = rig if rig and not rig.hide_get() else None
@@ -2462,7 +2687,7 @@ def vbm_draw_gpu():
     if obj and rig and obj.mode in ('POSE', 'OBJECT'):
         if not getattr(rig, 'vbm', None):
             return
-
+        
         if not rig.vbm.deform_mask:
             return
         
@@ -2474,11 +2699,15 @@ def vbm_draw_gpu():
         VBM_COLOR_SWINGLIMIT = ( Vector((.5, .4, .4, 0.1)), Vector((.4, .4, .5, 0.1)) )
         VBM_COLOR_SWINGCONE = Vector((.5, .5, 1, 0.01))
         VBM_COLOR_COLLIDER = Vector((1, .7, .4, 1))
+        VBM_COLOR_PARTICLE = ( Vector((.9, .4, .4, 0.5)), Vector((.1, .5, .1, 0.1)), Vector((.1, .1, .5, 0.1)) )
         
         axisentries = []    # [ (matrix, swing) ]
         limitentries = []   # [ (matrix, swing) ]
         coneentries = []   # [ (matrix, swing) ]
         colliderentries = []   # [ (matrix, collider) ]
+        particleentrieslast = [] 
+        particleentriescurr = [] 
+        particleentriesgoal = [] 
         
         if VBM_BLENDER_4_0:
             use_solo = 1
@@ -2489,10 +2718,11 @@ def vbm_draw_gpu():
         
         visible += ['DEF-'+x for x in visible]
         vbmskeleton = rig.vbm
-        deformmap = rig.get('DEFORM_MAPRAW', {})
+        deformmapraw = rig.get('DEFORM_MAPRAW', {})
+        dmap = rig.get('DEFORM_MAP', {})
         swingchains = []
         colliderchains = []
-        DeformChain = lambda chain: ([chain.append(bname) for bname,pname in deformmap.items() if pname in chain], chain)[-1]
+        DeformChain = lambda chain: ([chain.append(bname) for bname,pname in deformmapraw.items() if pname in chain], chain)[-1]
         
         # Parse Chains ..............................................................................
         for pb in rig.pose.bones:
@@ -2508,7 +2738,7 @@ def vbm_draw_gpu():
                 if collider:
                     if collider.is_chain:
                         chain = [pb.name]
-                        [chain.append(bname) for bname,pname in deformmap.items() if pname in chain]
+                        [chain.append(bname) for bname,pname in deformmapraw.items() if pname in chain]
                         colliderchains.append(chain)
         
         # Parse Bones ..............................................................................
@@ -2516,6 +2746,15 @@ def vbm_draw_gpu():
             if pb.bone.use_deform:
                 deform = vbmskeleton.deform_mask.get(pb.name)
                 if deform and deform.enabled:
+                    pname = dmap.get(pb.name, "0")
+                    parent = rig.pose.bones.get(pname, None) if pname and pname != "0" else None
+                    if parent:
+                        mlocal = parent.bone.matrix_local.inverted() @ pb.bone.matrix_local
+                        mbind = (rig.convert_space(pose_bone=pb, matrix=parent.matrix, from_space='POSE', to_space='WORLD') @ mlocal)
+                    else:
+                        mlocal = Matrix.Identity(4)
+                        mbind = Matrix.Identity(4)
+                    
                     # Swing
                     if vbm.show_bone_swing and (vbm.show_bone_swing_hidden or pb.name in visible):
                         swinglabel = vbmskeleton.swing_bones.get(pb.name, "")
@@ -2527,11 +2766,18 @@ def vbm_draw_gpu():
                                     break
                         if swing:
                             if vbm.show_bone_swing_axis:
-                                axisentries.append( (pb.matrix, swing) )
+                                axisentries.append( (mbind, swing) )
                             if vbm.show_bone_swing_limits:
-                                limitentries.append( (pb.matrix, swing) )
+                                limitentries.append( (mbind, swing) )
                             if vbm.show_bone_swing_cones:
-                                coneentries.append( (pb.matrix, swing, pb.bone.length) )
+                                coneentries.append( (mbind, swing, pb.bone.length) )
+                            
+                            if vbm.show_bone_particle_current:
+                                particleentriescurr.append( (Matrix.Translation(pb.get('SWG_CURR', (0,0,0)))) )
+                            if vbm.show_bone_particle_last:
+                                particleentrieslast.append( (Matrix.Translation(pb.get('SWG_LAST', (0,0,0)))) )
+                            if vbm.show_bone_particle_goal:
+                                particleentriesgoal.append( (Matrix.Translation(pb.get('SWG_GOAL', (0,0,0)))) )
                     
                     # Collider
                     if vbm.show_bone_colliders and (vbm.show_bone_collider_hidden or pb.name in visible):
@@ -2551,32 +2797,34 @@ def vbm_draw_gpu():
         # Swing Cones
         divPI_4 = 1/(PI*4)
         shader.uniform_float("color", VBM_COLOR_SWINGCONE)
-        for matrix, swing, length in coneentries:
-            xmid = (swing.angle_min_x+swing.angle_max_x) * 0.5
-            zmid = (swing.angle_max_z+swing.angle_min_z) * 0.5
-            xscale = (swing.angle_max_x-swing.angle_min_x) * divPI_4
-            zscale = (swing.angle_max_z-swing.angle_min_z) * divPI_4
-            gpu.matrix.load_matrix(matrix @ Matrix.LocRotScale(None, mathutils.Euler((xmid,0,zmid)), (1,1,1)) @ Matrix.LocRotScale(None, None, (zscale,length,xscale)) )
-            batch_cone.draw(shader)
-        shader.uniform_float("color", VBM_COLOR_SWINGCONE*2.0)
-        for matrix, swing, length in coneentries:
-            xmid = (swing.angle_max_x+swing.angle_min_x) * 0.5
-            zmid = (swing.angle_max_z+swing.angle_min_z) * 0.5
-            xscale = (swing.angle_max_x-swing.angle_min_x) * divPI_4
-            zscale = (swing.angle_max_z-swing.angle_min_z) * divPI_4
-            gpu.matrix.load_matrix(matrix @ Matrix.LocRotScale(None, mathutils.Euler((xmid,0,zmid)), (1,1,1)) @ Matrix.LocRotScale(None, None, (zscale,length,xscale)) )
-            batch_ring_y1.draw(shader)
+        for batch in (batch_cone, batch_ring_y1):
+            for matrix, swing, length in coneentries:
+                xmid = (swing.angle_min_x+swing.angle_max_x) * 0.5
+                zmid = (swing.angle_max_z+swing.angle_min_z) * 0.5
+                xscale = (swing.angle_max_x-swing.angle_min_x) * divPI_4
+                zscale = (swing.angle_max_z-swing.angle_min_z) * divPI_4
+                gpu.matrix.load_matrix(matrix @ Matrix.LocRotScale(None, mathutils.Euler((xmid,0,zmid)), (1,1,1)) @ Matrix.LocRotScale(None, None, (zscale,length,xscale)) )
+                batch.draw(shader)
+            shader.uniform_float("color", VBM_COLOR_SWINGCONE*2.0)
         # Swing Limits
-        shader.uniform_float("color", VBM_COLOR_SWINGLIMIT[0])
-        for matrix, swing in limitentries:
-            for i in range(int(swing.angle_min_x*VBM_SWINGLIMITN), int(swing.angle_max_x*VBM_SWINGLIMITN)+1):
-                gpu.matrix.load_matrix(matrix @ Matrix.Rotation(1*i/VBM_SWINGLIMITN, 4, 'X') @ Matrix.Scale(0.04, 4))
-                batch_swing_limit_x.draw(shader)
-        shader.uniform_float("color", VBM_COLOR_SWINGLIMIT[1])
-        for matrix, swing in limitentries:
-            for i in range(int(swing.angle_min_z*VBM_SWINGLIMITN), int(swing.angle_max_z*VBM_SWINGLIMITN)+1):
-                gpu.matrix.load_matrix(matrix @ Matrix.Rotation(1*i/VBM_SWINGLIMITN, 4, 'Z') @ Matrix.Scale(0.04, 4))
-                batch_swing_limit_z.draw(shader)
+        for limit_index, batch in enumerate((batch_swing_limit_x, batch_swing_limit_z)):
+            for matrix, swing in limitentries:
+                shader.uniform_float("color", VBM_COLOR_SWINGLIMIT[limit_index])
+                angle_min = swing.angle_min_z if limit_index else swing.angle_min_x
+                angle_max = swing.angle_max_z if limit_index else swing.angle_max_x
+                for i in range(int(angle_min*VBM_SWINGLIMITN), int(angle_max*VBM_SWINGLIMITN)+1):
+                    gpu.matrix.load_matrix(matrix @ Matrix.Rotation(1*i/VBM_SWINGLIMITN, 4, 'XZ'[limit_index]) @ Matrix.Scale(0.07, 4))
+                    batch.draw(shader)
+        
+        # Swing Particles
+        scales = (0.01, 0.004, 0.004)
+        for group_index, group in list(enumerate((particleentriescurr, particleentrieslast, particleentriesgoal)))[::-1]:
+            mscale = Matrix.Scale(scales[group_index], 4)
+            shader.uniform_float("color", VBM_COLOR_PARTICLE[group_index])
+            for matrix in group:
+                gpu.matrix.load_matrix(matrix @ mscale)
+                batch_sphere.draw(shader)
+        
         # Swing Axes
         for i in (0,1,2):
             shader.uniform_float("color", VBM_COLOR_SWINGAXIS[i])
@@ -2616,8 +2864,12 @@ def register():
 
     bpy.types.SpaceView3D.draw_handler_add(vbm_draw_gpu, (), 'WINDOW', 'POST_VIEW')
     print(VBM_GPUSWING_HDLKEY)
+    
+    VBM_CreateSwingHandlers()
 
 def unregister():
+    for i,x in list(enumerate([x for x in event if x.__name__==VBM_HL_SwingBoneHandler.__name__]))[::-1]:
+        del event[i]
     [bpy.utils.unregister_class(c) for c in classlist[::-1]]
     VBM_GPUSWING_HDLKEY = 1
     print(VBM_GPUSWING_HDLKEY)
