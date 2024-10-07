@@ -1181,8 +1181,8 @@ function VBM_AnimatorSwing() constructor {
 	randomness = 0.1;	// Added to particle when far from point
 	force = [0, 0, -0.01];
 	
-	angle_min_y = -0.1;
-	angle_max_y = 0.1;
+	angle_min_x = -0.1;
+	angle_max_x = 0.1;
 	angle_min_z = -0.1;
 	angle_max_z = 0.1;
 	
@@ -1751,11 +1751,11 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 	
 	// Single check here instead of checking for every bone
 	if ( animator.swing_enabled ) {
-		var vlocal = [0,0,0], lsource = [0,0,0], lgoal = [0,0,0];
+		var vcurr = [0,0,0], lroot = [0,0,0], lgoal = [0,0,0];
 		var vx, vy, vz;
 		var lx, ly, lz;
 		var gx, gy, gz;
-		var bx, by, bz;
+		var rx, ry, rz;
 		var cx, cy, cz;
 		var velx, vely, velz;
 		var d;
@@ -1773,7 +1773,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 		var swing_index;
 		var swing_count = animator.swing_count;
 		var collider_count = animator.collider_count;
-		var bone_length = 0;
+		var bone_length = 0, particle_length;
 		
 		var m00, m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15;
 		
@@ -1792,9 +1792,9 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 					
 					// Get position of bone before local transform = Bone.Local x Parent.Absolute
 					mswg = matrix_multiply(animator.bone_matlocal[bone_index], animator.matworld[parent_index]);
-					bx = mswg[VBM_M03];
-					by = mswg[VBM_M13];
-					bz = mswg[VBM_M23];
+					rx = mswg[VBM_M03];
+					ry = mswg[VBM_M13];
+					rz = mswg[VBM_M23];
 					
 					// Calculate inverse of swing base position for later converting back to local transform 
 					//__vbm_mat4inverse(minv, mswg);	// <-- Inlined below
@@ -1827,12 +1827,13 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 				    minv[12] *= d; minv[13] *= d; minv[14] *= d; minv[15] *= d;
 					
 					// Get position of goal = Swing.Offset x Bone.Local x Parent.Absolute
-					vlocal = matrix_transform_vertex(mswg, 0, bone_length, 0);
-					gx = vlocal[0];
-					gy = vlocal[1];
-					gz = vlocal[2];
+					lgoal = matrix_transform_vertex(mswg, 0, bone_length, 0);
+					gx = lgoal[0];
+					gy = lgoal[1];
+					gz = lgoal[2];
 				
 					// Calculate Particle via Verlet Integration ...........................................
+					
 					// Factor in `delta` here to save on multiplications
 					frictionrate = (1.0-swg.friction) * delta;
 					stiffness = swg.stiffness * delta;
@@ -1844,9 +1845,10 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 					ly = swg.vcurr[1];
 					lz = swg.vcurr[2];
 					// Velocity = current - last
-					velx = lx - swg.vprev[0];
-					vely = ly - swg.vprev[1];
-					velz = lz - swg.vprev[2];
+					velx = (lx - swg.vprev[0]) * (1.0 + randomness * random_range(-.5, .5));
+					vely = (ly - swg.vprev[1]) * (1.0 + randomness * random_range(-.5, .5));
+					velz = (lz - swg.vprev[2]) * (1.0 + randomness * random_range(-.5, .5));
+					
 					// Current = current + velocity + acceleration * dt*dt
 					vx = lx + velx * frictionrate + (swg.force[0] / swg.mass) * delta * delta;
 					vy = ly + vely * frictionrate + (swg.force[1] / swg.mass) * delta * delta;
@@ -1856,22 +1858,25 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 					vy = lerp(vy, gy, dampness);
 					vz = lerp(vz, gz, dampness);
 					
-					// Last
-					if (randomness > 0.0) {
-						d = min(1.0, sqrt(point_distance_3d(lx, ly, lz, gx, gy, gz)));
-						randomness *= randomness * d;
-						lx += random_range(-.5, .5) * randomness;
-						ly += random_range(-.5, .5) * randomness;
-						lz += random_range(-.5, .5) * randomness;
-					}
-					
 					lx = lerp(lx, gx, dampness) - (gx - vx) * stiffness;
 					ly = lerp(ly, gy, dampness) - (gy - vy) * stiffness;
 					lz = lerp(lz, gz, dampness) - (gz - vz) * stiffness;
 					
-					// Apply Constraints .................................
+					// Limit Distance from root to particle
+					if ( stretch < 0.99 ) {
+						d = point_distance_3d(vx,vy,vz, rx,ry,rz);
+						
+						vx = lerp(rx + bone_length * (vx-rx)/d, vx, stretch);
+						vy = lerp(ry + bone_length * (vy-ry)/d, vy, stretch);
+						vz = lerp(rz + bone_length * (vz-rz)/d, vz, stretch);
+						
+						d = point_distance_3d(lx,ly,lz, rx,ry,rz);
+						lx = lerp(rx + bone_length * (lx-rx)/d, lx, stretch);
+						ly = lerp(ry + bone_length * (ly-ry)/d, ly, stretch);
+						lz = lerp(rz + bone_length * (lz-rz)/d, lz, stretch);
+					}
 					
-					// Collision Constraint
+					// Check against colliders
 					if ( colliders_enabled ) {
 						collider_index = 0;
 						repeat(collider_count) {
@@ -1902,57 +1907,19 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 						}
 					}
 					
-					// Distance constraint
-					if ( swg_flags & VBM_SWINGFLAGS.DISTANCE ) {
-						// * Get direction vector from source to point
-						// * v = source + dir * offset.length
-						
-						// vCurrent
-						velx = vx - bx;
-						vely = vy - by;
-						velz = vz - bz;
-						d = point_distance_3d(0,0,0, velx, vely, velz) + 0.000001;
-						velx /= d; vely /= d; velz /= d;
-						
-						vx = bx + velx * bone_length;
-						vy = by + vely * bone_length;
-						vz = bz + velz * bone_length;
-							
-						// vLast
-						velx = lx - bx;
-						vely = ly - by;
-						velz = lz - bz;
-						d = point_distance_3d(0,0,0, velx, vely, velz) + 0.000001;
-						velx /= d; vely /= d; velz /= d;
-						
-						lx = bx + velx * bone_length;
-						ly = by + vely * bone_length;
-						lz = bz + velz * bone_length;
-					}
-					
-					swg.vcurr[0] = vx;
-					swg.vcurr[1] = vy;
-					swg.vcurr[2] = vz;
-					swg.vgoal[0] = gx;
-					swg.vgoal[1] = gy;
-					swg.vgoal[2] = gz;
-					swg.vprev[0] = lx;
-					swg.vprev[1] = ly;
-					swg.vprev[2] = lz;
+					swg.vcurr[0] = vx; swg.vcurr[1] = vy; swg.vcurr[2] = vz;
+					swg.vprev[0] = lx; swg.vprev[1] = ly; swg.vprev[2] = lz;
+					swg.vgoal[0] = gx; swg.vgoal[1] = gy; swg.vgoal[2] = gz;
 				
 					// Convert from world-space Back to local-space ...............................
-					vlocal = matrix_transform_vertex(minv, vx, vy, vz);
-					lsource = matrix_transform_vertex(minv, bx, by, bz);
+					vcurr = matrix_transform_vertex(minv, vx, vy, vz);
+					lroot = matrix_transform_vertex(minv, rx, ry, rz);
 					lgoal = matrix_transform_vertex(minv, gx, gy, gz);
 				
 					// Write rotation back to transform
-					rollpt5 = clamp(arctan2(vlocal[2]-lsource[2], vlocal[1]-lsource[1]) * 0.5, swg.angle_min_y, swg.angle_max_y);
+					rollpt5 = clamp(arctan2(vcurr[2]-lroot[2], vcurr[1]-lroot[1]) * 0.5, swg.angle_min_x, swg.angle_max_x);
 					pitchpt5 = 0.0;
-					yawpt5 = clamp(-arctan2(vlocal[0]-lsource[0], vlocal[1]-lsource[1]) * 0.5, swg.angle_min_z, swg.angle_max_z);
-				
-					transforms[@ transform_offset + VBM_T_LOCX] = (vlocal[0]-lgoal[0]) * stretch;
-					transforms[@ transform_offset + VBM_T_LOCY] = (vlocal[1]-lgoal[1]) * stretch;
-					transforms[@ transform_offset + VBM_T_LOCZ] = (vlocal[2]-lgoal[2]) * stretch;
+					yawpt5 = clamp(-arctan2(vcurr[0]-lroot[0], vcurr[1]-lroot[1]) * 0.5, swg.angle_min_z, swg.angle_max_z);
 					
 					cx = cos(rollpt5);
 					cy = 1.0; // cos(pitchpt5);
@@ -1961,10 +1928,21 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 					sy = 0.0; // sin(pitchpt5);
 					sz = sin(yawpt5);
 					
+					particle_length = point_distance_3d(vcurr[0], vcurr[1], vcurr[2], lroot[0], lroot[1], lroot[2]);
+					//show_debug_message(string([bone_length, particle_length, particle_length / bone_length]));
+					
+					//transforms[@ transform_offset + VBM_T_LOCX] = 0.0;
+					//transforms[@ transform_offset + VBM_T_LOCY] = 0.0;
+					//transforms[@ transform_offset + VBM_T_LOCZ] = 0.0;
+					
 					transforms[@ transform_offset + VBM_T_QUATW] = cx*cy*cz - sx*sy*sz;
 					transforms[@ transform_offset + VBM_T_QUATX] = sx*cy*cz + cx*sy*sz;
 					transforms[@ transform_offset + VBM_T_QUATY] = cx*sy*cz - sx*cy*sz;
 					transforms[@ transform_offset + VBM_T_QUATZ] = cx*cy*sz + sx*sy*cz;
+					
+					transforms[@ transform_offset + VBM_T_SCALEX] = 1.0;
+					transforms[@ transform_offset + VBM_T_SCALEY] = particle_length / bone_length;
+					transforms[@ transform_offset + VBM_T_SCALEZ] = 1.0;
 					break;
 				}
 				swing_index += 1;
@@ -2039,7 +2017,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 			
 			bone_index++;
 		}
-	
+		//show_message("farts");
 	}
 	// No swing bones. Matrix evaluation only
 	else {
@@ -2314,6 +2292,9 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 				swg.stiffness = buffer_read(b, buffer_f32);
 				swg.dampness = buffer_read(b, buffer_f32);
 				swg.gravity = buffer_read(b, buffer_f32);
+				if (restypeversion >= 1) {
+					swg.stretch = buffer_read(b, buffer_f32);
+				}
 				swg.offset[0] = buffer_read(b, buffer_f32);
 				swg.offset[1] = buffer_read(b, buffer_f32);
 				swg.offset[2] = buffer_read(b, buffer_f32);

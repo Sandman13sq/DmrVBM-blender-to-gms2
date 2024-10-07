@@ -15,3 +15,4 @@ tutorial_inst = instance_create_depth(0,0,0, tutorials[tutorial_index]);
 show_debug_overlay(true);
 
 dmrfont = font_add_sprite(spr_dmrfont, 0x20, true, 1);
+
