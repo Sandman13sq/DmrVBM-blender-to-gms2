@@ -139,6 +139,13 @@ function VBM_Mesh() constructor {
 	material_index = -1;	// Index to material in model
 	bounds_min = [0,0,0];
 	bounds_max = [0,0,0];
+	
+	function toString() {
+		return "{VBMMesh " + name 
+			+ " sprite " + string(texture_override? texture_override: texture_sprite) 
+			+ " format " + string(formatkey) 
+			+ "}";
+	}
 }
 
 // Skeleton ...................................................................
@@ -177,6 +184,14 @@ function VBM_Skeleton() constructor {
 	swing_count = 0;
 	collider_bones = [];	// Array of VBM_SkeletonColliderBone
 	collider_count = 0;
+	
+	function toString() {
+		return "{VBMSkeleton " + name 
+			+ " bones " + string(bone_count) 
+			+ " swing " + string(swing_count) 
+			+ " colliders " + string(collider_count) 
+			+ "}";
+	}
 }
 
 #endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -199,6 +214,19 @@ function VBM_Animation() constructor {
 	baked_transforms = [];
 	baked_local = [];	// Array of array of flat matrices for each frame of animation
 	baked_final = [];
+	
+	function toString() {
+		return "{VBMAnimation " + name 
+			+ " duration " + string_format(duration, 2, 2) 
+			+ " fps" + string_format(native_fps, 2, 2) 
+			+ " curves " + string(curve_count)
+			+ " baked [" + (
+				(array_length(baked_transforms)? "T": " ") + 
+				(array_length(baked_local)? "L": " ") + 
+				(array_length(baked_final)? "F": " ")
+			) + "]"
+			+ "}";
+	}
 }
 
 function VBM_Animation_Free(animation) {
@@ -524,7 +552,6 @@ function VBM_Animation_BakeAnimationLocal(animation) {
 function VBM_Model() constructor {
 	meshes = array_create(16);
 	mesh_count = 0;
-	mesh_key_to_index = {};
 	
 	skeleton = new VBM_Skeleton();
 	animations = [];
@@ -532,6 +559,15 @@ function VBM_Model() constructor {
 	
 	texture_sprites = [];	// Generated during file reading
 	texture_count = 0;
+	
+	function toString() {
+		return "{VBMModel " + name 
+			+ " meshes " + string(mesh_count) 
+			+ " textures " + string(texture_count) 
+			+ " bones" + string(skeleton.bone_count)
+			+ " animations " + string(animation_count) 
+			+ "}";
+	}
 }
 
 function VBM_Model_Create() {
