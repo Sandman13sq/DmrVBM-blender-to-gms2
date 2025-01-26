@@ -189,16 +189,11 @@ function VBM_Animation() constructor {
 	curve_count = 0;
 	duration = 0;
 	native_fps = 60;
-	buffer_size = 0;	// in floats
 	
 	curve_names = array_create(VBM_CURVECAPACITY);
 	curve_namehashes = array_create(VBM_CURVECAPACITY);
 	
 	curve_views = array_create(VBM_CURVECAPACITY*2);	// [ channel_offset, channel_count, ... ]
-	channel_views = array_create(VBM_CURVECAPACITY*10);	// [ values_offset, frame_count, ... ]
-	valuebuffer = array_create(VBM_CHANNELCAPACITY);
-	framebuffer = array_create(VBM_CHANNELCAPACITY);
-	
 	animcurve = -1;	// Single animcurve containing all channels for animation
 	
 	baked_transforms = [];
@@ -206,14 +201,17 @@ function VBM_Animation() constructor {
 	baked_final = [];
 }
 
-function VBM_Animation_Free(animation) constructor {
+function VBM_Animation_Free(animation) {
 	if ( animation.animcurve ) {
 		animcurve_destroy(animation.animcurve);
+		animation.animcurve = -1;
 	}
 }
 
 function VBM_Animation_Copy(animation_dest, animation_src) {
-	VBM_Animation_Free(animation_dest);
+	if ( is_undefined(animation_src) ) {
+		return;
+	}
 	
 	// Copy metadata
 	animation_dest.name = animation_src.name;
@@ -226,17 +224,52 @@ function VBM_Animation_Copy(animation_dest, animation_src) {
 	array_copy(animation_dest.curve_names, 0, animation_src.curve_names, 0, VBM_CURVECAPACITY);
 	array_copy(animation_dest.curve_namehashes, 0, animation_src.curve_namehashes, 0, VBM_CURVECAPACITY);
 	array_copy(animation_dest.curve_views, 0, animation_src.curve_views, 0, array_length(animation_src.curve_views));
-	array_copy(animation_dest.channel_views, 0, animation_src.channel_views, 0, array_length(animation_src.channel_views));
-	array_copy(animation_dest.valuebuffer, 0, animation_src.valuebuffer, 0, array_length(animation_src.valuebuffer));
-	array_copy(animation_dest.framebuffer, 0, animation_src.framebuffer, 0, array_length(animation_src.framebuffer));
 	
 	array_copy(animation_dest.baked_transforms, 0, animation_src.baked_transforms, 0, array_length(animation_src.baked_transforms));
 	array_copy(animation_dest.baked_local, 0, animation_src.baked_local, 0, array_length(animation_src.baked_local));
 	array_copy(animation_dest.baked_final, 0, animation_src.baked_final, 0, array_length(animation_src.baked_final));
 	
 	// Copy animcurve
-	if ( animation_src.animcurve ) {
-		animation_dest.animcurve = animation_src.animcurve;
+	if ( animation_src.animcurve != -1 ) {
+		if ( animation_dest.animcurve == -1 ) {
+			animation_dest.animcurve = animcurve_create();
+		}
+		
+		var srccurve = animcurve_get(animation_src.animcurve);
+		var dstcurve = animcurve_get(animation_dest.animcurve);
+		var srcchannel, dstchannel;
+		var psrc, pdst;
+		var numchannels, numkeyframes;
+		
+		numchannels = array_length(srccurve.channels);
+		var dstchannels = array_create(numchannels);
+		var dstpoints;
+		var channel_offset = 0, i;
+		
+		// Iterate channels
+		repeat(numchannels) {
+			srcchannel = srccurve.channels[channel_offset];
+			dstchannel = animcurve_channel_new();
+			
+			numkeyframes = array_length(srcchannel.points);
+			dstpoints = array_create(numkeyframes);
+			// Iterate keyframes
+			i = 0; repeat(numkeyframes) {
+				psrc = srcchannel.points[i];
+				pdst = animcurve_point_new();
+				pdst.posx = psrc.posx;
+				pdst.value = psrc.value;
+				dstpoints[i] = pdst;
+				i++;
+			}
+			dstchannel.points = dstpoints;
+			dstchannel.type = animcurvetype_linear;
+			dstchannel.name = srcchannel.name;
+			dstchannels[channel_offset] = dstchannel;
+			channel_offset++;
+		}
+		dstcurve.channels = dstchannels;
+		dstcurve.name = srccurve.name;
 	}
 }
 
@@ -246,72 +279,12 @@ function VBM_Animation_Duplicate(animation_src) {
 	return animation_dest;
 }
 
-function VBM_Animation_WriteAnimCurve(animation) {
-	var channel_index = 0;
-	var channel_count = 0;
-	var curve_count = animation.curve_count;
-	var view_offset, view_size;
-	var curve_views = animation.curve_views;
-	var channel_views = animation.channel_views;
-	var transform_index = 0;
-	var duration = max(1.0, animation.duration);
-	
-	var animchannels;
-	var animchannel;
-	var animpoints;
-	var animpoint;
-	
-	animation.animcurve = animcurve_create();
-	animchannels = array_create(curve_count*10);
-	
-	for (var curve_index = 0; curve_index < curve_count; curve_index++) {
-		channel_index = curve_views[@ curve_index*2+0];
-		channel_count = curve_views[@ curve_index*2+1];
-		
-		transform_index = 0;
-		repeat(channel_count) {	// Loop is a HOTSPOT!
-			view_size = channel_views[@ channel_index*2+1];
-			view_offset = channel_views[@ channel_index*2+0];
-			
-			animchannel = animcurve_channel_new();
-			animpoints = array_create(view_size+1);
-			animchannel.type = animcurvetype_linear;
-			
-			for (var p = 0; p < view_size; p++) {
-				animpoint = animcurve_point_new();
-				animpoint.posx = animation.framebuffer[view_offset+p] / duration;
-				animpoint.value = animation.valuebuffer[view_offset+p];
-				animpoints[p] = animpoint;
-			}
-			
-			animpoint = animcurve_point_new();
-			animpoint.posx = 1.0;
-			animpoint.value = animation.valuebuffer[view_offset+view_size-1];
-			animpoints[view_size] = animpoint;
-			
-			animchannel.name = animation.curve_names[curve_index]+"["+string(transform_index)+"]";
-			animchannel.points = animpoints;
-			animchannels[curve_index*10+transform_index] = animchannel;
-			transform_index += 1;
-			channel_index += 1;
-		}
-	}
-	
-	animation.animcurve.channels = animchannels;
-}
-
 function VBM_Animation_SampleCurveSingle(animation, frame, curve_name, channel_index, default_value) {
 	if (!animation) {return default_value;}
 	
 	var numcurves = animation.curve_count;
-	var framebuffer = animation.framebuffer;
-	var valuebuffer = animation.valuebuffer;
-	
-	var kprev, knext, kstop, curve_index, channel_count;
-	var pprev, vprev;
-	var view_offset, view_size;
+	var curve_index, channel_count;
 	var curve_views = animation.curve_views;
-	var channel_views = animation.channel_views;
 	
 	frame = (animation.duration > 0)? frame mod animation.duration: 1;
 	var pos = frame / max(1.0, animation.duration);
@@ -326,61 +299,23 @@ function VBM_Animation_SampleCurveSingle(animation, frame, curve_name, channel_i
 	}
 	
 	channel_count = curve_views[curve_index*2+1];
-	view_size = channel_views[channel_index*2+1];
 	
-	if (channel_index >= channel_count || view_size == 0) {
+	if (channel_index >= channel_count) {
 		return default_value;
 	}
 	
 	channel_index = channel_index + curve_views[curve_index*2+0];
 	
-	// Switch statement is slower. Use if/else
-	if (view_size == 1) {	// 1 keyframe (No interpolation)
-		view_offset = channel_views[channel_index*2+0];
-		return valuebuffer[view_offset];
-	}
-	else if (view_size == 2) {	// 2 Keyframes (No keyframe search)
-		view_offset = channel_views[channel_index*2+0];
-		knext = view_offset + 1;
-		pprev = framebuffer[view_offset];
-		vprev = valuebuffer[view_offset];
-		return vprev + (valuebuffer[knext] - vprev) * (frame - pprev) / (framebuffer[knext] - pprev);
-	}
-	else {	// More than 2 keyframes
-		view_offset = channel_views[channel_index*2+0];
-		knext = view_offset + (view_size * pos);	// Guess first keyframe using position
-					
-		if (framebuffer[knext] < frame) {	// Walk forward
-			kstop = view_offset + view_size - 1;
-			while (knext < kstop && framebuffer[knext] < frame) {knext += 1;}
-			kprev = knext - 1;
-		}
-		else {	// Walk Backwards
-			kprev = knext;
-			while (kprev > view_offset && framebuffer[kprev] > frame) {kprev -= 1;}
-			knext = kprev + 1;
-		}
-					
-		return valuebuffer[kprev] + 
-			(valuebuffer[knext] - valuebuffer[kprev]) * 
-			(frame - framebuffer[kprev]) / (framebuffer[knext] - framebuffer[kprev]);
-	}
-	
-	return default_value;
+	var animchannel = animcurve_get_channel(animation.animcurve, channel_index);
+	return animcurve_channel_evaluate(animchannel, pos);
 }
 
 function VBM_Animation_SampleCurveVector(animation, frame, curve_name, outvector) {
 	if (!animation) {return 0;}
 	
 	var numcurves = animation.curve_count;
-	var framebuffer = animation.framebuffer;
-	var valuebuffer = animation.valuebuffer;
-	
-	var kprev, knext, kstop, curve_index, channel_index, channel_count;
-	var pprev, vprev, value;
-	var view_offset, view_size;
+	var curve_index, channel_index, channel_count;
 	var curve_views = animation.curve_views;
-	var channel_views = animation.channel_views;
 	
 	frame = (animation.duration > 0)? frame mod animation.duration: 1;
 	var pos = frame / max(1.0, animation.duration);
@@ -401,42 +336,11 @@ function VBM_Animation_SampleCurveVector(animation, frame, curve_name, outvector
 	curve_name = animation.curve_names[curve_index];
 	
 	// For each channel
-	repeat(channel_count) {	// Loop is a HOTSPOT!
-		view_size = channel_views[channel_index*2+1];
-				
-		if (view_size == 1) {	// 1 keyframe (No interpolation)
-			view_offset = channel_views[channel_index*2+0];
-			value = valuebuffer[view_offset];
-		}
-		else if (view_size == 2) {	// 2 Keyframes (No keyframe search)
-			view_offset = channel_views[channel_index*2+0];
-			knext = view_offset + 1;
-			pprev = framebuffer[view_offset];
-			vprev = valuebuffer[view_offset];
-			value = vprev + (valuebuffer[knext] - vprev) * (frame - pprev) / (framebuffer[knext] - pprev);
-		}
-		else {	// More than 2 keyframes
-			view_offset = channel_views[channel_index*2+0];
-			knext = view_offset + (view_size * pos);	// Guess first keyframe using position
-					
-			if (framebuffer[knext] < frame) {	// Walk forward
-				kstop = view_offset + view_size - 1;
-				while (knext < kstop && framebuffer[knext] < frame) {knext += 1;}
-				kprev = knext - 1;
-			}
-			else {	// Walk Backwards
-				kprev = knext;
-				while (kprev > view_offset && framebuffer[kprev] > frame) {kprev -= 1;}
-				knext = kprev + 1;
-			}
-					
-			value = valuebuffer[kprev] + 
-				(valuebuffer[knext] - valuebuffer[kprev]) * 
-				(frame - framebuffer[kprev]) / (framebuffer[knext] - framebuffer[kprev]);
-		}
-			
+	var animchannel;
+	repeat(channel_count) {
 		// Write value
-		outvector[@ channel_index] = value;
+		animchannel = animcurve_get_channel(animation.animcurve, channel_index);
+		outvector[@ channel_index] = animcurve_channel_evaluate(animchannel, pos);
 		channel_index++;
 	}
 	
@@ -447,22 +351,17 @@ function VBM_Animation_SampleCurves(animation, frame, outstruct) {
 	if (!animation) {return;}
 	
 	var numcurves = animation.curve_count;
-	var framebuffer = animation.framebuffer;
-	var valuebuffer = animation.valuebuffer;
-	
-	var kprev, knext, kstop, vprev, value, pprev;
-	var view_offset, view_size;
 	var curve_views = animation.curve_views;
-	var channel_views = animation.channel_views;
 	
 	frame = (animation.duration > 0)? frame mod animation.duration: 1;
 	var pos = frame / max(1.0, animation.duration);
 	var curve_index = 0, channel_index;
-	var channel_count;
+	var channel_count, channel_offset;
 	var curve_name;
+	var animchannel;
 	
 	repeat(numcurves) {
-		channel_index = curve_views[curve_index*2+0];
+		channel_offset = curve_views[curve_index*2+0];
 		channel_count = curve_views[curve_index*2+1];
 		
 		curve_name = animation.curve_names[curve_index];
@@ -471,46 +370,10 @@ function VBM_Animation_SampleCurves(animation, frame, outstruct) {
 		}
 		
 		// For each channel
-		repeat(channel_count) {	// Loop is a HOTSPOT!
-			view_size = channel_views[channel_index*2+1];
-				
-			// Switch statement is slower. Use if/else
-			if (view_size == 0) {	// No keyframes
-				
-			}
-			else if (view_size == 1) {	// 1 keyframe (No interpolation)
-				view_offset = channel_views[channel_index*2+0];
-				value = valuebuffer[view_offset];
-			}
-			else if (view_size == 2) {	// 2 Keyframes (No keyframe search)
-				view_offset = channel_views[channel_index*2+0];
-				knext = view_offset + 1;
-				pprev = framebuffer[view_offset];
-				vprev = valuebuffer[view_offset];
-				value = vprev + (valuebuffer[knext] - vprev) * (frame - pprev) / (framebuffer[knext] - pprev);
-			}
-			else {	// More than 2 keyframes
-				view_offset = channel_views[channel_index*2+0];
-				knext = view_offset + (view_size * pos);	// Guess first keyframe using position
-					
-				if (framebuffer[knext] < frame) {	// Walk forward
-					kstop = view_offset + view_size - 1;
-					while (knext < kstop && framebuffer[knext] < frame) {knext += 1;}
-					kprev = knext - 1;
-				}
-				else {	// Walk Backwards
-					kprev = knext;
-					while (kprev > view_offset && framebuffer[kprev] > frame) {kprev -= 1;}
-					knext = kprev + 1;
-				}
-					
-				value = valuebuffer[kprev] + 
-					(valuebuffer[knext] - valuebuffer[kprev]) * 
-					(frame - framebuffer[kprev]) / (framebuffer[knext] - framebuffer[kprev]);
-			}
-			
+		repeat(channel_count) {
 			// Write value
-			outstruct[$ curve_name][channel_index] = value;
+			animchannel = animcurve_get_channel(animation.animcurve, channel_offset+channel_index);
+			outstruct[$ curve_name][channel_index] = animcurve_channel_evaluate(animchannel, pos);;
 			channel_index++;
 		}
 		
@@ -520,22 +383,14 @@ function VBM_Animation_SampleCurves(animation, frame, outstruct) {
 
 function VBM_Animation_SampleBoneTransforms(animation, frame, bonehashes, outtransforms, stride) {
 	var bone_count = array_length(bonehashes);
-	
 	var curvehashes = animation.curve_namehashes;
-	var framebuffer = animation.framebuffer;
-	var valuebuffer = animation.valuebuffer;
-	
-	var numbonecurves = animation.curve_count;
-	var kprev, knext, kstop, vprev, value, pprev;
-	var view_offset, view_size;
-	var curve_views = animation.curve_views;
-	var channel_views = animation.channel_views;
 	
 	frame = (animation.duration > 0)? frame mod (animation.duration): 1;
 	var pos = frame / max(1.0, animation.duration);
 	var curvenamehash;
 	var bone_index = 0, curve_index = 0;
-	var channel_index, transform_index;
+	var bone_found;
+	var channel_offset, transform_index;
 	var animchannel;
 	var use_animcurves = animcurve_exists(animation.animcurve);
 	
@@ -556,85 +411,30 @@ function VBM_Animation_SampleBoneTransforms(animation, frame, bonehashes, outtra
 	}
 	// Use GM Animation curve
 	else if ( use_animcurves ) {
-		repeat(numbonecurves) {
-			// Map curve to boneindex
-			curvenamehash = curvehashes[curve_index];
-			repeat(bone_count) {
-				if (curvenamehash == bonehashes[bone_index]) {break;}	// Break when bonename == curvename
-				bone_index = (bone_index+1) mod bone_count;	// Loop bone index (keep progress from last curve)
-			}
-			
-			if (bone_index < bone_count) {
-				channel_index = curve_views[curve_index*2+0];
-				view_size = curve_views[curve_index*2+1];
-				transform_index = 0;
-				
-				for (transform_index = 0; transform_index < view_size; transform_index++) {
-					animchannel = animcurve_get_channel(animation.animcurve, curve_index*10+transform_index);
-					outtransforms[@ bone_index*stride + transform_index] = animcurve_channel_evaluate(animchannel, pos);
-				}
-			}
-			
-			curve_index++;
-		}
-	}
-	// Use static arrays
-	else {
-		repeat(numbonecurves) {
-			// Map curve to boneindex
-			curvenamehash = curvehashes[curve_index];
-			repeat(bone_count) {
-				if (curvenamehash == bonehashes[bone_index]) {break;}	// Break when bonename == curvename
-				bone_index = (bone_index+1) mod bone_count;	// Loop bone index (keep progress from last curve)
-			}
+		var numbonecurves = animation.curve_count;
+		var curve_views = animation.curve_views;
+		var curve_size;
+		var bone_found;
 		
-			// For each transform channel of each transform vector (transform[10] = loc[3], quat[4], sca[3])
-			if (bone_index < bone_count) {
-				// Manual calculations
-				channel_index = curve_views[curve_index*2+0];
+		repeat(numbonecurves) {
+			// Map curve to boneindex
+			bone_found = false;
+			curvenamehash = curvehashes[curve_index];
+			repeat(bone_count) {
+				if (curvenamehash == bonehashes[bone_index]) {bone_found = true; break;}	// Break when bonename == curvename
+				bone_index = (bone_index+1) mod bone_count;	// Loop bone index (keep progress from last curve)
+			}
+			
+			// Bone found
+			if (bone_found) {
+				channel_offset = curve_views[curve_index*2+0];
+				curve_size = curve_views[curve_index*2+1];
 				transform_index = 0;
-				repeat(curve_views[curve_index*2+1]) {	// Loop is a HOTSPOT!
-					view_size = channel_views[channel_index*2+1];
 				
-					// Switch statement is slower. Use if/else
-					if (view_size == 0) {	// No keyframes
-						//value = ((transform_index == VBM_T_QUATW) || (transform_index >= VBM_T_SCALEX))? 1.0: 0.0;
-					}
-					else if (view_size == 1) {	// 1 keyframe (No interpolation)
-						view_offset = channel_views[channel_index*2+0];
-						value = valuebuffer[view_offset];
-					}
-					else if (view_size == 2) {	// 2 Keyframes (No keyframe search)
-						view_offset = channel_views[channel_index*2+0];
-						knext = view_offset + 1;
-						pprev = framebuffer[view_offset];
-						vprev = valuebuffer[view_offset];
-						value = vprev + (valuebuffer[knext] - vprev) * (frame - pprev) / (framebuffer[knext] - pprev);
-					}
-					else {	// More than 2 keyframes
-						view_offset = channel_views[channel_index*2+0];
-						knext = view_offset + (view_size * pos);	// Guess first keyframe using position
-						//knext = min(knext, view_offset + view_size - 1);
-						
-						if (framebuffer[knext] < frame) {	// Walk forward
-							kstop = view_offset + view_size - 1;
-							while (knext < kstop && framebuffer[knext] < frame) {knext += 1;}
-							kprev = knext - 1;
-						}
-						else {	// Walk Backwards
-							kprev = knext;
-							while (kprev > view_offset && framebuffer[kprev] > frame) {kprev -= 1;}
-							knext = kprev + 1;
-						}
-						
-						//knext = min(knext, view_offset + view_size - 1);
-						value = valuebuffer[kprev] + 
-							(valuebuffer[knext] - valuebuffer[kprev]) * 
-							clamp((frame - framebuffer[kprev]) / (framebuffer[knext] - framebuffer[kprev]), 0.0, 1.0);
-					}
-					// Temporarily Store transforms at output location
-					outtransforms[@ bone_index*stride + transform_index] = value;
-					channel_index++;
+				repeat(curve_size) {	// Loop is a HOTSPOT!
+					animchannel = animcurve_get_channel(animation.animcurve, channel_offset+transform_index);
+					outtransforms[@ bone_index*stride + transform_index] = animcurve_channel_evaluate(animchannel, pos);
+					
 					transform_index++;
 				}
 			}
@@ -815,10 +615,6 @@ function VBM_Model_Join(model, src, copy_meshes, copy_skeleton, copy_animations)
 			array_copy(a2.curve_names, 0, a1.curve_names, 0, VBM_CURVECAPACITY);
 			array_copy(a2.curve_namehashes, 0, a1.curve_namehashes, 0, VBM_CURVECAPACITY);
 			array_copy(a2.curve_views, 0, a1.curve_views, 0, array_length(a1.curve_views));
-			array_copy(a2.channel_views, 0, a1.channel_views, 0, array_length(a1.channel_views));
-			
-			array_copy(a2.valuebuffer, 0, a1.valuebuffer, 0, array_length(a1.valuebuffer));
-			array_copy(a2.framebuffer, 0, a1.framebuffer, 0, array_length(a1.framebuffer));
 			
 			model.animations[model.animation_count] = a2;
 			model.animation_count += 1;
@@ -2041,7 +1837,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 			yy = qy*qy; yz = qy*qz; yw = qy*qw;
 			zz = qz*qz; zw = qz*qw;
 			//ww = qw*qw;
-		
+			
 			mA[@ VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
 			mA[@ VBM_M01] = (2.0 * (xy - zw)) * sx;
 			mA[@ VBM_M02] = (2.0 * (xz + yw)) * sx;
@@ -2372,6 +2168,8 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 		// Animations .................................................
 		else if (restypestr == "ANI") {
 			var anim = new VBM_Animation();
+			var animchannels, animchannel, animpoints;
+			var duration;
 			word = ""; repeat(buffer_read(b, buffer_u8)) {word += chr(buffer_read(b, buffer_u8));}
 		
 			anim.name = word;
@@ -2379,15 +2177,18 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 			anim.duration = buffer_read(b, buffer_u32);
 			var numcurves = buffer_read(b, buffer_u32);
 			var netnumkeyframes = buffer_read(b, buffer_u32);
-		
+			
 			anim.curve_count = numcurves;
-			array_resize(anim.framebuffer, netnumkeyframes);
-			array_resize(anim.valuebuffer, netnumkeyframes);
 		
 			var channeloffset = 0;
 			var offset = 0;
 			
+			duration = anim.duration + 0.00001;	// Small addend to prevent NaN from division
+			
 			// Parse curves
+			anim.animcurve = animcurve_create();
+			animchannels = array_create(numcurves*10);
+			
 			for (var curve_index = 0; curve_index < numcurves; curve_index++) {
 				word = ""; repeat(buffer_read(b, buffer_u8)) {word += chr(buffer_read(b, buffer_u8));}
 				var numchannels = buffer_read(b, buffer_u32);
@@ -2395,26 +2196,47 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 				anim.curve_namehashes[curve_index] = VBM_StringHash(word);
 				anim.curve_views[curve_index*2+0] = channeloffset;
 				anim.curve_views[curve_index*2+1] = numchannels;
-			
+				
 				for (var channel_index = 0; channel_index < numchannels; channel_index++) {
 					var framecount = buffer_read(b, buffer_u32);
-					anim.channel_views[channeloffset*2+0] = offset;
-					anim.channel_views[channeloffset*2+1] = framecount;
-				
-					for (var f = 0; f < framecount; f++) {
-						anim.framebuffer[offset+f] = buffer_read(b, buffer_f32);
+					
+					animchannel = animcurve_channel_new();
+					animpoints = array_create(framecount+1);
+					animchannel.type = animcurvetype_linear;
+					
+					// Initialize point array
+					for ( var f = 0; f <= framecount; f++ ) {
+						animpoints[f] = animcurve_point_new();
 					}
+					// Read Keyframe Positions
 					for (var f = 0; f < framecount; f++) {
-						anim.valuebuffer[offset+f] = buffer_read(b, buffer_f32);
+						animpoints[f].posx = buffer_read(b, buffer_f32) / duration;
 					}
-					offset += framecount;
+					// Read Keyframe Values
+					for (var f = 0; f < framecount; f++) {
+						animpoints[f].value = buffer_read(b, buffer_f32);
+					}
+					
+					// Extra point at end of curve to match duration
+					animpoints[framecount] = animcurve_point_new();
+					animpoints[framecount].posx = 1.0;
+					animpoints[framecount].value = animpoints[framecount-1].value;
+					
+					// Add data to channel
+					if ( numchannels > 0 ) {
+						animchannel.name = word;	// Skip on index if single channel
+					}
+					else {
+						animchannel.name = word+"["+string(channel_index)+"]";
+					}
+					animchannel.points = animpoints;
+					animchannels[channeloffset] = animchannel;
+					
 					channeloffset += 1;
 				}
 			}
 			
-			if ( (flags & VBM_OPENFLAGS.NO_ANIMCURVES) == 0 ) {
-				VBM_Animation_WriteAnimCurve(anim);
-			}
+			anim.animcurve.channels = animchannels;
 			
 			if ( (flags & VBM_OPENFLAGS.BAKE_TRANSFORM) ) {
 				VBM_Animation_BakeAnimationTransforms(anim);
