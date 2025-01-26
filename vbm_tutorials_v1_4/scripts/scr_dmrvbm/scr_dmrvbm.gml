@@ -459,12 +459,80 @@ function VBM_Animation_SampleBoneTransforms(animation, frame, bonehashes, outtra
 				curve_size = curve_views[curve_index*2+1];
 				transform_index = 0;
 				
-				repeat(curve_size) {	// Loop is a HOTSPOT!
+				repeat(curve_size) {
 					animchannel = animcurve_get_channel(animation.animcurve, channel_offset+transform_index);
 					outtransforms[@ bone_index*stride + transform_index] = animcurve_channel_evaluate(animchannel, pos);
 					
 					transform_index++;
 				}
+			}
+			curve_index++;
+		}
+	}
+}
+
+function VBM_Animation_BlendBoneTransforms(animation, frame, bonehashes, outtransforms, stride, last_transforms, blend_amt) {
+	var bone_count = array_length(bonehashes);
+	var curvehashes = animation.curve_namehashes;
+	
+	frame = (animation.duration > 0)? frame mod (animation.duration): 1;
+	var pos = frame / max(1.0, animation.duration);
+	var curvenamehash;
+	var bone_index = 0, curve_index = 0;
+	var bone_found;
+	var channel_offset, transform_index;
+	var animchannel;
+	var use_animcurves = animcurve_exists(animation.animcurve);
+	
+	// Use baked transforms
+	if ( array_length(animation.baked_transforms) > 0 ) {
+		repeat(numbonecurves) {
+			// Map curve to boneindex
+			curvenamehash = curvehashes[curve_index];
+			repeat(bone_count) {
+				if (curvenamehash == bonehashes[bone_index]) {
+					array_copy(outtransforms, bone_index*stride, animation.baked_transforms[frame], curve_index*10, 10);
+					break;	// Break when bonename == curvename
+				}
+				bone_index = (bone_index+1) mod bone_count;	// Loop bone index (keep progress from last curve)
+			}
+			curve_index++;
+		}
+	}
+	// Use GM Animation curve
+	else if ( use_animcurves ) {
+		var numbonecurves = animation.curve_count;
+		var curve_views = animation.curve_views;
+		var curve_size;
+		var bone_found;
+		var transform_offset;
+		
+		repeat(numbonecurves) {
+			// Map curve to boneindex
+			bone_found = false;
+			curvenamehash = curvehashes[curve_index];
+			repeat(bone_count) {
+				if (curvenamehash == bonehashes[bone_index]) {bone_found = true; break;}	// Break when bonename == curvename
+				bone_index = (bone_index+1) mod bone_count;	// Loop bone index (keep progress from last curve)
+			}
+			
+			// Bone found
+			if (bone_found) {
+				channel_offset = curve_views[curve_index*2+0];
+				curve_size = curve_views[curve_index*2+1];
+				transform_index = 0;
+				transform_offset = bone_index*stride;
+				
+				array_copy(last_transforms, transform_offset, outtransforms, transform_offset, stride);
+				
+				repeat(curve_size) {
+					animchannel = animcurve_get_channel(animation.animcurve, channel_offset+transform_index);
+					outtransforms[@ transform_offset + transform_index] = animcurve_channel_evaluate(animchannel, pos);
+					
+					transform_index++;
+				}
+				
+				__vbm_transformblend(outtransforms, transform_offset, last_transforms, transform_offset, outtransforms, transform_offset, blend_amt);
 			}
 			curve_index++;
 		}
@@ -1000,6 +1068,17 @@ function VBM_AnimatorLayer() constructor {
 	animation_frame = 0;
 	animation_pos = 0;
 	animation = new VBM_Animation();	// Values of active animation are copied here
+	
+	blend_frame = 0.0;
+	blend_time = 0.0;
+	
+	function toString() {
+		return "{VBMAnimatorLayer "
+			+ " frame " + string_format(animation_frame, 4, 0)
+			+ " pos " + string_format(animation_frame, 2, 2)
+			+ " animation " + (animation? animation.name: "<None>")
+			+ "}";
+	}
 }
 
 function VBM_AnimatorSwing() constructor {
@@ -1071,6 +1150,13 @@ function VBM_Animator() constructor {
 	animation_count = 0;
 	
 	benchmark = [0,0,0,0];	// [total_time, transform_time, matrix_time]
+	
+	function toString() {
+		return "{VBMAnimator "
+			+ " layers " + string(layer_count)
+			+ " exectime " + string_format(benchmark[0], 2, 2)
+			+ "}";
+	}
 }
 
 function VBM_Animator_Create() {
@@ -1504,11 +1590,19 @@ function VBM_Animator_SetVisibilityName(animator, mesh_name, is_visible) {
 	}
 }
 
+function VBM_Animator_LayerSetBlendTime(animator, layer_index, blend_frames) {
+	if (animator && layer_index >= 0 && layer_index < animator.layer_count) {
+		var lyr = animator.layers[layer_index];
+		lyr.blend_frame = blend_frames;
+		lyr.blend_time = blend_frames;
+	}
+}
+
 function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing, update_bones) {
 	var bone_count = animator.bone_count;
+	var blend_mix;
 	
 	animator.benchmark[0] = get_timer();
-	array_copy(animator.transforms_last, 0, animator.transforms, 0, 10*VBM_BONECAPACITY);
 	
 	// Process Layers ..............................................................
 	if ( update_transforms ) {
@@ -1521,8 +1615,21 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 		
 			var lyr = animator.layers[layer_index];
 			if (lyr.animation.curve_count > 0) {
-				VBM_Animation_SampleBoneTransforms(lyr.animation, lyr.animation_frame, animator.bone_hashes, animator.transforms, 10);
+				blend_mix = lyr.blend_time > 0.0? 1.0-(lyr.blend_frame / lyr.blend_time): 1.0;
+				VBM_Animation_BlendBoneTransforms(
+					lyr.animation, 
+					lyr.animation_frame, 
+					animator.bone_hashes, 
+					animator.transforms, 
+					10,
+					animator.transforms_last,
+					blend_mix
+				);
 				lyr.animation_frame += delta;
+			}
+			
+			if ( lyr.blend_frame > 0.0 ) {
+				lyr.blend_frame = max(lyr.blend_frame-delta, 0.0);
 			}
 		}
 		animator.benchmark[1] = get_timer()-animator.benchmark[1];
@@ -1531,6 +1638,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 	// Transforms to Matrices ......................................................
 	animator.benchmark[2] = get_timer();
 	var transforms = animator.transforms;
+	var transforms_last = animator.transforms_last;
 	var outmat4arrayflat = animator.matfinal;
 	
 	var parentindices = animator.bone_parentindex;
@@ -1797,7 +1905,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 			yy = qy*qy; yz = qy*qz; yw = qy*qw;
 			zz = qz*qz; zw = qz*qw;
 			//ww = qw*qw;
-		
+			
 			mA[@ VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
 			mA[@ VBM_M01] = (2.0 * (xy - zw)) * sx;
 			mA[@ VBM_M02] = (2.0 * (xz + yw)) * sx;
@@ -1849,13 +1957,14 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 			
 			bone_index++;
 		}
-		//show_message("farts");
+	
 	}
 	// No swing bones. Matrix evaluation only
 	else {
 		while (bone_index < bone_count) {
 			transform_offset = bone_index*10;
 			bone_hash = animator.bone_hashes[bone_index];
+			
 			// Transform to Mat4 ...............................................
 			qw = transforms[transform_offset+VBM_T_QUATW];
 			qx = transforms[transform_offset+VBM_T_QUATX];
@@ -1873,7 +1982,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 			yy = qy*qy; yz = qy*qz; yw = qy*qw;
 			zz = qz*qz; zw = qz*qw;
 			//ww = qw*qw;
-			
+		
 			mA[@ VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
 			mA[@ VBM_M01] = (2.0 * (xy - zw)) * sx;
 			mA[@ VBM_M02] = (2.0 * (xz + yw)) * sx;
@@ -1903,6 +2012,7 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 	}
 	animator.benchmark[2] = get_timer()-animator.benchmark[2];
 	animator.benchmark[0] = get_timer()-animator.benchmark[0];
+	
 }
 
 function VBM_Animator_Update(animator, delta) {
@@ -2347,7 +2457,6 @@ function __vbm_mat4decompose(outfloat10, m) {
 
 function __vbm_mat4inverse(outmat4, msrc) {
 	// Source MESA GLu library: https://www.mesa3d.org/
-	gml_pragma("forceinline");
 	var m00 = msrc[ 0], m01 = msrc[ 1], m02 = msrc[ 2], m03 = msrc[ 3];
 	var m04 = msrc[ 4], m05 = msrc[ 5], m06 = msrc[ 6], m07 = msrc[ 7];
 	var m08 = msrc[ 8], m09 = msrc[ 9], m10 = msrc[10], m11 = msrc[11];
@@ -2473,6 +2582,15 @@ function __vbm_transformstring(t, index=0) {
 		string_format(t[index*10+VBM_T_SCALEZ], 2,2) + ", " +
 		">" +
 	"}";
+}
+
+function __vbm_transformblend(tout, offset, ta, offset_a, tb, offset_b, amt) {
+	repeat(10) {
+		tout[@ offset] = lerp(ta[offset_a], tb[offset_b], amt);
+		offset_a++;
+		offset_b++;
+		offset++;
+	}
 }
 
 #endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
