@@ -751,6 +751,14 @@ function VBM_Model_Clear(vbmmodel) {
 	vbmmodel.animation_count = 0;
 }
 
+// Model Meshes .................................................................
+function VBM_Model_GetMesh(vbmmodel, mesh_index) {
+	if ( vbmmodel && mesh_index >= 0 && mesh_index < vbmmodel.mesh_count ) {
+		return vbmmodel.meshes[mesh_index];	
+	}
+	return undefined;
+}
+
 function VBM_Model_GetMeshCount(vbmmodel) {
 	return vbmmodel? vbmmodel.mesh_count: 0;
 }
@@ -783,6 +791,31 @@ function VBM_Model_FindMeshIndex(vbmmodel, mesh_name) {
 	return -1;
 }
 
+function VBM_Model_FindMesh(vbmmodel, mesh_name) {
+	if (vbmmodel) {
+		var n = vbmmodel.mesh_count;
+		for (var i = 0; i < n; i++) {
+			if (vbmmodel.meshes.name == mesh_name) {
+				return i;
+			}
+		}
+	}
+	return undefined;
+}
+
+// Model Textures .................................................................
+function VBM_Model_GetTextureSprite(vbmmodel, texture_index) {
+	if ( vbmmodel && texture_index >= 0 && texture_index < vbmmodel.texture_count ) {
+		return vbmmodel.texture_sprites[texture_index];	
+	}
+	return -1;
+}
+
+function VBM_Model_GetTextureSpriteCount(vbmmodel) {
+	return vbmmodel? vbmmodel.texture_count: 0;
+}
+
+// Model Skeleton .................................................................
 function VBM_Model_GetBoneCount(vbmmodel) {
 	return vbmmodel? vbmmodel.skeleton.bone_count: 0;
 }
@@ -815,6 +848,7 @@ function VBM_Model_FindBoneIndex(vbmmodel, bone_name) {
 	return -1;
 }
 
+// Model Animations .................................................................
 function VBM_Model_GetAnimation(vbmmodel, animation_index) {
 	return (animation_index >= 0 && animation_index < vbmmodel.animation_count)?
 		vbmmodel.animations[animation_index]: undefined;
