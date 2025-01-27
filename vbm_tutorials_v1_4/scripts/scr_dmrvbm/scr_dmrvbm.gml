@@ -83,6 +83,10 @@ enum VBM_BONESEGMENT {
 	head_x, head_y, head_z, tail_x, tail_y, tail_z, roll, length
 }
 
+enum VBM_LOOPMODE {
+	NONE, LOOP, EXTEND,
+}
+
 function VBM_StringHash(s) {
 	// Djb2 hash by Dan Bernstein
 	var value = 5381;
@@ -1095,9 +1099,9 @@ function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4array
 
 #region // Animator =================================================================
 
+// Part of Animator
 function VBM_AnimatorLayer() constructor {
 	animation_frame = 0;
-	animation_pos = 0;
 	animation_key = "";
 	animation_duration = 0.0;
 	animation_index = -1;
@@ -1106,6 +1110,8 @@ function VBM_AnimatorLayer() constructor {
 	blend_time = 0.0;
 	
 	pending_animation = 0;	// Set to 1 when updating key or index
+	
+	loop_mode = VBM_LOOPMODE.EXTEND;
 	
 	function toString() {
 		return "{VBMAnimatorLayer "
@@ -1319,14 +1325,12 @@ function VBM_Animator_SetAnimationFrame(animator, layer_index, frame) {
 	if ( animator ) {
 		var lyr = animator.layers[layer_index];
 		lyr.animation_frame = frame;
-		lyr.animation_pos = frame / lyr.animation_duration;
 	}
 }
 
 function VBM_Animator_SetAnimationPosition(animator, layer_index, position) {
 	if ( animator ) {
 		var lyr = animator.layers[layer_index];
-		lyr.animation_pos = position;
 		lyr.animation_frame = position * lyr.animation_duration;
 	}
 }
@@ -1495,6 +1499,22 @@ function VBM_Animator_LayerSetEaseTime(animator, layer_index, blend_frames) {
 	}
 }
 
+// See VBM_LOOPMODE enum
+function VBM_Animator_LayerSetLoopMode(animator, layer_index, loop_mode) {
+	if (animator && layer_index >= 0 && layer_index < animator.layer_count) {
+		var lyr = animator.layers[layer_index];
+		lyr.loop_mode = loop_mode;
+	}
+}
+
+function VBM_Animator_LayerAnimationIsFinished(animator, layer_index) {
+	if (animator && layer_index >= 0 && layer_index < animator.layer_count) {
+		var lyr = animator.layers[layer_index];
+		return lyr.animation_index >= 0 && lyr.animation_frame >= lyr.animation_duration;
+	}
+	return 0;
+}
+
 function VBM_Animator_UpdateExt(animator, vbmmodel, delta, update_transforms, update_swing, update_bones) {
 	if ( is_undefined(model) ) {
 		return;
@@ -1550,7 +1570,15 @@ function VBM_Animator_UpdateExt(animator, vbmmodel, delta, update_transforms, up
 					transforms_last,
 					blend_mix
 				);
+				
 				lyr.animation_frame += delta;
+				
+				if ( lyr.loop_mode == VBM_LOOPMODE.LOOP ) {
+					lyr.animation_frame = lyr.animation_frame % max(lyr.animation_duration, 1.0);
+				}
+				else if ( lyr.loop_mode == VBM_LOOPMODE.NONE ) {
+					lyr.animation_frame = clamp(lyr.animation_frame, 0, lyr.animation_duration);
+				}
 			}
 			
 			if ( lyr.blend_frame > 0.0 ) {
