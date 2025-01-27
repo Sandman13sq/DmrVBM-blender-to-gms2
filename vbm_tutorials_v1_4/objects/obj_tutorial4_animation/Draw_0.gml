@@ -36,3 +36,4 @@ matrix_set(matrix_world, matrix_build_identity());
 
 // Restore previous GPU state
 gpu_pop_state();
+

@@ -35,9 +35,12 @@ VBM_OpenVBM("tutorial3_native.vbm", model_native);
 model_normal = VBM_Model_Create();	// Initialize model data
 VBM_OpenVBM("tutorial3_normal.vbm", model_normal);
 
+model_tangent = VBM_Model_Create();	// Initialize model data
+VBM_OpenVBM("tutorial3_tangent.vbm", model_tangent);
+
 // *Model Controls
 zrot = 0;	// Model rotation
-shadermode = 0;	// 0 = simple, 1 = normal
+shadermode = 0;	// 0 = simple, 1 = normal, 2 = tangent
 lightpos = [8, -16, 8];	// Light position to pass to shader
 eyepos = [0, 0, 0];	// View position to pass to shader. Calculated with matview
 

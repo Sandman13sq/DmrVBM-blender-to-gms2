@@ -102,14 +102,7 @@ function VBM_CreateMatrixArrayFlat(n) {
 	outmat4arrayflat[@ 4] = 0.0; outmat4arrayflat[@ 5] = 1.0; outmat4arrayflat[@ 6] = 0.0; outmat4arrayflat[@ 7] = 0.0;
 	outmat4arrayflat[@ 8] = 0.0; outmat4arrayflat[@ 9] = 0.0; outmat4arrayflat[@10] = 1.0; outmat4arrayflat[@11] = 0.0;
 	outmat4arrayflat[@12] = 0.0; outmat4arrayflat[@13] = 0.0; outmat4arrayflat[@14] = 0.0; outmat4arrayflat[@15] = 1.0;
-
-	// Fill in steps of base 2
-	var p = 1;
-	while ( (p<<1) < n) {
-		array_copy(outmat4arrayflat, 16*p, outmat4arrayflat, 0, 16*p);
-		p = p << 1;	// p = 2^i
-	}
-	array_copy(outmat4arrayflat, (n-p)*16, outmat4arrayflat, 0, 16*p);	// Last power of 2 to n
+	__vbm_arrayinitialize(outmat4arrayflat, n, outmat4arrayflat, 16);
 	
 	return outmat4arrayflat;
 }
@@ -150,13 +143,15 @@ function VBM_Mesh() constructor {
 
 // Skeleton ...................................................................
 function VBM_SkeletonSwingBone() constructor {
-	gravity = 0;
+	mass = 10.0;
+	force = [0,0,0];
 	friction = 0;
 	stiffness = 0;
 	dampness = 0;
 	offset = [0,0,0];
 	angle_range_x = [0,0];
 	angle_range_z = [0,0];
+	randomness = 0.0;
 	flags = VBM_SWINGFLAGS.DISTANCE;
 }
 
@@ -528,7 +523,6 @@ function VBM_Animation_BlendBoneTransforms(animation, frame, bonehashes, outtran
 				repeat(curve_size) {
 					animchannel = animcurve_get_channel(animation.animcurve, channel_offset+transform_index);
 					outtransforms[@ transform_offset + transform_index] = animcurve_channel_evaluate(animchannel, pos);
-					
 					transform_index++;
 				}
 				
@@ -849,6 +843,10 @@ function VBM_Model_FindBoneIndex(vbmmodel, bone_name) {
 }
 
 // Model Animations .................................................................
+function VBM_Model_GetAnimationCount(vbmmodel) {
+	return vbmmodel? vbmmodel.animation_count: 0;
+}
+
 function VBM_Model_GetAnimation(vbmmodel, animation_index) {
 	return (animation_index >= 0 && animation_index < vbmmodel.animation_count)?
 		vbmmodel.animations[animation_index]: undefined;
@@ -882,6 +880,16 @@ function VBM_Model_FindAnimation(vbmmodel, animation_name) {
 		}
 	}
 	return undefined;
+}
+
+function VBM_Model_FindAnimationIndex(vbmmodel, animation_name) {
+	var n = vbmmodel.animation_count;
+	for (var i = 0; i < n; i++) {
+		if (vbmmodel.animations[i].name == animation_name) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 function VBM_Model_HasAnimation(vbmmodel, animation_name) {
@@ -992,13 +1000,8 @@ function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4array
 		outmat4arrayflat[@ 4] = 0; outmat4arrayflat[@ 5] = 1; outmat4arrayflat[@ 6] = 0; outmat4arrayflat[@ 7] = 0;
 		outmat4arrayflat[@ 8] = 0; outmat4arrayflat[@ 9] = 0; outmat4arrayflat[@10] = 1; outmat4arrayflat[@11] = 0;
 		outmat4arrayflat[@12] = 0; outmat4arrayflat[@13] = 0; outmat4arrayflat[@14] = 0; outmat4arrayflat[@15] = 1;
+		__vbm_arrayinitialize(outmat4arrayflat, bone_count, outmat4arrayflat, 16);
 		
-		var p = 1;
-		while ( (p<<1) < bone_count) {
-			array_copy(outmat4arrayflat, 16*p, outmat4arrayflat, 0, 16*p);
-			p = p << 1;	// p = 2^i
-		}
-		array_copy(outmat4arrayflat, 16*(bone_count-p), outmat4arrayflat, 0, 16*p);	// Last power of 2 to n
 		return;	// yeet out of function
 	}
 	
@@ -1011,13 +1014,7 @@ function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4array
 	outmat4arrayflat[@ VBM_T_LOCX] = 0.0; outmat4arrayflat[@ VBM_T_LOCY] = 0.0; outmat4arrayflat[@ VBM_T_LOCZ] = 0.0; 
 	outmat4arrayflat[@ VBM_T_QUATW] = 1.0; outmat4arrayflat[@ VBM_T_QUATX] = 0.0; outmat4arrayflat[@ VBM_T_QUATY] = 0.0; outmat4arrayflat[@ 6+VBM_T_QUATZ] = 0.0;
 	outmat4arrayflat[@ VBM_T_SCALEX] = 1.0; outmat4arrayflat[@ VBM_T_SCALEY] = 1.0; outmat4arrayflat[@ VBM_T_SCALEZ] = 1.0;
-	
-	var p = 1;
-	while ( (p<<1) < bone_count) {
-		array_copy(outmat4arrayflat, 16*p, outmat4arrayflat, 0, 16*p);
-		p = p << 1;	// p = 2^i
-	}
-	array_copy(outmat4arrayflat, 16*(bone_count-p), outmat4arrayflat, 0, 16*p);
+	__vbm_arrayinitialize(outmat4arrayflat, bone_count, outmat4arrayflat, 16);
 	
 	// Matrix 0 = Identity
 	outmat4arrayflat[@ 0] = 1; outmat4arrayflat[@ 1] = 0; outmat4arrayflat[@ 2] = 0; outmat4arrayflat[@ 3] = 0;
@@ -1101,51 +1098,22 @@ function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4array
 function VBM_AnimatorLayer() constructor {
 	animation_frame = 0;
 	animation_pos = 0;
-	animation = new VBM_Animation();	// Values of active animation are copied here
+	animation_key = "";
+	animation_duration = 0.0;
+	animation_index = -1;
 	
 	blend_frame = 0.0;
 	blend_time = 0.0;
+	
+	pending_animation = 0;	// Set to 1 when updating key or index
 	
 	function toString() {
 		return "{VBMAnimatorLayer "
 			+ " frame " + string_format(animation_frame, 4, 0)
 			+ " pos " + string_format(animation_frame, 2, 2)
-			+ " animation " + (animation? animation.name: "<None>")
+			+ " animation " + ( (animation_key!="")? animation_key: "<None>")
 			+ "}";
 	}
-}
-
-function VBM_AnimatorSwing() constructor {
-	bone_name = "";
-	bone_hash = 0;
-	mass = 10.0;
-	stiffness = 0.1;
-	friction = 0.1;
-	dampness = 0.1;
-	stretch = 0.0;
-	randomness = 0.1;	// Added to particle when far from point
-	force = [0, 0, -0.01];
-	
-	angle_min_x = -0.1;
-	angle_max_x = 0.1;
-	angle_min_z = -0.1;
-	angle_max_z = 0.1;
-	
-	vprev = [0,0,0];
-	vcurr = [0,0,0];
-	vgoal = [0,0,0];
-	
-	flags = VBM_SWINGFLAGS.DISTANCE;
-}
-
-function VBM_AnimatorCollider() constructor {
-	bone_name = "";
-	bone_hash = 0;
-	offset = [0,0,0];
-	radius = 0;
-	length = 0;
-	vcurr = [0,0,0];
-	vend = [0,0,0];
 }
 
 // Stores animation state for complex movements
@@ -1153,35 +1121,19 @@ function VBM_Animator() constructor {
 	transforms = array_create(10*VBM_BONECAPACITY);	// Flat array of [locx, locy, locz, quatw, quatx, quaty, quatz, scalex, scaley, scalez]
 	transforms_last = array_create(10*VBM_BONECAPACITY);
 	transform_root = array_create(10);
-	transform_checksum = array_create(VBM_BONECAPACITY);
+	
 	matworld = array_create(VBM_BONECAPACITY, matrix_build_identity());
 	matfinal = array_create(VBM_BONECAPACITY*16);	// Flat array of [mat4]
-	matroot = matrix_build_identity();
 	
-	bone_count = 0;
-	bone_names = array_create(VBM_BONECAPACITY);
-	bone_hashes = array_create(VBM_BONECAPACITY);
-	bone_parentindex = array_create(VBM_BONECAPACITY);
-	bone_matlocal = array_create(VBM_BONECAPACITY);
-	bone_matinverse = array_create(VBM_BONECAPACITY);
-	bone_segments = array_create(VBM_BONECAPACITY*8);
-	
-	swing_bones = [];	// array of VBM_AnimatorSwing
-	swing_count = 0;
 	swing_enabled = true;
-	
-	colliders = [];	// array of VBM_AnimatorCollider
-	collider_count = 0;
 	colliders_enabled = true;
+	
+	particles_curr = array_create(VBM_BONECAPACITY*3);
+	particles_last = array_create(VBM_BONECAPACITY*3);
 	
 	layer_count = 0;
 	layers = array_create(8);
 	layer_active_bits = ~0;
-	
-	mesh_hide_bits = 0;	// Capped at 32?
-	mesh_names = array_create(32);
-	animations = [];
-	animation_count = 0;
 	
 	benchmark = [0,0,0,0];	// [total_time, transform_time, matrix_time]
 	
@@ -1196,13 +1148,15 @@ function VBM_Animator() constructor {
 function VBM_Animator_Create() {
 	var animator = new VBM_Animator();
 	for (var t = 0; t < VBM_BONECAPACITY; t++) {
-		animator.bone_matlocal[t] = matrix_build_identity();
-		animator.bone_matinverse[t] = matrix_build_identity();
-		
 		animator.transforms[t*10 + VBM_T_QUATW] = 1.0;
 		animator.transforms[t*10 + VBM_T_SCALEX] = 1.0;
 		animator.transforms[t*10 + VBM_T_SCALEY] = 1.0;
 		animator.transforms[t*10 + VBM_T_SCALEZ] = 1.0;
+		
+		animator.transforms_last[t*10 + VBM_T_QUATW] = 1.0;
+		animator.transforms_last[t*10 + VBM_T_SCALEX] = 1.0;
+		animator.transforms_last[t*10 + VBM_T_SCALEY] = 1.0;
+		animator.transforms_last[t*10 + VBM_T_SCALEZ] = 1.0;
 		
 		animator.matrices[t*16 + VBM_M00] = 1.0;
 		animator.matrices[t*16 + VBM_M11] = 1.0;
@@ -1218,19 +1172,9 @@ function VBM_Animator_Clear(animator) {
 	var tidentity = [0,0,0, 1,0,0,0, 1,1,1];
 	
 	for (var t = 0; t < VBM_BONECAPACITY; t++) {
-		array_copy(animator.bone_matlocal[t], 0, midentity, 0, 16);
-		array_copy(animator.bone_matinverse[t], 0, midentity, 0, 16);
 		array_copy(animator.matrices, t*16, midentity, 0, 16);
 		array_copy(animator.transforms, t*10, tidentity, 0, 10);
 	}
-	
-	var n = animator.animation_count;
-	for (var animation_index = 0; animation_index < n; animation_index++) {
-		VBM_Animation_Free(animator.animations[animation_index]);
-	}
-	
-	array_resize(animator.animations, 0);
-	animator.animation_count = 0;
 }
 
 function VBM_Animator_FromModel(animator, vbmmodel) {
@@ -1239,60 +1183,7 @@ function VBM_Animator_FromModel(animator, vbmmodel) {
 
 function VBM_Animator_FromModelExt(animator, vbmmodel, read_skeleton, read_animations) {
 	if (!animator || !vbmmodel) {return;}
-	
-	// Meshes
-	if (1) {
-		var n = vbmmodel.mesh_count;
-		for (var i = 0; i < n; i++) {
-			animator.mesh_names[i] = vbmmodel.meshes[i].name;
-		}
-	}
-	
-	// Bones
-	if ( read_skeleton ) {
-		var ske = vbmmodel.skeleton;
-		animator.bone_count = ske.bone_count;
-		array_copy(animator.bone_parentindex, 0, ske.bone_parentindex, 0, animator.bone_count);
-		array_copy(animator.bone_names, 0, ske.bone_names, 0, animator.bone_count);
-		array_copy(animator.bone_hashes, 0, ske.bone_hashes, 0, animator.bone_count);
-		
-		for (var i = 0; i < animator.bone_count; i++) {
-			array_copy(animator.bone_matlocal[i], 0, ske.bone_matlocal[i], 0, 16);
-			array_copy(animator.bone_matinverse[i], 0, ske.bone_matinverse[i], 0, 16);
-			animator.bone_segments[i] = array_create(8);
-			array_copy(animator.bone_segments[i], 0, vbmmodel.skeleton.bone_segments[i], 0, 8);
-		
-			if (ske.bone_swingindex[i] >= 0) {
-				var swg = ske.swing_bones[ske.bone_swingindex[i]];
-				VBM_Animator_SwingDefine(
-					animator, animator.bone_names[i],
-					10.0,
-					swg.friction, 
-					swg.stiffness, 
-					swg.dampness, 
-					0.0, 0.0, swg.gravity
-				);
-			}
-		
-			if (ske.bone_colliderindex[i] >= 0) {
-				var collider = ske.collider_bones[ske.bone_colliderindex[i]];
-				VBM_Animator_ColliderDefine(
-					animator, animator.bone_names[i],
-					collider.radius,
-					collider.length
-				);
-			}
-		}
-	}
-	// Animations
-	if ( read_animations ) {
-		array_resize(animator.animations, animator.animation_count+vbmmodel.animation_count);
-		for (var i = 0; i < vbmmodel.animation_count; i++) {
-			animator.animations[animator.animation_count] = new VBM_Animation();
-			VBM_Animation_Copy(animator.animations[animator.animation_count], vbmmodel.animations[i]);
-			animator.animation_count += 1;
-		}
-	}
+	show_debug_message("WARNING: VBM_Animator_FromModel() has been obsoleted. Version v1.4 now requires model as argument when updating animator.");
 }
 
 function VBM_Animator_SwingDefine(animator, bone_name, mass, friction, stiffness, dampness, force_x, force_y, force_z) {
@@ -1333,48 +1224,28 @@ function VBM_Animator_SwingDefinePattern(animator, bone_name, mass, friction, st
 	}
 }
 
-function VBM_Animator_SwingReset(animator) {
-	var mswg = matrix_build_identity();
-	var swg;
-	var voffset = [0,0,0];
-	var vgoal = [0,0,0];
-	var bone_index, parent_index, swing_index;
-	var bone_count, swing_count;
+function VBM_Animator_SwingReset(animator, vbmmodel) {
+	var bone_index;
+	var bone_count;
 	var bone_hash;
-	var bone_length;
 	
-	bone_count = animator.bone_count;
-	swing_count = animator.swing_count;
+	var skeleton = vbmmodel.skeleton;
+	bone_count = skeleton.bone_count;
 	
 	for (var bone_index = 0; bone_index < bone_count; bone_index++) {
 		// Model-Space Offset (Parent x Local)
 		animator.matworld[bone_index] = matrix_multiply(
-			animator.bone_matlocal[bone_index], 
-			animator.matworld[animator.bone_parentindex[bone_index]]
+			skeleton.bone_matlocal[bone_index], 
+			animator.matworld[skeleton.bone_parentindex[bone_index]]
 		);
-		bone_hash = animator.bone_hashes[bone_index];
+		bone_hash = skeleton.bone_hashes[bone_index];
 		
-		for (swing_index = 0; swing_index < swing_count; swing_index++) {
-			swg = animator.swing_bones[swing_index];
-			if ( bone_hash == swg.bone_hash) {
-				parent_index = animator.bone_parentindex[bone_index];
-				bone_length = animator.bone_segments[bone_index][VBM_BONESEGMENT.length];
-				
-				// Get position of goal = (Bone.Local x Swing.Offset) x Parent.Absolute
-				mswg = [1,0,0,0, 0,1,0,bone_length, 0,0,1,0, 0,0,0,1];
-				mswg = matrix_multiply(mswg, animator.bone_matlocal[bone_index]);
-				mswg = matrix_multiply(mswg, animator.matworld[parent_index]);
-				
-				vgoal[0] = mswg[VBM_M03];
-				vgoal[1] = mswg[VBM_M13];
-				vgoal[2] = mswg[VBM_M23];
-				
-				array_copy(swg.vcurr, 0, vgoal, 0, 3);
-				array_copy(swg.vprev, 0, vgoal, 0, 3);
-				array_copy(swg.vgoal, 0, vgoal, 0, 3);
-				break;
-			}
-		}
+		animator.particles_curr[3*bone_index+0] = animator.matworld[bone_index][VBM_M03];
+		animator.particles_curr[3*bone_index+1] = animator.matworld[bone_index][VBM_M13];
+		animator.particles_curr[3*bone_index+2] = animator.matworld[bone_index][VBM_M23];
+		animator.particles_last[3*bone_index+0] = animator.matworld[bone_index][VBM_M03];
+		animator.particles_last[3*bone_index+1] = animator.matworld[bone_index][VBM_M13];
+		animator.particles_last[3*bone_index+2] = animator.matworld[bone_index][VBM_M23];
 	}
 }
 
@@ -1428,26 +1299,19 @@ function VBM_Animator_AddModelAnimations(animator, vbmmodel) {
 
 function VBM_Animator_PlayAnimationIndex(animator, layer_index, animation_index) {
 	if ( layer_index >= 0 && layer_index < animator.layer_count) {
-		if ( animation_index >= 0 && animation_index < animator.animation_count ) {
-			if ( animator.layers[layer_index].animation.name != animator.animations[animation_index].name ) {
-				VBM_Animation_Copy(
-					animator.layers[layer_index].animation,
-					animator.animations[animation_index]
-				);
-			}
-		}
+		var lyr = animator.layers[layer_index];
+		lyr.animation_index = animation_index;
+		lyr.animation_key = "";
+		lyr.pending_animation = 1;
 	}
 }
 
 function VBM_Animator_PlayAnimationKey(animator, layer_index, animation_name) {
 	if ( layer_index >= 0 && layer_index < animator.layer_count) {
-		if ( animator.layers[layer_index].animation.name != animation_name ) {
-			for (var i = 0; i < animator.animation_count; i++) {
-				if (animator.animations[i].name == animation_name) {
-					animator.layers[layer_index].animation = animator.animations[i];
-				}
-			}
-		}
+		var lyr = animator.layers[layer_index];
+		lyr.animation_key = animation_name;
+		lyr.animation_index = 0;
+		lyr.pending_animation = 1;
 	}
 }
 
@@ -1455,7 +1319,7 @@ function VBM_Animator_SetAnimationFrame(animator, layer_index, frame) {
 	if ( animator ) {
 		var lyr = animator.layers[layer_index];
 		lyr.animation_frame = frame;
-		lyr.animation_pos = frame / lyr.animation.duration;
+		lyr.animation_pos = frame / lyr.animation_duration;
 	}
 }
 
@@ -1463,16 +1327,12 @@ function VBM_Animator_SetAnimationPosition(animator, layer_index, position) {
 	if ( animator ) {
 		var lyr = animator.layers[layer_index];
 		lyr.animation_pos = position;
-		lyr.animation_frame = position * lyr.animation.duration;
+		lyr.animation_frame = position * lyr.animation_duration;
 	}
 }
 
 function VBM_Animator_GetLayerCount(animator) {
 	return animator? animator.layer_count: 0;
-}
-
-function VBM_Animator_GetAnimationCount(animator) {
-	return animator? animator.animation_count: 0;
 }
 
 function VBM_Animator_GetAnimationName(animator, animation_index) {
@@ -1552,7 +1412,7 @@ function VBM_Animator_GetBoneParentIndex(animator, bone_index) {
 
 function VBM_Animator_GetLayerAnimationPosition(animator, layer_index) {
 	return (animator && layer_index >= 0 && layer_index < animator.layer_count)?
-		animator.layers[layer_index].animation_frame / animator.layers[layer_index].animation.duration:
+		animator.layers[layer_index].animation_frame / animator.layers[layer_index].animation_duration:
 		0.0;
 }
 
@@ -1562,8 +1422,11 @@ function VBM_Animator_GetLayerAnimationFrame(animator, layer_index) {
 }
 
 function VBM_Animator_GetLayerAnimationKey(animator, layer_index) {
-	return (animator && layer_index >= 0 && layer_index < animator.layer_count)?
-		(animator.layers[layer_index].animation.curve_count? animator.layers[layer_index].animation.name: "<nullAnimation>"): "<nullAnimatorLayer>";
+	if ( animator && layer_index >= 0 && layer_index < animator.layer_count ) {
+		var animkey = animator.layers[layer_index].animation_key;
+		return (animkey == "")? "<nullAnimation>": animkey;
+	}
+	return "<nullAnimatorLayer>";
 }
 
 function VBM_Animator_GetMat4WorldArray(animator) {
@@ -1624,7 +1487,7 @@ function VBM_Animator_SetVisibilityName(animator, mesh_name, is_visible) {
 	}
 }
 
-function VBM_Animator_LayerSetBlendTime(animator, layer_index, blend_frames) {
+function VBM_Animator_LayerSetEaseTime(animator, layer_index, blend_frames) {
 	if (animator && layer_index >= 0 && layer_index < animator.layer_count) {
 		var lyr = animator.layers[layer_index];
 		lyr.blend_frame = blend_frames;
@@ -1632,31 +1495,59 @@ function VBM_Animator_LayerSetBlendTime(animator, layer_index, blend_frames) {
 	}
 }
 
-function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing, update_bones) {
-	var bone_count = animator.bone_count;
+function VBM_Animator_UpdateExt(animator, vbmmodel, delta, update_transforms, update_swing, update_bones) {
+	if ( is_undefined(model) ) {
+		return;
+	}
+	
+	var skeleton = vbmmodel.skeleton;
+	var bone_count = skeleton.bone_count;
 	var blend_mix;
+	
+	var transforms = animator.transforms;
+	var transforms_last = animator.transforms_last;
 	
 	animator.benchmark[0] = get_timer();
 	
 	// Process Layers ..............................................................
 	if ( update_transforms ) {
 		animator.benchmark[1] = get_timer();
+		var lyr;
+		var animation;
 		var layer_count = animator.layer_count * 1;
 		for (var layer_index = 0; layer_index < layer_count; layer_index++) {
 			if ( (animator.layer_active_bits & (1<<layer_index)) == 0 ) {
 				continue;
 			}
 		
-			var lyr = animator.layers[layer_index];
-			if (lyr.animation.curve_count > 0) {
+			lyr = animator.layers[layer_index];
+			
+			// Check animation update
+			if ( lyr.pending_animation ) {
+				lyr.pending_animation = 0;
+				
+				// Index was set
+				if ( lyr.animation_key == "" && lyr.animation_index != -1 ) {
+					lyr.animation_key = VBM_Model_GetAnimationName(vbmmodel, lyr.animation_index);
+				}
+				// Key was set
+				else if ( lyr.animation_key != "" && lyr.animation_index == -1 ) {
+					lyr.animation_index = VBM_Model_FindAnimation(vbmmodel, lyr.animation_key);
+				}
+			}
+			
+			// Update animation transforms
+			animation = VBM_Model_FindAnimation(vbmmodel, lyr.animation_key);
+			if ( animation ) {
+				lyr.animation_duration = animation.duration;
 				blend_mix = lyr.blend_time > 0.0? 1.0-(lyr.blend_frame / lyr.blend_time): 1.0;
 				VBM_Animation_BlendBoneTransforms(
-					lyr.animation, 
+					animation, 
 					lyr.animation_frame, 
-					animator.bone_hashes, 
-					animator.transforms, 
+					skeleton.bone_hashes,
+					transforms, 
 					10,
-					animator.transforms_last,
+					transforms_last,
 					blend_mix
 				);
 				lyr.animation_frame += delta;
@@ -1671,13 +1562,11 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 	
 	// Transforms to Matrices ......................................................
 	animator.benchmark[2] = get_timer();
-	var transforms = animator.transforms;
-	var transforms_last = animator.transforms_last;
 	var outmat4arrayflat = animator.matfinal;
 	
-	var parentindices = animator.bone_parentindex;
-	var bone_matinverse = animator.bone_matinverse;
-	var bone_matlocal = animator.bone_matlocal;
+	var parentindices = skeleton.bone_parentindex;
+	var bone_matinverse = skeleton.bone_matinverse;
+	var bone_matlocal = skeleton.bone_matlocal;
 	
 	var mA = matrix_build_identity();
 	var bone_index;
@@ -1720,337 +1609,226 @@ function VBM_Animator_UpdateExt(animator, delta, update_transforms, update_swing
 	array_copy(animator.matworld[0], 0, mA, 0, 16);
 	array_copy(animator.matfinal, 0, mA, 0, 16);
 	
-	// Matrices
+	// Vars for bone iteration
+	var vcurr = [0,0,0], lroot = [0,0,0], lgoal = [0,0,0];
+	var vx, vy, vz;
+	var lx, ly, lz;
+	var gx, gy, gz;
+	var rx, ry, rz;
+	var cx, cy, cz;
+	var velx, vely, velz;
+	var d;
+	var n;
+	var swg;
+	var parent_index;
+	var mswg = matrix_build_identity(), minv = matrix_build_identity();
+	var rollpt5, pitchpt5, yawpt5;
+	var bone_hash;
+	var frictionrate, stiffness, dampness, randomness, stretch;
+	var collider;
+	var collider_index;
+	var colliders_enabled = animator.colliders_enabled;
+	var swg_flags = 0;
+	var swing_index;
+	var collider_count = skeleton.collider_count;
+	var bone_length = 0, particle_length;
+	var swing_enabled = animator.swing_enabled;
+		
+	// Iterate bones
 	bone_index = 1;
-	
-	// Single check here instead of checking for every bone
-	if ( animator.swing_enabled ) {
-		var vcurr = [0,0,0], lroot = [0,0,0], lgoal = [0,0,0];
-		var vx, vy, vz;
-		var lx, ly, lz;
-		var gx, gy, gz;
-		var rx, ry, rz;
-		var cx, cy, cz;
-		var velx, vely, velz;
-		var d;
-		var n;
-		var swg;
-		var parent_index;
-		var mswg = matrix_build_identity(), minv = matrix_build_identity();
-		var rollpt5, pitchpt5, yawpt5;
-		var bone_hash;
-		var frictionrate, stiffness, dampness, randomness, stretch;
-		var collider;
-		var collider_index;
-		var colliders_enabled = animator.colliders_enabled;
-		var swg_flags = 0;
-		var swing_index;
-		var swing_count = animator.swing_count;
-		var collider_count = animator.collider_count;
-		var bone_length = 0, particle_length;
-		
-		var m00, m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15;
-		
-		while (bone_index < bone_count) {
-			transform_offset = bone_index*10;
-			bone_hash = animator.bone_hashes[bone_index];
-			parent_index = parentindices[bone_index];
+	while (bone_index < bone_count) {
+		transform_offset = bone_index*10;
+		bone_hash = skeleton.bone_hashes[bone_index];
+		parent_index = parentindices[bone_index];
 			
-			// Swing bone ......................................................
-			swing_index = 0;
-			repeat(swing_count) {
-				if ( bone_hash == animator.swing_bones[swing_index].bone_hash ) {
-					swg = animator.swing_bones[swing_index];
-					swg_flags = swg.flags;
-					bone_length = animator.bone_segments[bone_index][VBM_BONESEGMENT.length];
+		// Swing bone ......................................................
+		swing_index = skeleton.bone_swingindex[bone_index];
+		if ( swing_enabled && swing_index >= 0 ) {
+			swg = skeleton.swing_bones[swing_index];
+			swg_flags = swg.flags;
+			bone_length = skeleton.bone_segments[bone_index][VBM_BONESEGMENT.length];
 					
-					// Get position of bone before local transform = Bone.Local x Parent.Absolute
-					mswg = matrix_multiply(animator.bone_matlocal[bone_index], animator.matworld[parent_index]);
-					rx = mswg[VBM_M03];
-					ry = mswg[VBM_M13];
-					rz = mswg[VBM_M23];
+			// Get position of bone before local transform = Bone.Local x Parent.Absolute
+			mswg = matrix_multiply(skeleton.bone_matlocal[bone_index], animator.matworld[parent_index]);
+			rx = mswg[VBM_M03];
+			ry = mswg[VBM_M13];
+			rz = mswg[VBM_M23];
 					
-					// Calculate inverse of swing base position for later converting back to local transform 
-					//__vbm_mat4inverse(minv, mswg);	// <-- Inlined below
-					m00 = mswg[ 0]; m01 = mswg[ 1]; m02 = mswg[ 2]; m03 = mswg[ 3];
-					m04 = mswg[ 4];	m05 = mswg[ 5]; m06 = mswg[ 6]; m07 = mswg[ 7];
-					m08 = mswg[ 8]; m09 = mswg[ 9]; m10 = mswg[10]; m11 = mswg[11]; 
-					m12 = mswg[12]; m13 = mswg[13]; m14 = mswg[14]; m15 = mswg[15];
+			// Calculate inverse of swing base position for later converting back to local transform 
+			__vbm_mat4inverse_fast(minv, mswg);
 					
-					minv[ 0] = m05*m10*m15-m05*m11*m14-m09*m06*m15+m09*m07*m14+m13*m06*m11-m13*m07*m10;
-				    minv[ 4] =-m04*m10*m15+m04*m11*m14+m08*m06*m15-m08*m07*m14-m12*m06*m11+m12*m07*m10;
-				    minv[ 8] = m04*m09*m15-m04*m11*m13-m08*m05*m15+m08*m07*m13+m12*m05*m11-m12*m07*m09;
-				    minv[12] =-m04*m09*m14+m04*m10*m13+m08*m05*m14-m08*m06*m13-m12*m05*m10+m12*m06*m09;
-				    minv[ 1] =-m01*m10*m15+m01*m11*m14+m09*m02*m15-m09*m03*m14-m13*m02*m11+m13*m03*m10;
-				    minv[ 5] = m00*m10*m15-m00*m11*m14-m08*m02*m15+m08*m03*m14+m12*m02*m11-m12*m03*m10;
-				    minv[ 9] =-m00*m09*m15+m00*m11*m13+m08*m01*m15-m08*m03*m13-m12*m01*m11+m12*m03*m09;
-				    minv[13] = m00*m09*m14-m00*m10*m13-m08*m01*m14+m08*m02*m13+m12*m01*m10-m12*m02*m09;
-				    minv[ 2] = m01*m06*m15-m01*m07*m14-m05*m02*m15+m05*m03*m14+m13*m02*m07-m13*m03*m06;
-				    minv[ 6] =-m00*m06*m15+m00*m07*m14+m04*m02*m15-m04*m03*m14-m12*m02*m07+m12*m03*m06;
-				    minv[10] = m00*m05*m15-m00*m07*m13-m04*m01*m15+m04*m03*m13+m12*m01*m07-m12*m03*m05;
-				    minv[14] =-m00*m05*m14+m00*m06*m13+m04*m01*m14-m04*m02*m13-m12*m01*m06+m12*m02*m05;
-				    minv[ 3] =-m01*m06*m11+m01*m07*m10+m05*m02*m11-m05*m03*m10-m09*m02*m07+m09*m03*m06;
-				    minv[ 7] = m00*m06*m11-m00*m07*m10-m04*m02*m11+m04*m03*m10+m08*m02*m07-m08*m03*m06;
-				    minv[11] =-m00*m05*m11+m00*m07*m09+m04*m01*m11-m04*m03*m09-m08*m01*m07+m08*m03*m05;
-				    minv[15] = m00*m05*m10-m00*m06*m09-m04*m01*m10+m04*m02*m09+m08*m01*m06-m08*m02*m05;
-	
-				    d = 1.0 / (m00 * minv[0] + m01 * minv[4] + m02 * minv[8] + m03 * minv[12] + 0.00001);	// Assumes determinant > 0. Error otherwise
-				    minv[ 0] *= d; minv[ 1] *= d; minv[ 2] *= d; minv[ 3] *= d;
-				    minv[ 4] *= d; minv[ 5] *= d; minv[ 6] *= d; minv[ 7] *= d;
-				    minv[ 8] *= d; minv[ 9] *= d; minv[10] *= d; minv[11] *= d;
-				    minv[12] *= d; minv[13] *= d; minv[14] *= d; minv[15] *= d;
-					
-					// Get position of goal = Swing.Offset x Bone.Local x Parent.Absolute
-					lgoal = matrix_transform_vertex(mswg, 0, bone_length, 0);
-					gx = lgoal[0];
-					gy = lgoal[1];
-					gz = lgoal[2];
+			// Get position of goal = Swing.Offset x Bone.Local x Parent.Absolute
+			lgoal = matrix_transform_vertex(mswg, 0, bone_length, 0);
+			gx = lgoal[0];
+			gy = lgoal[1];
+			gz = lgoal[2];
 				
-					// Calculate Particle via Verlet Integration ...........................................
+			// Calculate Particle via Verlet Integration ...........................................
 					
-					// Factor in `delta` here to save on multiplications
-					frictionrate = (1.0-swg.friction) * delta;
-					stiffness = swg.stiffness * delta;
-					dampness = swg.dampness * delta;
-					randomness = swg.randomness * delta;
-					stretch = swg.stretch;
+			// Factor in `delta` here to save on multiplications
+			frictionrate = (1.0-swg.friction) * delta;
+			stiffness = swg.stiffness * delta;
+			dampness = swg.dampness * delta;
+			randomness = swg.randomness * delta;
+			stretch = swg.stretch;
+				
+			lx = animator.particles_curr[3*bone_index+0];
+			ly = animator.particles_curr[3*bone_index+1];
+			lz = animator.particles_curr[3*bone_index+2];
+			// Velocity = current - last
+			velx = (lx - animator.particles_last[3*bone_index+0]) * (1.0 + randomness * random_range(-.5, .5));
+			vely = (ly - animator.particles_last[3*bone_index+1]) * (1.0 + randomness * random_range(-.5, .5));
+			velz = (lz - animator.particles_last[3*bone_index+2]) * (1.0 + randomness * random_range(-.5, .5));
 					
-					lx = swg.vcurr[0];
-					ly = swg.vcurr[1];
-					lz = swg.vcurr[2];
-					// Velocity = current - last
-					velx = (lx - swg.vprev[0]) * (1.0 + randomness * random_range(-.5, .5));
-					vely = (ly - swg.vprev[1]) * (1.0 + randomness * random_range(-.5, .5));
-					velz = (lz - swg.vprev[2]) * (1.0 + randomness * random_range(-.5, .5));
+			// Current = current + velocity + acceleration * dt*dt
+			vx = lx + velx * frictionrate + (swg.force[0] / swg.mass) * delta * delta;
+			vy = ly + vely * frictionrate + (swg.force[1] / swg.mass) * delta * delta;
+			vz = lz + velz * frictionrate + (swg.force[2] / swg.mass) * delta * delta;
 					
-					// Current = current + velocity + acceleration * dt*dt
-					vx = lx + velx * frictionrate + (swg.force[0] / swg.mass) * delta * delta;
-					vy = ly + vely * frictionrate + (swg.force[1] / swg.mass) * delta * delta;
-					vz = lz + velz * frictionrate + (swg.force[2] / swg.mass) * delta * delta;
+			vx = lerp(vx, gx, dampness);
+			vy = lerp(vy, gy, dampness);
+			vz = lerp(vz, gz, dampness);
 					
-					vx = lerp(vx, gx, dampness);
-					vy = lerp(vy, gy, dampness);
-					vz = lerp(vz, gz, dampness);
+			lx = lerp(lx, gx, dampness) - (gx - vx) * stiffness;
+			ly = lerp(ly, gy, dampness) - (gy - vy) * stiffness;
+			lz = lerp(lz, gz, dampness) - (gz - vz) * stiffness;
 					
-					lx = lerp(lx, gx, dampness) - (gx - vx) * stiffness;
-					ly = lerp(ly, gy, dampness) - (gy - vy) * stiffness;
-					lz = lerp(lz, gz, dampness) - (gz - vz) * stiffness;
-					
-					// Limit Distance from root to particle
-					if ( stretch < 0.99 ) {
-						d = point_distance_3d(vx,vy,vz, rx,ry,rz);
+			// Limit Distance from root to particle
+			if ( stretch < 0.99 ) {
+				d = point_distance_3d(vx,vy,vz, rx,ry,rz);
 						
-						vx = lerp(rx + bone_length * (vx-rx)/d, vx, stretch);
-						vy = lerp(ry + bone_length * (vy-ry)/d, vy, stretch);
-						vz = lerp(rz + bone_length * (vz-rz)/d, vz, stretch);
+				vx = lerp(rx + bone_length * (vx-rx)/d, vx, stretch);
+				vy = lerp(ry + bone_length * (vy-ry)/d, vy, stretch);
+				vz = lerp(rz + bone_length * (vz-rz)/d, vz, stretch);
 						
-						d = point_distance_3d(lx,ly,lz, rx,ry,rz);
-						lx = lerp(rx + bone_length * (lx-rx)/d, lx, stretch);
-						ly = lerp(ry + bone_length * (ly-ry)/d, ly, stretch);
-						lz = lerp(rz + bone_length * (lz-rz)/d, lz, stretch);
-					}
+				d = point_distance_3d(lx,ly,lz, rx,ry,rz);
+				lx = lerp(rx + bone_length * (lx-rx)/d, lx, stretch);
+				ly = lerp(ry + bone_length * (ly-ry)/d, ly, stretch);
+				lz = lerp(rz + bone_length * (lz-rz)/d, lz, stretch);
+			}
 					
-					// Check against colliders
-					if ( colliders_enabled ) {
-						collider_index = 0;
-						repeat(collider_count) {
-							collider = animator.colliders[collider_index];
-							n = 2;
-							for (var i = 0; i <= n; i++) {
-								cx = lerp(collider.vcurr[0], collider.vend[0], i/n);
-								cy = lerp(collider.vcurr[1], collider.vend[1], i/n);
-								cz = lerp(collider.vcurr[2], collider.vend[2], i/n);
+			// Check against colliders
+			if ( colliders_enabled ) {
+				collider_index = 0;
+				repeat(collider_count) {
+					collider = animator.colliders[collider_index];
+					n = 2;
+					for (var i = 0; i <= n; i++) {
+						cx = lerp(collider.vcurr[0], collider.vend[0], i/n);
+						cy = lerp(collider.vcurr[1], collider.vend[1], i/n);
+						cz = lerp(collider.vcurr[2], collider.vend[2], i/n);
 							
-								velx = vx - cx;
-								vely = vy - cy;
-								velz = vz - cz;
-								d = point_distance_3d(0,0,0, velx, vely, velz) + 0.000001;
-								if ( d < collider.radius ) {
-									velx /= d; vely /= d; velz /= d;
-									d = collider.radius;
-									vx = cx + velx * d;
-									vy = cy + vely * d;
-									vz = cz + velz * d;
-									d *= 0.9;
-									lx = cx + velx * d;
-									ly = cy + vely * d;
-									lz = cz + velz * d;
-								}
-							}
-							collider_index += 1;
+						velx = vx - cx;
+						vely = vy - cy;
+						velz = vz - cz;
+						d = point_distance_3d(0,0,0, velx, vely, velz) + 0.000001;
+						if ( d < collider.radius ) {
+							velx /= d; vely /= d; velz /= d;
+							d = collider.radius;
+							vx = cx + velx * d;
+							vy = cy + vely * d;
+							vz = cz + velz * d;
+							d *= 0.9;
+							lx = cx + velx * d;
+							ly = cy + vely * d;
+							lz = cz + velz * d;
 						}
 					}
-					
-					swg.vcurr[0] = vx; swg.vcurr[1] = vy; swg.vcurr[2] = vz;
-					swg.vprev[0] = lx; swg.vprev[1] = ly; swg.vprev[2] = lz;
-					swg.vgoal[0] = gx; swg.vgoal[1] = gy; swg.vgoal[2] = gz;
-				
-					// Convert from world-space Back to local-space ...............................
-					vcurr = matrix_transform_vertex(minv, vx, vy, vz);
-					lroot = matrix_transform_vertex(minv, rx, ry, rz);
-					lgoal = matrix_transform_vertex(minv, gx, gy, gz);
-				
-					// Write rotation back to transform
-					rollpt5 = clamp(arctan2(vcurr[2]-lroot[2], vcurr[1]-lroot[1]) * 0.5, swg.angle_min_x, swg.angle_max_x);
-					pitchpt5 = 0.0;
-					yawpt5 = clamp(-arctan2(vcurr[0]-lroot[0], vcurr[1]-lroot[1]) * 0.5, swg.angle_min_z, swg.angle_max_z);
-					
-					cx = cos(rollpt5);
-					cy = 1.0; // cos(pitchpt5);
-					cz = cos(yawpt5);
-					sx = sin(rollpt5);
-					sy = 0.0; // sin(pitchpt5);
-					sz = sin(yawpt5);
-					
-					particle_length = point_distance_3d(vcurr[0], vcurr[1], vcurr[2], lroot[0], lroot[1], lroot[2]);
-					//show_debug_message(string([bone_length, particle_length, particle_length / bone_length]));
-					
-					//transforms[@ transform_offset + VBM_T_LOCX] = 0.0;
-					//transforms[@ transform_offset + VBM_T_LOCY] = 0.0;
-					//transforms[@ transform_offset + VBM_T_LOCZ] = 0.0;
-					
-					transforms[@ transform_offset + VBM_T_QUATW] = cx*cy*cz - sx*sy*sz;
-					transforms[@ transform_offset + VBM_T_QUATX] = sx*cy*cz + cx*sy*sz;
-					transforms[@ transform_offset + VBM_T_QUATY] = cx*sy*cz - sx*cy*sz;
-					transforms[@ transform_offset + VBM_T_QUATZ] = cx*cy*sz + sx*sy*cz;
-					
-					transforms[@ transform_offset + VBM_T_SCALEX] = 1.0;
-					transforms[@ transform_offset + VBM_T_SCALEY] = particle_length / bone_length;
-					transforms[@ transform_offset + VBM_T_SCALEZ] = 1.0;
-					break;
-				}
-				swing_index += 1;
-			}
-		
-			// Transform to Mat4 ...............................................
-			qw = transforms[transform_offset+VBM_T_QUATW];
-			qx = transforms[transform_offset+VBM_T_QUATX];
-			qy = transforms[transform_offset+VBM_T_QUATY];
-			qz = transforms[transform_offset+VBM_T_QUATZ]; 
-			sx = transforms[transform_offset+VBM_T_SCALEX];
-			sy = transforms[transform_offset+VBM_T_SCALEY];
-			sz = transforms[transform_offset+VBM_T_SCALEZ];
-		
-			d = 1.0 / (sqrt(qw*qw+qx*qx+qy*qy+qz*qz) + 0.000001);
-			qw *= d; qx *= d; qy *= d; qz *= d;
-		
-			// M = T * R * S, Mat4Compose(loc, quat, scale):
-			xx = qx*qx; xy = qx*qy; xz = qx*qz; xw = qx*qw;
-			yy = qy*qy; yz = qy*qz; yw = qy*qw;
-			zz = qz*qz; zw = qz*qw;
-			//ww = qw*qw;
-			
-			mA[@ VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
-			mA[@ VBM_M01] = (2.0 * (xy - zw)) * sx;
-			mA[@ VBM_M02] = (2.0 * (xz + yw)) * sx;
-			mA[@ VBM_M03] = transforms[transform_offset+VBM_T_LOCX];
-			mA[@ VBM_M10] = (2.0 * (xy + zw)) * sy;
-			mA[@ VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
-			mA[@ VBM_M12] = (2.0 * (yz - xw)) * sy;
-			mA[@ VBM_M13] = transforms[transform_offset+VBM_T_LOCY];
-			mA[@ VBM_M20] = (2.0 * (xz - yw)) * sz;
-			mA[@ VBM_M21] = (2.0 * (yz + xw)) * sz;
-			mA[@ VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
-			mA[@ VBM_M23] = transforms[transform_offset+VBM_T_LOCZ];
-			mA[@ VBM_M30] = 0.0; mA[@ VBM_M31] = 0.0; mA[@ VBM_M32] = 0.0; mA[@ VBM_M33] = 1.0;
-		
-			// Transform Offset (Local x transform.RST)
-			mA = matrix_multiply(mA, bone_matlocal[bone_index]);	// = Transform
-			
-			// Model-Space Offset (Parent x Transform)
-			animator.matworld[bone_index] = matrix_multiply(mA, animator.matworld[parentindices[bone_index]]);	// Model
-			
-			// Vertex-Space Offset (Model x InverseBind)
-			mA = matrix_multiply(bone_matinverse[bone_index], animator.matworld[bone_index]);	// Final
-			array_copy(outmat4arrayflat, bone_index*16, mA, 0, 16);
-			
-			// Write to Collider
-			for (collider_index = 0; collider_index < animator.collider_count; collider_index++) {
-				collider = animator.colliders[collider_index];
-				if ( collider.bone_hash == bone_hash ) {
-					// Get position of bone before local transform = Bone.Local x Parent.Absolute
-					mswg = matrix_multiply(animator.bone_matlocal[bone_index], animator.matworld[parent_index]);
-					bx = mswg[VBM_M03];
-					by = mswg[VBM_M13];
-					bz = mswg[VBM_M23];
-				
-					// Get position of goal = Swing.Offset x Bone.Local x Parent.Absolute
-					vx = collider.offset[0];
-					vy = collider.offset[1];
-					vz = collider.offset[2];
-					
-					lgoal = matrix_transform_vertex(mswg, vx, vy, vz);
-					collider.vcurr[0] = bx;
-					collider.vcurr[1] = by;
-					collider.vcurr[2] = bz;
-					collider.vend[0] = lgoal[0];
-					collider.vend[1] = lgoal[1];
-					collider.vend[2] = lgoal[2];
+					collider_index += 1;
 				}
 			}
-			
-			bone_index++;
+				
+			animator.particles_curr[3*bone_index+0] = vx;
+			animator.particles_curr[3*bone_index+1] = vy;
+			animator.particles_curr[3*bone_index+2] = vz;
+			animator.particles_last[3*bone_index+0] = lx;
+			animator.particles_last[3*bone_index+1] = ly;
+			animator.particles_last[3*bone_index+2] = lz;
+				
+			// Convert from world-space Back to local-space ...............................
+			vcurr = matrix_transform_vertex(minv, vx, vy, vz);
+			lroot = matrix_transform_vertex(minv, rx, ry, rz);
+			lgoal = matrix_transform_vertex(minv, gx, gy, gz);
+				
+			// Write rotation back to transform
+			rollpt5 = clamp(arctan2(vcurr[2]-lroot[2], vcurr[1]-lroot[1]) * 0.5, swg.angle_range_x[0], swg.angle_range_x[1]);
+			pitchpt5 = 0.0;
+			yawpt5 = clamp(-arctan2(vcurr[0]-lroot[0], vcurr[1]-lroot[1]) * 0.5, swg.angle_range_z[0], swg.angle_range_z[1]);
+					
+			cx = cos(rollpt5);
+			cy = 1.0; // cos(pitchpt5);
+			cz = cos(yawpt5);
+			sx = sin(rollpt5);
+			sy = 0.0; // sin(pitchpt5);
+			sz = sin(yawpt5);
+					
+			particle_length = point_distance_3d(vcurr[0], vcurr[1], vcurr[2], lroot[0], lroot[1], lroot[2]);
+					
+			//transforms[@ transform_offset + VBM_T_LOCX] = 0.0;
+			//transforms[@ transform_offset + VBM_T_LOCY] = 0.0;
+			//transforms[@ transform_offset + VBM_T_LOCZ] = 0.0;
+				
+			transforms[@ transform_offset + VBM_T_QUATW] = cx*cy*cz - sx*sy*sz;
+			transforms[@ transform_offset + VBM_T_QUATX] = sx*cy*cz + cx*sy*sz;
+			transforms[@ transform_offset + VBM_T_QUATY] = cx*sy*cz - sx*cy*sz;
+			transforms[@ transform_offset + VBM_T_QUATZ] = cx*cy*sz + sx*sy*cz;
+					
+			transforms[@ transform_offset + VBM_T_SCALEX] = 1.0;
+			transforms[@ transform_offset + VBM_T_SCALEY] = particle_length / bone_length;
+			transforms[@ transform_offset + VBM_T_SCALEZ] = 1.0;
 		}
+		
+		// Transform to Mat4 ...............................................
+		qw = transforms[transform_offset+VBM_T_QUATW];
+		qx = transforms[transform_offset+VBM_T_QUATX];
+		qy = transforms[transform_offset+VBM_T_QUATY];
+		qz = transforms[transform_offset+VBM_T_QUATZ]; 
+		sx = transforms[transform_offset+VBM_T_SCALEX];
+		sy = transforms[transform_offset+VBM_T_SCALEY];
+		sz = transforms[transform_offset+VBM_T_SCALEZ];
+		
+		d = 1.0 / (sqrt(qw*qw+qx*qx+qy*qy+qz*qz) + 0.000001);
+		qw *= d; qx *= d; qy *= d; qz *= d;
+		
+		// M = T * R * S, Mat4Compose(loc, quat, scale):
+		xx = qx*qx; xy = qx*qy; xz = qx*qz; xw = qx*qw;
+		yy = qy*qy; yz = qy*qz; yw = qy*qw;
+		zz = qz*qz; zw = qz*qw;
+		//ww = qw*qw;
+			
+		mA[@ VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
+		mA[@ VBM_M01] = (2.0 * (xy - zw)) * sx;
+		mA[@ VBM_M02] = (2.0 * (xz + yw)) * sx;
+		mA[@ VBM_M03] = transforms[transform_offset+VBM_T_LOCX];
+		mA[@ VBM_M10] = (2.0 * (xy + zw)) * sy;
+		mA[@ VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
+		mA[@ VBM_M12] = (2.0 * (yz - xw)) * sy;
+		mA[@ VBM_M13] = transforms[transform_offset+VBM_T_LOCY];
+		mA[@ VBM_M20] = (2.0 * (xz - yw)) * sz;
+		mA[@ VBM_M21] = (2.0 * (yz + xw)) * sz;
+		mA[@ VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
+		mA[@ VBM_M23] = transforms[transform_offset+VBM_T_LOCZ];
+		mA[@ VBM_M30] = 0.0; mA[@ VBM_M31] = 0.0; mA[@ VBM_M32] = 0.0; mA[@ VBM_M33] = 1.0;
+		
+		// Transform Offset (Local x transform.RST)
+		mA = matrix_multiply(mA, bone_matlocal[bone_index]);	// = Transform
+			
+		// Model-Space Offset (Parent x Transform)
+		animator.matworld[bone_index] = matrix_multiply(mA, animator.matworld[parentindices[bone_index]]);	// Model
+			
+		// Vertex-Space Offset (Model x InverseBind)
+		mA = matrix_multiply(bone_matinverse[bone_index], animator.matworld[bone_index]);	// Final
+		array_copy(outmat4arrayflat, bone_index*16, mA, 0, 16);
+			
+		bone_index++;
+	}
 	
-	}
-	// No swing bones. Matrix evaluation only
-	else {
-		while (bone_index < bone_count) {
-			transform_offset = bone_index*10;
-			bone_hash = animator.bone_hashes[bone_index];
-			
-			// Transform to Mat4 ...............................................
-			qw = transforms[transform_offset+VBM_T_QUATW];
-			qx = transforms[transform_offset+VBM_T_QUATX];
-			qy = transforms[transform_offset+VBM_T_QUATY];
-			qz = transforms[transform_offset+VBM_T_QUATZ]; 
-			sx = transforms[transform_offset+VBM_T_SCALEX];
-			sy = transforms[transform_offset+VBM_T_SCALEY];
-			sz = transforms[transform_offset+VBM_T_SCALEZ];
-		
-			d = 1.0 / (sqrt(qw*qw+qx*qx+qy*qy+qz*qz) + 0.000001);
-			qw *= d; qx *= d; qy *= d; qz *= d;
-		
-			// M = T * R * S, Mat4Compose(loc, quat, scale):
-			xx = qx*qx; xy = qx*qy; xz = qx*qz; xw = qx*qw;
-			yy = qy*qy; yz = qy*qz; yw = qy*qw;
-			zz = qz*qz; zw = qz*qw;
-			//ww = qw*qw;
-		
-			mA[@ VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
-			mA[@ VBM_M01] = (2.0 * (xy - zw)) * sx;
-			mA[@ VBM_M02] = (2.0 * (xz + yw)) * sx;
-			mA[@ VBM_M03] = transforms[transform_offset+VBM_T_LOCX];
-			mA[@ VBM_M10] = (2.0 * (xy + zw)) * sy;
-			mA[@ VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
-			mA[@ VBM_M12] = (2.0 * (yz - xw)) * sy;
-			mA[@ VBM_M13] = transforms[transform_offset+VBM_T_LOCY];
-			mA[@ VBM_M20] = (2.0 * (xz - yw)) * sz;
-			mA[@ VBM_M21] = (2.0 * (yz + xw)) * sz;
-			mA[@ VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
-			mA[@ VBM_M23] = transforms[transform_offset+VBM_T_LOCZ];
-			mA[@ VBM_M30] = 0.0; mA[@ VBM_M31] = 0.0; mA[@ VBM_M32] = 0.0; mA[@ VBM_M33] = 1.0;
-		
-			// Transform Offset (Local x transform.RST)
-			mA = matrix_multiply(mA, bone_matlocal[bone_index]);	// = Local
-		
-			// Model-Space Offset (Parent x Local)
-			animator.matworld[bone_index] = matrix_multiply(mA, animator.matworld[parentindices[bone_index]]);	// Model
-		
-			// Vertex-Space Offset (Model x InverseBind)
-			mA = matrix_multiply(bone_matinverse[bone_index], animator.matworld[bone_index]);	// Final
-			array_copy(outmat4arrayflat, bone_index*16, mA, 0, 16);
-		
-			bone_index++;
-		}
-	}
 	animator.benchmark[2] = get_timer()-animator.benchmark[2];
 	animator.benchmark[0] = get_timer()-animator.benchmark[0];
-	
 }
 
-function VBM_Animator_Update(animator, delta) {
-	VBM_Animator_UpdateExt(animator, delta, 1, 1, 1);
+function VBM_Animator_Update(animator, vbmmodel, delta) {
+	VBM_Animator_UpdateExt(animator, vbmmodel, delta, 1, 1, 1);
 }
 
 #endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2267,7 +2045,9 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 				swg.friction = buffer_read(b, buffer_f32);
 				swg.stiffness = buffer_read(b, buffer_f32);
 				swg.dampness = buffer_read(b, buffer_f32);
-				swg.gravity = buffer_read(b, buffer_f32);
+				swg.force[0] = 0.0;
+				swg.force[1] = 0.0;
+				swg.force[2] = -buffer_read(b, buffer_f32);;
 				if (restypeversion >= 1) {
 					swg.stretch = buffer_read(b, buffer_f32);
 				}
@@ -2336,7 +2116,7 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 				minverse[t] = matrix_build(-seg[0], -seg[1], -seg[2], 0,0,0,1,1,1);
 		
 				__vbm_mat4axisroll(mbind[t], seg[0], seg[1], seg[2], seg[3], seg[4], seg[5], seg[6]);
-				__vbm_mat4inverse(minverse[t], mbind[t]);
+				__vbm_mat4inverse_fast(minverse[t], mbind[t]);
 			}
 	
 			for (var t = 0; t < numbones; t++) {
@@ -2381,35 +2161,40 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 					var framecount = buffer_read(b, buffer_u32);
 					
 					animchannel = animcurve_channel_new();
-					animpoints = array_create(framecount+1);
 					animchannel.type = animcurvetype_linear;
 					
-					// Initialize point array
-					for ( var f = 0; f <= framecount; f++ ) {
-						animpoints[f] = animcurve_point_new();
-					}
-					// Read Keyframe Positions
-					for (var f = 0; f < framecount; f++) {
-						animpoints[f].posx = buffer_read(b, buffer_f32) / duration;
-					}
-					// Read Keyframe Values
-					for (var f = 0; f < framecount; f++) {
-						animpoints[f].value = buffer_read(b, buffer_f32);
-					}
+					if ( framecount > 0 ) {
+						animpoints = array_create(framecount+1);
+						
+						// Initialize point array
+						for ( var f = 0; f <= framecount; f++ ) {
+							animpoints[f] = animcurve_point_new();
+						}
+						// Read Keyframe Positions
+						for (var f = 0; f < framecount; f++) {
+							animpoints[f].posx = buffer_read(b, buffer_f32) / duration;
+						}
+						// Read Keyframe Values
+						for (var f = 0; f < framecount; f++) {
+							animpoints[f].value = buffer_read(b, buffer_f32);
+						}
 					
-					// Extra point at end of curve to match duration
-					animpoints[framecount] = animcurve_point_new();
-					animpoints[framecount].posx = 1.0;
-					animpoints[framecount].value = animpoints[framecount-1].value;
+						// Extra point at end of curve to match duration
+						animpoints[framecount] = animcurve_point_new();
+						animpoints[framecount].posx = 1.0;
+						animpoints[framecount].value = animpoints[framecount-1].value;
+						
+						animchannel.points = animpoints;
+					}
 					
 					// Add data to channel
-					if ( numchannels > 0 ) {
+					if ( numchannels <= 1 ) {
 						animchannel.name = word;	// Skip on index if single channel
 					}
 					else {
 						animchannel.name = word+"["+string(channel_index)+"]";
 					}
-					animchannel.points = animpoints;
+					
 					animchannels[channeloffset] = animchannel;
 					
 					channeloffset += 1;
@@ -2491,34 +2276,65 @@ function __vbm_mat4decompose(outfloat10, m) {
 
 function __vbm_mat4inverse(outmat4, msrc) {
 	// Source MESA GLu library: https://www.mesa3d.org/
-	var m00 = msrc[ 0], m01 = msrc[ 1], m02 = msrc[ 2], m03 = msrc[ 3];
-	var m04 = msrc[ 4], m05 = msrc[ 5], m06 = msrc[ 6], m07 = msrc[ 7];
-	var m08 = msrc[ 8], m09 = msrc[ 9], m10 = msrc[10], m11 = msrc[11];
-	var m12 = msrc[12], m13 = msrc[13], m14 = msrc[14], m15 = msrc[15];
+	var m00 = msrc[VBM_M00], m04 = msrc[VBM_M01], m08 = msrc[VBM_M02], m12 = msrc[VBM_M03];
+	var m01 = msrc[VBM_M10], m05 = msrc[VBM_M11], m09 = msrc[VBM_M12], m13 = msrc[VBM_M13];
+	var m02 = msrc[VBM_M20], m06 = msrc[VBM_M21], m10 = msrc[VBM_M22], m14 = msrc[VBM_M23];
+	var m03 = msrc[VBM_M30], m07 = msrc[VBM_M31], m11 = msrc[VBM_M32], m15 = msrc[VBM_M33];
 	
-    var d;	// Determinant
-	outmat4[@ 0] = m05*m10*m15-m05*m11*m14-m09*m06*m15+m09*m07*m14+m13*m06*m11-m13*m07*m10;
-    outmat4[@ 4] =-m04*m10*m15+m04*m11*m14+m08*m06*m15-m08*m07*m14-m12*m06*m11+m12*m07*m10;
-    outmat4[@ 8] = m04*m09*m15-m04*m11*m13-m08*m05*m15+m08*m07*m13+m12*m05*m11-m12*m07*m09;
-    outmat4[@12] =-m04*m09*m14+m04*m10*m13+m08*m05*m14-m08*m06*m13-m12*m05*m10+m12*m06*m09;
-    outmat4[@ 1] =-m01*m10*m15+m01*m11*m14+m09*m02*m15-m09*m03*m14-m13*m02*m11+m13*m03*m10;
-    outmat4[@ 5] = m00*m10*m15-m00*m11*m14-m08*m02*m15+m08*m03*m14+m12*m02*m11-m12*m03*m10;
-    outmat4[@ 9] =-m00*m09*m15+m00*m11*m13+m08*m01*m15-m08*m03*m13-m12*m01*m11+m12*m03*m09;
-    outmat4[@13] = m00*m09*m14-m00*m10*m13-m08*m01*m14+m08*m02*m13+m12*m01*m10-m12*m02*m09;
-    outmat4[@ 2] = m01*m06*m15-m01*m07*m14-m05*m02*m15+m05*m03*m14+m13*m02*m07-m13*m03*m06;
-    outmat4[@ 6] =-m00*m06*m15+m00*m07*m14+m04*m02*m15-m04*m03*m14-m12*m02*m07+m12*m03*m06;
-    outmat4[@10] = m00*m05*m15-m00*m07*m13-m04*m01*m15+m04*m03*m13+m12*m01*m07-m12*m03*m05;
-    outmat4[@14] =-m00*m05*m14+m00*m06*m13+m04*m01*m14-m04*m02*m13-m12*m01*m06+m12*m02*m05;
-    outmat4[@ 3] =-m01*m06*m11+m01*m07*m10+m05*m02*m11-m05*m03*m10-m09*m02*m07+m09*m03*m06;
-    outmat4[@ 7] = m00*m06*m11-m00*m07*m10-m04*m02*m11+m04*m03*m10+m08*m02*m07-m08*m03*m06;
-    outmat4[@11] =-m00*m05*m11+m00*m07*m09+m04*m01*m11-m04*m03*m09-m08*m01*m07+m08*m03*m05;
-    outmat4[@15] = m00*m05*m10-m00*m06*m09-m04*m01*m10+m04*m02*m09+m08*m01*m06-m08*m02*m05;
+	outmat4[@VBM_M00] = m05*m10*m15-m05*m11*m14-m09*m06*m15+m09*m07*m14+m13*m06*m11-m13*m07*m10;
+    outmat4[@VBM_M01] =-m04*m10*m15+m04*m11*m14+m08*m06*m15-m08*m07*m14-m12*m06*m11+m12*m07*m10;
+    outmat4[@VBM_M02] = m04*m09*m15-m04*m11*m13-m08*m05*m15+m08*m07*m13+m12*m05*m11-m12*m07*m09;
+    outmat4[@VBM_M03] =-m04*m09*m14+m04*m10*m13+m08*m05*m14-m08*m06*m13-m12*m05*m10+m12*m06*m09;
+    outmat4[@VBM_M10] =-m01*m10*m15+m01*m11*m14+m09*m02*m15-m09*m03*m14-m13*m02*m11+m13*m03*m10;
+    outmat4[@VBM_M11] = m00*m10*m15-m00*m11*m14-m08*m02*m15+m08*m03*m14+m12*m02*m11-m12*m03*m10;
+    outmat4[@VBM_M12] =-m00*m09*m15+m00*m11*m13+m08*m01*m15-m08*m03*m13-m12*m01*m11+m12*m03*m09;
+    outmat4[@VBM_M13] = m00*m09*m14-m00*m10*m13-m08*m01*m14+m08*m02*m13+m12*m01*m10-m12*m02*m09;
+    outmat4[@VBM_M20] = m01*m06*m15-m01*m07*m14-m05*m02*m15+m05*m03*m14+m13*m02*m07-m13*m03*m06;
+    outmat4[@VBM_M21] =-m00*m06*m15+m00*m07*m14+m04*m02*m15-m04*m03*m14-m12*m02*m07+m12*m03*m06;
+    outmat4[@VBM_M22] = m00*m05*m15-m00*m07*m13-m04*m01*m15+m04*m03*m13+m12*m01*m07-m12*m03*m05;
+    outmat4[@VBM_M23] =-m00*m05*m14+m00*m06*m13+m04*m01*m14-m04*m02*m13-m12*m01*m06+m12*m02*m05;
+    outmat4[@VBM_M30] =-m01*m06*m11+m01*m07*m10+m05*m02*m11-m05*m03*m10-m09*m02*m07+m09*m03*m06;
+    outmat4[@VBM_M31] = m00*m06*m11-m00*m07*m10-m04*m02*m11+m04*m03*m10+m08*m02*m07-m08*m03*m06;
+    outmat4[@VBM_M32] =-m00*m05*m11+m00*m07*m09+m04*m01*m11-m04*m03*m09-m08*m01*m07+m08*m03*m05;
+    outmat4[@VBM_M33] = m00*m05*m10-m00*m06*m09-m04*m01*m10+m04*m02*m09+m08*m01*m06-m08*m02*m05;
 	
-    d = 1.0 / (m00 * outmat4[0] + m01 * outmat4[4] + m02 * outmat4[8] + m03 * outmat4[12] + 0.00001);	// Assumes determinant > 0. Error otherwise
-    outmat4[@ 0] *= d; outmat4[@ 1] *= d; outmat4[@ 2] *= d; outmat4[@ 3] *= d;
-    outmat4[@ 4] *= d; outmat4[@ 5] *= d; outmat4[@ 6] *= d; outmat4[@ 7] *= d;
-    outmat4[@ 8] *= d; outmat4[@ 9] *= d; outmat4[@10] *= d; outmat4[@11] *= d;
-    outmat4[@12] *= d; outmat4[@13] *= d; outmat4[@14] *= d; outmat4[@15] *= d;
+	// Assumes determinant > 0. Error otherwise
+    var d = 1.0 / (m00 * outmat4[VBM_M00] + m01 * outmat4[VBM_M01] + m02 * outmat4[VBM_M02] + m03 * outmat4[VBM_M03] + 0.00001);
+    outmat4[@VBM_M00] *= d; outmat4[@VBM_M01] *= d; outmat4[@VBM_M02] *= d; outmat4[@VBM_M03] *= d;
+    outmat4[@VBM_M10] *= d; outmat4[@VBM_M11] *= d; outmat4[@VBM_M12] *= d; outmat4[@VBM_M13] *= d;
+    outmat4[@VBM_M20] *= d; outmat4[@VBM_M21] *= d; outmat4[@VBM_M22] *= d; outmat4[@VBM_M23] *= d;
+    outmat4[@VBM_M30] *= d; outmat4[@VBM_M31] *= d; outmat4[@VBM_M32] *= d; outmat4[@VBM_M33] *= d;
+}
+
+function __vbm_mat4inverse_fast(outmat4, msrc) {
+	// Source MESA GLu library: https://www.mesa3d.org/
+	var m00 = msrc[VBM_M00], m04 = msrc[VBM_M01], m08 = msrc[VBM_M02], m12 = msrc[VBM_M03];
+	var m01 = msrc[VBM_M10], m05 = msrc[VBM_M11], m09 = msrc[VBM_M12], m13 = msrc[VBM_M13];
+	var m02 = msrc[VBM_M20], m06 = msrc[VBM_M21], m10 = msrc[VBM_M22], m14 = msrc[VBM_M23];
+	// m03 = 0.0, m07 = 0.0, m11 = 0.0, m15 = 1.0
+	
+	outmat4[@VBM_M00] = m05*m10                -m09*m06;
+    outmat4[@VBM_M01] =-m04*m10                +m08*m06;
+    outmat4[@VBM_M02] = m04*m09                -m08*m05;
+    outmat4[@VBM_M03] =-m04*m09*m14+m04*m10*m13+m08*m05*m14-m08*m06*m13-m12*m05*m10+m12*m06*m09;
+    outmat4[@VBM_M10] =-m01*m10                +m09*m02;
+    outmat4[@VBM_M11] = m00*m10                -m08*m02;
+    outmat4[@VBM_M12] =-m00*m09                +m08*m01;
+    outmat4[@VBM_M13] = m00*m09*m14-m00*m10*m13-m08*m01*m14+m08*m02*m13+m12*m01*m10-m12*m02*m09;
+    outmat4[@VBM_M20] = m01*m06                -m05*m02;
+    outmat4[@VBM_M21] =-m00*m06                +m04*m02;
+    outmat4[@VBM_M22] = m00*m05                -m04*m01;
+    outmat4[@VBM_M23] =-m00*m05*m14+m00*m06*m13+m04*m01*m14-m04*m02*m13-m12*m01*m06+m12*m02*m05;
+    outmat4[@VBM_M30] = 0.0;
+    outmat4[@VBM_M31] = 0.0;
+    outmat4[@VBM_M32] = 0.0;
+    outmat4[@VBM_M33] = m00*m05*m10-m00*m06*m09-m04*m01*m10+m04*m02*m09+m08*m01*m06-m08*m02*m05;
+	
+	// Assumes determinant > 0. Error otherwise
+    var d = 1.0 / (m00 * outmat4[VBM_M00] + m01 * outmat4[VBM_M01] + m02 * outmat4[VBM_M02] + 0.00001);
+    outmat4[@VBM_M00] *= d; outmat4[@VBM_M01] *= d; outmat4[@VBM_M02] *= d; outmat4[@VBM_M03] *= d;
+    outmat4[@VBM_M10] *= d; outmat4[@VBM_M11] *= d; outmat4[@VBM_M12] *= d; outmat4[@VBM_M13] *= d;
+    outmat4[@VBM_M20] *= d; outmat4[@VBM_M21] *= d; outmat4[@VBM_M22] *= d; outmat4[@VBM_M23] *= d;
 }
 
 function __vbm_mat4axisroll(outmat4, headx, heady, headz, tailx, taily, tailz, roll) {
@@ -2625,6 +2441,19 @@ function __vbm_transformblend(tout, offset, ta, offset_a, tb, offset_b, amt) {
 		offset_b++;
 		offset++;
 	}
+}
+
+function __vbm_arrayinitialize(array, n, element, element_size) {
+	array_copy(array, 0, element, 0, element_size);	// First element
+	
+	// Copy array to itself with increasing size and offset
+	// O(log2)
+	var p = 1;
+	while ( (p<<1) < n) {
+		array_copy(array, element_size*p, array, 0, element_size*p);
+		p = p << 1;	// p = 2^i
+	}
+	array_copy(array, element_size*(n-p), array, 0, element_size*p);	// Last power of 2 to n
 }
 
 #endregion // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -17,6 +17,7 @@
     {"id":{"name":"obj_tutorial4_animation","path":"objects/obj_tutorial4_animation/obj_tutorial4_animation.yy",},"order":4,},
     {"id":{"name":"obj_navigation","path":"objects/obj_navigation/obj_navigation.yy",},"order":6,},
     {"id":{"name":"shd_background","path":"shaders/shd_background/shd_background.yy",},"order":0,},
+    {"id":{"name":"shd_tutorial3_tangent","path":"shaders/shd_tutorial3_tangent/shd_tutorial3_tangent.yy",},"order":5,},
     {"id":{"name":"Room1","path":"rooms/Room1/Room1.yy",},"order":0,},
   ],
   "Options": [
@@ -60,6 +61,7 @@
     {"resourceType":"GMIncludedFile","resourceVersion":"1.0","name":"shapes.vbm","CopyToMask":-1,"filePath":"datafiles",},
     {"resourceType":"GMIncludedFile","resourceVersion":"1.0","name":"tutorial5_model.vbm","CopyToMask":-1,"filePath":"datafiles",},
     {"resourceType":"GMIncludedFile","resourceVersion":"1.0","name":"tutorial4_model.vbm","CopyToMask":-1,"filePath":"datafiles",},
+    {"resourceType":"GMIncludedFile","resourceVersion":"1.0","name":"tutorial3_tangent.vbm","CopyToMask":-1,"filePath":"datafiles",},
   ],
   "MetaData": {
     "IDEVersion": "2022.0.2.51",

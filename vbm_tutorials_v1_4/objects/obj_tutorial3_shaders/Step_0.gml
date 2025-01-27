@@ -1,7 +1,9 @@
 /// @desc Move camera + Toggle Shader
 
 // Toggle shader mode
-shadermode ^= keyboard_check_pressed(vk_space);
+if ( keyboard_check_pressed(vk_space) ) {
+	shadermode = (shadermode+1) % 3;	
+}
 
 #region Camera =============================================================
 

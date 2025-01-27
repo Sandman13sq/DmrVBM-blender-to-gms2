@@ -29,37 +29,24 @@ show_bones ^= keyboard_check_pressed(0xDC);	// "|"
 
 // Navigate animation
 if ( keyboard_check_pressed(0xBD) ) {	// "-"
-	playback_index = (playback_index == 0)? VBM_Animator_GetAnimationCount(animator)-1: (playback_index-1);
+	playback_index = (playback_index == 0)? VBM_Model_GetAnimationCount(model)-1: (playback_index-1);
 	VBM_Animator_PlayAnimationIndex(animator, 0, playback_index);
-	VBM_Animator_Update(animator, 0.0);
-	VBM_Animator_SwingReset(animator);
+	VBM_Animator_Update(animator, model, 0.0);
 	benchmark_count = 0;
 	benchmark_net = [0,0,0];
 }
 if ( keyboard_check_pressed(0xBB) ) {	// "+"
-	playback_index = (playback_index+1) mod VBM_Animator_GetAnimationCount(animator);
+	playback_index = (playback_index+1) mod VBM_Model_GetAnimationCount(model);
 	VBM_Animator_PlayAnimationIndex(animator, 0, playback_index);
-	VBM_Animator_Update(animator, 0.0);
-	VBM_Animator_SwingReset(animator);
+	VBM_Animator_LayerSetEaseTime(animator, 0, 20);	// Ease into next animation
+	VBM_Animator_Update(animator, model, 0.0);
 	benchmark_count = 0;
 	benchmark_net = [0,0,0];
 }
 
-if ( keyboard_check(vk_space) ) {	// "]"
-	VBM_Animator_SwingReset(animator);
-}
-
-if ( keyboard_check_pressed(ord("C")) ) {	// Toggle Curves
-	if ( animator.layers[0].animation.animcurve ) {
-		animcurve = animator.layers[0].animation.animcurve;
-		animator.layers[0].animation.animcurve = -1;
-	}
-	else {
-		animator.layers[0].animation.animcurve = animcurve;
-		animcurve = -1;
-	}
-	benchmark_count = 0;
-	benchmark_net = [0,0,0];
+// Reset Swing
+if ( keyboard_check(vk_space) ) {
+	VBM_Animator_SwingReset(animator, model);
 }
 
 if ( keyboard_check_pressed(ord("S")) ) {	// Toggle Swing
@@ -156,7 +143,7 @@ zrot = max(zrot mod 360, (360+zrot) mod 360);
 
 // Model matrix
 VBM_Animator_SetRootTransform(animator, x,y,0, 0, 0, zrot*pi/180.0, 1,1,1);
-VBM_Animator_Update(animator, 1.0);
+VBM_Animator_Update(animator, model, 1.0);	// <- Model is passed into animator
 benchmark_net[0] += animator.benchmark[0];
 benchmark_net[1] += animator.benchmark[1];
 benchmark_net[2] += animator.benchmark[2];

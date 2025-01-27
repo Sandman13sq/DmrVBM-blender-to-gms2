@@ -17,7 +17,8 @@ void main()
 	float dp = dot(normal, lightdir);
 	
 	// Reflection of light direction bouncing off of normal into camera eye
-	float dr = dot(reflect(-lightdir, normal), incoming);
+	//float dr = dot(reflect(-lightdir, normal), incoming);		// <- Phong
+	float dr = dot(normalize(lightdir + incoming), normal);	// Blinn-Phong
 	dr = clamp(dr, 0.0, 1.0);
 	dr = pow(dr, 64.0);
 	

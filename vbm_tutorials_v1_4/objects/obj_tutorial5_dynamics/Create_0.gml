@@ -36,21 +36,11 @@ model_rotation = VBM_Model_Create();	// Shape to draw for swing bones
 VBM_OpenVBM("rotation.vbm", model_rotation, 0);
 
 animator = VBM_Animator_Create();	// Initialize animator
-VBM_Animator_FromModel(animator, model);	// Read bone and animation data from model
 VBM_Animator_ResizeLayers(animator, 2);	// Ensure that there are two layers
 VBM_Animator_PlayAnimationIndex(animator, 0, 0);	// Layer 0 animation = First animation
 VBM_Animator_PlayAnimationKey(animator, 1, "taroh-blink");	// Layer 1 animation = Blink
 
-//VBM_Animator_SwingDefinePattern(animator, "hair",	10.0, 0.1, 0.1, 0.2, 0.0, 0.0, -0.001);
-//VBM_Animator_SwingDefinePattern(animator, "sleeve",	10.0, 0.1, 0.1, 0.2, 0.0, 0.0, -0.001);
-//VBM_Animator_SwingDefinePattern(animator, "coat",	10.0, 0.1, 0.1, 0.1, 0.0, 0.0, -0.01);
-//VBM_Animator_SwingDefinePattern(animator, "hat",	10.0, 0.0, 0.1, 0.2, 0.0, 0.0, 0.0);
-//VBM_Animator_SwingDefinePattern(animator, "breast", 10.0, 0.0, 0.25, 0.25, 0.0, 0.0, -0.001);
-
-//VBM_Animator_ColliderDefine(animator, "thigh.L", 0.5);
-//VBM_Animator_ColliderDefine(animator, "thigh.R", 0.5);
-
-VBM_Animator_SwingReset(animator);
+VBM_Animator_SwingReset(animator, model);
 
 // *Model Controls -------------------------------------
 zrot = 0;

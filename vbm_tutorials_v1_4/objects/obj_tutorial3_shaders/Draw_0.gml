@@ -17,11 +17,17 @@ if (shadermode == 0) { // Draw native model
 	shader_set(shd_tutorial3_native);	// Set shader for next draw calls
 	VBM_Model_Submit(model_native, VBM_SUBMIT_TEXNONE);	// Ignore texture, only use vertex color
 }
-else { // Draw model with normals
+else if (shadermode == 1) { // Draw model with normals
 	shader_set(shd_tutorial3_normal);	// Set shader for next draw calls
 	shader_set_uniform_f_array(u_normal_lightpos, lightpos); // Set light position for shader
 	shader_set_uniform_f_array(u_normal_eyepos, eyepos); // Set eye position for shader
 	VBM_Model_Submit(model_normal, VBM_SUBMIT_TEXNONE);	// Ignore texture, only use vertex color
+}
+else if (shadermode == 2) {
+	shader_set(shd_tutorial3_tangent);	// Set shader for next draw calls
+	shader_set_uniform_f_array(u_normal_lightpos, lightpos); // Set light position for shader
+	shader_set_uniform_f_array(u_normal_eyepos, eyepos); // Set eye position for shader
+	VBM_Model_Submit(model_tangent, VBM_SUBMIT_TEXDEFAULT);	// Use normal map texture that comes with model
 }
 
 shader_reset();	// Reset to default GM shader
