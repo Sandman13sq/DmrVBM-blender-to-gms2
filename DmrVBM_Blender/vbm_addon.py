@@ -2349,41 +2349,67 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             # Bake Action ...............................................................
                             rig.animation_data.action = src
                             proxy.animation_data.action = action
-                            fstart, fend = src.frame_start, max(src.frame_start+1, src.frame_end)
-                            duration = max(1, fend-fstart)
-                            context.scene.frame_set(int(fstart))
+                            frame_start, frame_end = src.frame_start, max(src.frame_start+1, src.frame_end)
+                            duration = max(1, frame_end-frame_start)
+                            context.scene.frame_set(int(frame_start))
                             
-                            print("> Baking Action", src.name, (fstart, fend))
+                            print("> Building Action...", src.name, (frame_start, frame_end))
                             
-                            srccurvepaths = tuple([fc.data_path[fc.data_path.find('"')+1:fc.data_path.rfind('"')] for fc in src.fcurves])
-                            usedbones = [b.name for b in rig.data.bones if b.name in srccurvepaths]
-                            usedbones += ['DEF-'+bname for bname in usedbones]
+                            duration = frame_end-frame_start+1
                             
-                            for pb in list(rig.pose.bones) + list(proxy.pose.bones):
-                                pb.location, pb.rotation_quaternion, pb.rotation_euler, pb.scale = ((0,0,0), (1,0,0,0), pb.rotation_euler, (1,1,1))
+                            deformpbones = ([proxy.pose.bones[bname] for bname in deformorder if bname in list(proxy.pose.bones.keys())])
+                            deformpbones.sort(key=lambda b: deformorder.index(b.name) if b.name in deformorder else 1000000)
+                            bonecount = len(deformpbones)
                             
-                            bpy.ops.nla.bake(
-                                frame_start=int(src.curve_frame_range[0]), frame_end=int(src.curve_frame_range[1]), bake_types={'POSE'}, step=1,
-                                only_selected=False, visual_keying=True, clear_constraints=False, clear_parents=False, use_current_action=True, clean_curves=True,
-                            )
-                            [fc.update() for fc in action.fcurves]
-                            areatype = context.area.type
-                            context.area.type = 'GRAPH_EDITOR'
-                            bpy.ops.graph.clean(channels=False, threshold=action_clean_threshold)
-                            context.area.type = areatype
-                            
-                            # Write Action ...............................................................
-                            fcurves = action.fcurves
-                            curvepaths = tuple([fc.data_path[fc.data_path.find('"')+1:fc.data_path.rfind('"')] for fc in fcurves])
-                            
-                            transformkeys = [('.location', i) for i in (0,1,2)] + [('.rotation_quaternion', i) for i in (0,1,2,3)] + [('.scale', i) for i in (0,1,2)]
                             curvedata = {bname: [ [] for i in range(0, 10) ] for bname in deformorder}
-                            fcurves = action.fcurves
                             
-                            for bone_index, bonename in enumerate(deformorder):
-                                for transform_index, transform_key in enumerate(transformkeys):
-                                    fc = fcurves.find('pose.bones["%s"]%s' % (bonename, transform_key[0]), index=transform_key[1])
-                                    curvedata[bonename][transform_index] = [tuple(k.co) for k in fc.keyframe_points] if fc else []
+                            vecindices = ((0,1,2), (0,1,2,3), (0,1,2))
+                            typeaccuracy = (0.01, 0.01, 0.01)
+                            transformlast = [ [[12345678.9]*s for s in (3,4,3)] for i in range(0, bonecount) ]
+                            transformtime = [ [[1.0]*s for s in (3,4,3)] for i in range(0, bonecount) ]
+                            transformslope = [ [[12345.6]*s for s in (3,4,3)] for i in range(0, bonecount) ]
+                            transformslopeconsistent = [ [[0]*s for s in (3,4,3)] for i in range(0, bonecount) ]
+                            
+                            # For each frame...
+                            for frame in range(0, int(duration)):
+                                context.scene.frame_set(int(frame_start+frame))
+                                
+                                # For each bone...
+                                for b,pb in enumerate(deformpbones):
+                                    bname = pb.name
+                                    transform = (proxy.convert_space(pose_bone=pb, matrix=pb.matrix, from_space='POSE', to_space='LOCAL')).decompose()
+                                    
+                                    # For each transform element (loc, rot, sca)
+                                    channel_index = 0
+                                    for type_index in (0,1,2):
+                                        accuracy = 0.001 * typeaccuracy[type_index]
+                                        
+                                        # For each channel in transform
+                                        for i in vecindices[type_index]:
+                                            value = transform[type_index][i]
+                                            
+                                            if frame == 0:
+                                                transformlast[b][type_index][i] = value
+                                                transformslope[b][type_index][i] = 99999
+                                            
+                                            # If slope from last keyframe to next varies beyond a threshold, add new keyframe
+                                            slope = (value - transformlast[b][type_index][i]) / transformtime[b][type_index][i]
+                                            if abs(slope - transformslope[b][type_index][i]) >= accuracy:
+                                                if transformslopeconsistent[b][type_index][i]:
+                                                    curvedata[bname][channel_index].append( (frame-1, transformlast[b][type_index][i]) )
+                                                
+                                                curvedata[bname][channel_index].append( (frame, value) )
+                                                transformlast[b][type_index][i] = value
+                                                transformslope[b][type_index][i] = slope
+                                                transformtime[b][type_index][i] = 1.0
+                                                transformslopeconsistent[b][type_index][i] = 0
+                                            else:
+                                                transformtime[b][type_index][i] *= 0.9
+                                                transformslopeconsistent[b][type_index][i] = transformslope[b][type_index][i] == slope
+                                            channel_index += 1
+                            
+                            valuecount = sum([ len(channel) for curve in curvedata.values() for channel in curve ])
+                            #print("%6d / %6d keyframes" % (valuecount, len(deformpbones) * 10 * duration))
                             
                             if vbm.cache_actions:
                                 src['VBM_CHECKSUM'] = checksum
@@ -2394,6 +2420,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         bonemask = deformorder
                         if src.vbm.deform_mask:
                             bonemask = [x.name for x in src.vbm.deform_mask if x.enabled]
+                        
                         def CurveBytes(curvegroup):
                             hits = 0
                             outchunk = b''
