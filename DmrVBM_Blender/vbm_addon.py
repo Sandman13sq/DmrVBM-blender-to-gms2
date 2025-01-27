@@ -2,7 +2,7 @@ import bpy
 import os
 import mathutils
 import zlib
-import numpy
+import numpy as np
 import struct
 import timeit
 import time
@@ -615,10 +615,10 @@ class VBM_OT_QueueListOperation(bpy.types.Operator):
             vbm.queues_index = max(0, min(len(vbm.queues)-1, vbm.queues_index))
         elif self.operation == 'MOVE_UP':
             vbm.queues.move(vbm.queues_index, vbm.queues_index-1)
-            vbm.formats_index -= 1
+            vbm.queues_index -= 1
         elif self.operation == 'MOVE_DOWN':
             vbm.queues.move(vbm.queues_index, vbm.queues_index+1)
-            vbm.queues_index = max(0, min(len(vbm.queues)-1, vbm.queues_index-1))
+            vbm.queues_index = max(0, min(len(vbm.queues)-1, vbm.queues_index+1))
         elif self.operation == 'CLEAR':
             [vbm.queues.remove(x) for x in list(vbm.queues)[::-1]]
             vbm.queues_index = 0
@@ -1826,6 +1826,7 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         
         format_params = vbm.FormatStringDecode(format_code)
         use_skinning = sum([x in [f[0] for f in format_params] for x in 'BONE WEIGHT'.split()]) > 0
+        use_tangent = sum([x in [f[0] for f in format_params] for x in 'TANGENT BITANGENT'.split()]) > 0
         
         objectentries = [x for x in objectentries if x[0].name[0].lower() in 'qwertyuiopasdfghjklzxcvbnm']
         sourcerigs = list(set( [x for x in [y for obj,item in objectentries for y in [obj, obj.find_armature()]] if x and x.type=='ARMATURE' ] ))
@@ -1990,6 +1991,9 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                     [v.sort(key=lambda x: x[1]) for v in skinning]  # Sort by weight
                     skinning = [ (x+[(0,0.0), (0,0.0), (0,0.0), (0,0.0)])[:4] for x in skinning ]    # Add padding, Clamp to 4
                 
+                if use_tangent:
+                    obj.data.calc_tangents()
+                
                 # Mesh Groups ................................................................................
                 faceloops = tuple((l,v) for p in polys for l,v in zip(p.loop_indices, p.vertices))
                 
@@ -2025,9 +2029,19 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                             attribdata[attrib_index].extend(b''.join([Pack('B', int(x*255.0)) for l,v in faceloops for x in ([y*0.5+0.5 for y in loops[l].normal]+value[3:])[:size] ]))
                         else:
                             attribdata[attrib_index].extend(b''.join([Pack('f', x) for l,v in faceloops for x in (list(loops[l].normal)+value)[:size] ]))
+                    elif attrib_type == 'TANGENT':
+                        if isbyte:
+                            attribdata[attrib_index].extend(b''.join([Pack('B', int(x*255.0)) for l,v in faceloops for x in ([y*0.5+0.5 for y in loops[l].tangent]+value[3:])[:size] ]))
+                        else:
+                            attribdata[attrib_index].extend(b''.join([Pack('f', x) for l,v in faceloops for x in (list(loops[l].tangent)+value)[:size] ]))
+                    elif attrib_type == 'BITANGENT':
+                        if isbyte:
+                            attribdata[attrib_index].extend(b''.join([Pack('B', int(x*255.0)) for l,v in faceloops for x in ([y*0.5+0.5 for y in loops[l].bitangent]+value[3:])[:size] ]))
+                        else:
+                            attribdata[attrib_index].extend(b''.join([Pack('f', x) for l,v in faceloops for x in (list(loops[l].bitangent)+value)[:size] ]))
                     elif attrib_type == 'COLOR':
                         lyr = obj.data.color_attributes.get(lyrname, obj.data.color_attributes[obj.data.color_attributes.active_color_index]) if obj.data.color_attributes else None
-                        lyrvalues = [ list(v.color) for v in lyr.data ] if lyr else [numpy.array(value)] * len(faceloops)
+                        lyrvalues = [ list(v.color) for v in lyr.data ] if lyr else [np.array(value)] * len(faceloops)
                         if isbyte:
                             attribdata[attrib_index].extend(b''.join([Pack('B', int((x**srgbpower)*255.0)) for v in lyrvalues for x in v[:size]]))
                         else:
@@ -2123,8 +2137,8 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
                         
                         xcoords, ycoords, zcoords = ([], [], [])
                         [(xcoords.append(x), ycoords.append(y), zcoords.append(z)) for t in polyindices for l,v in faceloops[t*3:t*3+3] for x,y,z in [verts[v].co]]
-                        meshgroups[meshkey]['bounds_min'] = (numpy.min(xcoords), numpy.min(ycoords), numpy.min(zcoords))
-                        meshgroups[meshkey]['bounds_max'] = (numpy.max(xcoords), numpy.max(ycoords), numpy.max(zcoords))
+                        meshgroups[meshkey]['bounds_min'] = (np.min(xcoords), np.min(ycoords), np.min(zcoords))
+                        meshgroups[meshkey]['bounds_max'] = (np.max(xcoords), np.max(ycoords), np.max(zcoords))
                         
                         print(
                             "  %16s VB: %8d | loops: %6d | stride: %2d | %s" % 
@@ -2160,21 +2174,21 @@ class VBM_PG_Master(bpy.types.PropertyGroup):
         netimages = [x for x in netimages if x and x.pixels]
         for image in netimages:
             w,h = image.size
-            pixels = numpy.array(image.pixels).reshape((-1,h,4))[::-1,:,:].flatten() # Partition to rows, columns, channels; Flip rows; Flatten
-            pixelbytes = (pixels*255.0).astype(numpy.uint8)
-            colors = numpy.frombuffer(pixelbytes.tobytes(), dtype=numpy.uint32)
+            pixels = np.array(image.pixels).reshape((-1,h,4))[::-1,:,:].flatten() # Partition to rows, columns, channels; Flip rows; Flatten
+            pixelbytes = (pixels*255.0).astype(np.uint8)
+            colors = np.frombuffer(pixelbytes.tobytes(), dtype=np.uint32)
             palette = list( set(colors) )
             print(image.name, "psize:", len(palette))
             
             for i,m in enumerate([2, 4, 8, 12, 16, 24, 32, 48, 64, 96, 128]):
                 if len(palette) > 255:
-                    colors = numpy.frombuffer(  ( ((pixels*255)/m).round()*m ).clip(0,255).astype(numpy.uint8).tobytes(), dtype=numpy.uint32)
+                    colors = np.frombuffer(  ( ((pixels*255)/m).round()*m ).clip(0,255).astype(np.uint8).tobytes(), dtype=np.uint32)
                     palette = list( set(colors) )
                     print("psize [%d]:" % i, len(palette))
-            indices = numpy.array([palette.index(x) for x in colors], dtype=numpy.uint8)
+            indices = np.array([palette.index(x) for x in colors], dtype=np.uint8)
             
             tmp = bpy.data.images.new('__temp-'+image.name, image.size[0], image.size[1], alpha=True)
-            tmp.pixels = numpy.frombuffer(  numpy.array([palette[i] for i in indices], dtype=numpy.uint32).tobytes(), dtype=numpy.uint8).astype(numpy.float32) / 255.0
+            tmp.pixels = np.frombuffer(  np.array([palette[i] for i in indices], dtype=np.uint32).tobytes(), dtype=np.uint8).astype(np.float32) / 255.0
             
             outimage = b''
             outimage += PackString(image.name)  # Image name
