@@ -3,7 +3,7 @@
 
 /*
 	GM Matrix Index Reference:
-	[
+	mat4 = [
 		0,	4,	8, 12,	|	(x)
 		1,	5,	9, 13,	|	(y)
 		2,	6, 10, 14,	|	(z)
@@ -228,6 +228,7 @@ function VBM_Animation() constructor {
 	}
 }
 
+/// @desc 
 function VBM_Animation_Free(animation) {
 	if ( animation.animcurve ) {
 		animcurve_destroy(animation.animcurve);
@@ -636,10 +637,20 @@ function VBM_Model() constructor {
 	}
 }
 
+/// @func VBM_Model_Create()
+/// @desc Creates empty vbmmodel object
+/// @return {Struct.VBM_Model}
 function VBM_Model_Create() {
 	return new VBM_Model();
 }
 
+/// @func VBM_Model_Join(model, src, copy_meshes, copy_skeleton, copy_animations)
+/// @desc Appends data from src to model
+/// @arg model {VBM_Model} Destination model to append data to
+/// @arg src {VBM_Model} Source model to read data from
+/// @arg copy_meshes? {Bool}
+/// @arg copy_skeleton? {Bool}
+/// @arg copy_animations? {Bool}
 function VBM_Model_Join(model, src, copy_meshes, copy_skeleton, copy_animations) {
 	if (copy_meshes) {
 		var texture_index_offset = model.texture_count;
@@ -724,6 +735,9 @@ function VBM_Model_Join(model, src, copy_meshes, copy_skeleton, copy_animations)
 	}
 }
 
+/// @func VBM_Model_Clear(vbmmodel)
+/// @desc Removes and resets data in model object
+/// @arg vbmmodel {Struct.VBM_Model}
 function VBM_Model_Clear(vbmmodel) {
 	for (var i = 0; i < array_length(vbmmodel.texture_sprites); i++) {
 		sprite_delete(vbmmodel.texture_sprites[i]);
@@ -750,6 +764,12 @@ function VBM_Model_Clear(vbmmodel) {
 }
 
 // Model Meshes .................................................................
+
+/// @func VBM_Model_GetMesh(vbmmodel, mesh_index)
+/// @desc Returns VBM_Mesh object, or undefined if index is out of range.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg mesh_index {Real}
+/// @return {Struct.VBM_Model, undefined}
 function VBM_Model_GetMesh(vbmmodel, mesh_index) {
 	if ( vbmmodel && mesh_index >= 0 && mesh_index < vbmmodel.mesh_count ) {
 		return vbmmodel.meshes[mesh_index];	
@@ -757,16 +777,28 @@ function VBM_Model_GetMesh(vbmmodel, mesh_index) {
 	return undefined;
 }
 
+/// @func VBM_Model_GetMeshCount(vbmmodel)
+/// @desc Returns number of meshes in model.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {Real}
 function VBM_Model_GetMeshCount(vbmmodel) {
 	return vbmmodel? vbmmodel.mesh_count: 0;
 }
 
+/// @func VBM_Model_GetMeshName(vbmmodel)
+/// @desc Returns name of mesh in model
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {String}
 function VBM_Model_GetMeshName(vbmmodel, mesh_index) {
 	return vbmmodel? 
 		((mesh_index>=0 && mesh_index<vbmmodel.mesh_count)? vbmmodel.meshes[mesh_index].name: "<nullMesh>"): 
 		"<nullModel>";
 }
 
+/// @func VBM_Model_GetMeshNameArray(vbmmodel)
+/// @desc Returns array of mesh names
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {Array}
 function VBM_Model_GetMeshNameArray(vbmmodel) {
 	var names = [];
 	if ( vbmmodel ) {
@@ -777,6 +809,11 @@ function VBM_Model_GetMeshNameArray(vbmmodel) {
 	return names;
 }
 
+/// @func VBM_Model_FindMeshIndex(vbmmodel, mesh_name)
+/// @desc Returns index of first mesh with given name
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg mesh_name {String}
+/// @return {Real}
 function VBM_Model_FindMeshIndex(vbmmodel, mesh_name) {
 	if (vbmmodel) {
 		var n = vbmmodel.mesh_count;
@@ -789,6 +826,11 @@ function VBM_Model_FindMeshIndex(vbmmodel, mesh_name) {
 	return -1;
 }
 
+/// @func VBM_Model_FindMesh(vbmmodel, mesh_name)
+/// @desc Returns VBM_Mesh object of first mesh with given name
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg mesh_name {String}
+/// @return {Struct.VBM_Mesh}
 function VBM_Model_FindMesh(vbmmodel, mesh_name) {
 	if (vbmmodel) {
 		var n = vbmmodel.mesh_count;
@@ -802,6 +844,12 @@ function VBM_Model_FindMesh(vbmmodel, mesh_name) {
 }
 
 // Model Textures .................................................................
+
+/// @func VBM_Model_GetTextureSprite(vbmmodel, texture_index)
+/// @desc Returns sprite index of given index in model, -1 if index is invalid
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg texture_index {Real}
+/// @return {Real}
 function VBM_Model_GetTextureSprite(vbmmodel, texture_index) {
 	if ( vbmmodel && texture_index >= 0 && texture_index < vbmmodel.texture_count ) {
 		return vbmmodel.texture_sprites[texture_index];	
@@ -809,21 +857,39 @@ function VBM_Model_GetTextureSprite(vbmmodel, texture_index) {
 	return -1;
 }
 
+/// @func VBM_Model_GetTextureSpriteCount(vbmmodel)
+/// @desc Returns number of texture sprites stored in model
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {Real}
 function VBM_Model_GetTextureSpriteCount(vbmmodel) {
 	return vbmmodel? vbmmodel.texture_count: 0;
 }
 
 // Model Skeleton .................................................................
+
+/// @func VBM_Model_GetBoneCount(vbmmodel, texture_index)
+/// @desc Returns number of bones in model
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {Real}
 function VBM_Model_GetBoneCount(vbmmodel) {
 	return vbmmodel? vbmmodel.skeleton.bone_count: 0;
 }
 
+/// @func VBM_Model_GetBoneName(vbmmodel, texture_index)
+/// @desc Returns name of bone in model skeleton
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg bone_index {Real}
+/// @return {Real}
 function VBM_Model_GetBoneName(vbmmodel, bone_index) {
 	return vbmmodel? 
 		((bone_index>=0 && bone_index<vbmmodel.skeleton.bone_count)? vbmmodel.skeleton.bone_names[bone_index]: "<nullBone>"): 
 		"<nullModel>";
 }
 
+/// @func VBM_Model_GetBoneNameArray(vbmmodel)
+/// @desc Returns array of bone names
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {Array}
 function VBM_Model_GetBoneNameArray(vbmmodel) {
 	var names = [];
 	if ( vbmmodel ) {
@@ -834,6 +900,11 @@ function VBM_Model_GetBoneNameArray(vbmmodel) {
 	return names;
 }
 
+/// @func VBM_Model_FindBoneIndex(vbmmodel, bone_name)
+/// @desc Returns index of bone in model skeleton, -1 if not found
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg bone_index {Real}
+/// @return {Real}
 function VBM_Model_FindBoneIndex(vbmmodel, bone_name) {
 	if (vbmmodel && vbmmodel.skeleton.bone_count > 0) {
 		var n = vbmmodel.skeleton.bone_count;
@@ -847,20 +918,39 @@ function VBM_Model_FindBoneIndex(vbmmodel, bone_name) {
 }
 
 // Model Animations .................................................................
+
+/// @func VBM_Model_GetAnimationCount(vbmmodel)
+/// @desc Returns number of animations in model
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {Real}
 function VBM_Model_GetAnimationCount(vbmmodel) {
 	return vbmmodel? vbmmodel.animation_count: 0;
 }
 
+/// @func VBM_Model_GetAnimationCount(vbmmodel, animation_index)
+/// @desc Returns VBM_Animation at index, undefined if not found
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_index {Real}
+/// @return {Struct.VBM_Animation}
 function VBM_Model_GetAnimation(vbmmodel, animation_index) {
 	return (animation_index >= 0 && animation_index < vbmmodel.animation_count)?
 		vbmmodel.animations[animation_index]: undefined;
 }
 
+/// @func VBM_Model_GetAnimationName(vbmmodel, animation_index)
+/// @desc Returns name of animation in model
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_index {Real}
+/// @return {Real}
 function VBM_Model_GetAnimationName(vbmmodel, animation_index) {
 	return (vbmmodel && animation_index >= 0 && animation_index < vbmmodel.animation_count)?
 		vbmmodel.animations[animation_index].name: "<nullAnimation>";
 }
 
+/// @func VBM_Model_GetAnimationNameArray(vbmmodel)
+/// @desc Returns array of animation names
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @return {Array}
 function VBM_Model_GetAnimationNameArray(vbmmodel) {
 	var names = [];
 	if ( vbmmodel ) {
@@ -871,11 +961,21 @@ function VBM_Model_GetAnimationNameArray(vbmmodel) {
 	return names;
 }
 
+/// @func VBM_Model_GetAnimationDuration(vbmmodel, animation_index)
+/// @desc Returns duration of animation at index
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_index {Real}
+/// @return {Real}
 function VBM_Model_GetAnimationDuration(vbmmodel, animation_index) {
 	return (vbmmodel && animation_index >= 0 && animation_index < vbmmodel.animation_count)?
 		vbmmodel.animations[animation_index].duration: 0;
 }
 
+/// @func VBM_Model_FindAnimation(vbmmodel, animation_name)
+/// @desc Returns first VBM_Animation with name, undefined if not found
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_name {String}
+/// @return {Struct.VBM_Animation}
 function VBM_Model_FindAnimation(vbmmodel, animation_name) {
 	var n = vbmmodel.animation_count;
 	for (var i = 0; i < n; i++) {
@@ -886,6 +986,11 @@ function VBM_Model_FindAnimation(vbmmodel, animation_name) {
 	return undefined;
 }
 
+/// @func VBM_Model_FindAnimationIndex(vbmmodel, animation_name)
+/// @desc Returns index of first VBM_Animation with name, -1 if not found
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_name {String}
+/// @return {Real}
 function VBM_Model_FindAnimationIndex(vbmmodel, animation_name) {
 	var n = vbmmodel.animation_count;
 	for (var i = 0; i < n; i++) {
@@ -896,6 +1001,11 @@ function VBM_Model_FindAnimationIndex(vbmmodel, animation_name) {
 	return -1;
 }
 
+/// @func VBM_Model_HasAnimation(vbmmodel, animation_name)
+/// @desc Returns true if model contains animation with given name.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_name {String}
+/// @return {Bool}
 function VBM_Model_HasAnimation(vbmmodel, animation_name) {
 	var n = vbmmodel.animation_count;
 	for (var i = 0; i < n; i++) {
@@ -906,6 +1016,12 @@ function VBM_Model_HasAnimation(vbmmodel, animation_name) {
 	return false;
 }
 
+// Model Submit .............................................................
+
+/// @func VBM_Model_Submit(vbmmodel, texture)
+/// @desc Submits model for rendering.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg texture {Asset.GMTexture, Real} Texture or Enum in {VBM_SUBMIT_TEXNONE, VBM_SUBMIT_TEXDEFAULT}
 function VBM_Model_Submit(vbmmodel, texture) {
 	if (!vbmmodel) {return;}
 	var n = vbmmodel.mesh_count;
@@ -927,6 +1043,12 @@ function VBM_Model_Submit(vbmmodel, texture) {
 	}
 }
 
+/// @func VBM_Model_SubmitExt(vbmmodel, texture, hidebits, flags)
+/// @desc Submits model for rendering.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg texture {Asset.GMTexture, Real} Texture or Enum in {VBM_SUBMIT_TEXNONE, VBM_SUBMIT_TEXDEFAULT}
+/// @arg hidebits {Int} If the bit at <mesh_index> is set, rendering is skipped for that mesh
+/// @arg flags {Int} (Reserved)
 function VBM_Model_SubmitExt(vbmmodel, texture, hidebits, flags) {
 	var n = vbmmodel.mesh_count;
 	var mesh;
@@ -950,6 +1072,11 @@ function VBM_Model_SubmitExt(vbmmodel, texture, hidebits, flags) {
 	}
 }
 
+/// @func VBM_Model_SubmitMesh(vbmmodel, texture, mesh_index)
+/// @desc Submits mesh at index for rendering.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg texture {Asset.GMTexture, Real} Texture or Enum in {VBM_SUBMIT_TEXNONE, VBM_SUBMIT_TEXDEFAULT}
+/// @arg mesh_index {Int} Index of mesh in model to render
 function VBM_Model_SubmitMesh(vbmmodel, texture, mesh_index) {
 	if ( mesh_index >= 0 && mesh_index < vbmmodel.mesh_count ) {
 		var mesh = vbmmodel.meshes[mesh_index];
@@ -964,6 +1091,11 @@ function VBM_Model_SubmitMesh(vbmmodel, texture, mesh_index) {
 	}
 }
 
+/// @func VBM_Model_SubmitMeshName(vbmmodel, texture, mesh_name)
+/// @desc Submits meshes with given name for rendering.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg texture {Asset.GMTexture, Real} Texture or Enum in {VBM_SUBMIT_TEXNONE, VBM_SUBMIT_TEXDEFAULT}
+/// @arg mesh_name {String} Name of mesh(es) in model to render
 function VBM_Model_SubmitMeshName(vbmmodel, texture, mesh_name) {
 	var n = vbmmodel.mesh_count;
 	var mesh;
@@ -988,14 +1120,32 @@ function VBM_Model_SubmitMeshName(vbmmodel, texture, mesh_name) {
 	}
 }
 
+/// @func VBM_Model_SampleAnimationIndex_Mat4(vbmmodel, animation_index, frame, outmat4arrayflat)
+/// @desc Samples animation transforms and outputs matrices to <outmat4arrayflat>.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_index {Int} Index of animation in model
+/// @arg frame {Float} Animation frame to sample from
+/// @arg outmat4arrayflat {Array.Float} Output array of matrices, where array[0] is first, array[16] is second, etc.
 function VBM_Model_SampleAnimationIndex_Mat4(vbmmodel, animation_index, frame, outmat4arrayflat) {
 	VBM_Model_SampleAnimation_Mat4(vbmmodel, VBM_Model_GetAnimation(vbmmodel, animation_index), frame, outmat4arrayflat);
 }
 
+/// @func VBM_Model_SampleAnimationName_Mat4(vbmmodel, animation_name, frame, outmat4arrayflat)
+/// @desc Samples animation transforms and outputs matrices to <outmat4arrayflat>.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation_name {String} Name of animation in model
+/// @arg frame {Float} Animation frame to sample from
+/// @arg outmat4arrayflat {Array.Float} Output array of matrices, where array[0] is first, array[16] is second, etc.
 function VBM_Model_SampleAnimationName_Mat4(vbmmodel, animation_name, frame, outmat4arrayflat) {
 	VBM_Model_SampleAnimation_Mat4(vbmmodel, VBM_Model_FindAnimation(vbmmodel, animation_name), frame, outmat4arrayflat);
 }
 
+/// @func VBM_Model_SampleAnimationName_Mat4(vbmmodel, animation_name, frame, outmat4arrayflat)
+/// @desc Samples animation transforms and outputs matrices to <outmat4arrayflat>.
+/// @arg vbmmodel {Struct.VBM_Model}
+/// @arg animation {Struct.VBM_Animation} VBM Animation to sample from
+/// @arg frame {Float} Animation frame to sample from
+/// @arg outmat4arrayflat {Array.Float} Output array of matrices, where array[0] is first, array[16] is second, etc.
 function VBM_Model_SampleAnimation_Mat4(vbmmodel, animation, frame, outmat4arrayflat) {
 	// Fill array with identity if inputs are invalid
 	if ( !vbmmodel || !animation ) {
@@ -1151,6 +1301,9 @@ function VBM_Animator() constructor {
 	}
 }
 
+/// @func VBM_Animator_Create()
+/// @desc Creates animator object for more control over vbm animation playback
+/// @return {Struct.VBM_Animator}
 function VBM_Animator_Create() {
 	var animator = new VBM_Animator();
 	for (var t = 0; t < VBM_BONECAPACITY; t++) {
@@ -1173,6 +1326,9 @@ function VBM_Animator_Create() {
 	return animator;
 }
 
+/// @func VBM_Animator_Clear(animator)
+/// @desc Resets animator data
+/// @arg animator {Struct.VBM_Animator}
 function VBM_Animator_Clear(animator) {
 	var midentity = matrix_build_identity();
 	var tidentity = [0,0,0, 1,0,0,0, 1,1,1];
@@ -1183,53 +1339,23 @@ function VBM_Animator_Clear(animator) {
 	}
 }
 
+/// @func VBM_Animator_FromModel()
+/// @desc !OBSOLETED! Version v1.4 now requires model as argument when updating animator
 function VBM_Animator_FromModel(animator, vbmmodel) {
 	VBM_Animator_FromModelExt(animator, vbmmodel, 1, 1);
 }
 
+/// @func VBM_Animator_FromModelExt()
+/// @desc !OBSOLETED! Version v1.4 now requires model as argument when updating animator
 function VBM_Animator_FromModelExt(animator, vbmmodel, read_skeleton, read_animations) {
 	if (!animator || !vbmmodel) {return;}
 	show_debug_message("WARNING: VBM_Animator_FromModel() has been obsoleted. Version v1.4 now requires model as argument when updating animator.");
 }
 
-function VBM_Animator_SwingDefine(animator, bone_name, mass, friction, stiffness, dampness, force_x, force_y, force_z) {
-	var swg = 0;
-	for (var i = 0; i < animator.swing_count; i++) {
-		if (animator.swing_bones[i].bone_name == bone_name) {
-			swg = animator.swing_bones[i];
-			break;
-		}
-	}
-	
-	if (swg == 0) {
-		swg = new VBM_AnimatorSwing();
-		array_resize(animator.swing_bones, animator.swing_count+1);
-		animator.swing_bones[animator.swing_count] = swg;
-		animator.swing_count += 1;
-	}
-	
-	swg.bone_name = bone_name;
-	swg.bone_hash = VBM_StringHash(bone_name);
-	swg.force[0] = force_x;
-	swg.force[1] = force_y;
-	swg.force[2] = force_z;
-	swg.mass = max(mass, 0.01);
-	swg.friction = max(friction, 0.01);
-	swg.stiffness = max(stiffness, 0.01);
-	swg.dampness = max(dampness, 0.01);
-	return swg;
-}
-
-function VBM_Animator_SwingDefinePattern(animator, bone_name, mass, friction, stiffness, dampness, force_x, force_y, force_z) {
-	var namelen = string_length(bone_name);
-	for (var i = 0; i < animator.bone_count; i++) {
-		if ( string_copy(animator.bone_names[i], 1, namelen) == bone_name ) {
-			VBM_Animator_SwingDefine(animator, animator.bone_names[i], 
-				mass, friction, stiffness, dampness, force_x, force_y, force_z);
-		}
-	}
-}
-
+/// @func VBM_Animator_SwingReset(animator, vbmmodel)
+/// @desc Resets transforms of swing bones
+/// @arg animator {Struct.VBM_Animator}
+/// @arg vbmmodel {Struct.VBM_Model}
 function VBM_Animator_SwingReset(animator, vbmmodel) {
 	var bone_index;
 	var bone_count;
@@ -1255,30 +1381,10 @@ function VBM_Animator_SwingReset(animator, vbmmodel) {
 	}
 }
 
-function VBM_Animator_ColliderDefine(animator, bone_name, radius, length) {
-	if (animator) {
-		var col = 0;
-		for (var i = 0; i < animator.collider_count; i++) {
-			if (animator.colliders[i].bone_name == bone_name) {
-				col = animator.colliders[i];
-				break;
-			}
-		}
-		
-		if (col == 0) {
-			col = new VBM_AnimatorCollider();
-			array_resize(animator.colliders, animator.collider_count+1);
-			animator.colliders[animator.collider_count] = col;
-			animator.collider_count += 1;
-		}
-		
-		col.bone_name = bone_name;
-		col.bone_hash = VBM_StringHash(bone_name);
-		col.radius = radius;
-		col.length = length;
-	}
-}
-
+/// @func VBM_Animator_ResizeLayers(animator, numlayers)
+/// @desc Resizes animation layer array in animator.
+/// @arg animator {Struct.VBM_Animator}
+/// @arg numlayers {Int} New size of layer array
 function VBM_Animator_ResizeLayers(animator, numlayers) {
 	var new_count = min(numlayers, 8);
 	for (var i = animator.layer_count; i < new_count; i++) {
@@ -1287,22 +1393,19 @@ function VBM_Animator_ResizeLayers(animator, numlayers) {
 	animator.layer_count = new_count;
 }
 
+/// @func VBM_Animator_AddLayers(animator, n)
+/// @desc Adds a number of layers to animator 
+/// @arg animator {Struct.VBM_Animator}
+/// @arg n {Int} Number of layers to add
 function VBM_Animator_AddLayers(animator, n=1) {
 	VBM_Animator_ResizeLayers(animator, animator.layer_count+n);
 }
 
-function VBM_Animator_AddAnimation(animator, animation) {
-	array_push(animator.animations, VBM_Animation_Duplicate(animation));
-	animator.animation_count += 1;
-}
-
-function VBM_Animator_AddModelAnimations(animator, vbmmodel) {
-	var n = vbmmodel.animation_count;
-	for (var i = 0; i < n; i++) {
-		VBM_Animator_AddAnimation(animator, vbmmodel.animations[i]);
-	}
-}
-
+/// @func VBM_Animator_PlayAnimationIndex(animator, layer_index, animation_index)
+/// @desc Sets active animation index to play from model when updating
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int} Animator layer to play animation on 
+/// @arg animation_index {Int} Index of animation in model 
 function VBM_Animator_PlayAnimationIndex(animator, layer_index, animation_index) {
 	if ( layer_index >= 0 && layer_index < animator.layer_count) {
 		var lyr = animator.layers[layer_index];
@@ -1312,6 +1415,11 @@ function VBM_Animator_PlayAnimationIndex(animator, layer_index, animation_index)
 	}
 }
 
+/// @func VBM_Animator_PlayAnimationKey(animator, layer_index, animation_name)
+/// @desc Sets active animation key to play from model when updating
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int} Animator layer to play animation on 
+/// @arg animation_name {String} Name of animation in model 
 function VBM_Animator_PlayAnimationKey(animator, layer_index, animation_name) {
 	if ( layer_index >= 0 && layer_index < animator.layer_count) {
 		var lyr = animator.layers[layer_index];
@@ -1321,6 +1429,11 @@ function VBM_Animator_PlayAnimationKey(animator, layer_index, animation_name) {
 	}
 }
 
+/// @func VBM_Animator_SetAnimationFrame(animator, layer_index, frame)
+/// @desc Sets frame of animation in animator layer
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int} Animator layer to affect
+/// @arg frame {Float} Frame of animation to jump to. [0-Duration]
 function VBM_Animator_SetAnimationFrame(animator, layer_index, frame) {
 	if ( animator ) {
 		var lyr = animator.layers[layer_index];
@@ -1328,6 +1441,11 @@ function VBM_Animator_SetAnimationFrame(animator, layer_index, frame) {
 	}
 }
 
+/// @func VBM_Animator_SetAnimationDuration(animator, layer_index, position)
+/// @desc Sets normalized position of animation in animator layer. (Duration is calculated on update)
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int} Animator layer to affect
+/// @arg position {Float} Position of animation to jump to. [0.0-1.0] 
 function VBM_Animator_SetAnimationPosition(animator, layer_index, position) {
 	if ( animator ) {
 		var lyr = animator.layers[layer_index];
@@ -1335,96 +1453,40 @@ function VBM_Animator_SetAnimationPosition(animator, layer_index, position) {
 	}
 }
 
+/// @func VBM_Animator_GetLayerCount(animator)
+/// @desc Returns number of layers in animator
+/// @arg animator {Struct.VBM_Animator}
+/// @return {Int}
 function VBM_Animator_GetLayerCount(animator) {
 	return animator? animator.layer_count: 0;
 }
 
-function VBM_Animator_GetAnimationName(animator, animation_index) {
-	return animator?
-		((animation_index >= 0 && animation_index < animator.animation_count)? animator.animations[animation_index].name: "<nullAnimation>"): 
-		"<nullAnimator>";
+/// @func VBM_Animator_GetLayerAnimationPosition(animator, layer_index)
+/// @desc Returns playback frame of animator layer at index
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int}
+/// @return {Float} Current playback frame
+function VBM_Animator_GetLayerAnimationFrame(animator, layer_index) {
+	return (animator && layer_index >= 0 && layer_index < animator.layer_count)?
+		animator.layers[layer_index].animation_frame: -1;
 }
 
-function VBM_Animator_GetAnimationNameArray(animator) {
-	var names = [];
-	if ( animator ) {
-		var n = animator.animation_count;
-		array_resize(names, n);
-		for (var i = 0; i < n; i++) {names[i] = animator.animations[i].name;}
-	}
-	return names;
-}
-
-function VBM_Animator_GetBoneName(animator, bone_index) {
-	return animator?
-		((bone_index >= 0 && bone_index < animator.bone_count)? animator.bone_names[bone_index]: "<nullBone>"): 
-		"<nullAnimator>";
-}
-
-function VBM_Animator_GetBoneNameArray(animator) {
-	var names = [];
-	if ( animator ) {
-		var n = animator.bone_count;
-		array_resize(names, n);
-		for (var i = 0; i < n; i++) {names[i] = animator.bone_names[i].name;}
-	}
-	return names;
-}
-
-function VBM_Animator_FindBoneIndex(animator, bone_name) {
-	for (var i = 0; i < animator.bone_count; i++) {
-		if (animator.bone_names[i] == bone_name) {return i;}
-	}
-	return -1;
-}
-
-function VBM_Animator_FindBoneIndicesByPattern(animator, name, outindexarray, n) {
-	var bone_count = animator.bone_count;
-	var hits = 0;
-	var namelen = string_length(name);
-	for (var i = 0; i < bone_count; i++) {
-		if ( string_copy(animator.bone_names[i], 1, namelen) == name ) {
-			outindexarray[hits] = i;
-			hits += 1;
-			if (hits >= n) {
-				break;
-			}
-		}
-	}
-	return hits;
-}
-
-function VBM_Animator_FindBoneNamesByPattern(animator, name, outstringarray, n) {
-	var bone_count = animator.bone_count;
-	var hits = 0;
-	var namelen = string_length(name);
-	for (var i = 0; i < bone_count; i++) {
-		if ( string_copy(animator.bone_names[i], 1, namelen) == name ) {
-			outstringarray[hits] = animator.bone_names[i];
-			hits += 1;
-			if (hits >= n) {
-				break;
-			}
-		}
-	}
-	return hits;
-}
-
-function VBM_Animator_GetBoneParentIndex(animator, bone_index) {
-	return animator.bone_parentindex[bone_index];
-}
-
+/// @func VBM_Animator_GetLayerAnimationPosition(animator, layer_index)
+/// @desc Returns normalized playback position of animator layer at index
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int}
+/// @return {Float} Current normalized playback position
 function VBM_Animator_GetLayerAnimationPosition(animator, layer_index) {
 	return (animator && layer_index >= 0 && layer_index < animator.layer_count)?
 		animator.layers[layer_index].animation_frame / animator.layers[layer_index].animation_duration:
 		0.0;
 }
 
-function VBM_Animator_GetLayerAnimationFrame(animator, layer_index) {
-	return (animator && layer_index >= 0 && layer_index < animator.layer_count)?
-		animator.layers[layer_index].animation_frame: -1;
-}
-
+/// @func VBM_Animator_GetLayerAnimationKey(animator, layer_index)
+/// @desc Returns animation key of animator layer at index
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int}
+/// @return {String}
 function VBM_Animator_GetLayerAnimationKey(animator, layer_index) {
 	if ( animator && layer_index >= 0 && layer_index < animator.layer_count ) {
 		var animkey = animator.layers[layer_index].animation_key;
@@ -1433,26 +1495,64 @@ function VBM_Animator_GetLayerAnimationKey(animator, layer_index) {
 	return "<nullAnimatorLayer>";
 }
 
+/// @func VBM_Animator_GetMat4WorldArray(animator)
+/// @desc Returns array of world-space matrices calculated by animator.
+/// @arg animator {Struct.VBM_Animator}
+/// @return {Array.Mat4} Array of 16-float matrices
 function VBM_Animator_GetMat4WorldArray(animator) {
 	return animator.matworld;
 }
 
+/// @func VBM_Animator_GetMat4FinalArray(animator)
+/// @desc Returns array of vertex-space matrices calculated by animator. Use when setting bone transform uniform before submitting model.
+/// @arg animator {Struct.VBM_Animator}
+/// @return {Array.Float} Flat array of 16-float matrices
 function VBM_Animator_GetMat4FinalArray(animator) {
 	return animator.matfinal;
 }
 
-function VBM_Animator_GetTransform(animator, transform_index, outfloat10) {
-	array_copy(outfloat10, 0, animator.transforms, transform_index*10, 10);
+/// @func VBM_Animator_GetTransform(animator, transform_index, outfloat10, offset)
+/// @desc Outputs transform into <outfloat10> variable
+/// @arg animator {Struct.VBM_Animator}
+/// @arg transform_index {Int}
+/// @arg outfloat10 {Struct.Array} Output array of at least size 10
+/// @arg offset {Int} Offset into output array to write values
+function VBM_Animator_GetTransform(animator, transform_index, outfloat10, offset=0) {
+	array_copy(outfloat10, offset, animator.transforms, transform_index*10, 10);
 }
 
-function VBM_Animator_GetMatrixWorld(animator, bone_index, outmat4) {
-	array_copy(outmat4, 0, animator.matworld[bone_index], 0, 16);
+/// @func VBM_Animator_GetMatrixWorld(animator, bone_index, outmat4, offset)
+/// @desc Outputs world-space matrix at index into <outmat4> variable
+/// @arg animator {Struct.VBM_Animator}
+/// @arg bone_index {Int}
+/// @arg outmat4 {Struct.Array} Output array of at least size 16
+/// @arg offset {Int} Offset into output array to write values
+function VBM_Animator_GetMatrixWorld(animator, bone_index, outmat4, offset=0) {
+	array_copy(outmat4, offset, animator.matworld[bone_index], 0, 16);
 }
 
-function VBM_Animator_GetMatrixFinal(animator, bone_index, outmat4) {
-	array_copy(outmat4, 0, animator.matfinal, 16*bone_index, 16);
+/// @func VBM_Animator_GetMatrixFinal(animator, bone_index, outmat4, offset)
+/// @desc Outputs vertex-space matrix at index into <outmat4> variable
+/// @arg animator {Struct.VBM_Animator}
+/// @arg bone_index {Int}
+/// @arg outmat4 {Struct.Array} Output array of at least size 16
+/// @arg offset {Int} Offset into output array to write values
+function VBM_Animator_GetMatrixFinal(animator, bone_index, outmat4, offset=0) {
+	array_copy(outmat4, offset, animator.matfinal, 16*bone_index, 16);
 }
 
+/// @func VBM_Animator_SetRootTransform(animator, x, y, z, radiansx, radiansy, radiansz, scalex, scaley, scalez)
+/// @desc Sets first transform applied to rest of pose calculations
+/// @arg animator {Struct.VBM_Animator}
+/// @arg x {Float}
+/// @arg y {Float}
+/// @arg z {Float}
+/// @arg radiansx {Float}
+/// @arg radiansy {Float}
+/// @arg radiansz {Float}
+/// @arg scalex {Float}
+/// @arg scaley {Float}
+/// @arg scalez {Float}
 function VBM_Animator_SetRootTransform(animator, x,y,z, radiansx,radiansy,radiansz, sx,sy,sz) {
 	animator.transforms[VBM_T_SCALEX] = sx;
 	animator.transforms[VBM_T_SCALEY] = sy;
@@ -1469,28 +1569,11 @@ function VBM_Animator_SetRootTransform(animator, x,y,z, radiansx,radiansy,radian
 	array_copy(animator.transform_root, 0, animator.transforms, 0, 10);
 }
 
-function VBM_Animator_SetVisibilityIndex(animator, mesh_index, is_visible) {
-	if ( is_visible ) {
-		animator.mesh_hide_bits |= (1<<mesh_index);
-	}
-	else {
-		animator.mesh_hide_bits &= ~(1<<mesh_index);
-	}
-}
-
-function VBM_Animator_SetVisibilityName(animator, mesh_name, is_visible) {
-	for (var i = 0; i < 32; i++) {
-		if (animator.mesh_names[i] == mesh_name) {
-			if ( is_visible ) {
-				animator.mesh_hide_bits |= (1<<i);
-			}
-			else {
-				animator.mesh_hide_bits &= ~(1<<i);
-			}
-		}
-	}
-}
-
+/// @func VBM_Animator_LayerSetEaseTime(animator, layer_index, blend_frames)
+/// @desc Sets amount of time to spend blending into the layer's pose
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int}
+/// @arg blend_frames {Float}
 function VBM_Animator_LayerSetEaseTime(animator, layer_index, blend_frames) {
 	if (animator && layer_index >= 0 && layer_index < animator.layer_count) {
 		var lyr = animator.layers[layer_index];
@@ -1499,7 +1582,11 @@ function VBM_Animator_LayerSetEaseTime(animator, layer_index, blend_frames) {
 	}
 }
 
-// See VBM_LOOPMODE enum
+/// @func VBM_Animator_LayerSetLoopMode(animator, layer_index, loop_mode)
+/// @desc Sets the loop behavior for the animator layer
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int}
+/// @arg loop_mode {Enum.VBM_LOOPMODE}
 function VBM_Animator_LayerSetLoopMode(animator, layer_index, loop_mode) {
 	if (animator && layer_index >= 0 && layer_index < animator.layer_count) {
 		var lyr = animator.layers[layer_index];
@@ -1507,6 +1594,11 @@ function VBM_Animator_LayerSetLoopMode(animator, layer_index, loop_mode) {
 	}
 }
 
+/// @func VBM_Animator_LayerAnimationIsFinished(animator, layer_index)
+/// @desc Returns true if animator layer has reached or elapsed animation position
+/// @arg animator {Struct.VBM_Animator}
+/// @arg layer_index {Int}
+/// @return {Bool} 
 function VBM_Animator_LayerAnimationIsFinished(animator, layer_index) {
 	if (animator && layer_index >= 0 && layer_index < animator.layer_count) {
 		var lyr = animator.layers[layer_index];
@@ -1515,6 +1607,14 @@ function VBM_Animator_LayerAnimationIsFinished(animator, layer_index) {
 	return 0;
 }
 
+/// @func VBM_Animator_UpdateExt(animator, vbmmodel, delta, update_transforms, update_swing, update_bones)
+/// @desc Processes all animator layers to generate world-space and vertex-space matrices.
+/// @arg animator {Struct.VBM_Animator}
+/// @arg vbmmodel {Struct.VBM_Model} Source model to pull bone data and animations from
+/// @arg delta {Float} Speed of animation update
+/// @arg update_transforms {Bool} Processes layers if true
+/// @arg update_swing {Bool} Processes swing bones if true
+/// @arg update_bones {Bool} Processes base bones if true
 function VBM_Animator_UpdateExt(animator, vbmmodel, delta, update_transforms, update_swing, update_bones) {
 	if ( is_undefined(model) ) {
 		return;
@@ -1855,6 +1955,11 @@ function VBM_Animator_UpdateExt(animator, vbmmodel, delta, update_transforms, up
 	animator.benchmark[0] = get_timer()-animator.benchmark[0];
 }
 
+/// @func VBM_Animator_Update(animator, vbmmodel, delta)
+/// @desc Processes all animator layers to generate world-space and vertex-space matrices.
+/// @arg animator {Struct.VBM_Animator}
+/// @arg vbmmodel {Struct.VBM_Model} Source model to pull bone data and animations from
+/// @arg delta {Float} Speed of animation update
 function VBM_Animator_Update(animator, vbmmodel, delta) {
 	VBM_Animator_UpdateExt(animator, vbmmodel, delta, 1, 1, 1);
 }
@@ -1863,10 +1968,10 @@ function VBM_Animator_Update(animator, vbmmodel, delta) {
 
 #region // Global ===================================================================
 
-function VBM_Init() {
-	
-}
-
+/// @func VBM_FormatFromKey(formatkey)
+/// @desc Creates and returns vertex format from array of VBM_ATTRIBUTE values
+/// @arg formatkey {Array.Int} Array of values in VBM_ATTRIBUTE enum
+/// @return {Int} Vertex format identifier
 function VBM_FormatFromKey(formatkey) {
 	// Z YYY XXXX -> X = Attribute Type, Y = Size, Z = Isbyte
 	var n = array_length(formatkey);
@@ -1923,21 +2028,32 @@ function VBM_FormatFromKey(formatkey) {
 	return vertex_format_end();
 }
 
+/// @func VBM_FormatKeyStride(formatkey)
+/// @desc Returns number of bytes per vertex in format
+/// @arg formatkey {Array.Int} Array of values in VBM_ATTRIBUTE enum
+/// @return {Int}
 function VBM_FormatKeyStride(formatkey) {
 	var stride = 0;
 	var n = array_length(formatkey);
 	for (var i = 0; i < n; i++) {
+		// stride += size * (1 if byte else 4);
 		stride += ((formatkey[i] >> 4) & 0x7) * ((formatkey[i] & VBM_ATTRIBUTE.IS_BYTE)? 1: 4);
 	}
 	return stride;
 }
 
+/// @func VBM_OpenVBM(filepath, outvbm, flags)
+/// @desc Opens vbm file and writes data to <outvbm> variable
+/// @arg filepath {String} Path of vbm file
+/// @arg outvbm {Struct.VBM_Model} VBM Model struct to write data to.
+/// @arg flags {Int} Bitfield of values in VBM_OPENFLAGS enum
+/// @return {Bool} 1 on success, 0 on error
 function VBM_OpenVBM(fpath, outvbm, flags=0) {
 	var b = buffer_load(VBM_PROJECTPATH+fpath);
 	
 	if (b == -1) {
 		show_debug_message("Error opening VBM file: " + fpath);
-		return outvbm;
+		return 0;
 	}
 	
 	var bdecompressed = buffer_decompress(b);
@@ -1959,12 +2075,12 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 	
 	if ( !header_is_vbm ) {
 		show_debug_message("File does not contain VBM header: " + fpath);
-		return outvbm;
+		return 0;
 	}
 	
 	if ( header_version != 4 ) {
 		show_debug_message("VBM Version invalid (Version " + string(header_version) + "): " + fpath);
-		return outvbm;
+		return 0;
 	}
 	
 	// Resource Loop =====================================================
@@ -2249,8 +2365,12 @@ function VBM_OpenVBM(fpath, outvbm, flags=0) {
 	}
 	
 	buffer_delete(b);
+	return 1;
 }
 
+/// @func VBM_SetProjectPath(fdir)
+/// @desc Sets path to prepend to file opening calls done by the VBM library
+/// @arg fdir {String} Path of vbm file
 function VBM_SetProjectPath(fdir) {
 	VBM_PROJECTPATH = fdir;
 }
