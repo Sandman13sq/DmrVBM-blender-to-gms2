@@ -1,0 +1,12 @@
+{
+  "$GMShader":"",
+  "%Name":"shd_tutorial3_native",
+  "name":"shd_tutorial3_native",
+  "parent":{
+    "name":"VBMTutorials_v1_5",
+    "path":"folders/VBMTutorials_v1_5.yy",
+  },
+  "resourceType":"GMShader",
+  "resourceVersion":"2.0",
+  "type":1,
+}

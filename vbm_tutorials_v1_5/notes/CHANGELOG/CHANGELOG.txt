@@ -1,0 +1,7 @@
+* "Mesh" type changed to "Meshdef"
+* Animation workflow split into 4 steps:
+	- Transforms from animation
+	- Transforms -> Origin-Space
+	- Origin-Space -> Vertex-Space
+
+
