@@ -1,0 +1,12 @@
+{
+  "$GMShader":"",
+  "%Name":"shd_stinkyghost",
+  "name":"shd_stinkyghost",
+  "parent":{
+    "name":"Common",
+    "path":"folders/Common.yy",
+  },
+  "resourceType":"GMShader",
+  "resourceVersion":"2.0",
+  "type":1,
+}
