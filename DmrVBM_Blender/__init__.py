@@ -1,10 +1,10 @@
 bl_info = {
-    'name': 'DmrVBM Vertex Buffer Model Export',
-    'description': 'Export tools to export vertex buffer data to Game Maker Studio 2',
+    'name': 'DmrVBM v1.5',
+    'description': "Export models for use in Game Maker with DmrVBM script.",
     'author': 'Sandman13sq',
     'category': 'Import-Export',
-    'version': (1, 4, 0),
-    'blender': (4, 0, 0),
+    'version': (1, 5, 0),
+    'blender': (4, 5, 0),
     'support': 'COMMUNITY',
     'doc_url': 'https://github.com/Sandman13sq/DmrVBM-blender-to-gms2',
 }
