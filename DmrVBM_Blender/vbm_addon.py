@@ -538,8 +538,6 @@ class VBM_OT_CollectionMoveObject(bpy.types.Operator):
         index = collection.vbm.object_index
         if self.direction == 'UP' and index > 0:
             order = [objects[(i-1) if i==index else (i+1) if i==index-1 else i] for i in range(0,len(objects))]
-            print([x.name for x in objects])
-            print([x.name for x in order])
             [collection.objects.unlink(obj) for obj in objects]
             [collection.objects.link(obj) for obj in order]
             collection.vbm.object_index -= 1
@@ -1234,6 +1232,7 @@ classlist.append(VBM_PT_Asset)
 def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_post=None):
     checksum_key = (
         (action.name if action else "") + 
+        (("%4d"%len(rig.data.bones)) if rig else "") + 
         (object_script_pre.name if object_script_pre else "") + 
         (object_script_post.name if object_script_post else "")
     )
@@ -1390,9 +1389,12 @@ def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_p
     return {mtlname: {streamkey: zlib.decompress(streamcompressed) for streamkey,streamcompressed in mtlstreams.items()} for mtlname,mtlstreams in src.vbm['VBM_DATA'+checksum_key].items()}
 
 def AnimData(action, rig):
+    if not rig:
+        return {}
+    
     checksum = sum(np.array([x for x in (
-        [x for b in rig.data.bones for v in (b.head_local, b.tail_local) for x in v] +
         [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] +
+        ([x for b in rig.data.bones for v in (b.head_local, b.tail_local) for x in v] if rig else []) +
         ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(rig)[0]) for x in bname] if rig else [])
     )]).tobytes() )
     if action.vbm.get('VBM_CHECKSUM', -1) != checksum:
@@ -1565,6 +1567,9 @@ def ExportModel(collection, report=True):
     format = collection.vbm.format
     format_mask = sum([1<<i for i,x in enumerate(format) if x]) // 1
     stride = CalcStride(format_mask)
+    
+    if ((1<<VFORMAT_INDEX['BON']) & format_mask==0) and ((1<<VFORMAT_INDEX['WEI']) & format_mask==0):
+        rig = None
     
     swing_collection = collection
     if rig and len(collection.vbm.swing_bones) == 0:
@@ -1983,7 +1988,4 @@ def unregister():
     
 if __name__ == "__main__":
     register()
-
-for action in bpy.data.actions:
-    action.vbm['MUTEX'] = 0
 
