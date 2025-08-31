@@ -1,0 +1,27 @@
+{
+  "FolderOrderSettings":[
+    {"name":"Common","order":2,"path":"folders/Common.yy",},
+    {"name":"VBMDemos","order":3,"path":"folders/VBMDemos.yy",},
+    {"name":"VBMTutorials_v1_5","order":1,"path":"folders/VBMTutorials_v1_5.yy",},
+  ],
+  "ResourceOrderSettings":[
+    {"name":"CHANGELOG","order":13,"path":"notes/CHANGELOG/CHANGELOG.yy",},
+    {"name":"obj_demo_collision","order":2,"path":"objects/obj_demo_collision/obj_demo_collision.yy",},
+    {"name":"obj_demo_verlettest","order":1,"path":"objects/obj_demo_verlettest/obj_demo_verlettest.yy",},
+    {"name":"obj_navigation","order":5,"path":"objects/obj_navigation/obj_navigation.yy",},
+    {"name":"obj_tutorial1_triangle","order":4,"path":"objects/obj_tutorial1_triangle/obj_tutorial1_triangle.yy",},
+    {"name":"obj_tutorial2_loadmodel","order":6,"path":"objects/obj_tutorial2_loadmodel/obj_tutorial2_loadmodel.yy",},
+    {"name":"obj_tutorial3_shaders","order":7,"path":"objects/obj_tutorial3_shaders/obj_tutorial3_shaders.yy",},
+    {"name":"obj_tutorial4_animation","order":11,"path":"objects/obj_tutorial4_animation/obj_tutorial4_animation.yy",},
+    {"name":"obj_tutorial5_prism","order":14,"path":"objects/obj_tutorial5_prism/obj_tutorial5_prism.yy",},
+    {"name":"rm_vbm","order":4,"path":"rooms/rm_vbm/rm_vbm.yy",},
+    {"name":"shd_stinkyghost","order":3,"path":"shaders/shd_stinkyghost/shd_stinkyghost.yy",},
+    {"name":"shd_tutorial3_native","order":10,"path":"shaders/shd_tutorial3_native/shd_tutorial3_native.yy",},
+    {"name":"shd_tutorial3_normal","order":8,"path":"shaders/shd_tutorial3_normal/shd_tutorial3_normal.yy",},
+    {"name":"shd_tutorial3_tangent","order":9,"path":"shaders/shd_tutorial3_tangent/shd_tutorial3_tangent.yy",},
+    {"name":"shd_tutorial4_animation","order":12,"path":"shaders/shd_tutorial4_animation/shd_tutorial4_animation.yy",},
+    {"name":"spr_debugfont","order":1,"path":"sprites/spr_debugfont/spr_debugfont.yy",},
+    {"name":"spr_dreamfont","order":2,"path":"sprites/spr_dreamfont/spr_dreamfont.yy",},
+    {"name":"spr_stinkyghost","order":4,"path":"sprites/spr_stinkyghost/spr_stinkyghost.yy",},
+  ],
+}

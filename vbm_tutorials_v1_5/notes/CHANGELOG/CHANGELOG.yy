@@ -1,0 +1,11 @@
+{
+  "$GMNotes":"",
+  "%Name":"CHANGELOG",
+  "name":"CHANGELOG",
+  "parent":{
+    "name":"VBMTutorials_v1_5",
+    "path":"folders/VBMTutorials_v1_5.yy",
+  },
+  "resourceType":"GMNotes",
+  "resourceVersion":"2.0",
+}
