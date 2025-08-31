@@ -30,7 +30,7 @@ yy = _ystart;
 draw_text(xx, yy, "Mesh Count: " + string(VBM_Model_GetMeshdefCount(model))); yy += ysep;
 for (var i = 0; i < VBM_Model_GetMeshdefCount(model); i++) {
 	if ( mesh_select == i ) {draw_set_color(c_orange);}
-	else if ( mesh_visibility_mask & (1<<i) ) {draw_set_color(c_white);}
+	else if ( mesh_visible_layermask & (1<<i) ) {draw_set_color(c_white);}
 	else {draw_set_color(c_gray);}
 	draw_text(xx, yy, "  ["+string(i)+"]: " + string(VBM_Model_GetMeshdefName(model, i))); yy += ysep;
 }

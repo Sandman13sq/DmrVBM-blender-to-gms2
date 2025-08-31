@@ -6,7 +6,7 @@ tutorials = [
 	obj_tutorial2_loadmodel,
 	obj_tutorial3_shaders,
 	obj_tutorial4_animation,
-	obj_tutorial5_prism,
+	//obj_tutorial5_prism,
 ];
 
 demos = [

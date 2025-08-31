@@ -24,7 +24,12 @@ classlist = []
 MODEL_NULLINDEX = 255
 
 VBM_FILEEXT = ".vbm"
+
 VBM_LAYERMASKSIZE = 32
+VBM_LAYERMASKICON = 'INFO'
+VBM_MESHTYPES = ('MESH', 'CURVE')
+
+VBM_EXPORTENABLEDICONS = ('CHECKBOX_DEHLT', 'CHECKBOX_HLT', 'CHECKMARK')
 
 VBM_BONEFLAGS_HIDDEN = (1<<0)
 VBM_BONEFLAGS_SWINGBONE = (1<<1)
@@ -90,6 +95,9 @@ def FixName(name):
 def ValidName(name):
     return name[0].lower() in "qwertyuiopasdfghjklzxcvbnm1234567890" and (name[:4] != 'WGTS')
 
+def MaskVectorStr(maskboolvector):
+    return "0b"+"".join(["01"[x] for i,x in enumerate(maskboolvector[:int(bpy.context.scene.vbm.layermask_display_size)])])
+
 LayerCollections = lambda c, outdict: (outdict.update({c.name: c}), [LayerCollections(child, outdict) for child in c.children], outdict)[-1] 
 LayerCollection = lambda c: LayerCollections(bpy.context.view_layer.layer_collection, {})[c.name]
 def SelectCollection(collection):
@@ -137,10 +145,10 @@ def EvaluateDeformOrder(skeleton_object):
     deformlist = list(deformorder)
     deformlist.sort(key=lambda bname: BoneDepth(bname, deformmap))
     
-    skeleton_object['DEFORM_MAP'] = {bname: (deformmap[bname] if deformmap.get(bname, None) else None) for bname in deformorder} # {bonename: parentname}
-    skeleton_object['DEFORM_LIST'] = deformlist   # [0, first_bone, second_bone, ...]
-    skeleton_object['DEFORM_ROUTE'] = {bname: bname for bname in deformorder}    # {sourcename: bonename}
-    return (list(skeleton_object['DEFORM_LIST']), skeleton_object['DEFORM_MAP'], skeleton_object['DEFORM_ROUTE'])
+    skeleton_object.vbm['DEFORM_MAP'] = {bname: (deformmap[bname] if deformmap.get(bname, None) else None) for bname in deformorder} # {bonename: parentname}
+    skeleton_object.vbm['DEFORM_LIST'] = deformlist   # [0, first_bone, second_bone, ...]
+    skeleton_object.vbm['DEFORM_ROUTE'] = {bname: bname for bname in deformorder}    # {sourcename: bonename}
+    return (list(skeleton_object.vbm['DEFORM_LIST']), skeleton_object.vbm['DEFORM_MAP'], skeleton_object.vbm['DEFORM_ROUTE'])
 
 # .....................................................................
 def VBM_TexturePadding(image):
@@ -199,21 +207,31 @@ class VBM_PG_Label(bpy.types.PropertyGroup):
     pass
 classlist.append(VBM_PG_Label)
 
+class VBM_PG_CollectionItem(bpy.types.PropertyGroup):
+    collection: PointerProperty(type=bpy.types.Collection, options=set())
+    depth: IntProperty(min=0, default=0, options=set())
+classlist.append(VBM_PG_CollectionItem)
+
 class VBM_PG_ActionItem(bpy.types.PropertyGroup):
     action: PointerProperty(type=bpy.types.Action)
-    export_enabled: BoolProperty(name="Export Enabled", default=1)
+    export_enabled: BoolProperty(name="Export Enabled", default=1, options=set(), description="Include action on export")
 classlist.append(VBM_PG_ActionItem)
+
+# ---------------------------------------------------------------------------------------------------------
+class VBM_PG_Image(bpy.types.PropertyGroup):
+    pass
+classlist.append(VBM_PG_Image)
 
 class VBM_PG_Material(bpy.types.PropertyGroup):
     def get_shader(self):
         return self.shader if self.shader else bpy.context.scene.vbm.shader_default
-    shader: StringProperty(default="")
-    transparent: BoolProperty(default=False)
+    shader: StringProperty(default="", description="Name of shader asset")
+    transparent: BoolProperty(default=False, options=set(), description="Sets transparency flag on export")
 classlist.append(VBM_PG_Material)
 
 class VBM_PG_MaterialOverride(bpy.types.PropertyGroup):
-    material: PointerProperty(type=bpy.types.Material)
-    override: PointerProperty(type=bpy.types.Material)
+    material: PointerProperty(type=bpy.types.Material, description="Material to replace")
+    override: PointerProperty(type=bpy.types.Material, description="Material to overwrite with")
 classlist.append(VBM_PG_MaterialOverride)
 
 class VBM_PG_Action(bpy.types.PropertyGroup):
@@ -250,9 +268,9 @@ class VBM_PG_Action(bpy.types.PropertyGroup):
 classlist.append(VBM_PG_Action)
 
 class VBM_PG_Object(bpy.types.PropertyGroup):
-    export_enabled: BoolProperty(name="Export Enabled", default=1)
+    export_enabled: BoolProperty(name="Export Enabled", default=True)
     script_id: StringProperty(name="Script ID", default="")
-    is_collision: BoolProperty(name="Is Collision", default=False)
+    is_collision: BoolProperty(name="Is Collision", default=False, options=set(), description="Export object as Prism type in file")
     layermask: BoolVectorProperty(name="Layer Mask", size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)])
 classlist.append(VBM_PG_Object)
 
@@ -269,7 +287,7 @@ class VBM_PG_Swingbone(bpy.types.PropertyGroup):
     layermask: BoolVectorProperty(name="Layer Mask", size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)])
 classlist.append(VBM_PG_Swingbone)
 
-# ----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------
 class VBM_PG_Collection(bpy.types.PropertyGroup):
     def export(self):
         collection = ActiveCollection()
@@ -277,8 +295,26 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
         SelectCollection(collection)
         return hits
     
+    def refresh(self):
+        sccollection = self.get_collection()
+        [c.vbm.children.remove(0) for c in [sccollection]+list(sccollection.children_recursive) for i in range(0,len(c.vbm.children))]
+        
+        def VBMCollection_WalkRefresh(root, collection, depth):
+            if root != collection:
+                item = root.vbm.children.add()
+                item.collection = collection
+                item.depth = depth-1
+                
+            for c in list(collection.children):
+                c.vbm.refresh()
+                VBMCollection_WalkRefresh(root, c, depth+1)
+        VBMCollection_WalkRefresh(sccollection, sccollection, 0)
+    
     def get_collection(self):
         return ([x for x in bpy.data.collections if x.vbm==self]+[bpy.context.scene.collection])[0]
+    def get_name(self):
+        return self.name if self.name else self.get_collection().name
+    
     def select_action(self, context):
         if self.actions:
             rig = CollectionRig(self.get_collection())
@@ -353,22 +389,27 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
             self.format = [x > 0 for x in format]
     format: BoolVectorProperty(name="Vertex Format", size=32, options=set(), default=tuple([((1<<i)&VFORMAT_DEFAULTMASK) != 0 for i in range(0, 32)]), update=update_format)   # [0:15] = Attribute, [16:31] = Is byte
     
+    name: StringProperty(default="", options=set())
+    enabled: BoolProperty(default=False, name="Export as File")
+    object_index: IntProperty(min=0)
+    
     actions: CollectionProperty(type=VBM_PG_ActionItem)
     action_index: IntProperty(min=0, update=select_action)
-    object_index: IntProperty(min=0)
-    enabled: BoolProperty(default=False, name="Export as File")
-    is_prefab: BoolProperty(default=False, name="Is Prefab")
-    use_material_names: BoolProperty(default=False, name="Use Mtl Names")
-    merge_meshes: BoolProperty(default=False, name="Merge Meshes")
     
-    color_layer_name: StringProperty(name="VC Layer Name", default="", options=set())
-    color_layer_default: FloatVectorProperty(name="VC Layer Default", size=4, default=(1,1,1,1), subtype='COLOR_GAMMA', options=set())
-    uv_layer_name: StringProperty(name="UV Layer Name", default="", options=set())
-    uv_layer_default: FloatVectorProperty(name="UV Layer Default", size=2, default=(1,1), options=set())
-    action_pose: PointerProperty(name="Action Pose", type=bpy.types.Action, update=update_pose_action)
+    children: CollectionProperty(options={'HIDDEN'}, type=VBM_PG_CollectionItem)
+    child_index: IntProperty(min=0)
     
-    object_script_pre: PointerProperty(name="Object Pre Script", type=bpy.types.Text)
-    object_script_post: PointerProperty(name="Object Post Script", type=bpy.types.Text)
+    use_material_names: BoolProperty(name="Use Mtl Names", default=False, description="Append material name to name of object on export")
+    merge_meshes: BoolProperty(name="Merge Meshes", default=False, description="Merge meshes with similar names, after truncating name after \".\" character")
+    action_pose: PointerProperty(name="Action Pose", type=bpy.types.Action, update=update_pose_action, description="Pose to export mesh with (if skinning attributes are disabled and/or rig is not present)")
+    
+    color_layer_name: StringProperty(name="VC Layer Name", default="", options=set(), description="Vertex color layer to use on export. Uses 'Color' if empty")
+    color_layer_default: FloatVectorProperty(name="VC Layer Default", size=4, default=(1,1,1,1), subtype='COLOR_GAMMA', options=set(), description="Default vertex color if vc layer name is set but not found")
+    uv_layer_name: StringProperty(name="UV Layer Name", default="", options=set(), description="UV layer to use on export. Uses 'UVMap' if empty")
+    uv_layer_default: FloatVectorProperty(name="UV Layer Default", size=2, default=(1,1), options=set(), description="Default uv value if uv layer name is set but not found")
+    
+    object_script_pre: PointerProperty(name="Object Pre Script", type=bpy.types.Text, description="Internal python script to run before applying modifiers")
+    object_script_post: PointerProperty(name="Object Post Script", type=bpy.types.Text, description="Internal python script to run after applying modifiers")
     
     swing_bones: CollectionProperty(name="Swing Bones", type=VBM_PG_Swingbone, options=set())
     swing_bone_index: IntProperty(min=0, options=set())
@@ -376,7 +417,13 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
     material_overrides: CollectionProperty(name="Material Overrides", type=VBM_PG_MaterialOverride, options=set())
     material_override_index: IntProperty(min=0, options=set())
     
-    bone_layermask_default: BoolVectorProperty(name="Bone Layer Mask Default", size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)], options=set())
+    bone_layermask_default: BoolVectorProperty(
+        name="Bone Layer Mask Default", 
+        size=VBM_LAYERMASKSIZE, 
+        default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)], 
+        options=set(),
+        description="Default layer mask for bones not in a swing bone group"
+    )
 classlist.append(VBM_PG_Collection)
 
 class VBM_PG_Scene(bpy.types.PropertyGroup):
@@ -387,13 +434,23 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
         if datapath != self.data_path:
             self.data_path = datapath
     
+    def refresh_collection(self, context):
+        collection = context.scene.collection
+        checksum = sum([i*ord(c) for i,x in enumerate(collection.children_recursive) for c in x.name])
+        
+        if checksum != self.get('VBM_CHECKSUM', -1):
+            print("> VBM Collection Refresh")
+            context.scene.collection.vbm.refresh()
+            self['VBM_CHECKSUM'] = checksum
+    
     def texture_apply_padding(self, image):
         VBM_TexturePadding(image)
     
     data_path: StringProperty(name="Data Path", default="", subtype='DIR_PATH', update=update_datapath)
-    layermask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set())
-    shader_default: StringProperty(name="Default Shader", default="DEFAULT", options=set())
-    panel_tab: EnumProperty(default=1, items=tuple([
+    layermask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set(), description="Number of layer mask bits to display")
+    layermask_display_list: BoolProperty(name="Show Layermask in List", default=False, options=set(), description="Show layer masks in item lists that support it")
+    shader_default: StringProperty(name="Default Shader", default="DEFAULT", options=set(), description="Default shader name for materials.")
+    panel_tab: EnumProperty(default=1, update=refresh_collection, items=tuple([
         ('SCENE', "", "Scnene settings", 'PREFERENCES', 0),
         ('COLLECTION', "CLL", "Collection settings", 'OUTLINER_COLLECTION', 1),
         ('OBJECT', "OBJ", "Collection object settings", 'OBJECT_DATA', 2),
@@ -425,6 +482,9 @@ class VBM_OT_CollectionClearChecksum(bpy.types.Operator):
                 if "VBM_" in k:
                     del item[k]
                     hit = 1
+            for k in tuple(item.vbm.keys())[::-1]:
+                if "VBM_" in k:
+                    del item.vbm[k]
             hits += hit
         self.report({'INFO'}, "%d hits" % hits)
         SelectCollection(collection)
@@ -469,6 +529,29 @@ class VBM_OT_CollectionRenameObjects(bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionRenameObjects)
 
+class VBM_OT_CollectionMoveObject(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_object_move', 'Move Object', {'REGISTER', 'UNDO'}
+    direction: EnumProperty(name="Direction", items=tuple([(x,x,x) for x in 'UP DOWN'.split()]))
+    def execute(self, context):
+        collection = ActiveCollection()
+        objects = list(collection.objects)
+        index = collection.vbm.object_index
+        if self.direction == 'UP' and index > 0:
+            order = [objects[(i-1) if i==index else (i+1) if i==index-1 else i] for i in range(0,len(objects))]
+            print([x.name for x in objects])
+            print([x.name for x in order])
+            [collection.objects.unlink(obj) for obj in objects]
+            [collection.objects.link(obj) for obj in order]
+            collection.vbm.object_index -= 1
+        if self.direction == 'DOWN' and index < len(objects)-1:
+            order = [objects[(i+1) if i==index else (i-1) if i==index+1 else i] for i in range(0,len(objects))]
+            [collection.objects.unlink(obj) for obj in objects]
+            [collection.objects.link(obj) for obj in order]
+            collection.vbm.object_index += 1
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionMoveObject)
+
+# ---------------------------------------------------------------------------------------------------------
 class VBM_OT_CollectionAddAction(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.collection_add_action', 'Add Action', {'REGISTER', 'UNDO'}
     def execute(self, context):
@@ -649,47 +732,109 @@ class VBM_OT_TexturePadding(bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(VBM_OT_TexturePadding)
 
+class VBM_OT_RigClearPose(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = ('vbm.rig_clear_pose', 'VBM Rig Clear Pose', {'REGISTER', 'UNDO'})
+    bl_description = "Resets transforms of pose bones."
+    
+    def execute(self, context):
+        rig = CollectionRig()
+        if rig:
+            for pb in rig.pose.bones:
+                pb.location = (0,0,0)
+                pb.rotation_quaternion = (1,0,0,0)
+                pb.rotation_euler = (0,0,0)
+                pb.scale = (1,1,1)
+        return {'FINISHED'}
+classlist.append(VBM_OT_RigClearPose)
+
 "======================================================================================================"
 "UILIST"
 "======================================================================================================"
 
+class VBM_UL_CollectionChildren(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        collection = item.collection
+        if collection:
+            numfiles = len([x for x in [collection]+list(collection.children_recursive) if x.vbm.enabled])
+            layout = layout.row(align=1)
+            layout.prop(collection.vbm, 'enabled', text="", icon=VBM_EXPORTENABLEDICONS[collection.vbm.enabled], emboss=False)
+            r = layout.row(align=1)
+            r.enabled = numfiles > 0
+            
+            rr = r.row(align=1)
+            rr.scale_x = 0.8
+            for i in range(0, item.depth-1):
+                rr.label(text="", icon='THREE_DOTS')
+            rr.label(text="", icon='TEXT' if collection.vbm.enabled else 'OUTLINER_COLLECTION' if numfiles>0 else 'GROUP')
+            
+            r.separator()
+            r.prop(collection, 'name', text="", emboss=False)
+            rr = r.row(align=1)
+            rr.alignment = 'RIGHT'
+            rr.label(text="%d File(s)" % numfiles)
+classlist.append(VBM_UL_CollectionChildren)
+
+# ------------------------------------------------------------------------------------------------
 class VBM_UL_CollectionObjects(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        layout = layout.column(align=1)
         obj = item
         layout.enabled = ValidName(obj.name)
         r = layout.row(align=1)
-        r.scale_x = 0.8
-        r.prop(obj.vbm, 'export_enabled', text="", icon=('CHECKBOX_HLT' if layout.enabled else 'CHECKMARK') if obj.vbm.export_enabled else 'CHECKBOX_DEHLT', emboss=False)
+        r.prop(obj.vbm, 'export_enabled', text="", icon=VBM_EXPORTENABLEDICONS[obj.vbm.export_enabled*(2-layout.enabled)], emboss=False)
         icon = 'OUTLINER_OB_GROUP_INSTANCE' if obj.instance_collection else (('OUTLINER_DATA_')+obj.type)
+        
         if layout.enabled:
             rr = r.row(align=1)
             rr.prop(obj, 'name', text="", placeholder="(Export Name)", emboss=0, icon=icon)
             rr.active = index==data.vbm.object_index
-            r.prop(obj.vbm, 'is_collision', text="", icon='PHYSICS')
+            
+            if obj.type in VBM_MESHTYPES:
+                r.separator()
+                r.prop(obj.vbm, 'is_collision', text="", icon='PHYSICS')
         else:
             rr = r.row(align=1)
             rr.label(text="", icon='MESH_PLANE')
             rr.scale_x = 0.09
             r.label(text="( %s )"%obj.name, icon=icon)
+        
         if obj.type == 'ARMATURE':
-            rr = layout.row()
+            rr = r.row()
             rr.alignment='RIGHT'
-            rr.label(text="%d" % len([b for b in obj.data.bones if b.use_deform]), icon='BONE_DATA')
+            rr.label(text="%d" % len(obj.vbm['DEFORM_LIST'] if obj.vbm.get('DEFORM_LIST',None) else [b for b in obj.data.bones if b.use_deform]), icon='BONE_DATA')
+        
+        if context.scene.vbm.layermask_display_list:
+            r = layout.row(align=1)
+            r.alignment='RIGHT'
+            r.label
+            r.label(text="Mask: " + MaskVectorStr(obj.vbm.layermask))
 classlist.append(VBM_UL_CollectionObjects)
 
+# -------------------------------------------------------------------------------------
 class VBM_UL_CollectionActions(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         action = item.action
+        layout = layout.column(align=1)
         r = layout.row(align=1)
-        r.prop(item, 'export_enabled', text="", icon='CHECKBOX_HLT' if item.export_enabled else 'CHECKBOX_DEHLT', emboss=False)
+        r.prop(item, 'export_enabled', text="", icon=VBM_EXPORTENABLEDICONS[item.export_enabled], emboss=False)
         rr = r.row(align=1)
         rr.active = item.export_enabled
         rr.scale_x = 1.5
         rr.prop(action, 'name', text="", emboss=False)
+        
         rr = r.row(align=1)
         rr.enabled = action.use_frame_range
         rr.label(text="%02d:%02d" % (action.frame_range[0], action.frame_range[1]))
         r.prop(action, 'use_frame_range', text="", icon='PREVIEW_RANGE')
+        
+        # Extended info
+        if context.scene.vbm.layermask_display_list:
+            r = layout.row(align=1)
+            r = r.row(align=1)
+            r.alignment='RIGHT'
+            r.label(text="Markers: %d |" % len(action.pose_markers))
+            r.label(text="Mask:")
+            r.label(text=MaskVectorStr(action.vbm.layermask))
 classlist.append(VBM_UL_CollectionActions)
 
 # -------------------------------------------------------------------------------------
@@ -749,18 +894,23 @@ def VBMDrawLayermask(layout, id, propname, text=""):
 # ---------------------------------------------------------------------------------------
 def VBMActionPanel(layout, collection):
     context = bpy.context
-    r = layout.box().row()
-    if collection.vbm.action_pose:
-        rr = r.row()
-        rr.scale_x = 0.6
-        rr.label(text="Action Pose")
-        r.template_ID(collection.vbm, 'action_pose', text="")
-    else:
-        r.prop(collection.vbm, 'action_pose')
     
     rig = CollectionRig(collection)
     if rig:
+        r = layout.row()
+        r.label(text=rig.name, icon='ARMATURE_DATA')
+        r.operator('vbm.rig_clear_pose', text="", icon='MOD_ARMATURE')
         layout.template_ID(rig.animation_data, 'action')
+        
+    r = layout.box().row()
+    if collection.vbm.action_pose:
+        rr = r.row()
+        rr.scale_x = 0.5
+        rr.label(text="Pose:")
+        r.prop(collection.vbm, 'action_pose', text="")
+        #r.template_ID(collection.vbm, 'action_pose', text="")
+    else:
+        r.prop(collection.vbm, 'action_pose')
     
     r = layout.row(align=1)
     c = r.column(align=1)
@@ -768,6 +918,8 @@ def VBMActionPanel(layout, collection):
     c.template_list('VBM_UL_CollectionActions', "", collection.vbm, 'actions', collection.vbm, 'action_index', rows=8)
     c = r.column(align=1)
     c.scale_y = 0.8
+    c.prop(context.scene.vbm, 'layermask_display_list', text="", icon=VBM_LAYERMASKICON)
+    c.separator()
     c.operator('vbm.collection_add_action', text="", icon='ADD')
     c.operator('vbm.collection_remove_action', text="", icon='REMOVE')
     c.separator()
@@ -784,8 +936,8 @@ def VBMActionPanel(layout, collection):
         VBMDrawLayermask(c, action.vbm, 'layermask', "Bone Mask")
         
         r = c.row(align=1)
-        r.prop(action.vbm, 'frame_start', text="Start")
-        r.prop(action.vbm, 'frame_end', text="End")
+        r.prop(action.vbm, 'frame_start', text="Frame Start")
+        r.prop(action.vbm, 'frame_end', text="Frame End")
         #r.separator()
         #r.prop(action.vbm, 'frame_step', text="Step")
         rr = r.row(align=1)
@@ -857,6 +1009,8 @@ class VBM_PT_Rig3DView_Swingbones(bpy.types.Panel):
             c.scale_y = 1.0
             c.operator('vbm.collection_add_swing', text="", icon='ADD')
             c.operator('vbm.collection_remove_swing_bone', text="", icon='REMOVE')
+            c.separator()
+            c.prop(context.scene.vbm, 'layermask_display_list', text="", icon=VBM_LAYERMASKICON)
             
             swing = collection.vbm.swing_bones[collection.vbm.swing_bone_index] if collection.vbm.swing_bones else None
             if swing:
@@ -890,24 +1044,28 @@ class VBM_PT_Asset(bpy.types.Panel):
         layout = self.layout
         vbm = context.scene.vbm
         collection = ActiveCollection()
+        sc = context.scene
         obj = context.active_object
         
         # Collection ...............................................
         r = layout.row(align=1)
         r.prop(vbm, 'data_path', placeholder="(.blend folder)")
-        r.operator('vbm.export_collection_all', text="", icon='EXPORT')
         
         r = layout.row(align=1)
         r.prop(collection.vbm, 'enabled', text="")
         r.label(text=collection.name, icon='GROUP')
         rr = r.row(align=1)
-        rr.label(text="%d File(s)" % (collection.vbm.enabled + len([1 for c in collection.children_recursive if c.vbm.enabled])) )
         rr.alignment = 'RIGHT'
-        rr.operator('vbm.export_collection', text="", icon='EXPORT')
-        rr.enabled = (rr.enabled and collection.name != "Scene Collection")
+        rr.label(text="%d File(s)" % (collection.vbm.enabled + len([1 for c in collection.children_recursive if c.vbm.enabled])) )
+        
+        r = layout.row(align=0)
+        r.operator('vbm.export_collection', text="Export Collection" if collection.vbm.enabled else "Export Collection Files", icon='EXPORT')
+        r = r.row()
+        r.scale_x = 0.8
+        r.operator('vbm.export_collection_all', text="Export All", icon='EXPORT')
         
         # Tab ----------------------------------------------------
-        layout = layout.column(align=1)
+        layout = layout.box().column(align=1)
         layout.row(align=1).prop(context.scene.vbm, 'panel_tab', expand=True)
         layout = layout.box().column(align=0)
         export_enabled = collection.vbm.enabled
@@ -917,9 +1075,31 @@ class VBM_PT_Asset(bpy.types.Panel):
             c = layout.column()
             c.use_property_split = 1
             c.prop(context.scene.vbm, 'shader_default')
-            c.prop(context.scene.vbm, 'layermask_display_size')
+            c.prop(context.scene.vbm, 'layermask_display_size', text="Layer Mask Size")
+            c.prop(context.scene.vbm, 'layermask_display_list', text="Show Mask in List")
+            
+            r = layout.row(align=1)
+            r.label(text="Clear Checksum:", icon='UNLINKED')
+            rr = r.row(align=1)
+            rr.scale_x = 0.6
+            rr.operator('vbm.collection_clear_checksum', text="OBJ").group='OBJECT'
+            rr.operator('vbm.collection_clear_checksum', text="ANI").group='ACTION'
+            rr.operator('vbm.collection_clear_checksum', text="TEX").group='IMAGE'
+            
+            layout.separator()
+            c = layout.column(align=1)
+            c.scale_y = 0.7
+            c.template_list('VBM_UL_CollectionChildren', "", sc.collection.vbm, 'children', sc.collection.vbm, 'child_index', rows=6 if sc.collection.children else 2)
         # Collection -----------------------------------------------------
         elif context.scene.vbm.panel_tab == 'COLLECTION':
+            # Active Collection
+            r = layout.row(align=1)
+            r.prop(collection.vbm, 'enabled', text="")
+            r.prop(collection.vbm, 'name', text="", icon='GROUP', placeholder=collection.name+".vbm")
+            rr = r.row(align=1)
+            rr.alignment = 'RIGHT'
+            rr.label(text="%d File(s)" % (collection.vbm.enabled + len([1 for c in collection.children_recursive if c.vbm.enabled])) )
+            
             # Format
             format = collection.vbm.format
             b = layout.row(align=1)
@@ -956,6 +1136,12 @@ class VBM_PT_Asset(bpy.types.Panel):
                 e[1].prop(collection.vbm, 'uv_layer_name', text="", placeholder="<Active UV Layer>")
             e[2].row().prop(collection.vbm, 'uv_layer_default', text="")
             layout.separator()
+            
+            # Children
+            c = layout.column(align=1)
+            c.scale_y = 0.7
+            c.template_list('VBM_UL_CollectionChildren', "", collection.vbm, 'children', collection.vbm, 'child_index', rows=6 if collection.children else 2)
+            
         # Objects ----------------------------------------------------------
         elif context.scene.vbm.panel_tab == 'OBJECT':
             r = layout.row()
@@ -975,10 +1161,25 @@ class VBM_PT_Asset(bpy.types.Panel):
             c.scale_y = 0.7
             c.template_list('VBM_UL_CollectionObjects', "", collection, 'all_objects', collection.vbm, 'object_index', rows=8)
             c = r.column(align=1)
+            c.prop(context.scene.vbm, 'layermask_display_list', text="", icon=VBM_LAYERMASKICON)
+            c.separator()
+            c.operator('vbm.collection_object_move', text="", icon='TRIA_UP').direction='UP'
+            c.operator('vbm.collection_object_move', text="", icon='TRIA_DOWN').direction='DOWN'
+            c.separator()
             c.operator('vbm.rename_objects', text="", icon='COPY_ID')
             c.operator('vbm.collection_clear_checksum', text="", icon='UNLINKED').group='OBJECT'
             
-            obj = context.active_object
+            if collection.all_objects:
+                obj = collection.all_objects[collection.vbm.object_index]
+                b = layout.column(align=1)
+                b.label(text=obj.name, icon=obj.type+"_DATA")
+                VBMDrawLayermask(b, obj.vbm, 'layermask', "Object Layer Mask")
+                
+                c = b.column(align=1)
+                c.use_property_split = True
+                c.prop(obj.vbm, 'export_enabled')
+                c.prop(obj.vbm, 'is_collision')
+            
         # Material ----------------------------------------------------------
         elif context.scene.vbm.panel_tab == 'MATERIAL':
             materials = collection.vbm.get_materials()
@@ -1057,7 +1258,7 @@ def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_p
         )
     ]).tobytes()))
     
-    if int(src.get('VBM_CHECKSUM'+checksum_key, -1)) != checksum or not src.get('VBM_DATA'+checksum_key, {}):
+    if int(src.vbm.get('VBM_CHECKSUM'+checksum_key, -1)) != checksum or not src.vbm.get('VBM_DATA'+checksum_key, {}):
         print("> Building mesh \"%s\"..." % src.name, action.name if action else "")
         
         # Staging ............................................................................................
@@ -1182,11 +1383,11 @@ def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_p
                         mtlvbs[mtlname][vclyr.name] = b''
                     mtlvbs[mtlname][vclyr.name] += b''.join([PackVector('B', [int(255*(x**gamma)) for x in vclyr.data[l].color]) for l in mtlloops])
                 
-        if src.get('VBM_DATA'+checksum_key, None):
-            del src['VBM_DATA'+checksum_key]
-        src['VBM_DATA'+checksum_key] = {mtlname: {streamkey: zlib.compress(stream) for streamkey,stream in streams.items()} for mtlname,streams in mtlvbs.items()}
-        src['VBM_CHECKSUM'+checksum_key] = checksum
-    return {mtlname: {streamkey: zlib.decompress(streamcompressed) for streamkey,streamcompressed in mtlstreams.items()} for mtlname,mtlstreams in src['VBM_DATA'+checksum_key].items()}
+        if src.vbm.get('VBM_DATA'+checksum_key, None):
+            del src.vbm['VBM_DATA'+checksum_key]
+        src.vbm['VBM_DATA'+checksum_key] = {mtlname: {streamkey: zlib.compress(stream) for streamkey,stream in streams.items()} for mtlname,streams in mtlvbs.items()}
+        src.vbm['VBM_CHECKSUM'+checksum_key] = checksum
+    return {mtlname: {streamkey: zlib.decompress(streamcompressed) for streamkey,streamcompressed in mtlstreams.items()} for mtlname,mtlstreams in src.vbm['VBM_DATA'+checksum_key].items()}
 
 def AnimData(action, rig):
     checksum = sum(np.array([x for x in (
@@ -1194,12 +1395,12 @@ def AnimData(action, rig):
         [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] +
         ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(rig)[0]) for x in bname] if rig else [])
     )]).tobytes() )
-    if action.get('VBM_CHECKSUM', -1) != checksum:
+    if action.vbm.get('VBM_CHECKSUM', -1) != checksum:
         # Make Proxy
         context = bpy.context
         deformorder, deformmap, deformroute = EvaluateDeformOrder(rig)
         
-        proxy = bpy.data.objects.get(rig.get('PROXY', ""), None)
+        proxy = bpy.data.objects.get(rig.vbm.get('PROXY', ""), None)
         if not proxy:
             proxy = bpy.data.objects.new(name="PROXY_"+rig.name, object_data=bpy.data.armatures.new(name="PROXY_"+rig.name))
             proxy['TEMP'] = True
@@ -1223,7 +1424,7 @@ def AnimData(action, rig):
                 b.parent = proxy.data.edit_bones[deformmap[bname]] if deformmap.get(bname, None) in list(proxy.data.edit_bones.keys()) else None
                 b.use_connect = use_connect
             bpy.ops.object.mode_set(mode='POSE')
-            rig['PROXY'] = proxy.name
+            rig.vbm['PROXY'] = proxy.name
         
         # Bake Animation
         print("> Baking animation", action.name)
@@ -1278,10 +1479,10 @@ def AnimData(action, rig):
             for bname, bonechannels in bonefcurves.items()
         }
         
-        if action.get('VBM_DATA', None):
-            del action['VBM_DATA']
-        action['VBM_DATA'] = curvesbone
-        action['VBM_CHECKSUM'] = checksum
+        if action.vbm.get('VBM_DATA', None):
+            del action.vbm['VBM_DATA']
+        action.vbm['VBM_DATA'] = curvesbone
+        action.vbm['VBM_CHECKSUM'] = checksum
     
     return {
         curvename: tuple([
@@ -1290,12 +1491,12 @@ def AnimData(action, rig):
             ])
             for channel in curvedata    # Channels
         ])
-        for curvename, curvedata in action['VBM_DATA'].items()    # Curves
+        for curvename, curvedata in action.vbm['VBM_DATA'].items()    # Curves
     }
 
 def ImageData(image, palette_max=255):
     checksum = sum(tuple(image.pixels)) + palette_max
-    if image.get('VBM_CHECKSUM', -1) != checksum:
+    if image.vbm.get('VBM_CHECKSUM', -1) != checksum:
         srcpixels = np.frombuffer((np.array(image.pixels)*255).astype(np.uint8).tobytes(), dtype=np.uint32)
         w,h = image.size
         srcpixels = srcpixels.reshape(-1,w)[::-1].flatten()     # Flip image pixels
@@ -1332,11 +1533,11 @@ def ImageData(image, palette_max=255):
         palette.sort()
         indices = [palette.index(x) for x in pixels]
         
-        image['VBM_DATA'] = (zlib.compress(np.array(palette, dtype=np.uint32)), zlib.compress(np.array(indices, dtype=np.uint32)))
-        image['VBM_CHECKSUM'] = checksum
+        image.vbm['VBM_DATA'] = (zlib.compress(np.array(palette, dtype=np.uint32)), zlib.compress(np.array(indices, dtype=np.uint32)))
+        image.vbm['VBM_CHECKSUM'] = checksum
     
-    palette = np.frombuffer( zlib.decompress(image['VBM_DATA'][0]), dtype=np.uint32 )
-    indices = np.frombuffer( zlib.decompress(image['VBM_DATA'][1]), dtype=np.uint32 )
+    palette = np.frombuffer( zlib.decompress(image.vbm['VBM_DATA'][0]), dtype=np.uint32 )
+    indices = np.frombuffer( zlib.decompress(image.vbm['VBM_DATA'][1]), dtype=np.uint32 )
     
     if ( image.alpha_mode.upper() == 'NONE' ):
         palette = palette | 0xFF000000
@@ -1410,8 +1611,9 @@ def ExportModel(collection, report=True):
             node_enabled = 1
             node_index = len(modeldata['SKE'])
             node_meshes = []
+            layermask = sum([1<<i for i,x in enumerate(obj.vbm.layermask) if x])
             
-            if obj.type in ('MESH CURVE'.split()):
+            if obj.type in VBM_MESHTYPES:
                 # Prism .....................................................
                 if obj.vbm.is_collision:
                     vb = b''
@@ -1449,7 +1651,7 @@ def ExportModel(collection, report=True):
                         meshname = FixName(meshname)
                         
                         if meshname not in list(vbmap.keys()):
-                            vbmap[meshname] = {'vb': b'', 'material': mtlname, 'node_index': node_index}
+                            vbmap[meshname] = {'vb': b'', 'material': mtlname, 'node_index': node_index, 'layermask': layermask}
                         else:
                             node_enabled = 0
                         
@@ -1508,7 +1710,6 @@ def ExportModel(collection, report=True):
             
             if node_enabled:
                 flags = 0
-                layermask = 0
                 bonebin = b''
                 bonebin += Pack('i', flags)         # Flags
                 bonebin += Pack('i', layermask)     # Layermask
@@ -1541,6 +1742,7 @@ def ExportModel(collection, report=True):
         mtlname = meshdata['material']
         vb = meshdata['vb']
         node_index = meshdata['node_index']
+        layermask = meshdata['layermask']
         
         loop_count = len(vb) // stride
         loop_offset = len(netvb) // stride
@@ -1556,6 +1758,7 @@ def ExportModel(collection, report=True):
         
         meshbin = b''
         meshbin += Pack('i', flags)     # Flags
+        meshbin += Pack('i', layermask)     # Layermask
         meshbin += PackString(meshname)     # Mesh name
         meshbin += Pack('i', ~0 if rig else node_index)    # Node Index
         meshbin += Pack('i', material_names.index(mtlname))     # Material Index
@@ -1700,7 +1903,7 @@ def ExportModel(collection, report=True):
         outaction += Pack('i', len(curvedata.values()))  # Curve Count
         outaction += Pack('i', sum([len(curve) for curve in curvedata.values()]))  # Channel Count
         outaction += Pack('i', sum([len(channel) for curve in curvedata.values() for channel in curve]))  # Keyframe Count
-        outaction += Pack('i', len(bonedata.values()))  # Props View Index
+        outaction += Pack('i', len(bonedata.values()))  # Props View Index / Number of bone curves
         
         # Bone Curves + Property Curves 
         for curvename, channels in curvedata.items():
@@ -1748,7 +1951,7 @@ def ExportModel(collection, report=True):
     
     if filepath[-1] not in "/\\":
         filepath += "/"
-    filepath = filepath + FixName(collection.name) + VBM_FILEEXT
+    filepath = filepath + FixName(os.path.splitext(collection.vbm.get_name())[0]) + VBM_FILEEXT
     
     f = open(os.path.abspath(bpy.path.abspath(filepath)), "wb")
     f.write(modelbin)
@@ -1772,6 +1975,7 @@ def register():
     bpy.types.Action.vbm = PointerProperty(name="DmrVBM", type=VBM_PG_Action)
     
     bpy.types.Object.vbm = PointerProperty(name="DmrVBM", type=VBM_PG_Object)
+    bpy.types.Image.vbm = PointerProperty(name="DmrVBM", type=VBM_PG_Image)
     #bpy.types.SpaceView3D.draw_handler_add(vbm_draw_gpu, (), 'WINDOW', 'POST_VIEW')
     
 def unregister():

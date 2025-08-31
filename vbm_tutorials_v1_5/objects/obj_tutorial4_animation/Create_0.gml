@@ -34,7 +34,7 @@ model_euler = [0,0,10];	// [xrot, yrot, zrot]
 
 mesh_select = 0;	// Index of actively selected mesh
 mesh_flash = 0.0;	// Step for flashing newly selected meshes
-mesh_visibility_mask = ~0;	// Bitmask where active bits represent visible meshes
+mesh_visible_layermask = ~0;	// Bitmask where active bits represent visible mesh layers. "~0" means all bits are set
 bone_select = 0;	// Index of bone to show weights for
 show_weights = 0;	// Toggle for showing weights
 

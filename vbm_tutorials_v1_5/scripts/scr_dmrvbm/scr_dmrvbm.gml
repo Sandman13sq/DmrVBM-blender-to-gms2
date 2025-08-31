@@ -910,9 +910,9 @@ function VBM_Model_GetBonesByLayer(model, layer_mask, out_bones, out_capacity) {
 /// @desc Renders all meshes in model
 /// @param {Struct.VBM_Model} model
 /// @param {Array<Real>} matrix
-/// @param {Real} [visibility_mask]
+/// @param {Real} [layermask]
 /// @param {Bool} [change_drawstate]
-function VBM_Model_Submit(model, matrix, visibility_mask=~0, change_drawstate=true, change_shader=false) {
+function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, change_shader=false) {
 	var drawflags = ~0;
 	var n = array_length(model.meshdefs);
 	var meshdef, mtl, tex, shd;
@@ -921,9 +921,9 @@ function VBM_Model_Submit(model, matrix, visibility_mask=~0, change_drawstate=tr
 	tex = VBM_Model_GetTexture(model, 0);
 	
 	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
-		if ( (visibility_mask & (1<<mesh_index)) == 0 ) {continue;}
-		
 		meshdef = model.meshdefs[mesh_index];
+		
+		if ( (layermask & meshdef.layer_mask) == 0 ) {continue;}
 		
 		if ( change_drawstate ) {
 			mtl = VBM_Model_GetMaterial(model, meshdef.material_index);
@@ -1713,6 +1713,7 @@ function VBM_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 			for (var mesh_index = 0; mesh_index < mesh_count; mesh_index++) {
 				var meshdef = new VBM_ModelMeshdef();
 				meshdef.flags = buffer_read(f, buffer_s32);
+				meshdef.layer_mask = buffer_read(f, buffer_s32);
 				meshdef.name = buffer_read(f, buffer_string);
 				meshdef.bone_index = buffer_read(f, buffer_s32);
 				meshdef.material_index = buffer_read(f, buffer_s32);

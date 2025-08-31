@@ -20,7 +20,11 @@ matrix_set(matrix_world, mattran); // Transform matrix
 shader_set_uniform_matrix_array(u_animation_bonematrices, bone_skinning);	// Send final pose to shader
 
 // Draw all meshes for model
-VBM_Model_Submit(model, mattran, mesh_visibility_mask);
+var lmask = mesh_visible_layermask;
+if ( animation_props[$ "show_weapon"] == 0 ) {
+	lmask &= 1<<7;
+}
+VBM_Model_Submit(model, mattran, lmask);
 
 if ( mesh_flash > 0.0 ) {
 	var amt = sin(2.0*pi*mesh_flash)*0.5 + 0.5;
