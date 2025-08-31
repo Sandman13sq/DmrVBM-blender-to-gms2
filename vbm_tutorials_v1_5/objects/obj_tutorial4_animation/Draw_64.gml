@@ -7,9 +7,10 @@ var xx = 16, yy = _ystart, ysep = 16;
 
 // Left Info
 draw_text(xx, yy, "Use the arrow keys to rotate model"); yy += ysep;
-draw_text(xx, yy, "Hold SHIFT and use arrow keys to rotate camera"); yy += ysep;
+draw_text(xx, yy, "Hold SHIFT w/ arrow keys to rotate camera"); yy += ysep;
 draw_text(xx, yy, "Press \"<\",\">\" to navigate meshes"); yy += ysep;
 draw_text(xx, yy, "Press ? to toggle mesh visibility"); yy += ysep;
+draw_text(xx, yy, "Press | to toggle weight visibility"); yy += ysep;
 draw_text(xx, yy, "Press \"[\",\"]\" to highlight bone"); yy += ysep;
 draw_text(xx, yy, "Press \"-\",\"+\" to navigate animations"); yy += ysep;
 yy += ysep;

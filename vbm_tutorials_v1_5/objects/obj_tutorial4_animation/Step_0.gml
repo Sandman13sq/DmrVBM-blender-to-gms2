@@ -28,9 +28,12 @@ if ( keyboard_check_pressed(191) ) {	// "?"
 	mesh_visibility_mask ^= (1<<mesh_select);
 }
 
-// Navigate bones
+// Navigate bones weight index
+if ( keyboard_check_pressed(220) )	{	// "|\"
+	show_weights ^= 1;
+}
 if ( keyboard_check_pressed(0xDB) ) {	// "["
-	bone_select = (bone_select == 0)? VBM_Model_GetBoneCount(model)-1: bone_select-1;
+	bone_select = (bone_select==0)? VBM_Model_GetBoneCount(model)-1: bone_select-1;
 }
 if ( keyboard_check_pressed(0xDD) ) {	// "]"
 	bone_select = (bone_select+1) mod VBM_Model_GetBoneCount(model);
@@ -63,3 +66,4 @@ if ( !is_undefined(animation) ) {
 	// Non-bone properties
 	VBM_ModelAnimation_SampleProps_Struct(animation, playback_frame, animation_props);
 }
+

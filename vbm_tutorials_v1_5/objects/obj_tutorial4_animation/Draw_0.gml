@@ -12,6 +12,7 @@ matrix_set(matrix_view, matview);
 
 // Shader Uniforms
 shader_set(shd_tutorial4_animation);
+shader_set_uniform_f(u_animation_boneselect, show_weights? bone_select: -1);
 
 matrix_set(matrix_world, mattran); // Transform matrix
 

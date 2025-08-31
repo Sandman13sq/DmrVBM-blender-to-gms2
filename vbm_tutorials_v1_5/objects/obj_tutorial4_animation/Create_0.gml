@@ -36,6 +36,7 @@ mesh_select = 0;	// Index of actively selected mesh
 mesh_flash = 0.0;	// Step for flashing newly selected meshes
 mesh_visibility_mask = ~0;	// Bitmask where active bits represent visible meshes
 bone_select = 0;	// Index of bone to show weights for
+show_weights = 0;	// Toggle for showing weights
 
 animation_index = 0;	// Active animation index
 animation_blend = 1.0;	// Blend amount. 0 = last transform, 1 = new transform
@@ -44,10 +45,10 @@ animation_blend_time = 30;	// Number of frames to transition from last transform
 jump_velocity = 0.1;
 jump_gravity = -0.005;
 
-// Notice the array dimensions: 1d = flat = [x, y, z, ...], 2d = nested = [ [x,y,z,...], [x,y,z,...], ... ].
+// To minimize errors, all animation data blocks use flat arrays for transforms and matrices
 bone_transforms = vbm_transform_identity_array_1d(VBM_BONECAPACITY);	// Transforms are sampled from animation
 bone_particles = vbm_boneparticle_array_1d(VBM_BONECAPACITY);	// Particles represent swing bone transformations
-bone_matrices = vbm_mat4_identity_array_2d(VBM_BONECAPACITY);	// Model-Space Matrices for each bone
+bone_matrices = vbm_mat4_identity_array_1d(VBM_BONECAPACITY);	// Model-Space Matrices for each bone
 bone_skinning = vbm_mat4_identity_array_1d(VBM_BONECAPACITY);	// Vertex-Space Matrices to send to shader	
 // NOTE: If the submitted skinning array is larger than the matrix array size in the shader
 //		 the game will eventually crash silently with a memory access violation error. (-1073741819, or -1073740940)
@@ -61,6 +62,7 @@ playback_frame = 0;
 playback_speed = 1;
 
 // *Shader Uniforms
-u_animation_bonematrices = shader_get_uniform(shd_tutorial4_animation, "u_bonematrices");
+u_animation_bonematrices = shader_get_uniform(shd_tutorial4_animation, "u_bonematrices");	// For skinning matrices
+u_animation_boneselect = shader_get_uniform(shd_tutorial4_animation, "u_boneselect");	// For weight visual
 
 event_perform(ev_step, 0); // Force Step Update before first draw call

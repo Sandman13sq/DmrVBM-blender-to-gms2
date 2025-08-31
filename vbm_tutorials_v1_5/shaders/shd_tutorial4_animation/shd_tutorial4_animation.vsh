@@ -12,8 +12,12 @@ varying vec2 v_vTexcoord;
 varying vec4 v_vColour;
 varying vec4 v_vNormal;
 
+varying float v_vWeightsum; // For weight visual
+
 // Uniforms - Passed in in draw call
 uniform mat4 u_bonematrices[200];	// There is an upper-limit. It depends on platform
+
+uniform float u_boneselect;	// For weight visual
 
 void main()
 {
@@ -33,4 +37,16 @@ void main()
     
     v_vColour = in_Colour;
     v_vTexcoord = in_TextureCoord;
+	
+	// Used for weight visual
+	if ( u_boneselect >= 0.0 ) {
+		float weightsum = 0.0;
+		for (int i = 0; i < 4; i++) {
+			weightsum += float(abs(u_boneselect-in_Bone[i]) <= 0.5) * in_Weight[i];
+		}
+		v_vWeightsum = weightsum;
+	}
+	else {
+		v_vWeightsum = -1.0;
+	}
 }
