@@ -1,3 +1,5 @@
+# [\***DmrVBM v1.5 Pre-Release is Live**\*](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/releases/tag/v1.5)
+
 ![Repo Banner](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/banner.png)
 
 # Vertex Buffer Model Exporter and Importer by Sandman13sq
