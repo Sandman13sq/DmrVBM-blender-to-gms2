@@ -1229,7 +1229,7 @@ classlist.append(VBM_PT_Asset)
 "EXPORT"
 "================================================================================================================================================="
 
-def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_post=None):
+def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pre=None, object_script_post=None):
     checksum_key = (
         (action.name if action else "") + 
         (("%4d"%len(rig.data.bones)) if rig else "") + 
@@ -1253,7 +1253,8 @@ def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_p
         [v for m in src.modifiers if ValidName(m.name) for v in [getattr(m,p.identifier) for p in m.bl_rna.properties if not p.is_readonly] if isinstance(v, (bool,int,float))]+
         ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(src.find_armature())[0]) for x in bname] if src.find_armature() else [])+
         ([x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] if action else [])+
-        ([ord(c) for script in [object_script_pre, object_script_post] if script for line in script.lines for c in line.body])
+        ([ord(c) for script in [object_script_pre, object_script_post] if script for line in script.lines for c in line.body])+
+        [apply_transform]
         )
     ]).tobytes()))
     
@@ -1275,6 +1276,9 @@ def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_p
         context.view_layer.objects.active = obj
         obj.select_set(True)
         
+        use_skinning = rig != None
+        rig = obj.find_armature()
+        
         # Action Pose
         if rig:
             if action:
@@ -1284,6 +1288,8 @@ def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_p
                 rig.animation_data.action = action
                 rig.animation_data.action_slot = action.slots[0]
                 context.scene.frame_set(context.scene.frame_current)
+        
+        if apply_transform:
             bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         
         # Pre Script
@@ -1300,7 +1306,7 @@ def MeshData(src, rig=None, action=None, object_script_pre=None, object_script_p
             obj.select_set(True)
         
         # Apply modifiers
-        use_skinning = rig and not action
+        use_skinning = use_skinning and not action
         for m in list(obj.modifiers):
             if not ValidName(m.name) or (m.type=='ARMATURE' and use_skinning):
                 bpy.ops.object.modifier_remove(modifier=m.name)
@@ -1568,8 +1574,10 @@ def ExportModel(collection, report=True):
     format_mask = sum([1<<i for i,x in enumerate(format) if x]) // 1
     stride = CalcStride(format_mask)
     
+    apply_transform = rig != None
+    
     if ((1<<VFORMAT_INDEX['BON']) & format_mask==0) and ((1<<VFORMAT_INDEX['WEI']) & format_mask==0):
-        rig = None
+        pass
     
     swing_collection = collection
     if rig and len(collection.vbm.swing_bones) == 0:
@@ -1622,7 +1630,7 @@ def ExportModel(collection, report=True):
                 # Prism .....................................................
                 if obj.vbm.is_collision:
                     vb = b''
-                    for mtlname, mtlstreams in MeshData(obj, rig).items():
+                    for mtlname, mtlstreams in MeshData(obj, apply_transform=apply_transform, rig=rig).items():
                         vb += mtlstreams['POS']
                     
                     coords = ([Vector(Unpack('fff', vb[i:i+12])) for i in range(0, len(vb), VFORMAT_SPACE[0])])
@@ -1645,7 +1653,7 @@ def ExportModel(collection, report=True):
                     modeldata['PSM'].append(collisionbin)
                 # Mesh .......................................................
                 else:
-                    mtlvbs = MeshData(obj, rig, action=action_pose, object_script_pre=object_script_pre, object_script_post=object_script_post).items()
+                    mtlvbs = MeshData(obj, apply_transform=apply_transform, rig=rig, action=action_pose, object_script_pre=object_script_pre, object_script_post=object_script_post).items()
                     for mtlname,mtlstreams in mtlvbs:
                         # Fix name
                         meshname = obj.name.split("/")[-1]
@@ -1718,7 +1726,7 @@ def ExportModel(collection, report=True):
                 bonebin = b''
                 bonebin += Pack('i', flags)         # Flags
                 bonebin += Pack('i', layermask)     # Layermask
-                bonebin += PackMatrix(obj.matrix_world)    # Bind Matrix
+                bonebin += PackMatrix(Matrix.Identity(4) if apply_transform else obj.matrix_world)    # Bind Matrix
                 bonebin += Pack('i', parent_index)                    # Parent Index
                 bonebin += PackString(FixName(obj.name.split("/")[-1]))     # Name
             
@@ -1946,7 +1954,9 @@ def ExportModel(collection, report=True):
         chunktype: (Pack('I', len(data)) + b''.join(data)) if isinstance(data, list) else data
         for chunktype, data in modeldata.items() if data
     }
-    modelbin = b''.join([PackString(chunktype) + Pack('I', len(chunk)) + chunk for chunktype, chunk in modelchunks.items()])
+    modelbin = PackChars("VBM") + Pack('B', 5) + b''.join([PackString(chunktype) + Pack('I', len(chunk)) + chunk for chunktype, chunk in modelchunks.items()])
+    
+    print(PackChars("VBM") + Pack('B', 5))
     
     # Write to file
     if context.scene.vbm.data_path:

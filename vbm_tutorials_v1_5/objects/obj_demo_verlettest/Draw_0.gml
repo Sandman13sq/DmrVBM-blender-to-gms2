@@ -17,13 +17,13 @@ for (var vindex = 0; vindex < array_length(viewmats); vindex++) {
 	vertex_submit(vb, pr_linelist, -1);
 
 	matrix_set(matrix_world, matrix_build(lx,ly,lz, 0,0,0, 0.5,0.5,0.5));
-	VBM_Model_SubmitMesh(model, 0, -1);
+	//VBM_Model_SubmitMesh(model, 0, -1);
 	
 	matrix_set(matrix_world, matrix_build(px,py,pz, 0,0,0, 1,1,1));
-	VBM_Model_SubmitMesh(model, 0, -1);
+	//VBM_Model_SubmitMesh(model, 0, -1);
 	
 	matrix_set(matrix_world, matrix_build(qx,qy,qz, 0,0,0, 0.5,0.5,0.5));
-	VBM_Model_SubmitMesh(model, 0, -1);
+	//VBM_Model_SubmitMesh(model, 0, -1);
 	
 	matrix_set(matrix_projection, matrix_build_projection_ortho(16, 9, 0.1, 100));
 	

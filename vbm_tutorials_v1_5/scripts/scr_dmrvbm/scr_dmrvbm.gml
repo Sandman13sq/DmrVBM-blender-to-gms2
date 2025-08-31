@@ -1660,6 +1660,20 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 	var f = file_buffer;
 	buffer_seek(f, buffer_seek_start, file_buffer_offset);
 	
+	var header_ord = [0,0,0,0];
+	header_ord[0] = buffer_read(f, buffer_u8);
+	header_ord[1] = buffer_read(f, buffer_u8);
+	header_ord[2] = buffer_read(f, buffer_u8);
+	header_ord[3] = buffer_read(f, buffer_u8);
+	
+	// Check VBM header = "VBM" + 5
+	if ( 
+		!( (chr(header_ord[0])+chr(header_ord[1])+chr(header_ord[2]) == "VBM") && header_ord[3] == 5 )
+	) {
+		buffer_seek(f, buffer_seek_start, _startingoffset);
+		return 0;
+	}
+	
 	var chunk_type_ord = [0,0,0];
 	var chunk_type = "000";
 	var chunk_version;

@@ -13,7 +13,7 @@ Ask questions or share your work on: [Twitter/X](https://twitter.com/Sandman13sq
 
 ![Preview](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/preview.gif)
 
-# [Quick Start Guide (Not updated for v1.5)](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/wiki/Quick-Start-Guide)
+# [Quick Start Guide](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/wiki/Quick-Start-Guide)
 
 -----
 

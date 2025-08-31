@@ -57,8 +57,5 @@ mattran = matrix_build_identity();
 vb = vertex_create_buffer();
 format = VBM_FormatBuild(VBM_FORMAT_NATIVE);
 
-model = VBM_Model_Create();
-VBM_Model_Open(model, "test.vbm");
-
 event_perform(ev_step, ev_step_normal);
 
