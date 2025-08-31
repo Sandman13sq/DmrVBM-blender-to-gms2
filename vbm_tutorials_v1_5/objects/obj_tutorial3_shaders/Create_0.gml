@@ -30,13 +30,13 @@ rotationspd = 0;
 
 // *Load Vertex Buffers --------------------------------
 model_native = VBM_Model_Create();	// Initialize model data
-VBM_Open(model_native, "tutorial3_native.vbm");
+VBM_Model_Open(model_native, "tutorial3_native.vbm");
 
 model_normal = VBM_Model_Create();	// Initialize model data
-VBM_Open(model_normal, "tutorial3_normal.vbm");
+VBM_Model_Open(model_normal, "tutorial3_normal.vbm");
 
 model_tangent = VBM_Model_Create();	// Initialize model data
-VBM_Open(model_tangent, "tutorial3_tangent.vbm");
+VBM_Model_Open(model_tangent, "tutorial3_tangent.vbm");
 
 // *Model Controls
 zrot = 0;	// Model rotation

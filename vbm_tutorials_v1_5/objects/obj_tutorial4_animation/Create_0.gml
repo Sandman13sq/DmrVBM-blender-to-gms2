@@ -24,7 +24,7 @@ rotationspd = 0;
 
 // *Load Vertex Buffers --------------------------------
 model = VBM_Model_Create();	// Initialize model data
-VBM_Open(model, "tutorial4_animation.vbm");	// Animation comes packed into file
+VBM_Model_Open(model, "tutorial4_animation.vbm");	// Animation comes packed into file
 animation = VBM_Model_GetAnimation(model, 0);	// Animation exported with model
 
 // *Model Controls -------------------------------------
@@ -46,10 +46,10 @@ jump_velocity = 0.1;
 jump_gravity = -0.005;
 
 // To minimize errors, all animation data blocks use flat arrays for transforms and matrices
-bone_transforms = vbm_transform_identity_array_1d(VBM_BONECAPACITY);	// Transforms are sampled from animation
-bone_particles = vbm_boneparticle_array_1d(VBM_BONECAPACITY);	// Particles represent swing bone transformations
-bone_matrices = vbm_mat4_identity_array_1d(VBM_BONECAPACITY);	// Model-Space Matrices for each bone
-bone_skinning = vbm_mat4_identity_array_1d(VBM_BONECAPACITY);	// Vertex-Space Matrices to send to shader	
+bone_transforms = vbm_transform_identity_array_1d(VBM_BONELIMIT);	// Transforms are sampled from animation
+bone_particles = vbm_boneparticle_array_1d(VBM_BONELIMIT);	// Particles represent swing bone transformations
+bone_matrices = vbm_mat4_identity_array_1d(VBM_BONELIMIT);	// Model-Space Matrices for each bone
+bone_skinning = vbm_mat4_identity_array_1d(VBM_BONELIMIT);	// Vertex-Space Matrices to send to shader	
 // NOTE: If the submitted skinning array is larger than the matrix array size in the shader
 //		 the game will eventually crash silently with a memory access violation error. (-1073741819, or -1073740940)
 //		 Memory corruption can be detected beforehand with `Debug Overlay` > `Debug` > `Memory`.

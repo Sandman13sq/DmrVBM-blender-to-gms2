@@ -27,7 +27,7 @@ mattran = matrix_build_identity(); // World/Model transform
 
 // *Load Vertex Buffer ----------------------------------
 model = VBM_Model_Create();	// Initialize model data
-VBM_Open(model, "tutorial2_axis.vbm");	// Load from file (NOTE: Syntax changed from v1.4)
+VBM_Model_Open(model, "tutorial2_axis.vbm");	// Load from file (NOTE: Syntax changed from v1.4)
 
 /*
 	NOTE: To load files outside of the "datafiles" folder, enable the option in the project:

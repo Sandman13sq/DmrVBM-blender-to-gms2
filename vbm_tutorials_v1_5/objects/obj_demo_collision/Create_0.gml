@@ -17,22 +17,22 @@ function Entity(_entity_type="", _model=undefined) constructor {
 	animation_frame = 0;
 	animation_blend = 0;
 	
-	bone_transforms = vbm_transform_identity_array_1d(VBM_BONECAPACITY);
-	bone_transforms_last = vbm_transform_identity_array_1d(VBM_BONECAPACITY);
-	bone_particles = vbm_boneparticle_array_1d(VBM_BONECAPACITY);
-	bone_matrices = vbm_mat4_identity_array_1d(VBM_BONECAPACITY);
-	bone_skinning = vbm_mat4_identity_array_1d(VBM_BONECAPACITY);
+	bone_transforms = vbm_transform_identity_array_1d(VBM_BONELIMIT);
+	bone_transforms_last = vbm_transform_identity_array_1d(VBM_BONELIMIT);
+	bone_particles = vbm_boneparticle_array_1d(VBM_BONELIMIT);
+	bone_matrices = vbm_mat4_identity_array_1d(VBM_BONELIMIT);
+	bone_skinning = vbm_mat4_identity_array_1d(VBM_BONELIMIT);
 };
 
 // Models -------------------------------------------
 model_player = VBM_Model_Create();
-VBM_Open(model_player, "tutorial4_animation.vbm");
+VBM_Model_Open(model_player, "tutorial4_animation.vbm");
 
 model_level = VBM_Model_Create();
-VBM_Open(model_level, "tutorial5_level.vbm");
+VBM_Model_Open(model_level, "tutorial5_level.vbm");
 
 model_shadow = VBM_Model_Create();
-VBM_Open(model_shadow, "tutorial5_shadow.vbm");
+VBM_Model_Open(model_shadow, "tutorial5_shadow.vbm");
 
 // Camera -------------------------------------------
 view_location = [0,0,0];

@@ -41,6 +41,9 @@ enum VBM_TRANSFORM {
 	x, y, z, qw, qx, qy, qz, sx, sy, sz, _len
 };
 
+// Matrix limit on v2022 LTS is 128...?
+#macro VBM_BONELIMIT 200
+
 // For Game Maker, "heavier" matrix is second argument: mat4_multiply(m, mparent)
 #macro VBM_MAT4_MUTLIPLY matrix_multiply
 
@@ -66,10 +69,6 @@ enum VBM_FORMATMASK {
 #macro VBM_UNIFORMNAME_TEXTURE1 "texture1"
 #macro VBM_UNIFORMNAME_TEXTURE2 "texture2"
 #macro VBM_UNIFORMNAME_TEXTURE3 "texture3"
-
-// Matrix limit on v2022 LTS is 128...?
-#macro VBM_BONELIMIT 240
-#macro VBM_BONECAPACITY 200
 
 #macro VBM_SUBMIT_TEXDEFAULT -1
 #macro VBM_SUBMIT_TEXNONE 0
@@ -1640,12 +1639,12 @@ function VBM_ParticleApplyForce(particles_1d, force_x, force_y, force_z, time_st
 /// @param {String} filepath
 /// @param {Real} [openflags]
 /// @return {Real}
-function VBM_Open(outvbm, filepath, openflags=0) {
+function VBM_Model_Open(outvbm, filepath, openflags=0) {
 	var f = buffer_load(filepath);
 	if ( f == -1 ) {
 		return 0;
 	}
-	var success = VBM_Load(outvbm, f, 0, openflags);
+	var success = VBM_Model_Load(outvbm, f, 0, openflags);
 	buffer_delete(f);
 	return success;
 }
@@ -1656,7 +1655,7 @@ function VBM_Open(outvbm, filepath, openflags=0) {
 /// @param {Real} file_buffer_offset
 /// @param {Real} [openflags]
 /// @return {Real}
-function VBM_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
+function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 	var _startingoffset = buffer_tell(file_buffer);
 	var f = file_buffer;
 	buffer_seek(f, buffer_seek_start, file_buffer_offset);

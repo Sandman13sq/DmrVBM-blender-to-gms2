@@ -1,5 +1,5 @@
 /// @desc Initialize
 
 model = VBM_Model_Create();
-VBM_Open(model, "");
+VBM_Model_Open(model, "");
 

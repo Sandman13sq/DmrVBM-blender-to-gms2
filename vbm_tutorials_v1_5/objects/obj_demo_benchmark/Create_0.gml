@@ -1,7 +1,7 @@
 /// @desc Initialize
 
 model = new VBM_Model();
-VBM_Open(model, "tutorial4_animation.vbm");
+VBM_Model_Open(model, "tutorial4_animation.vbm");
 
 model_location = [0,0,0];
 model_euler = [0,0,90];
