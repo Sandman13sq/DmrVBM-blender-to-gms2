@@ -16,8 +16,6 @@
     {"$GMFolder":"","%Name":"VBMTutorials_v1_5","folderPath":"folders/VBMTutorials_v1_5.yy","name":"VBMTutorials_v1_5","resourceType":"GMFolder","resourceVersion":"2.0",},
   ],
   "IncludedFiles":[
-    {"$GMIncludedFile":"","%Name":"test.vbm","CopyToMask":-1,"filePath":"datafiles","name":"test.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
-    {"$GMIncludedFile":"","%Name":"TexPoppie.png","CopyToMask":-1,"filePath":"datafiles","name":"TexPoppie.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial2_axis.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial2_axis.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial3_native.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial3_native.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial3_normal.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial3_normal.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
