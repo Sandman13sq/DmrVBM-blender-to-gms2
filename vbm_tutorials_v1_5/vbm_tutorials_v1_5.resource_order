@@ -23,5 +23,6 @@
     {"name":"spr_debugfont","order":1,"path":"sprites/spr_debugfont/spr_debugfont.yy",},
     {"name":"spr_dreamfont","order":2,"path":"sprites/spr_dreamfont/spr_dreamfont.yy",},
     {"name":"spr_stinkyghost","order":4,"path":"sprites/spr_stinkyghost/spr_stinkyghost.yy",},
+    {"name":"spr_texpoppie03","order":5,"path":"sprites/spr_texpoppie03/spr_texpoppie03.yy",},
   ],
 }

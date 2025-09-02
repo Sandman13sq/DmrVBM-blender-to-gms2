@@ -47,7 +47,10 @@ enum VBM_TRANSFORM {
 // For Game Maker, "heavier" matrix is second argument: mat4_multiply(m, mparent)
 #macro VBM_MAT4_MUTLIPLY matrix_multiply
 
-#macro VBM_NULLINDEX ~0
+#macro VBM_NULLINDEX -1
+
+#macro VBM_LAYERMASKALL ~0
+#macro VBM_LAYERMASKSIZE 32
 
 // Attribute mask
 enum VBM_FORMATMASK {
@@ -72,6 +75,10 @@ enum VBM_FORMATMASK {
 
 #macro VBM_SUBMIT_TEXDEFAULT -1
 #macro VBM_SUBMIT_TEXNONE 0
+
+enum VBM_OPENFLAGS {
+	PRINTDEBUG = 0b00000001,
+};
 
 #endregion
 
@@ -275,17 +282,46 @@ function VBM_ModelBone_GetMatrixInversebind(bone) {return bone.matrix_inversebin
 /// @return {Array<Real>}
 function VBM_ModelBone_GetMatrixRelative(bone) {return bone.matrix_relative;}
 
+// Texture --------------------------------------------------------------------
+enum VBM_TEXTUREFLAG {
+	FREEONDELETE  = 0b00000001,
+};
+
+function VBM_ModelTexture() constructor {
+	sprite = -1;
+	name = "";
+	flags = 0;
+};
+
+/// @desc Revmoves allocated data from struct
+/// @param {Struct.VBM_ModelTexture} texture
+function VBM_ModelTexture_Free(texture) {
+	if ( texture.flags & VBM_TEXTUREFLAG.FREEONDELETE && sprite_exists(texture.sprite) ) {
+		sprite_delete(texture.sprite);
+		texture.sprite = -1;
+		texture.flags &= ~VBM_TEXTUREFLAG.FREEONDELETE;
+	}
+};
+
+/// @desc Returns texture to use when rendering, or -1 if not set
+/// @param {Struct.VBM_ModelTexture} texture
+function VBM_ModelTexture_GetPointer(texture) {
+	return sprite_exists(texture.sprite)? sprite_get_texture(texture.sprite, 0): -1;
+}
+
 // Material --------------------------------------------------------------------
 enum VBM_MATERIALFLAG {
 	TRANSPARENT  = 0b00000001,
 	CULLFRONT	 = 0b00000010,
 	USEDEPTH	 = 0b00000100,
 };
+#macro VBM_DEFAULT_MATERIALFLAG (VBM_MATERIALFLAG.USEDEPTH)
 
 enum VBM_MATERIALTEXTUREFLAG {
 	FILTERLINEAR =	0b00000010,
 	EXTEND =		0b00000100,
 };
+#macro VBM_DEFAULT_MATERIALTEXTUREFLAG (VBM_MATERIALTEXTUREFLAG.EXTEND)
 
 function VBM_ModelMaterial() constructor {
 	name = "";
@@ -294,8 +330,8 @@ function VBM_ModelMaterial() constructor {
 	
 	// Total of 4 texture_sprites
 	texture_flags = [0,0,0,0];	// Mask of VBM_MATERIALTEXTUREFLAG values
-	texture_indices = [0,0,0,0];	
-	texture_paths = ["","","",""];
+	texture_indices = [0,0,0,0];	// Index into model's texture array
+	texture_paths = ["","","",""];	// Name of sprite asset
 };
 
 /// @desc Revmoves allocated data from struct
@@ -579,7 +615,7 @@ function VBM_Model() constructor {
 	
 	bones_name_to_index = {};	// Map of {bone_name: bone_index} for each bone
 	
-	texture_sprites = [];	// Array of sprites used as texture references
+	textures = [];	// Array of VBM_Texturedef
 	meshdefs = [];	// Array of VBM_ModelMeshdef
 	bones = [];		// Array of VBM_ModelBone
 	materials = [];	// Array of VBM_ModelMaterial
@@ -600,34 +636,40 @@ function VBM_Model_Free(model) {
 	n = array_length(model.meshdefs);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelMeshdef_Free(model.meshdefs[i]);
+		delete model.meshdefs[i];
 	}
 	
 	n = array_length(model.bones);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelBone_Free(model.bones[i]);
+		delete model.bones[i];
+	}
+	
+	n = array_length(model.textures);
+	for (var i = 0; i < n; i++) {
+		VBM_ModelTexture_Free(model.textures[i]);
+		delete model.textures[i];
 	}
 	
 	n = array_length(model.materials);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelMaterial_Free(model.materials[i]);
+		delete model.materials[i];
 	}
 	
 	n = array_length(model.animations);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelAnimation_Free(model.animations[i]);
+		delete model.animations[i];
 	}
 	
 	n = array_length(model.prisms);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelPrism_Free(model.prisms[i]);
+		delete model.prisms[i];
 	}
 	
 	// Non-VBM data ............................
-	n = array_length(model.texture_sprites);
-	for (var i = 0; i < n; i++) {
-		sprite_delete(model.texture_sprites[i]);
-	}
-	
 	vertex_delete_buffer(model.vertex_buffer);
 	vertex_format_delete(model.vertex_format);
 };
@@ -672,7 +714,7 @@ function VBM_Model_GetMaterialCount(model) {
 /// @param {Struct.VBM_Model} model
 /// @return {Real}
 function VBM_Model_GetTextureCount(model) {
-	return array_length(model.texture_sprites);
+	return array_length(model.textures);
 }
 
 /// @param {Struct.VBM_Model} model
@@ -687,6 +729,14 @@ function VBM_Model_GetVertexBuffer(model) {
 	return model.vertex_buffer;
 }
 
+/// @desc Returns vbm texture struct in model
+/// @param {Struct.VBM_Model} model
+/// @param {Real} texture_index
+/// @return {Struct.VBM_Texture}
+function VBM_Model_GetTexture(model, texture_index) {
+	return (texture_index >= 0 && texture_index < array_length(model.textures))? model.textures[texture_index]: undefined;
+}
+
 /// @desc Returns sprite that represents the texture in model
 /// @param {Struct.VBM_Model} model
 /// @param {Real} index
@@ -695,20 +745,27 @@ function VBM_Model_GetTextureSprite(model, index) {
 	return (index >= 0 && index < array_length(model.texture_sprites))? model.texture_sprites[index]: -1;
 }
 
-/// @desc Returns sprite that represents the texture in model
+/// @desc Returns texture pointer to submit when rendering
 /// @param {Struct.VBM_Model} model
-/// @param {Pointer.Texture, Real} texture_index
-function VBM_Model_GetTexture(model, texture_index) {
-	return (texture_index >= 0 && texture_index < array_length(model.texture_sprites))? 
-		sprite_get_texture(model.texture_sprites[texture_index], 0): 
+/// @param {Real} texture_index
+/// @return {Pointer.Texture, Real}
+function VBM_Model_GetTexturePointer(model, texture_index) {
+	return (texture_index >= 0 && texture_index < array_length(model.textures))? 
+		sprite_get_texture(model.textures[texture_index].sprite, 0): 
 		-1;
 }
 
 /// @desc Adds texture sprite to model
 /// @param {Struct.VBM_Model} model
 /// @param {Id.Sprite} sprite
-function VBM_Model_AddTextureSprite(model, sprite) {
-	array_push(model.texture_sprites, sprite);
+/// @param {Real} [free_on_delete]
+function VBM_Model_AddTextureSprite(model, sprite, free_on_delete=false) {
+	var texture = new VBM_ModelTexture();
+	texture.sprite = sprite;
+	if ( free_on_delete ) {
+		texture |= VBM_TEXTUREFLAG.FREEONDELETE;
+	}
+	array_push(model.textures, texture);
 }
 
 /// @param {Struct.VBM_Model} model
@@ -723,6 +780,78 @@ function VBM_Model_GetMeshdef(model, index) {
 /// @return {String}
 function VBM_Model_GetMeshdefName(model, index) {
 	return (index >= 0 && index < array_length(model.meshdefs))? model.meshdefs[index].name: "";
+}
+
+/// @desc Sets material of mesh at index
+/// @param {Struct.VBM_Model}
+/// @param {Real} mesh_index
+/// @param {Real} material_index
+function VBM_Model_MeshSetMaterial(model, mesh_index, material_index) {
+	model.meshdefs[mesh_index].material_index = material_index;
+}
+
+/// @desc Sets material of all meshes in layermask
+/// @param {Struct.VBM_Model} model
+/// @param {Real} mesh_layer_mask
+/// @param {Real} material_index
+function VBM_Model_MeshSetMaterialByLayer(model, mesh_layer_mask, material_index) {
+	var n = array_length(model.meshdefs);
+	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
+		if ( model.meshdefs[mesh_index].layer_mask & mesh_layer_mask ) {
+			model.meshdefs[mesh_index].material_index = material_index;
+		}
+	}
+}
+
+/// @desc Sets mesh layers to match its index (mesh[index].layer = (1<<index) ). Indices above 32 are not written
+/// @param {Struct.VBM_Model} model
+function VBM_Model_MeshLayerFillByIndex(model) {
+	var n = array_length(model.meshdefs);
+	if ( n >= VBM_LAYERMASKSIZE ) {n = VBM_LAYERMASKSIZE-1;}
+	
+	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
+		model.meshdefs[mesh_index].layer_mask = (1<<mesh_index);
+	}
+}
+
+/// @desc Sets material of all meshes in layermask
+/// @param {Struct.VBM_Model} model
+/// @param {Real} mesh_layer_mask
+/// @param {Real} material_index
+function VBM_Model_MeshReplaceMaterial(model, old_material_index, new_material_index) {
+	var n = array_length(model.meshdefs);
+	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
+		if ( model.meshdefs[mesh_index].material_index == old_material_index ) {
+			model.meshdefs[mesh_index].material_index = new_material_index;
+		}
+	}
+}
+
+/// @param {Struct.VBM_Model} model
+/// @param {Real} index
+/// @return {Struct.Material, Undefined}
+function VBM_Model_GetMaterial(model, material_index) {
+	return (material_index >= 0 && material_index < array_length(model.materials))? model.materials[material_index]: undefined;
+}
+
+/// @desc Adds material to model and returns its index
+/// @param {Struct.VBM_Model} model
+/// @param {String} material_name
+/// @param {String} shader_name
+/// @param {Real} texture_index
+/// @param {Real} [material_texture_flags]
+/// @param {Real} [material_flags]
+/// @return {Real}
+function VBM_Model_AddMaterial(model, material_name, shader_name, texture_index, material_texture_flags=VBM_DEFAULT_MATERIALTEXTUREFLAG, material_flags=VBM_DEFAULT_MATERIALFLAG) {
+	var mtl = new VBM_ModelMaterial();
+	mtl.name = material_name;
+	mtl.texture_indices[0] = texture_index;
+	mtl.texture_flags[0] = material_texture_flags;
+	mtl.shader_name = shader_name;
+	mtl.flags = material_flags;
+	array_push(model.materials, mtl);
+	
+	return array_length(model.materials)-1;
 }
 
 /// @param {Struct.VBM_Model} model
@@ -766,14 +895,6 @@ function VBM_Model_GetBoneDepth(model, index) {
 		bone = model.bones[bone.parent_index];
 	}
 	return _depth;
-}
-
-/// @param {Struct.VBM_Model} model
-/// @param {Real} index
-/// @return {Struct.Material, Undefined}
-function VBM_Model_GetMaterial(model, index) {
-	return (index >= 0 && index < array_length(model.materials))? 
-		model.materials[index]: undefined;
 }
 
 /// @param {Struct.VBM_Model} model
@@ -917,7 +1038,7 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 	var meshdef, mtl, tex, shd;
 	var m;
 	
-	tex = VBM_Model_GetTexture(model, 0);
+	tex = VBM_Model_GetTexturePointer(model, 0);
 	
 	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
 		meshdef = model.meshdefs[mesh_index];
@@ -926,7 +1047,7 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 		
 		if ( change_drawstate ) {
 			mtl = VBM_Model_GetMaterial(model, meshdef.material_index);
-		
+			
 			if ( !is_undefined(mtl) ) {
 				// Compare drawstate to reduce gpu calls
 				if ( mtl.flags != drawflags ) {
@@ -937,7 +1058,7 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 					gpu_set_ztestenable( (mtl.flags & VBM_MATERIALFLAG.USEDEPTH)? 1: 0);
 					gpu_set_cullmode( (mtl.flags & VBM_MATERIALFLAG.CULLFRONT)? cull_counterclockwise: cull_clockwise );
 					gpu_set_blendenable( (mtl.flags & VBM_MATERIALFLAG.TRANSPARENT)? 1: 0 );
-				
+					
 					// Set shader
 					if ( change_shader ) {
 						shd = asset_get_index(mtl.shader_name);
@@ -948,15 +1069,15 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 				
 						// Set textures. 0 is passed in w/ vertex_submit()
 						if ( shd != -1 ) {
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE0), VBM_Model_GetTexture(model, 0));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE1), VBM_Model_GetTexture(model, 1));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE2), VBM_Model_GetTexture(model, 2));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE3), VBM_Model_GetTexture(model, 3));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE0), VBM_Model_GetTexturePointer(model, 0));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE1), VBM_Model_GetTexturePointer(model, 1));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE2), VBM_Model_GetTexturePointer(model, 2));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE3), VBM_Model_GetTexturePointer(model, 3));
 						}
 					}
 				}
 				
-				tex = VBM_Model_GetTexture(model, mtl.texture_indices[0]);
+				tex = VBM_Model_GetTexturePointer(model, mtl.texture_indices[0]);
 				if ( mtl.texture_flags[0] & VBM_MATERIALTEXTUREFLAG.FILTERLINEAR ) {gpu_set_tex_filter(1);}
 				else {gpu_set_tex_filter(0);}
 			}
@@ -997,7 +1118,7 @@ function VBM_Model_SubmitMesh(model, mesh_index, texture=VBM_SUBMIT_TEXDEFAULT) 
 		var mtl = VBM_Model_GetMaterial(model, meshdef.material_index);
 		texture = VBM_Model_GetTexture(model, mtl? mtl.texture_indices[0]: -1);
 	}
-		
+	
 	// Submit region of vertex buffer
 	vertex_submit_ext(
 		model.vertex_buffer,
@@ -1637,14 +1758,14 @@ function VBM_ParticleApplyForce(particles_1d, force_x, force_y, force_z, time_st
 /// @desc Opens and loads vbm data from file. Returns 1 if successful
 /// @param {Struct.VBM_Model} outvbm
 /// @param {String} filepath
-/// @param {Real} [openflags]
+/// @param {Real} [vbm_openflags]
 /// @return {Real}
-function VBM_Model_Open(outvbm, filepath, openflags=0) {
+function VBM_Model_Open(outvbm, filepath, vbm_openflags=0) {
 	var f = buffer_load(filepath);
 	if ( f == -1 ) {
 		return 0;
 	}
-	var success = VBM_Model_Load(outvbm, f, 0, openflags);
+	var success = VBM_Model_Load(outvbm, f, 0, vbm_openflags);
 	buffer_delete(f);
 	return success;
 }
@@ -1653,9 +1774,9 @@ function VBM_Model_Open(outvbm, filepath, openflags=0) {
 /// @param {Struct.VBM_Model} outvbm
 /// @param {Id.Buffer} file_buffer
 /// @param {Real} file_buffer_offset
-/// @param {Real} [openflags]
+/// @param {Real} [vbm_openflags]
 /// @return {Real}
-function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
+function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, vbm_openflags=0) {
 	var _startingoffset = buffer_tell(file_buffer);
 	var f = file_buffer;
 	buffer_seek(f, buffer_seek_start, file_buffer_offset);
@@ -1694,7 +1815,9 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 		chunk_len = buffer_read(f, buffer_s32);
 		chunk_jump = buffer_tell(f) + chunk_len;
 		
-		//show_debug_message(chunk_type);
+		if ( vbm_openflags & VBM_OPENFLAGS.PRINTDEBUG ) {
+			show_debug_message(chunk_type+string(chunk_version)+": " + string_format(chunk_len/1_000_000,1,4)+" MB");
+		}
 		
 		// End .......................................
 		if ( chunk_type == "END" ) {
@@ -1829,8 +1952,10 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 		// Textures ......................................
 		else if ( chunk_type == "TEX" ) {
 			var texture_count = buffer_read(f, buffer_u32);
-			outvbm.texture_sprites = array_create(texture_count);
+			outvbm.textures = array_create(texture_count);
 			for (var texture_index = 0; texture_index < texture_count; texture_index++) {
+				var texdef = new VBM_ModelTexture();
+				
 				var width = buffer_read(f, buffer_u32);
 				var height = buffer_read(f, buffer_u32);
 				var palette_size = buffer_read(f, buffer_u32);
@@ -1856,7 +1981,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 				// Create sprite that holds texture
 				var surf = surface_create(width, height, surface_rgba8unorm);
 				buffer_set_surface(pixels, surf, 0);
-				var tex = sprite_create_from_surface(surf, 0,0,width,height, 0,0,0,0);
+				var texsprite = sprite_create_from_surface(surf, 0,0,width,height, 0,0,0,0);
 				
 				// Cleanup
 				surface_free(surf);
@@ -1864,7 +1989,10 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 				surf = -1;
 				palette = -1;
 				
-				outvbm.texture_sprites[@ texture_index] = tex;
+				texdef.sprite = texsprite;
+				texdef.flags |= VBM_TEXTUREFLAG.FREEONDELETE;
+				
+				outvbm.textures[@ texture_index] = texdef;
 			}
 		}
 		// Bones ....................................

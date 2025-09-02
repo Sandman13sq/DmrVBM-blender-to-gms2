@@ -25,7 +25,7 @@ if ( keyboard_check_pressed(190) ) {	// ">"
 	mesh_flash = 1.0;
 }
 if ( keyboard_check_pressed(191) ) {	// "?"
-	mesh_visibility_mask ^= (1<<mesh_select);
+	mesh_visible_layermask ^= (1<<mesh_select);
 }
 
 // Navigate bones weight index

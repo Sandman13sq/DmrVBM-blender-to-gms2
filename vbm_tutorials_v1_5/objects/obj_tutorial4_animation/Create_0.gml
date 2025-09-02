@@ -27,6 +27,8 @@ model = VBM_Model_Create();	// Initialize model data
 VBM_Model_Open(model, "tutorial4_animation.vbm");	// Animation comes packed into file
 animation = VBM_Model_GetAnimation(model, 0);	// Animation exported with model
 
+VBM_Model_MeshLayerFillByIndex(model);	// Set layermask of each mesh to the mesh's index
+
 // *Model Controls -------------------------------------
 model_location = [0,0,0];	// [x, y, z]
 model_velocity = [0,0,0];
@@ -64,5 +66,6 @@ playback_speed = 1;
 // *Shader Uniforms
 u_animation_bonematrices = shader_get_uniform(shd_tutorial4_animation, "u_bonematrices");	// For skinning matrices
 u_animation_boneselect = shader_get_uniform(shd_tutorial4_animation, "u_boneselect");	// For weight visual
+u_animation_showweights = shader_get_uniform(shd_tutorial4_animation, "u_showweights");	// For weight visual
 
 event_perform(ev_step, 0); // Force Step Update before first draw call

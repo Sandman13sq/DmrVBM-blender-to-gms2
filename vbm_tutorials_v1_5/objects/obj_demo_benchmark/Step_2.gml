@@ -8,7 +8,7 @@ mproj = matrix_build_projection_perspective_fov(
 );
 
 mview = matrix_build_lookat(
-	1, -2, 1, 
+	1, -2.5, 1.5, 
 	0,0,1, 
 	0,0,1
 );

@@ -16,6 +16,8 @@
     {"$GMFolder":"","%Name":"VBMTutorials_v1_5","folderPath":"folders/VBMTutorials_v1_5.yy","name":"VBMTutorials_v1_5","resourceType":"GMFolder","resourceVersion":"2.0",},
   ],
   "IncludedFiles":[
+    {"$GMIncludedFile":"","%Name":"demo_benchmark.vbm","CopyToMask":-1,"filePath":"datafiles","name":"demo_benchmark.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
+    {"$GMIncludedFile":"","%Name":"TexPoppie03.png","CopyToMask":-1,"filePath":"datafiles","name":"TexPoppie03.png","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial2_axis.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial2_axis.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial3_native.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial3_native.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
     {"$GMIncludedFile":"","%Name":"tutorial3_normal.vbm","CopyToMask":-1,"filePath":"datafiles","name":"tutorial3_normal.vbm","resourceType":"GMIncludedFile","resourceVersion":"2.0",},
@@ -52,6 +54,7 @@
     {"id":{"name":"spr_debugfont","path":"sprites/spr_debugfont/spr_debugfont.yy",},},
     {"id":{"name":"spr_dreamfont","path":"sprites/spr_dreamfont/spr_dreamfont.yy",},},
     {"id":{"name":"spr_stinkyghost","path":"sprites/spr_stinkyghost/spr_stinkyghost.yy",},},
+    {"id":{"name":"spr_texpoppie03","path":"sprites/spr_texpoppie03/spr_texpoppie03.yy",},},
   ],
   "resourceType":"GMProject",
   "resourceVersion":"2.0",

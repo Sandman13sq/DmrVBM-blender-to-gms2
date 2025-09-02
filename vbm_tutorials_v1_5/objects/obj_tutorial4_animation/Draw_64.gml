@@ -9,11 +9,12 @@ var xx = 16, yy = _ystart, ysep = 16;
 draw_text(xx, yy, "Use the arrow keys to rotate model"); yy += ysep;
 draw_text(xx, yy, "Hold SHIFT w/ arrow keys to rotate camera"); yy += ysep;
 draw_text(xx, yy, "Press \"<\",\">\" to navigate meshes"); yy += ysep;
-draw_text(xx, yy, "Press ? to toggle mesh visibility"); yy += ysep;
-draw_text(xx, yy, "Press | to toggle weight visibility"); yy += ysep;
-draw_text(xx, yy, "Press \"[\",\"]\" to highlight bone"); yy += ysep;
-draw_text(xx, yy, "Press \"-\",\"+\" to navigate animations"); yy += ysep;
+draw_text(xx, yy, "    \"-\",\"+\" to navigate animations"); yy += ysep;
+draw_text(xx, yy, "    \"?\" to toggle mesh visibility"); yy += ysep;
+draw_text(xx, yy, "    \"|\" to toggle weight visibility"); yy += ysep;
+draw_text(xx, yy, "    \"[\",\"]\" to highlight bone"); yy += ysep;
 yy += ysep;
+
 draw_text(xx, yy, "Camera Position: " + string(view_position)); yy += ysep;
 draw_text(xx, yy, "Camera Rotation: " + string(view_euler)); yy += ysep;
 yy += ysep;
@@ -49,7 +50,7 @@ draw_set_color(c_white);
 draw_healthbar(
 	xx, yy, xx+160, yy+10, 
 	100*VBM_ModelAnimation_EvaluateFramePosition(animation, playback_frame), 
-	0xFF223300,0xFF7777FF,0xFF7777FF,0,1,1
+	0xFF332200,0xFF7777FF,0xFF7777FF,0,1,1
 );
 yy += ysep;
 draw_text(xx, yy, 
