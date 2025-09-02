@@ -31,6 +31,8 @@ VBM_MESHTYPES = ('MESH', 'CURVE')
 
 VBM_EXPORTENABLEDICONS = ('CHECKBOX_DEHLT', 'CHECKBOX_HLT', 'CHECKMARK')
 
+VBM_VTX_COMPRESSED = 1<<0
+
 VBM_BONEFLAGS_HIDDEN = (1<<0)
 VBM_BONEFLAGS_SWINGBONE = (1<<1)
 VBM_BONEFLAGS_HASPROPS = (1<<2)
@@ -102,20 +104,6 @@ LayerCollections = lambda c, outdict: (outdict.update({c.name: c}), [LayerCollec
 LayerCollection = lambda c: LayerCollections(bpy.context.view_layer.layer_collection, {})[c.name]
 def SelectCollection(collection):
     bpy.context.view_layer.active_layer_collection = LayerCollections(bpy.context.view_layer.layer_collection, {})[collection.name]
-
-def FileWrite(outbin, filepath):
-    outcompressed = zlib.compress(outbin)
-    print("> File: \"%s\" (%2.2f KB)" % (filepath, len(outbin)/1024))
-    f = open(os.path.abspath(bpy.path.abspath(filepath)), 'wb')
-    f.write(outbin)
-    f.close()
-    
-def FileWriteCompressed(outbin, filepath):
-    outcompressed = zlib.compress(outbin)
-    print("> File: \"%s\" (%2.2f KB -> %2.2f KB)" % (filepath, len(outbin)/1024, len(outcompressed)/1024))
-    f = open(os.path.abspath(bpy.path.abspath(filepath)), 'wb')
-    f.write(outcompressed)
-    f.close()
     
 # ..........................................................................
 def EvaluateDeformOrder(skeleton_object):
@@ -405,13 +393,16 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
     
     actions: CollectionProperty(type=VBM_PG_ActionItem)
     action_index: IntProperty(min=0, update=select_action)
+    action_pose: PointerProperty(name="Action Pose", type=bpy.types.Action, update=update_pose_action, description="Pose to export mesh with (if skinning attributes are disabled and/or rig is not present)")
     
     children: CollectionProperty(options={'HIDDEN'}, type=VBM_PG_CollectionItem)
     child_index: IntProperty(min=0)
     
+    use_vtx_compression: BoolProperty(name="Compress Vertex Buffer", default=False, description="Write vertex buffer as indices to a value map, instead of a flat chunk of bytes. \nVERY SLOW.")
+    use_compression: BoolProperty(name="Compress File", default=False, description="Compress file using zlib compression to reduce file size")
+    
     use_material_names: BoolProperty(name="Use Mtl Names", default=False, description="Append material name to name of object on export")
-    merge_meshes: BoolProperty(name="Merge Meshes", default=False, description="Merge meshes with similar names, after truncating name after \".\" character")
-    action_pose: PointerProperty(name="Action Pose", type=bpy.types.Action, update=update_pose_action, description="Pose to export mesh with (if skinning attributes are disabled and/or rig is not present)")
+    mesh_join_names: BoolProperty(name="Join Mesh Names", default=False, description="Merge meshes with similar names, after truncating name after \".\" character")
     
     color_layer_name: StringProperty(name="VC Layer Name", default="", options=set(), description="Vertex color layer to use on export. Uses 'Color' if empty")
     color_layer_default: FloatVectorProperty(name="VC Layer Default", size=4, default=(1,1,1,1), subtype='COLOR_GAMMA', options=set(), description="Default vertex color if vc layer name is set but not found")
@@ -436,6 +427,7 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
     )
 classlist.append(VBM_PG_Collection)
 
+# ------------------------------------------------------------------------------
 class VBM_PG_Scene(bpy.types.PropertyGroup):
     def update_datapath(self, context):
         datapath = self.data_path
@@ -452,9 +444,6 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
             print("> VBM Collection Refresh")
             context.scene.collection.vbm.refresh()
             self['VBM_CHECKSUM'] = checksum
-    
-    def texture_apply_padding(self, image):
-        VBM_TexturePadding(image)
     
     data_path: StringProperty(name="Data Path", default="", subtype='DIR_PATH', update=update_datapath)
     layermask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set(), description="Number of layer mask bits to display")
@@ -478,12 +467,13 @@ classlist.append(VBM_PG_Scene)
 class VBM_OT_CollectionClearChecksum(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.collection_clear_checksum', 'VBM Clear Checksum', {'REGISTER', 'UNDO'}
     bl_description = "VBM Resets cache for group"
-    group: EnumProperty(default='NONE', items=tuple([(x,x,x) for x in 'NONE OBJECT ACTION IMAGE ALL'.split()])) 
+    group: EnumProperty(default='NONE', items=tuple([(x,x,x) for x in 'NONE OBJECT ACTION IMAGE COLLECTION ALL'.split()])) 
     def execute(self, context):
         collection = ActiveCollection()
         hits = 0
         for item in (
-            collection.all_objects if self.group == 'OBJECT' else
+            [collection] if self.group == 'COLLECTION' else
+            [x for x in collection.all_objects] if self.group == 'OBJECT' else
             [x.action for x in collection.vbm.actions] if self.group == 'ACTION' else
             list(set([nd.image for obj in collection.all_objects if obj.type=='MESH' for mtl in obj.data.materials if mtl for nd in mtl.node_tree.nodes if nd.bl_idname=='ShaderNodeTexImage' and nd.image])) if self.group == 'IMAGE' else
             []
@@ -1109,6 +1099,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             r.label(text="Clear Checksum:", icon='UNLINKED')
             rr = r.row(align=1)
             rr.scale_x = 0.6
+            rr.operator('vbm.collection_clear_checksum', text="CLL").group='COLLECTION'
             rr.operator('vbm.collection_clear_checksum', text="OBJ").group='OBJECT'
             rr.operator('vbm.collection_clear_checksum', text="ANI").group='ACTION'
             rr.operator('vbm.collection_clear_checksum', text="TEX").group='IMAGE'
@@ -1126,6 +1117,8 @@ class VBM_PT_Asset(bpy.types.Panel):
             rr = r.row(align=1)
             rr.alignment = 'RIGHT'
             rr.label(text="%d File(s)" % (collection.vbm.enabled + len([1 for c in collection.children_recursive if c.vbm.enabled])) )
+            
+            layout.prop(collection.vbm, 'use_compression')
             
             # Format
             format = collection.vbm.format
@@ -1180,7 +1173,8 @@ class VBM_PT_Asset(bpy.types.Panel):
             r.active = export_enabled
             #r.prop(context.scene.vbm, 'express_export', text="", icon='FF')
             r.prop(collection.vbm, 'use_material_names')
-            r.prop(collection.vbm, 'merge_meshes')
+            r.prop(collection.vbm, 'mesh_join_names', text="Join Names")
+            r.prop(collection.vbm, 'use_vtx_compression', text="Compress VB")
             
             r = layout.row(align=1)
             c = r.column()
@@ -1373,7 +1367,7 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
         
         # Data .........................................................................................................
         uvlyr = obj.data.uv_layers.get("UVMap", obj.data.uv_layers[0])
-        vclyr = obj.data.color_attributes.get("STYLE", obj.data.color_attributes.get("Color", obj.data.color_attributes[0]))
+        vclyr = obj.data.color_attributes[obj.data.color_attributes.render_color_index]
         uvdata = [tuple((uv.vector[0], 1-uv.vector[1])) for uv in uvlyr.uv]
         vcdata = [tuple(vc.color) for vc in vclyr.data]
         if sum([x for v in vcdata for x in v]) == 0:
@@ -1416,6 +1410,10 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
                     if vclyr.name not in mtlvbs[mtlname].keys():
                         mtlvbs[mtlname][vclyr.name] = b''
                     mtlvbs[mtlname][vclyr.name] += b''.join([PackVector('B', [int(255*(x**gamma)) for x in vclyr.data[l].color]) for l in mtlloops])
+                for uvlyr in obj.data.uv_layers:
+                    if uvlyr.name not in mtlvbs[mtlname].keys():
+                        mtlvbs[mtlname][uvlyr.name] = b''
+                    mtlvbs[mtlname][uvlyr.name] += b''.join([PackVector('f', uvlyr.uv[l].vector) for l in mtlloops])
                 
         if src.vbm.get('VBM_DATA'+checksum_key, None):
             del src.vbm['VBM_DATA'+checksum_key]
@@ -1532,6 +1530,10 @@ def AnimData(action, rig):
     }
 
 def ImageData(image, palette_max=255):
+    if not image.has_data:
+        print("! Data not loaded for image \"%s\"!" % image.name)
+        return ([0], [0]*image.width*image.height)
+    
     checksum = sum(tuple(image.pixels)) + palette_max
     if image.vbm.get('VBM_CHECKSUM', -1) != checksum:
         srcpixels = np.frombuffer((np.array(image.pixels)*255).astype(np.uint8).tobytes(), dtype=np.uint32)
@@ -1625,6 +1627,9 @@ def ExportModel(collection, report=True):
     animationitems = []
     
     modeldata = {k: [] for k in 'NAM VTX MSH PSM SKE TEX MTL ANI'.split()}
+    chunkversionmap = {}
+    
+    chunkversionmap['VTX'] = 1
     
     # Objects -------------------------------------------------------------------------------
     vbmap = {}
@@ -1634,14 +1639,14 @@ def ExportModel(collection, report=True):
         vbmap = state['vbmap']
         modeldata = state['modeldata']
         format_mask = state['format_mask']
-        collection = state['collection']
+        filecollection = state['collection']
         material_names = state['material_names']
         
-        object_script_pre = collection.vbm.object_script_pre
-        object_script_post = collection.vbm.object_script_post
+        object_script_pre = filecollection.vbm.object_script_pre
+        object_script_post = filecollection.vbm.object_script_post
         
-        use_material_names = collection.vbm.use_material_names
-        merge_meshes = collection.vbm.merge_meshes
+        use_material_names = filecollection.vbm.use_material_names
+        mesh_join_names = filecollection.vbm.mesh_join_names
         
         objects = list(objects)
         for obj in objects:
@@ -1680,13 +1685,14 @@ def ExportModel(collection, report=True):
                     collisionbin += Pack('i', len(coords))
                     collisionbin += b''.join([PackVector('f', v) for v in coords])
                     modeldata['PSM'].append(collisionbin)
+                
                 # Mesh .......................................................
                 else:
                     mtlvbs = MeshData(obj, apply_transform=apply_transform, rig=rig, action=action_pose, object_script_pre=object_script_pre, object_script_post=object_script_post).items()
                     for mtlname,mtlstreams in mtlvbs:
                         # Fix name
                         meshname = obj.name.split("/")[-1]
-                        if merge_meshes:
+                        if mesh_join_names:
                             meshname = meshname.split(".")[0]
                         if use_material_names:
                             meshname += "_"+mtlname
@@ -1699,6 +1705,11 @@ def ExportModel(collection, report=True):
                         
                         if mtlname not in material_names:
                             material_names.append(mtlname)
+                        if obj.users_collection:
+                            for item in obj.users_collection[0].vbm.material_overrides:
+                                if item.material and not item.override:
+                                    if item.material.name not in material_names:
+                                        material_names.append(item.material.name)
                         
                         loop_count = len(mtlstreams['POS']) // 12
                         
@@ -1707,41 +1718,48 @@ def ExportModel(collection, report=True):
                         for a in range(0, 10):
                             if format_mask & (1<<a):
                                 space = VFORMAT_SPACE[a]
-                                # Use given color layer
-                                if VFORMAT_NAME[a] == 'COL' and collection.vbm.color_layer_name != "":
-                                    if collection.vbm.color_layer_name in mtlstreams.keys():
-                                        streams.append(mtlstreams[collection.vbm.color_layer_name])
-                                    else:
-                                        streams.append(PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count)
-                                # Use given UV layer
-                                elif VFORMAT_NAME[a] == 'UVS' and collection.vbm.uv_layer_name != "":
-                                    if collection.vbm.uv_layer_name in mtlstreams.keys():
-                                        streams.append(mtlstreams[collection.vbm.uv_layer_name])
-                                    else:
-                                        streams.append(PackVector('f', collection.vbm.uv_layer_default)*loop_count)
+                                isbyte = (format_mask & (1<<(a+16))) != 0
+                                
                                 # Normals
-                                elif VFORMAT_NAME[a] == 'NOR' and format_mask & (VFORMAT_INDEX['NOR']<<16):
+                                if VFORMAT_NAME[a] == 'NOR' and isbyte:
                                     stream = mtlstreams['NOR']
                                     stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+[0]) for l in range(0, loop_count)])
                                     space = 3*4
-                                    streams.append(stream)
+                                # Use given color layer
+                                elif VFORMAT_NAME[a] == 'COL' and collection.vbm.color_layer_name != "":
+                                    if collection.vbm.color_layer_name in mtlstreams.keys():
+                                        stream = mtlstreams[collection.vbm.color_layer_name]
+                                    else:
+                                        stream = PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count
+                                    if not isbyte:
+                                        stream = (np.array(stream, np.float32)/255.0).tobytes()
+                                        space = 4
+                                # Use given UV layer
+                                elif VFORMAT_NAME[a] == 'UVS' and collection.vbm.uv_layer_name != "":
+                                    if collection.vbm.uv_layer_name in mtlstreams.keys():
+                                        stream = (mtlstreams[collection.vbm.uv_layer_name])
+                                    else:
+                                        stream = (PackVector('f', collection.vbm.uv_layer_default)*loop_count)
+                                    if not isbyte:
+                                        stream = (np.array(stream, np.float32)/255.0).tobytes()
+                                        space = 4
                                 # Bones, Weights
                                 elif VFORMAT_NAME[a] == 'BON':
                                     stream = mtlstreams[VFORMAT_NAME[a]]
-                                    if format_mask & (1<<(a+16)):
+                                    if isbyte:
                                         stream = b''.join([PackVector('B', [int(x) for x in Unpack('ffff', stream[l*16:(l+1)*16])]) for l in range(0, loop_count)])
                                         space = 4
-                                    streams.append(stream)
                                 elif VFORMAT_NAME[a] == 'WEI':
                                     stream = mtlstreams[VFORMAT_NAME[a]]
-                                    if format_mask & (1<<(a+16)):
+                                    if isbyte:
                                         stream = b''.join([PackVector('B', [int(x*255.0) for x in Unpack('ffff', stream[l*16:(l+1)*16])]) for l in range(0, loop_count)])
                                         space = 4
-                                    streams.append(stream)
                                 # Other attribute
                                 else:
-                                    streams.append(mtlstreams[VFORMAT_NAME[a]])
+                                    stream = mtlstreams[VFORMAT_NAME[a]]
+                                streams.append(stream)
                                 streamspaces.append(space)
+                        
                         
                         vb = b''.join(tuple([
                             streams[a][l*space:(l+1)*space]
@@ -1772,7 +1790,16 @@ def ExportModel(collection, report=True):
     ExportModel_WalkCollection(walkobjects, collection)
     
     walkstate = ExportModel_WalkObjects(
-        {'collection': collection, 'vbmap': vbmap, 'modeldata':modeldata, 'vb':b'', 'format': format, 'format_mask': format_mask, 'material_names':material_names}, 
+        {
+            'collection': collection, 
+            'vbmap': vbmap, 
+            'modeldata':modeldata, 
+            'vb':b'', 
+            'format': format, 
+            'format_mask': format_mask, 
+            'material_names':material_names,
+            'actions': animationitems
+        }, 
         ~0, 
         [x for x in walkobjects if not x.parent]
     )
@@ -1856,6 +1883,7 @@ def ExportModel(collection, report=True):
     
     # Materials --------------------------------------------------------------------------
     texturenames = []
+    material_names = list(set(material_names))
     for mtlname in material_names:
         mtl = bpy.data.materials.get(mtlname, None)
         if not mtl:
@@ -1962,6 +1990,65 @@ def ExportModel(collection, report=True):
         modeldata['ANI'].append(outaction)
         collection.vbm.action_index = collection.vbm.action_index
     
+    # Vertex Buffer --------------------------------------------------------------
+    compress_vertex_buffer = collection.vbm.use_vtx_compression != 0
+    
+    buffer_size = len(netvb)
+    loop_count = len(netvb) // stride
+    
+    flags = (
+        (VBM_VTX_COMPRESSED * compress_vertex_buffer)
+    )
+    
+    outvtx = b''
+    outvtx += Pack('I', flags)
+    outvtx += Pack('I', format_mask)
+    outvtx += Pack('I', buffer_size)
+    
+    if not compress_vertex_buffer:
+        outvtx += netvb
+    else:
+        # TODO: Make mesh checksum key at start of export function for use here
+        checksum = -1
+        
+        if checksum < 0:
+            attribute_types = [i for i in range(0, 16) if format_mask&(1<<i)]
+            attribute_isbyte = [ (format_mask&(1<<(a+16))) != 0 for a in attribute_types ]
+            attribute_spaces = [4 if attribute_isbyte[i] else VFORMAT_SPACE[a] for i,a in enumerate(attribute_types)]
+            attribute_vectors = []
+            attribute_count = len(attribute_types)
+            offset = 0
+            
+            floatmask = 0xFFFF_FF00     # Lower bits are mantissa. Removing them lowers precision, but makes attribute set smaller
+            for a,space in enumerate(attribute_spaces):
+                if not attribute_isbyte[a]:
+                    stream = np.frombuffer(b''.join([netvb[o:o+space] for o in range(offset, buffer_size, stride)]), dtype=np.uint32) & floatmask
+                    stream = stream.tobytes()
+                    stream = tuple([ stream[o:o+space] for o in range(0, len(stream), space)])
+                else:
+                    stream = tuple([( netvb[o:o+space]) for o in range(offset, buffer_size, stride)])
+                
+                attribute_vectors.append(stream)
+                offset += space
+            attribute_sets = [ tuple(set(v)) for v in attribute_vectors ]
+            
+            indices = [attribute_sets[a].index(attribute_vectors[a][l]) for l in range(0, loop_count) for a in range(0, attribute_count)]
+            #print(len(indices), stride, loop_count, buffer_size, attribute_spaces, [len(x) for x in attribute_vectors], [len(x) for x in attribute_sets])
+            
+            if collection.vbm.get('VBM_DATA', None):
+                del collection.vbm['VBM_DATA']
+            collection.vbm['VBM_DATA'] = (attribute_sets, indices)
+            #collection.vbm['VBM_CHECKSUM'] = checksum
+        
+        attribute_sets, indices = collection.vbm['VBM_DATA']
+        
+        outvtx += Pack('I', len(attribute_sets))   # Number of attributes
+        for attribset in attribute_sets:
+            outvtx += Pack('I', len(attribset))     # Attribute set size
+            outvtx += Pack('I', len(attribset[0]))     # Attribute space
+            outvtx += b''.join(attribset)           # Attribute set
+        outvtx += b''.join([Pack('H', x) for x in indices])
+    
     # Output ------------------------------------------------------------------------------
     Clean()
     
@@ -1974,18 +2061,27 @@ def ExportModel(collection, report=True):
         print("! WARNING: Length of vertex buffer == 0")
     
     modeldata['NAM'] = PackString(FixName(collection.name))                 # Model Name
-    modeldata['VTX'] = Pack('I', format_mask) + Pack('I', len(netvb)) + netvb    # Vertex Buffer
+    modeldata['VTX'] = outvtx
     modeldata['END'] = Pack('I', 0)  # End chunk
     
     print([", ".join([ (("%s[%d]" % (type, len(data)))) if isinstance(data, list) else "{%s}"%type for type,data in modeldata.items() if data])])
     
     modelchunks = {
-        chunktype: (Pack('I', len(data)) + b''.join(data)) if isinstance(data, list) else data
+        chunktype: ((Pack('I', len(data)) + b''.join(data)) if isinstance(data, list) else data)
         for chunktype, data in modeldata.items() if data
     }
-    modelbin = PackChars("VBM") + Pack('B', 5) + b''.join([PackString(chunktype) + Pack('I', len(chunk)) + chunk for chunktype, chunk in modelchunks.items()])
     
-    print(PackChars("VBM") + Pack('B', 5))
+    modelbin = PackChars("VBM") + Pack('B', 5) + b''.join([
+        PackString(chunktype)[:3] +             # Type
+        Pack('B',chunkversionmap.get(chunktype, 0)) +  # Version
+        Pack('I', len(chunk)) +                 # Length
+        chunk                                   # Data
+        for chunktype, chunk in modelchunks.items() 
+    ])
+    
+    # Compress
+    if collection.vbm.use_compression:
+        modelbin = zlib.compress(modelbin)
     
     # Write to file
     if context.scene.vbm.data_path:
@@ -2001,10 +2097,7 @@ def ExportModel(collection, report=True):
     f.write(modelbin)
     f.close()
     
-    if len(modelbin)/1000000 > 0.01:
-        print("< File written to \"%s\" (%4.4f MB)" % (filepath, len(modelbin)/1_000_000))
-    else:
-        print("< File written to \"%s\" (%4.4f MB)" % (filepath, len(modelbin)/1_000_000))
+    print("< File written to \"%s\" (%4.4f MB)" % (("..." if len(filepath) > 64 else "")+filepath[-64:], len(modelbin)/1_000_000))
     print()
 
 "======================================================================================================"

@@ -1,7 +1,7 @@
 /// @desc Initialize
 
 model = new VBM_Model();
-VBM_Model_Open(model, "demo_benchmark.vbm", VBM_OPENFLAG.PRINTDEBUG);
+VBM_Model_Open(model, "demo_benchmark.vbm", VBM_OPENFLAGS.PRINTDEBUG);
 
 VBM_Model_AddTextureSprite(model, spr_texpoppie03);
 var mtlindex = VBM_Model_AddMaterial(model, "", "", 0, VBM_MATERIALTEXTUREFLAG.FILTERLINEAR);

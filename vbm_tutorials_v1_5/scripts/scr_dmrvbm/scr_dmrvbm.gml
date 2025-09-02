@@ -80,6 +80,8 @@ enum VBM_OPENFLAGS {
 	PRINTDEBUG = 0b00000001,
 };
 
+#macro __VBM_VTX_COMPRESSED (1<<0)
+
 #endregion
 
 // ===========================================================
@@ -608,7 +610,7 @@ function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start,
 
 function VBM_Model() constructor {
 	name = "";	// Name of collection model was exported from
-	format_key = 0;		// VBM format key that represents vertex format
+	format_mask = 0;		// Bitmask that represents vertex format
 	vertex_format = -1;	// Vertex format that matches vertex buffer
 	vertex_buffer = -1;	// Individual meshes accessed through loop start
 	bone_namesum = 0;	// Sum of bone names used to speed up lookup tables when processing animations
@@ -1765,7 +1767,7 @@ function VBM_Model_Open(outvbm, filepath, vbm_openflags=0) {
 	if ( f == -1 ) {
 		return 0;
 	}
-	var success = VBM_Model_Load(outvbm, f, 0, vbm_openflags);
+	var success = VBM_Model_Load(outvbm, f, 0, buffer_get_size(f), vbm_openflags);
 	buffer_delete(f);
 	return success;
 }
@@ -1774,9 +1776,10 @@ function VBM_Model_Open(outvbm, filepath, vbm_openflags=0) {
 /// @param {Struct.VBM_Model} outvbm
 /// @param {Id.Buffer} file_buffer
 /// @param {Real} file_buffer_offset
+/// @param {Real} file_buffer_size
 /// @param {Real} [vbm_openflags]
 /// @return {Real}
-function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, vbm_openflags=0) {
+function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_size, vbm_openflags=0) {
 	var _startingoffset = buffer_tell(file_buffer);
 	var f = file_buffer;
 	buffer_seek(f, buffer_seek_start, file_buffer_offset);
@@ -1786,6 +1789,20 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, vbm_openflags=0
 	header_ord[1] = buffer_read(f, buffer_u8);
 	header_ord[2] = buffer_read(f, buffer_u8);
 	header_ord[3] = buffer_read(f, buffer_u8);
+	
+	// Check compression header
+	if ( header_ord[0] == 0x78 && (header_ord[1]==0x01 || header_ord[1]==0x5E || header_ord[1]==0x9C || header_ord[1]==0xDA) ) {
+		var b = buffer_create(file_buffer_size, buffer_fixed, 1);
+		buffer_copy(f, file_buffer_offset, file_buffer_size, b, 0);
+		var bdecompressed = buffer_decompress(b);
+		
+		var success = VBM_Model_Load(outvbm, bdecompressed, 0, buffer_get_size(bdecompressed), vbm_openflags);
+		buffer_delete(b);
+		buffer_delete(bdecompressed);
+		
+		buffer_seek(f, buffer_seek_start, _startingoffset);
+		return success;
+	}
 	
 	// Check VBM header = "VBM" + 5
 	if ( 
@@ -1829,16 +1846,69 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, vbm_openflags=0
 		}
 		// Vertex Buffer .............................
 		else if ( chunk_type == "VTX" ) {
-			var format_key = buffer_read(f, buffer_s32);
+			var flags = 0;
+			if ( chunk_version > 0 ) {
+				flags = buffer_read(f, buffer_u32);
+			}
+			var format_mask = buffer_read(f, buffer_s32);
 			var buffer_size = buffer_read(f, buffer_u32);
-			var stride = VBM_FormatStride(format_key);
+			var stride = VBM_FormatStride(format_mask);
 			
-			outvbm.format_key = format_key;
-			outvbm.vertex_format = VBM_FormatBuild(format_key);
+			outvbm.format_mask = format_mask;
+			outvbm.vertex_format = VBM_FormatBuild(format_mask);
 			
-			outvbm.vertex_buffer = vertex_create_buffer_from_buffer_ext(
-				f, outvbm.vertex_format, buffer_tell(f), buffer_size / stride
-			);
+			// Uncompressed buffer
+			if ( (flags & __VBM_VTX_COMPRESSED) == 0 ) {
+				outvbm.vertex_buffer = vertex_create_buffer_from_buffer_ext(
+					f, outvbm.vertex_format, buffer_tell(f), buffer_size / stride
+				);
+			}
+			// Compressed buffer
+			else {
+				var attribute_count = buffer_read(f, buffer_u32);
+				var attribute_sets = array_create(attribute_count);
+				var attribute_spaces = array_create(attribute_count);
+				
+				for (var a = 0; a < attribute_count; a++) {
+					var n = buffer_read(f, buffer_u32);
+					attribute_spaces[a] = buffer_read(f, buffer_u32);
+					
+					var attribute_buffer_size = n*attribute_spaces[a];
+					attribute_sets[a] = buffer_create(attribute_buffer_size, buffer_fixed, 4);
+					
+					buffer_copy(f, buffer_tell(f), attribute_buffer_size, attribute_sets[a], 0);
+					buffer_seek(f, buffer_seek_relative, attribute_buffer_size);
+				}
+				
+				var vb = buffer_create(buffer_size, buffer_fixed, 4);
+				var loop_count = buffer_size / stride;
+				
+				var l = 0;	// Loop Index
+				var a = 0;	// Attribute Index
+				var s = 0;	// Attribute Space
+				var i = 0;	// Attribute Set index
+				var o = 0;	// Output Buffer Offset
+				repeat(loop_count) {
+					a = 0;
+					repeat(attribute_count) {
+						s = attribute_spaces[a];
+						i = buffer_read(f, buffer_u16);	// Get index to attribute set value
+						buffer_copy(attribute_sets[a], i*s, s, vb, o);	// Write attribute set value to output buffer
+						a++;
+						o += s;
+					}
+					l++;
+				}
+				
+				// Create VB from B
+				outvbm.vertex_buffer = vertex_create_buffer_from_buffer(vb, outvbm.vertex_format);
+				
+				// Free temporary buffers
+				for (var a = 0; a < attribute_count; a++) {
+					buffer_delete(attribute_sets[a]);
+				}
+				buffer_delete(vb);
+			}
 			
 			vertex_freeze(outvbm.vertex_buffer);
 		}
