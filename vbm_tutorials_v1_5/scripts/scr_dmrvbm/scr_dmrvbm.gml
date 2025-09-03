@@ -314,7 +314,7 @@ function VBM_ModelTexture_GetPointer(texture) {
 // Material --------------------------------------------------------------------
 enum VBM_MATERIALFLAG {
 	TRANSPARENT  = 0b00000001,
-	CULLFRONT	 = 0b00000010,
+	USECULLING	 = 0b00000010,
 	USEDEPTH	 = 0b00000100,
 };
 #macro VBM_DEFAULT_MATERIALFLAG (VBM_MATERIALFLAG.USEDEPTH)
@@ -1058,7 +1058,7 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 					// Set gpu state
 					gpu_set_zwriteenable( (mtl.flags & VBM_MATERIALFLAG.USEDEPTH)? 1: 0);
 					gpu_set_ztestenable( (mtl.flags & VBM_MATERIALFLAG.USEDEPTH)? 1: 0);
-					gpu_set_cullmode( (mtl.flags & VBM_MATERIALFLAG.CULLFRONT)? cull_counterclockwise: cull_clockwise );
+					gpu_set_cullmode( (mtl.flags & VBM_MATERIALFLAG.USECULLING)? cull_clockwise: cull_noculling);
 					gpu_set_blendenable( (mtl.flags & VBM_MATERIALFLAG.TRANSPARENT)? 1: 0 );
 					
 					// Set shader

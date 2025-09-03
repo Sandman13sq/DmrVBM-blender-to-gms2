@@ -38,6 +38,7 @@ VBM_BONEFLAGS_SWINGBONE = (1<<1)
 VBM_BONEFLAGS_HASPROPS = (1<<2)
 
 VBM_MATERIALFLAGS_TRANSPARENT = (1<<0)
+VBM_MATERIALFLAGS_USECULLING = (1<<1)
 
 VBM_TEXTUREFLAG_FILTERLINEAR = (1<<1)
 VBM_TEXTUREFLAG_EXTEND = (1<<2)
@@ -1226,7 +1227,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             b = layout.row(align=0)
             r = b.row(align=1)
             r.scale_y=0.8
-            c = [r.column(align=1) for i in (0,1,2,4)]
+            c = [r.column(align=1) for i in (0,1,2,3,4)]
             c[0].scale_x = 1.1
             c[1].scale_x = 0.8
             c[2].scale_x = 1.2
@@ -1234,6 +1235,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             c[1].label(text="SHD", icon='CONSOLE')
             c[2].label(text="TEX", icon='NODE_TEXTURE')
             c[3].label(text="", icon='IMAGE_ALPHA')
+            c[4].label(text="", icon='ORIENTATION_NORMAL')
             for mtl in materials:
                 c[0].prop(mtl, 'name', text="")
                 c[1].prop(mtl.vbm, 'shader', text="", placeholder=mtl.vbm.get_shader())
@@ -1242,7 +1244,8 @@ class VBM_PT_Asset(bpy.types.Panel):
                     c[2].prop(ndimage, 'image', text="")
                 else:
                     c[2].label(text="(No Image)")
-                c[3].prop(mtl.vbm, 'transparent', text="")
+                c[3].prop(mtl.vbm, 'transparent', text="", icon='CHECKBOX_HLT' if mtl.vbm.transparent else 'CHECKBOX_DEHLT', emboss=True)
+                c[4].prop(mtl, 'use_backface_culling', text="", icon='CHECKBOX_HLT' if mtl.use_backface_culling else 'CHECKBOX_DEHLT', emboss=True)
         # Action
         elif context.scene.vbm.panel_tab == 'ACTION':
             VBMActionPanel(layout, collection)
@@ -1532,7 +1535,7 @@ def AnimData(action, rig):
 def ImageData(image, palette_max=255):
     if not image.has_data:
         print("! Data not loaded for image \"%s\"!" % image.name)
-        return ([0], [0]*image.width*image.height)
+        return ([0xFFFFFFFF], [0]*image.size[0]*image.size[1])
     
     checksum = sum(tuple(image.pixels)) + palette_max
     if image.vbm.get('VBM_CHECKSUM', -1) != checksum:
@@ -1890,7 +1893,8 @@ def ExportModel(collection, report=True):
             continue
         mtl = collection.vbm.get_material_override(mtl)
         flags = (
-            VBM_MATERIALFLAGS_TRANSPARENT * (mtl.vbm.transparent)
+            VBM_MATERIALFLAGS_TRANSPARENT * (mtl.vbm.transparent) |
+            VBM_MATERIALFLAGS_USECULLING * (mtl.use_backface_culling)
         )
         
         texturenodes = [nd for nd in mtl.node_tree.nodes if ValidName(nd.name) and nd.bl_idname=='ShaderNodeTexImage' and nd.image]
@@ -1921,17 +1925,19 @@ def ExportModel(collection, report=True):
     # Images --------------------------------------------------------------------------------
     for texturename in texturenames:
         image = bpy.data.images.get(texturename)
-        w,h = image.size
-        palette, indices = ImageData(image, palette_max)
-        index_dtype = 'H' if len(palette) >= 256 else 'B'
         
-        imagebin = b''
-        imagebin += Pack('III', w, h, len(palette))
-        imagebin += PackVector('I', palette)
-        
-        # Switch data type based on palette count
-        imagebin += PackVector(index_dtype, indices)
-        modeldata['TEX'].append(imagebin)
+        if image and image.has_data:
+            w,h = image.size
+            palette, indices = ImageData(image, palette_max)
+            index_dtype = 'H' if len(palette) >= 256 else 'B'
+            
+            imagebin = b''
+            imagebin += Pack('III', w, h, len(palette))
+            imagebin += PackVector('I', palette)
+            
+            # Switch data type based on palette count
+            imagebin += PackVector(index_dtype, indices)
+            modeldata['TEX'].append(imagebin)
     
     # Actions -----------------------------------------------------------------------------
     Clean()
