@@ -44,6 +44,8 @@ VBM_TEXTUREFLAG_FILTERLINEAR = (1<<1)
 VBM_TEXTUREFLAG_EXTEND = (1<<2)
 
 VBM_ANIMATIONFLAGS_CURVENAMES = (1<<0)
+VBM_ANIMATIONFLAGS_CURVELOOP = (1<<1)
+VBM_ANIMATIONFLAGS_MARKERS = (1<<2)
 
 VFORMATDATA = (     # (name, size, space, icon)
     ('POS', 3, 12, 'EMPTY_ARROWS'),
@@ -69,7 +71,7 @@ VFORMAT_DEFAULTMASK = sum([
     for i in range(0,10)
 ])
 
-Items_Framerate = tuple([ (str(i),str(i),str(i), 'NONE', i) for i in range(1,61) if (60/i)==float(60//i) ])
+Items_Framerate = tuple([ (str(i),str(i)+" FPS",str(i)+" FPS", 'NONE', i) for i in range(1,61) if (60/i)==float(60//i) ])
 Items_LayermaskSize = tuple([ (str(i),str(i),str(i), 'NONE', i) for i in (8,16,32) ])
 
 "======================================================================================================"
@@ -231,7 +233,7 @@ class VBM_PG_Action(bpy.types.PropertyGroup):
             return
         self['MUTEX'] = 1
         action = self.get_action()
-        frame_step = int(self.frame_step)
+        frame_rate = int(self.frame_rate)
         action.frame_start = self.frame_start
         if self.frame_end:
             action.frame_end = self.frame_end
@@ -239,20 +241,22 @@ class VBM_PG_Action(bpy.types.PropertyGroup):
             rig = CollectionRig()
             if rig and rig.animation_data.action == action:
                 context.scene.frame_start = int(action.frame_start)
-                context.scene.frame_end = int(action.frame_end)
+                context.scene.frame_end = int(action.frame_end) 
         else:
             self.frame_end = int(action.frame_range[1])
         self['MUTEX'] = 0
     
     frame_start: IntProperty(min=0, update=update_action)
     frame_end: IntProperty(min=0, update=update_action)
-    frame_step: EnumProperty(items=Items_Framerate, default='1', update=update_action)
+    frame_rate: EnumProperty(items=Items_Framerate, default='60', update=update_action)
+    
+    clean_on_bake: BoolProperty(name="Clean On Bake", default=True, description="Cleans curves on bake to reduce frame count")
     
     layermask: BoolVectorProperty(
         name="Layer Mask", 
         size=VBM_LAYERMASKSIZE, 
         default=[True for i in range(0,VBM_LAYERMASKSIZE)],
-        description="Bone curves in layer mask will be exported. Use 'Swing Bones' tab to set bone layer masks."
+        description="Bone curves in layer mask will be exported. Use 'Bone Groups' tab to set bone layer masks."
     )
 classlist.append(VBM_PG_Action)
 
@@ -1954,7 +1958,7 @@ def ExportModel(collection, report=True):
         bonemask = int(sum([1<<i for i,x in enumerate(action.vbm.layermask) if x]))
         
         bonedata = AnimData(action, rig)
-        bonedata = {bname: curves for bname,curves in bonedata.items() if swing_collection.vbm.get_bone_layermask(bname) & bonemask}
+        bonedata = {bname: curves for bname,curves in bonedata.items() if bone_group_source_collection.vbm.get_bone_layermask(bname) & bonemask}
         
         propcurves = [fc for fc in action.fcurves if "pose.bones" not in fc.data_path]
         propdata = {fc.data_path: [] for fc in propcurves}
@@ -1965,21 +1969,31 @@ def ExportModel(collection, report=True):
         
         frame_start = int(action.frame_range[0])
         frame_end = int(action.frame_range[1])
-        frame_step = int(action.vbm.frame_step)
+        frame_rate = int(action.vbm.frame_rate)
         flags = (
-            ( VBM_ANIMATIONFLAGS_CURVENAMES * 1 )  # Curve names
+            ( VBM_ANIMATIONFLAGS_CURVENAMES * 1 ) | # Curve names
+            ( VBM_ANIMATIONFLAGS_CURVELOOP * action.use_cyclic ) |  # Curve Loop
+            ( VBM_ANIMATIONFLAGS_MARKERS * (len(action.pose_markers) > 0) )  # Curve Markers
         )
         
         outaction = b''
         outaction += Pack('BBB', *[ord(c) for c in "ANI"])+Pack('B', 0)  # Version
         outaction += Pack('i', flags)  # Flags
         outaction += PackString(FixName(actionname))  # Name
-        outaction += Pack('i', int((action.frame_end-action.frame_start+1)*frame_step))     # Duration
-        outaction += Pack('i', 0*frame_step)     # Loop Point
+        outaction += Pack('i', int((action.frame_end-action.frame_start+1)))     # Duration
+        outaction += Pack('i', context.scene.render.fps)     # FPS
+        outaction += Pack('i', 0)     # Loop Point
         outaction += Pack('i', len(curvedata.values()))  # Curve Count
         outaction += Pack('i', sum([len(curve) for curve in curvedata.values()]))  # Channel Count
         outaction += Pack('i', sum([len(channel) for curve in curvedata.values() for channel in curve]))  # Keyframe Count
         outaction += Pack('i', len(bonedata.values()))  # Props View Index / Number of bone curves
+        
+        # Pose Markers
+        if ( flags & VBM_ANIMATIONFLAGS_MARKERS ):
+            outaction += Pack('i', len(action.pose_markers))
+            for m in action.pose_markers:
+                outaction += PackString(m.name)     # Marker Name
+                outaction += Pack('f', m.frame)     # Marker Frame
         
         # Bone Curves + Property Curves 
         for curvename, channels in curvedata.items():

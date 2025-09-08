@@ -344,27 +344,33 @@ function VBM_ModelMaterial_Free(material) {
 
 // Animation --------------------------------------------------------------------
 enum VBM_ANIMATIONFLAG {
-	CURVENAMES =	 0b00000001,
-	BAKEDTRANSFORM = 0b00000010,
-	BAKEDRELATIVE =  0b00000100,
-	BAKEDORIGIN =	 0b00001000,
-	BAKEDSKINNING =	 0b00010000,
+	CURVENAMES =	0b00000001,
+	USECYCLIC =		0b00000010,
+	MARKERS =		0b00000100,
+	BAKEDTRANSFORM=	0b00010000,
+	BAKEDRELATIVE =	0b00100000,
+	BAKEDORIGIN =	0b01000000,
+	BAKEDSKINNING =	0b10000000,
 };
 enum VBM_ANIMATIONVIEW {offset, size, _len};
+enum VBM_ANIMATIONMARKER {name, frame, _len};
 
 function VBM_ModelAnimation() constructor {
 	name = "";
 	animcurve = -1;	// GM animation curve asset containing channel keyframe data.
 	curve_count = 0;	// Total number of curves
-	curve_views = [];	// Flat array of VBM_ANIMATIONVIEW to index into animcurve.
+	curve_views = [];	// Flat array of VBM_ANIMATIONVIEW to index into animcurve channels.
 	curve_name_to_index = {};	// {Curvename: curve_index} for each curve
 	curve_names = [];	// Array of curve names matching index.
+	
+	markers = [];		// Array of [marker_name, marker_frame]
+	marker_map = {};	// Map of {marker_name: marker_frame}
 	
 	props_offset = 0;	// First curve index of property curves (which is also the number of bone curves).
 	fps_native = 60.0;	// Frames per second animation was exported in
 	duration = 0.0;		// Maximum frame of animation
 	loop_point = 0.0;	// Position to start from when sample frame exceeds duration
-	flags = 0;
+	flags = 0;			// See VBM_ANIMATIONFLAG enum
 	namesum = 0;	// Sum of curve names. Faster when paired with equal bonesum
 	
 	baked_transforms_1d = [];	// array[ real[16*len(VBM_TRANSFORM)*curve_count], ... ] Fits model with same orientation
@@ -379,6 +385,60 @@ function VBM_ModelAnimation_Free(animation) {
 	animcurve_destroy(animation.animcurve);
 	delete animation.curve_name_to_index;
 };
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetMarkerCount(animation) {
+	return array_length(animation.markers);
+}
+
+// @desc Returns marker frame, -1 if out of bounds
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} marker_index
+/// @return {Real}
+function VBM_ModelAnimation_GetMarkerFrame(animation, marker_index) {
+	return (marker_index >= 0 && marker_index < array_length(animation.markers))?
+		animation.markers[marker_index][1]:
+		-1;
+}
+
+// @desc Returns marker name, Empty string if out of bounds
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} marker_index
+/// @return {Real}
+function VBM_ModelAnimation_GetMarkerName(animation, marker_index) {
+	return (marker_index >= 0 && marker_index < array_length(animation.markers))?
+		animation.markers[marker_index][0]:
+		"";
+}
+
+// @desc Returns marker frame, -1 if name not found
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} marker_name
+/// @return {Real}
+function VBM_ModelAnimation_FindMarkerFrame(animation, marker_name) {
+	return variable_struct_exists(animation.marker_map, marker_name)? 
+		animation.marker_map[$ marker_name]:
+		-1;
+}
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetCurveCount(animation) {
+	return animation.curve_count;
+}
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetBoneCurveCount(animation) {
+	return animation.props_offset;
+}
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetPropCurveCount(animation) {
+	return animation.curve_count - animation.props_offset;
+}
 
 /// @param {Struct.VBM_ModelAnimation} animation
 /// @return {String}
@@ -411,6 +471,19 @@ function VBM_ModelAnimation_GetCurveName(animation, curve_index) {
 /// @return {Real}
 function VBM_ModelAnimation_GetCurveSize(animation, curve_index) {
 	return animation.curve_views[curve_index*VBM_ANIMATIONVIEW._len+VBM_ANIMATIONVIEW.size];
+}
+
+/// @desc Returns animcurve_channel from curve
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} curve_index
+/// @param {Real} channel_index
+/// @return {Struct.GMAnimCurveChannel, Undefined}
+function VBM_ModelAnimation_GetCurveChannel(animation, curve_index, channel_index) {
+	var _offset = animation.curve_views[curve_index*VBM_ANIMATIONVIEW._len+VBM_ANIMATIONVIEW.offset];
+	var _size = animation.curve_views[curve_index*VBM_ANIMATIONVIEW._len+VBM_ANIMATIONVIEW.size];
+	return (channel_index >= 0 && channel_index < _size)?
+		animation.animcurve.channels[_offset+channel_index]:
+		undefined;
 }
 
 /// @desc Returns animation frame corrected with animation loop point
@@ -1137,27 +1210,51 @@ function VBM_Model_SubmitMesh(model, mesh_index, texture=VBM_SUBMIT_TEXDEFAULT) 
 #region // MODEL ANIMATION
 // ===========================================================
 
+/// @desc Evaluate animation in single pass using output array as space for all operations
+/// @param {Struct.VBM_Model} model
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} animation_frame
+/// @param {Array<Real>} outmat4skinning_1d
+function VBM_Model_EvaluateAnimationEasy(model, animation, animation_frame, outmat4skinning_1d) {
+	VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame, outmat4skinning_1d, ~0, 16);
+	VBM_Model_EvaluateTransformMatrices(model, outmat4skinning_1d, outmat4skinning_1d, ~0, undefined, 16);
+	VBM_Model_EvaluateSkinningMatrices(model, outmat4skinning_1d, outmat4skinning_1d);
+}
+
 /// @desc Evaluates transforms from animation
 /// @param {Struct.VBM_Model} model
 /// @param {Struct.VBM_ModelAnimation} animation
 /// @param {Real} animation_frame
 /// @param {Array<Real>} outtransforms_1d
 /// @param {Real} [bone_layer_mask]
-function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame, outtransforms_1d, bone_layer_mask=~0) {
+/// @param {Real} [_transformstride]
+function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame, outtransforms_1d, bone_layer_mask=VBM_LAYERMASKALL, _transformstride=VBM_TRANSFORM._len) {
 	//if ( !model || !animation ) {return;}
 	var curve_count = animation.props_offset;
 	var t = 0, bone_index = 0, c = 0, curve_index = 0;
 	var animcurve = animation.animcurve;
 	var posx = VBM_ModelAnimation_EvaluateFramePosition(animation, animation_frame);
+	
 	var use_remap_index = animation.namesum != model.bone_namesum;
+	var bones = model.bones;
+	var bones_name_to_index = model.bones_name_to_index;
+	var curve_names = animation.curve_names;
 	
 	repeat(curve_count) {
 		if ( use_remap_index ) {
-			bone_index = VBM_Model_FindBoneIndex(model, animation.curve_names[curve_index]);
-			t = bone_index * VBM_TRANSFORM._len;
+			bone_index = bones_name_to_index[$ curve_names[curve_index]];
+			if ( bone_index == undefined ) {
+				bone_index = -1;	
+			}
+			else {
+				t = bone_index * _transformstride;
+			}
 		}
 			
-		if ( bone_index != -1 && (model.bones[bone_index].layer_mask & bone_layer_mask) != 0 ) {
+		if ( 
+			bone_index != -1 && 
+			( bone_layer_mask == ~0 || ((bones[bone_index].layer_mask & bone_layer_mask) != 0) ) 
+		) {
 			outtransforms_1d[t+0] = animcurve_channel_evaluate(animcurve.channels[c+0], posx);
 			outtransforms_1d[t+1] = animcurve_channel_evaluate(animcurve.channels[c+1], posx);
 			outtransforms_1d[t+2] = animcurve_channel_evaluate(animcurve.channels[c+2], posx);
@@ -1169,7 +1266,7 @@ function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame
 			outtransforms_1d[t+8] = animcurve_channel_evaluate(animcurve.channels[c+8], posx);
 			outtransforms_1d[t+9] = animcurve_channel_evaluate(animcurve.channels[c+9], posx);
 		}
-		t += VBM_TRANSFORM._len;
+		t += _transformstride;
 		c += VBM_TRANSFORM._len;
 		curve_index++;
 		bone_index++;
@@ -1184,7 +1281,7 @@ function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame
 /// @param {Array<Real>} lasttransforms_1d
 /// @param {Array<Real>} outtransforms_1d
 /// @param {Real} [bone_layer_mask]
-function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation_frame, blend_amt, lasttransforms_1d, outtransforms_1d, bone_layer_mask=~0) {
+function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation_frame, blend_amt, lasttransforms_1d, outtransforms_1d, bone_layer_mask=VBM_LAYERMASKALL, _transformstride=VBM_TRANSFORM._len) {
 	var curve_count = animation.props_offset;	// Bones come first
 	var animcurve = animation.animcurve;
 	var t = 0, bone_index = 0, c = 0, curve_index = 0;
@@ -1195,7 +1292,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 		repeat(curve_count) {
 			if ( use_remap_index ) {
 				bone_index = VBM_Model_FindBoneIndex(model, animation.curve_names[curve_index]);
-				t = bone_index * VBM_TRANSFORM._len;
+				t = bone_index * _transformstride;
 			}
 			
 			if ( bone_index != -1 && (model.bones[bone_index].layer_mask & bone_layer_mask) != 0 ) {
@@ -1210,7 +1307,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 				outtransforms_1d[t+8] = lerp(lasttransforms_1d[t+8], animcurve_channel_evaluate(animcurve.channels[c+8], posx), blend_amt);
 				outtransforms_1d[t+9] = lerp(lasttransforms_1d[t+9], animcurve_channel_evaluate(animcurve.channels[c+9], posx), blend_amt);
 			}
-			t += VBM_TRANSFORM._len;
+			t += _transformstride;
 			c += VBM_TRANSFORM._len;
 			bone_index++;
 			curve_index++;
@@ -1220,7 +1317,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 		repeat(curve_count) {
 			if ( use_remap_index ) {
 				bone_index = VBM_Model_FindBoneIndex(model, animation.curve_names[curve_index]);
-				t = bone_index * VBM_TRANSFORM._len;
+				t = bone_index * _transformstride;
 			}
 			
 			if ( bone_index != -1 && (model.bones[bone_index].layer_mask & bone_layer_mask) != 0 ) {
@@ -1235,7 +1332,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 				outtransforms_1d[t+8] = animcurve_channel_evaluate(animcurve.channels[c+8], posx);
 				outtransforms_1d[t+9] = animcurve_channel_evaluate(animcurve.channels[c+9], posx);
 			}
-			t += VBM_TRANSFORM._len;
+			t += _transformstride;
 			c += VBM_TRANSFORM._len;
 			bone_index++;
 			curve_index++;
@@ -1249,7 +1346,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 /// @param {Array<Array<Real>>} outmat4modelspace_1d
 /// @param {Real} [bone_layer_mask]
 /// @param {Array<Array<Real>>} [outmat4bonespace_2d]
-function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4modelspace_1d, bone_layer_mask=~0, outmat4bonespace_2d=undefined) {
+function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4modelspace_1d, bone_layer_mask=VBM_LAYERMASKALL, outmat4bonespace_2d=undefined, _transformstride=VBM_TRANSFORM._len) {
 	//if ( !model ) {return;}
 	
 	var bone_count = array_length(model.bones);
@@ -1265,61 +1362,56 @@ function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4models
 		bone = model.bones[bone_index];
 		
 		// Check if layers match
-		if ( (bone.layer_mask & bone_layer_mask) == 0 ) {
-			bone_index++;
-			b += 16;
-			t += VBM_TRANSFORM._len;
-			continue;
-		}
-		
-		// Parent-space matrix = mat4_compose(location, quat, scale)
-		qw = transforms_1d[t+VBM_TRANSFORM.qw];
-		qx = transforms_1d[t+VBM_TRANSFORM.qx];
-		qy = transforms_1d[t+VBM_TRANSFORM.qy];
-		qz = transforms_1d[t+VBM_TRANSFORM.qz];
-		sx = transforms_1d[t+VBM_TRANSFORM.sx];
-		sy = transforms_1d[t+VBM_TRANSFORM.sy];
-		sz = transforms_1d[t+VBM_TRANSFORM.sz];
-		xx = sqr(qx); xy = qx*qy; xz = qx*qz; xw = qx*qw;
-		yy = sqr(qy); yz = qy*qz; yw = qy*qw; zz = sqr(qz); zw = qz*qw;
+		if ( (bone.layer_mask & bone_layer_mask) != 0 ) {
+			// Parent-space matrix = mat4_compose(location, quat, scale)
+			qw = transforms_1d[t+VBM_TRANSFORM.qw];
+			qx = transforms_1d[t+VBM_TRANSFORM.qx];
+			qy = transforms_1d[t+VBM_TRANSFORM.qy];
+			qz = transforms_1d[t+VBM_TRANSFORM.qz];
+			sx = transforms_1d[t+VBM_TRANSFORM.sx];
+			sy = transforms_1d[t+VBM_TRANSFORM.sy];
+			sz = transforms_1d[t+VBM_TRANSFORM.sz];
+			xx = sqr(qx); xy = qx*qy; xz = qx*qz; xw = qx*qw;
+			yy = sqr(qy); yz = qy*qz; yw = qy*qw; zz = sqr(qz); zw = qz*qw;
 
-		m[VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
-		m[VBM_M01] = (2.0 * (xy - zw)) * sx;
-		m[VBM_M02] = (2.0 * (xz + yw)) * sx;
-		m[VBM_M03] = transforms_1d[t+VBM_TRANSFORM.x];	// x
-		m[VBM_M10] = (2.0 * (xy + zw)) * sy;
-		m[VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
-		m[VBM_M12] = (2.0 * (yz - xw)) * sy;
-		m[VBM_M13] = transforms_1d[t+VBM_TRANSFORM.y];	// y
-		m[VBM_M20] = (2.0 * (xz - yw)) * sz;
-		m[VBM_M21] = (2.0 * (yz + xw)) * sz;
-		m[VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
-		m[VBM_M23] = transforms_1d[t+VBM_TRANSFORM.z];	// z
-		//m[VBM_M30] = 0.0;
-		//m[VBM_M31] = 0.0;
-		//m[VBM_M32] = 0.0;
-		m[VBM_M33] = 1.0;
+			m[VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
+			m[VBM_M01] = (2.0 * (xy - zw)) * sx;
+			m[VBM_M02] = (2.0 * (xz + yw)) * sx;
+			m[VBM_M03] = transforms_1d[t+VBM_TRANSFORM.x];	// x
+			m[VBM_M10] = (2.0 * (xy + zw)) * sy;
+			m[VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
+			m[VBM_M12] = (2.0 * (yz - xw)) * sy;
+			m[VBM_M13] = transforms_1d[t+VBM_TRANSFORM.y];	// y
+			m[VBM_M20] = (2.0 * (xz - yw)) * sz;
+			m[VBM_M21] = (2.0 * (yz + xw)) * sz;
+			m[VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
+			m[VBM_M23] = transforms_1d[t+VBM_TRANSFORM.z];	// z
+			//m[VBM_M30] = 0.0;
+			//m[VBM_M31] = 0.0;
+			//m[VBM_M32] = 0.0;
+			m[VBM_M33] = 1.0;
 		
-		m = VBM_MAT4_MUTLIPLY(m, bone.matrix_relative);
-		if ( outmat4bonespace_2d ) {
-			array_copy(outmat4bonespace_2d[bone_index], 0, m, 0, 15);
-		}
-		
-		// Reduce number of matrix reads by checking change in parents from last bone
-		if ( parent_index != bone.parent_index ) {
-			parent_index = bone.parent_index;
-			if ( parent_index != VBM_NULLINDEX ) {
-				array_copy(mparent, 0, outmat4modelspace_1d, 16*parent_index, 15);
+			m = VBM_MAT4_MUTLIPLY(m, bone.matrix_relative);
+			if ( outmat4bonespace_2d ) {
+				array_copy(outmat4bonespace_2d[bone_index], 0, m, 0, 15);
 			}
-		}
 		
-		// Model-space matrix = Relative * Parent
-		m = VBM_MAT4_MUTLIPLY(m, mparent);
-		array_copy(outmat4modelspace_1d, b, m, 0, 15);
+			// Reduce number of matrix reads by checking change in parents from last bone
+			if ( parent_index != bone.parent_index ) {
+				parent_index = bone.parent_index;
+				if ( parent_index != VBM_NULLINDEX ) {
+					array_copy(mparent, 0, outmat4modelspace_1d, 16*parent_index, 15);
+				}
+			}
+		
+			// Model-space matrix = Relative * Parent
+			m = VBM_MAT4_MUTLIPLY(m, mparent);
+			array_copy(outmat4modelspace_1d, b, m, 0, 15);
+		}
 		
 		bone_index++;
 		b += 16;
-		t += VBM_TRANSFORM._len;
+		t += _transformstride;
 	}
 }
 
@@ -1332,7 +1424,8 @@ function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4models
 function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat4modelspace_1d, time_factor=1.0) {
 	//if ( !model ) {return;}
 	
-	var bone_count = array_length(model.bones);
+	var bones = model.bones;
+	var bone_count = array_length(bones);
 	var bone_index, parent_index = -1;
 	var bone;
 	
@@ -1349,12 +1442,13 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 	
 	var i, b, p;
 	
-	// Origin -> Vertex
 	bone_index = 0;
 	b = 0;
 	p = 0;
+	
+	// Iterate bones
 	repeat(bone_count) {
-		bone = model.bones[bone_index];
+		bone = bones[bone_index];
 		
 		// Swing not enabled, skip bone
 		if ( !VBM_ModelBone_SwingEnabled(bone) ) {
@@ -1370,7 +1464,7 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 		
 		// Staging ...............................................
 		bone_length = bone.length;
-		if ( bone_length <= 0.0 ) {bone_length = model.bones[bone.parent_index].length/2;}	// Use parent bone
+		if ( bone_length <= 0.0 ) {bone_length = bones[bone.parent_index].length/2;}	// Use parent bone
 		
 		// Reduce number of matrix reads by checking change in parents from last bone
 		if ( parent_index != bone.parent_index ) {
@@ -1550,7 +1644,7 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 		vz = (vz - rz) / d;
 		
 		d = (
-			dot_product_3d(ux, uy, uz, vx, vy, vz) / 
+			dot_product_3d(ux, uy, uz, vx, vy, vz) /
 			dot_product_3d(vx, vy, vz, vx, vy, vz)
 		);
 		ux = ux - (vx * d);
@@ -1561,7 +1655,7 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 		gx = uy*vz - uz*vy;
 		gy = uz*vx - ux*vz;
 		gz = ux*vy - uy*vx;
-	
+		
 		d = point_distance_3d(0,0,0, gx, gy, gz);
 		gx /= d; gy /= d; gz /= d;
 		
@@ -1614,7 +1708,7 @@ function VBM_Model_EvaluateSkinningMatrices(model, mat4modelspace_1d, outmat4ski
 /// @param {Struct.VBM_Model} model
 /// @param {Array<Array<Real>>} outmat4modelspace_1d
 /// @param {Real} [bone_layer_mask]
-function VBM_Model_EvaluateBindMatrices(model, outmat4modelspace_1d, bone_layer_mask=~0) {
+function VBM_Model_EvaluateBindMatrices(model, outmat4modelspace_1d, bone_layer_mask=VBM_LAYERMASKALL) {
 	var bone_count = array_length(model.bones);
 	var m = matrix_build_identity(), mparent = matrix_build_identity();
 	var bone;
@@ -1888,9 +1982,9 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				var s = 0;	// Attribute Space
 				var i = 0;	// Attribute Set index
 				var o = 0;	// Output Buffer Offset
-				repeat(loop_count) {
+				repeat(loop_count) {	// For each vertex loop...
 					a = 0;
-					repeat(attribute_count) {
+					repeat(attribute_count) {	// For each attribute index...
 						s = attribute_spaces[a];
 						i = buffer_read(f, buffer_u16);	// Get index to attribute set value
 						buffer_copy(attribute_sets[a], i*s, s, vb, o);	// Write attribute set value to output buffer
@@ -1904,7 +1998,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				outvbm.vertex_buffer = vertex_create_buffer_from_buffer(vb, outvbm.vertex_format);
 				
 				// Free temporary buffers
-				for (var a = 0; a < attribute_count; a++) {
+				for (a = 0; a < attribute_count; a++) {
 					buffer_delete(attribute_sets[a]);
 				}
 				buffer_delete(vb);
@@ -2136,6 +2230,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				anim.flags = buffer_read(f, buffer_s32);
 				anim.name = buffer_read(f, buffer_string);
 				anim.duration = buffer_read(f, buffer_u32);
+				anim.fps_native = buffer_read(f, buffer_u32);
 				anim.loop_point = buffer_read(f, buffer_u32);
 				anim.curve_count = buffer_read(f, buffer_u32);
 				var channel_count = buffer_read(f, buffer_u32);
@@ -2146,6 +2241,20 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				anim.curve_views = array_create(anim.curve_count*VBM_ANIMATIONVIEW._len);
 				anim.animcurve = animcurve_create();
 				
+				// Read Marksers
+				if ( anim.flags & VBM_ANIMATIONFLAG.MARKERS ) {
+					var nummarkers = buffer_read(f, buffer_u32);
+					anim.markers = array_create(nummarkers);
+					anim.marker_map = {};
+					for (var marker_index = 0; marker_index < nummarkers; marker_index++) {
+						var markername = buffer_read(f, buffer_string);
+						var markerframe = buffer_read(f, buffer_f32);
+						anim.markers[marker_index] = [markername, markerframe];
+						anim.marker_map[$ markername] = markerframe;
+					}
+				}
+				
+				// Read Curve Data
 				var channel_offset = 0;
 				var channels = array_create(channel_count);
 				var channel = undefined;
