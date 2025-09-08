@@ -830,10 +830,11 @@ function VBM_Model_GetTexturePointer(model, texture_index) {
 		-1;
 }
 
-/// @desc Adds texture sprite to model
+/// @desc Adds texture sprite to model and returns its index
 /// @param {Struct.VBM_Model} model
 /// @param {Id.Sprite} sprite
-/// @param {Real} [free_on_delete]
+/// @param {Bool} [free_on_delete]
+/// @return {Real}
 function VBM_Model_AddTextureSprite(model, sprite, free_on_delete=false) {
 	var texture = new VBM_ModelTexture();
 	texture.sprite = sprite;
@@ -841,6 +842,7 @@ function VBM_Model_AddTextureSprite(model, sprite, free_on_delete=false) {
 		texture |= VBM_TEXTUREFLAG.FREEONDELETE;
 	}
 	array_push(model.textures, texture);
+	return array_length(model.textures)-1;
 }
 
 /// @param {Struct.VBM_Model} model
@@ -858,7 +860,7 @@ function VBM_Model_GetMeshdefName(model, index) {
 }
 
 /// @desc Sets material of mesh at index
-/// @param {Struct.VBM_Model}
+/// @param {Struct.VBM_Model} model
 /// @param {Real} mesh_index
 /// @param {Real} material_index
 function VBM_Model_MeshSetMaterial(model, mesh_index, material_index) {
@@ -872,7 +874,7 @@ function VBM_Model_MeshSetMaterial(model, mesh_index, material_index) {
 function VBM_Model_MeshSetMaterialByLayer(model, mesh_layer_mask, material_index) {
 	var n = array_length(model.meshdefs);
 	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
-		if ( model.meshdefs[mesh_index].layer_mask & mesh_layer_mask ) {
+		if ( (model.meshdefs[mesh_index].layer_mask & mesh_layer_mask) != 0 ) {
 			model.meshdefs[mesh_index].material_index = material_index;
 		}
 	}
@@ -891,8 +893,8 @@ function VBM_Model_MeshLayerFillByIndex(model) {
 
 /// @desc Sets material of all meshes in layermask
 /// @param {Struct.VBM_Model} model
-/// @param {Real} mesh_layer_mask
-/// @param {Real} material_index
+/// @param {Real} old_material_index
+/// @param {Real} new_material_index
 function VBM_Model_MeshReplaceMaterial(model, old_material_index, new_material_index) {
 	var n = array_length(model.meshdefs);
 	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
@@ -903,7 +905,7 @@ function VBM_Model_MeshReplaceMaterial(model, old_material_index, new_material_i
 }
 
 /// @param {Struct.VBM_Model} model
-/// @param {Real} index
+/// @param {Real} material_index
 /// @return {Struct.Material, Undefined}
 function VBM_Model_GetMaterial(model, material_index) {
 	return (material_index >= 0 && material_index < array_length(model.materials))? model.materials[material_index]: undefined;
@@ -970,6 +972,39 @@ function VBM_Model_GetBoneDepth(model, index) {
 		bone = model.bones[bone.parent_index];
 	}
 	return _depth;
+}
+
+function __VBM_Model_PrintBoneTree(model, bone_index, parent_index, depth) {
+	var bone = model.bones[bone_index];
+	var text = "";
+	
+	text += string_replace_all(string_format(bone_index,3,0), " ", "0") + " ";
+	for (var i = 0; i < depth; i++) {text += "| ";}
+	text += bone.name;
+	show_debug_message(text);
+	
+	var n = array_length(model.bones);
+	for (var b = 0; b < n; b++) {
+		bone = model.bones[b];
+		if ( bone.parent_index == bone_index ) {
+			__VBM_Model_PrintBoneTree(model, b, b, depth+1);
+		}
+	}
+}
+
+/// @desc Prints bone tree in order of parent
+/// @param {Struct.VBM_Model} model
+function VBM_Model_PrintBoneTree(model) {
+	var text = "";
+	var bone;
+	var n = array_length(model.bones);
+	
+	for (var b = 0; b < n; b++) {
+		bone = model.bones[b];
+		if ( bone.parent_index == VBM_NULLINDEX ) {
+			__VBM_Model_PrintBoneTree(model, b, VBM_NULLINDEX, 0);
+		}
+	}
 }
 
 /// @param {Struct.VBM_Model} model
@@ -1107,7 +1142,7 @@ function VBM_Model_GetBonesByLayer(model, layer_mask, out_bones, out_capacity) {
 /// @param {Array<Real>} matrix
 /// @param {Real} [layermask]
 /// @param {Bool} [change_drawstate]
-function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, change_shader=false) {
+function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_drawstate=true, change_shader=false) {
 	var drawflags = ~0;
 	var n = array_length(model.meshdefs);
 	var meshdef, mtl, tex, shd;
