@@ -1258,7 +1258,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             c.operator('vbm.collection_object_move', text="", icon='TRIA_UP').direction='UP'
             c.operator('vbm.collection_object_move', text="", icon='TRIA_DOWN').direction='DOWN'
             c.separator()
-            c.operator('vbm.rename_objects', text="", icon='COPY_ID')
+            #c.operator('vbm.rename_objects', text="", icon='COPY_ID')
             c.operator('vbm.collection_clear_checksum', text="", icon='UNLINKED').group='OBJECT'
             
             if collection.all_objects:
