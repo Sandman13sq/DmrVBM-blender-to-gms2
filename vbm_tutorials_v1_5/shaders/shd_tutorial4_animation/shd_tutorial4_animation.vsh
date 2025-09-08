@@ -18,6 +18,7 @@ varying float v_vWeightsum; // For weight visual
 uniform mat4 u_bonematrices[200];	// There is an upper-limit. It depends on platform
 
 uniform float u_boneselect;	// For weight visual
+uniform float u_showweights;	// For weight visual
 
 void main()
 {
@@ -39,7 +40,7 @@ void main()
     v_vTexcoord = in_TextureCoord;
 	
 	// Used for weight visual
-	if ( u_boneselect >= 0.0 ) {
+	if ( u_showweights > 0.0 && u_boneselect >= 0.0 ) {
 		float weightsum = 0.0;
 		for (int i = 0; i < 4; i++) {
 			weightsum += float(abs(u_boneselect-in_Bone[i]) <= 0.5) * in_Weight[i];

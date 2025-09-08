@@ -6,7 +6,7 @@ matrix_set(matrix_projection, mproj);
 matrix_set(matrix_view, mview);
 matrix_set(matrix_world, mtran);
 
-shader_set(shd_tutorial4_animation);
+shader_set(shd_style);
 
 shader_set_uniform_matrix_array(
 	shader_get_uniform(shader_current(), "u_bonematrices"),

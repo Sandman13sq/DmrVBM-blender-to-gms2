@@ -47,7 +47,10 @@ enum VBM_TRANSFORM {
 // For Game Maker, "heavier" matrix is second argument: mat4_multiply(m, mparent)
 #macro VBM_MAT4_MUTLIPLY matrix_multiply
 
-#macro VBM_NULLINDEX ~0
+#macro VBM_NULLINDEX -1
+
+#macro VBM_LAYERMASKALL ~0
+#macro VBM_LAYERMASKSIZE 32
 
 // Attribute mask
 enum VBM_FORMATMASK {
@@ -72,6 +75,12 @@ enum VBM_FORMATMASK {
 
 #macro VBM_SUBMIT_TEXDEFAULT -1
 #macro VBM_SUBMIT_TEXNONE 0
+
+enum VBM_OPENFLAGS {
+	PRINTDEBUG = 0b00000001,
+};
+
+#macro __VBM_VTX_COMPRESSED (1<<0)
 
 #endregion
 
@@ -275,17 +284,46 @@ function VBM_ModelBone_GetMatrixInversebind(bone) {return bone.matrix_inversebin
 /// @return {Array<Real>}
 function VBM_ModelBone_GetMatrixRelative(bone) {return bone.matrix_relative;}
 
+// Texture --------------------------------------------------------------------
+enum VBM_TEXTUREFLAG {
+	FREEONDELETE  = 0b00000001,
+};
+
+function VBM_ModelTexture() constructor {
+	sprite = -1;
+	name = "";
+	flags = 0;
+};
+
+/// @desc Revmoves allocated data from struct
+/// @param {Struct.VBM_ModelTexture} texture
+function VBM_ModelTexture_Free(texture) {
+	if ( texture.flags & VBM_TEXTUREFLAG.FREEONDELETE && sprite_exists(texture.sprite) ) {
+		sprite_delete(texture.sprite);
+		texture.sprite = -1;
+		texture.flags &= ~VBM_TEXTUREFLAG.FREEONDELETE;
+	}
+};
+
+/// @desc Returns texture to use when rendering, or -1 if not set
+/// @param {Struct.VBM_ModelTexture} texture
+function VBM_ModelTexture_GetPointer(texture) {
+	return sprite_exists(texture.sprite)? sprite_get_texture(texture.sprite, 0): -1;
+}
+
 // Material --------------------------------------------------------------------
 enum VBM_MATERIALFLAG {
 	TRANSPARENT  = 0b00000001,
-	CULLFRONT	 = 0b00000010,
+	USECULLING	 = 0b00000010,
 	USEDEPTH	 = 0b00000100,
 };
+#macro VBM_DEFAULT_MATERIALFLAG (VBM_MATERIALFLAG.USEDEPTH)
 
 enum VBM_MATERIALTEXTUREFLAG {
 	FILTERLINEAR =	0b00000010,
 	EXTEND =		0b00000100,
 };
+#macro VBM_DEFAULT_MATERIALTEXTUREFLAG (VBM_MATERIALTEXTUREFLAG.EXTEND)
 
 function VBM_ModelMaterial() constructor {
 	name = "";
@@ -294,8 +332,8 @@ function VBM_ModelMaterial() constructor {
 	
 	// Total of 4 texture_sprites
 	texture_flags = [0,0,0,0];	// Mask of VBM_MATERIALTEXTUREFLAG values
-	texture_indices = [0,0,0,0];	
-	texture_paths = ["","","",""];
+	texture_indices = [0,0,0,0];	// Index into model's texture array
+	texture_paths = ["","","",""];	// Name of sprite asset
 };
 
 /// @desc Revmoves allocated data from struct
@@ -306,27 +344,33 @@ function VBM_ModelMaterial_Free(material) {
 
 // Animation --------------------------------------------------------------------
 enum VBM_ANIMATIONFLAG {
-	CURVENAMES =	 0b00000001,
-	BAKEDTRANSFORM = 0b00000010,
-	BAKEDRELATIVE =  0b00000100,
-	BAKEDORIGIN =	 0b00001000,
-	BAKEDSKINNING =	 0b00010000,
+	CURVENAMES =	0b00000001,
+	USECYCLIC =		0b00000010,
+	MARKERS =		0b00000100,
+	BAKEDTRANSFORM=	0b00010000,
+	BAKEDRELATIVE =	0b00100000,
+	BAKEDORIGIN =	0b01000000,
+	BAKEDSKINNING =	0b10000000,
 };
 enum VBM_ANIMATIONVIEW {offset, size, _len};
+enum VBM_ANIMATIONMARKER {name, frame, _len};
 
 function VBM_ModelAnimation() constructor {
 	name = "";
 	animcurve = -1;	// GM animation curve asset containing channel keyframe data.
 	curve_count = 0;	// Total number of curves
-	curve_views = [];	// Flat array of VBM_ANIMATIONVIEW to index into animcurve.
+	curve_views = [];	// Flat array of VBM_ANIMATIONVIEW to index into animcurve channels.
 	curve_name_to_index = {};	// {Curvename: curve_index} for each curve
 	curve_names = [];	// Array of curve names matching index.
+	
+	markers = [];		// Array of [marker_name, marker_frame]
+	marker_map = {};	// Map of {marker_name: marker_frame}
 	
 	props_offset = 0;	// First curve index of property curves (which is also the number of bone curves).
 	fps_native = 60.0;	// Frames per second animation was exported in
 	duration = 0.0;		// Maximum frame of animation
 	loop_point = 0.0;	// Position to start from when sample frame exceeds duration
-	flags = 0;
+	flags = 0;			// See VBM_ANIMATIONFLAG enum
 	namesum = 0;	// Sum of curve names. Faster when paired with equal bonesum
 	
 	baked_transforms_1d = [];	// array[ real[16*len(VBM_TRANSFORM)*curve_count], ... ] Fits model with same orientation
@@ -341,6 +385,60 @@ function VBM_ModelAnimation_Free(animation) {
 	animcurve_destroy(animation.animcurve);
 	delete animation.curve_name_to_index;
 };
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetMarkerCount(animation) {
+	return array_length(animation.markers);
+}
+
+// @desc Returns marker frame, -1 if out of bounds
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} marker_index
+/// @return {Real}
+function VBM_ModelAnimation_GetMarkerFrame(animation, marker_index) {
+	return (marker_index >= 0 && marker_index < array_length(animation.markers))?
+		animation.markers[marker_index][1]:
+		-1;
+}
+
+// @desc Returns marker name, Empty string if out of bounds
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} marker_index
+/// @return {Real}
+function VBM_ModelAnimation_GetMarkerName(animation, marker_index) {
+	return (marker_index >= 0 && marker_index < array_length(animation.markers))?
+		animation.markers[marker_index][0]:
+		"";
+}
+
+// @desc Returns marker frame, -1 if name not found
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} marker_name
+/// @return {Real}
+function VBM_ModelAnimation_FindMarkerFrame(animation, marker_name) {
+	return variable_struct_exists(animation.marker_map, marker_name)? 
+		animation.marker_map[$ marker_name]:
+		-1;
+}
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetCurveCount(animation) {
+	return animation.curve_count;
+}
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetBoneCurveCount(animation) {
+	return animation.props_offset;
+}
+
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @return {Real}
+function VBM_ModelAnimation_GetPropCurveCount(animation) {
+	return animation.curve_count - animation.props_offset;
+}
 
 /// @param {Struct.VBM_ModelAnimation} animation
 /// @return {String}
@@ -373,6 +471,19 @@ function VBM_ModelAnimation_GetCurveName(animation, curve_index) {
 /// @return {Real}
 function VBM_ModelAnimation_GetCurveSize(animation, curve_index) {
 	return animation.curve_views[curve_index*VBM_ANIMATIONVIEW._len+VBM_ANIMATIONVIEW.size];
+}
+
+/// @desc Returns animcurve_channel from curve
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} curve_index
+/// @param {Real} channel_index
+/// @return {Struct.GMAnimCurveChannel, Undefined}
+function VBM_ModelAnimation_GetCurveChannel(animation, curve_index, channel_index) {
+	var _offset = animation.curve_views[curve_index*VBM_ANIMATIONVIEW._len+VBM_ANIMATIONVIEW.offset];
+	var _size = animation.curve_views[curve_index*VBM_ANIMATIONVIEW._len+VBM_ANIMATIONVIEW.size];
+	return (channel_index >= 0 && channel_index < _size)?
+		animation.animcurve.channels[_offset+channel_index]:
+		undefined;
 }
 
 /// @desc Returns animation frame corrected with animation loop point
@@ -572,14 +683,14 @@ function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start,
 
 function VBM_Model() constructor {
 	name = "";	// Name of collection model was exported from
-	format_key = 0;		// VBM format key that represents vertex format
+	format_mask = 0;		// Bitmask that represents vertex format
 	vertex_format = -1;	// Vertex format that matches vertex buffer
 	vertex_buffer = -1;	// Individual meshes accessed through loop start
 	bone_namesum = 0;	// Sum of bone names used to speed up lookup tables when processing animations
 	
 	bones_name_to_index = {};	// Map of {bone_name: bone_index} for each bone
 	
-	texture_sprites = [];	// Array of sprites used as texture references
+	textures = [];	// Array of VBM_Texturedef
 	meshdefs = [];	// Array of VBM_ModelMeshdef
 	bones = [];		// Array of VBM_ModelBone
 	materials = [];	// Array of VBM_ModelMaterial
@@ -600,34 +711,40 @@ function VBM_Model_Free(model) {
 	n = array_length(model.meshdefs);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelMeshdef_Free(model.meshdefs[i]);
+		delete model.meshdefs[i];
 	}
 	
 	n = array_length(model.bones);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelBone_Free(model.bones[i]);
+		delete model.bones[i];
+	}
+	
+	n = array_length(model.textures);
+	for (var i = 0; i < n; i++) {
+		VBM_ModelTexture_Free(model.textures[i]);
+		delete model.textures[i];
 	}
 	
 	n = array_length(model.materials);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelMaterial_Free(model.materials[i]);
+		delete model.materials[i];
 	}
 	
 	n = array_length(model.animations);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelAnimation_Free(model.animations[i]);
+		delete model.animations[i];
 	}
 	
 	n = array_length(model.prisms);
 	for (var i = 0; i < n; i++) {
 		VBM_ModelPrism_Free(model.prisms[i]);
+		delete model.prisms[i];
 	}
 	
 	// Non-VBM data ............................
-	n = array_length(model.texture_sprites);
-	for (var i = 0; i < n; i++) {
-		sprite_delete(model.texture_sprites[i]);
-	}
-	
 	vertex_delete_buffer(model.vertex_buffer);
 	vertex_format_delete(model.vertex_format);
 };
@@ -672,7 +789,7 @@ function VBM_Model_GetMaterialCount(model) {
 /// @param {Struct.VBM_Model} model
 /// @return {Real}
 function VBM_Model_GetTextureCount(model) {
-	return array_length(model.texture_sprites);
+	return array_length(model.textures);
 }
 
 /// @param {Struct.VBM_Model} model
@@ -687,6 +804,14 @@ function VBM_Model_GetVertexBuffer(model) {
 	return model.vertex_buffer;
 }
 
+/// @desc Returns vbm texture struct in model
+/// @param {Struct.VBM_Model} model
+/// @param {Real} texture_index
+/// @return {Struct.VBM_Texture}
+function VBM_Model_GetTexture(model, texture_index) {
+	return (texture_index >= 0 && texture_index < array_length(model.textures))? model.textures[texture_index]: undefined;
+}
+
 /// @desc Returns sprite that represents the texture in model
 /// @param {Struct.VBM_Model} model
 /// @param {Real} index
@@ -695,20 +820,29 @@ function VBM_Model_GetTextureSprite(model, index) {
 	return (index >= 0 && index < array_length(model.texture_sprites))? model.texture_sprites[index]: -1;
 }
 
-/// @desc Returns sprite that represents the texture in model
+/// @desc Returns texture pointer to submit when rendering
 /// @param {Struct.VBM_Model} model
-/// @param {Pointer.Texture, Real} texture_index
-function VBM_Model_GetTexture(model, texture_index) {
-	return (texture_index >= 0 && texture_index < array_length(model.texture_sprites))? 
-		sprite_get_texture(model.texture_sprites[texture_index], 0): 
+/// @param {Real} texture_index
+/// @return {Pointer.Texture, Real}
+function VBM_Model_GetTexturePointer(model, texture_index) {
+	return (texture_index >= 0 && texture_index < array_length(model.textures))? 
+		sprite_get_texture(model.textures[texture_index].sprite, 0): 
 		-1;
 }
 
-/// @desc Adds texture sprite to model
+/// @desc Adds texture sprite to model and returns its index
 /// @param {Struct.VBM_Model} model
 /// @param {Id.Sprite} sprite
-function VBM_Model_AddTextureSprite(model, sprite) {
-	array_push(model.texture_sprites, sprite);
+/// @param {Bool} [free_on_delete]
+/// @return {Real}
+function VBM_Model_AddTextureSprite(model, sprite, free_on_delete=false) {
+	var texture = new VBM_ModelTexture();
+	texture.sprite = sprite;
+	if ( free_on_delete ) {
+		texture |= VBM_TEXTUREFLAG.FREEONDELETE;
+	}
+	array_push(model.textures, texture);
+	return array_length(model.textures)-1;
 }
 
 /// @param {Struct.VBM_Model} model
@@ -723,6 +857,78 @@ function VBM_Model_GetMeshdef(model, index) {
 /// @return {String}
 function VBM_Model_GetMeshdefName(model, index) {
 	return (index >= 0 && index < array_length(model.meshdefs))? model.meshdefs[index].name: "";
+}
+
+/// @desc Sets material of mesh at index
+/// @param {Struct.VBM_Model} model
+/// @param {Real} mesh_index
+/// @param {Real} material_index
+function VBM_Model_MeshSetMaterial(model, mesh_index, material_index) {
+	model.meshdefs[mesh_index].material_index = material_index;
+}
+
+/// @desc Sets material of all meshes in layermask
+/// @param {Struct.VBM_Model} model
+/// @param {Real} mesh_layer_mask
+/// @param {Real} material_index
+function VBM_Model_MeshSetMaterialByLayer(model, mesh_layer_mask, material_index) {
+	var n = array_length(model.meshdefs);
+	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
+		if ( (model.meshdefs[mesh_index].layer_mask & mesh_layer_mask) != 0 ) {
+			model.meshdefs[mesh_index].material_index = material_index;
+		}
+	}
+}
+
+/// @desc Sets mesh layers to match its index (mesh[index].layer = (1<<index) ). Indices above 32 are not written
+/// @param {Struct.VBM_Model} model
+function VBM_Model_MeshLayerFillByIndex(model) {
+	var n = array_length(model.meshdefs);
+	if ( n >= VBM_LAYERMASKSIZE ) {n = VBM_LAYERMASKSIZE-1;}
+	
+	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
+		model.meshdefs[mesh_index].layer_mask = (1<<mesh_index);
+	}
+}
+
+/// @desc Sets material of all meshes in layermask
+/// @param {Struct.VBM_Model} model
+/// @param {Real} old_material_index
+/// @param {Real} new_material_index
+function VBM_Model_MeshReplaceMaterial(model, old_material_index, new_material_index) {
+	var n = array_length(model.meshdefs);
+	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
+		if ( model.meshdefs[mesh_index].material_index == old_material_index ) {
+			model.meshdefs[mesh_index].material_index = new_material_index;
+		}
+	}
+}
+
+/// @param {Struct.VBM_Model} model
+/// @param {Real} material_index
+/// @return {Struct.Material, Undefined}
+function VBM_Model_GetMaterial(model, material_index) {
+	return (material_index >= 0 && material_index < array_length(model.materials))? model.materials[material_index]: undefined;
+}
+
+/// @desc Adds material to model and returns its index
+/// @param {Struct.VBM_Model} model
+/// @param {String} material_name
+/// @param {String} shader_name
+/// @param {Real} texture_index
+/// @param {Real} [material_texture_flags]
+/// @param {Real} [material_flags]
+/// @return {Real}
+function VBM_Model_AddMaterial(model, material_name, shader_name, texture_index, material_texture_flags=VBM_DEFAULT_MATERIALTEXTUREFLAG, material_flags=VBM_DEFAULT_MATERIALFLAG) {
+	var mtl = new VBM_ModelMaterial();
+	mtl.name = material_name;
+	mtl.texture_indices[0] = texture_index;
+	mtl.texture_flags[0] = material_texture_flags;
+	mtl.shader_name = shader_name;
+	mtl.flags = material_flags;
+	array_push(model.materials, mtl);
+	
+	return array_length(model.materials)-1;
 }
 
 /// @param {Struct.VBM_Model} model
@@ -768,12 +974,37 @@ function VBM_Model_GetBoneDepth(model, index) {
 	return _depth;
 }
 
+function __VBM_Model_PrintBoneTree(model, bone_index, parent_index, depth) {
+	var bone = model.bones[bone_index];
+	var text = "";
+	
+	text += string_replace_all(string_format(bone_index,3,0), " ", "0") + " ";
+	for (var i = 0; i < depth; i++) {text += "| ";}
+	text += bone.name;
+	show_debug_message(text);
+	
+	var n = array_length(model.bones);
+	for (var b = 0; b < n; b++) {
+		bone = model.bones[b];
+		if ( bone.parent_index == bone_index ) {
+			__VBM_Model_PrintBoneTree(model, b, b, depth+1);
+		}
+	}
+}
+
+/// @desc Prints bone tree in order of parent
 /// @param {Struct.VBM_Model} model
-/// @param {Real} index
-/// @return {Struct.Material, Undefined}
-function VBM_Model_GetMaterial(model, index) {
-	return (index >= 0 && index < array_length(model.materials))? 
-		model.materials[index]: undefined;
+function VBM_Model_PrintBoneTree(model) {
+	var text = "";
+	var bone;
+	var n = array_length(model.bones);
+	
+	for (var b = 0; b < n; b++) {
+		bone = model.bones[b];
+		if ( bone.parent_index == VBM_NULLINDEX ) {
+			__VBM_Model_PrintBoneTree(model, b, VBM_NULLINDEX, 0);
+		}
+	}
 }
 
 /// @param {Struct.VBM_Model} model
@@ -911,13 +1142,13 @@ function VBM_Model_GetBonesByLayer(model, layer_mask, out_bones, out_capacity) {
 /// @param {Array<Real>} matrix
 /// @param {Real} [layermask]
 /// @param {Bool} [change_drawstate]
-function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, change_shader=false) {
+function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_drawstate=true, change_shader=false) {
 	var drawflags = ~0;
 	var n = array_length(model.meshdefs);
 	var meshdef, mtl, tex, shd;
 	var m;
 	
-	tex = VBM_Model_GetTexture(model, 0);
+	tex = VBM_Model_GetTexturePointer(model, 0);
 	
 	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
 		meshdef = model.meshdefs[mesh_index];
@@ -926,7 +1157,7 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 		
 		if ( change_drawstate ) {
 			mtl = VBM_Model_GetMaterial(model, meshdef.material_index);
-		
+			
 			if ( !is_undefined(mtl) ) {
 				// Compare drawstate to reduce gpu calls
 				if ( mtl.flags != drawflags ) {
@@ -935,9 +1166,9 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 					// Set gpu state
 					gpu_set_zwriteenable( (mtl.flags & VBM_MATERIALFLAG.USEDEPTH)? 1: 0);
 					gpu_set_ztestenable( (mtl.flags & VBM_MATERIALFLAG.USEDEPTH)? 1: 0);
-					gpu_set_cullmode( (mtl.flags & VBM_MATERIALFLAG.CULLFRONT)? cull_counterclockwise: cull_clockwise );
+					gpu_set_cullmode( (mtl.flags & VBM_MATERIALFLAG.USECULLING)? cull_clockwise: cull_noculling);
 					gpu_set_blendenable( (mtl.flags & VBM_MATERIALFLAG.TRANSPARENT)? 1: 0 );
-				
+					
 					// Set shader
 					if ( change_shader ) {
 						shd = asset_get_index(mtl.shader_name);
@@ -948,15 +1179,15 @@ function VBM_Model_Submit(model, matrix, layermask=~0, change_drawstate=true, ch
 				
 						// Set textures. 0 is passed in w/ vertex_submit()
 						if ( shd != -1 ) {
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE0), VBM_Model_GetTexture(model, 0));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE1), VBM_Model_GetTexture(model, 1));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE2), VBM_Model_GetTexture(model, 2));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE3), VBM_Model_GetTexture(model, 3));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE0), VBM_Model_GetTexturePointer(model, 0));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE1), VBM_Model_GetTexturePointer(model, 1));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE2), VBM_Model_GetTexturePointer(model, 2));
+							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE3), VBM_Model_GetTexturePointer(model, 3));
 						}
 					}
 				}
 				
-				tex = VBM_Model_GetTexture(model, mtl.texture_indices[0]);
+				tex = VBM_Model_GetTexturePointer(model, mtl.texture_indices[0]);
 				if ( mtl.texture_flags[0] & VBM_MATERIALTEXTUREFLAG.FILTERLINEAR ) {gpu_set_tex_filter(1);}
 				else {gpu_set_tex_filter(0);}
 			}
@@ -997,7 +1228,7 @@ function VBM_Model_SubmitMesh(model, mesh_index, texture=VBM_SUBMIT_TEXDEFAULT) 
 		var mtl = VBM_Model_GetMaterial(model, meshdef.material_index);
 		texture = VBM_Model_GetTexture(model, mtl? mtl.texture_indices[0]: -1);
 	}
-		
+	
 	// Submit region of vertex buffer
 	vertex_submit_ext(
 		model.vertex_buffer,
@@ -1014,27 +1245,51 @@ function VBM_Model_SubmitMesh(model, mesh_index, texture=VBM_SUBMIT_TEXDEFAULT) 
 #region // MODEL ANIMATION
 // ===========================================================
 
+/// @desc Evaluate animation in single pass using output array as space for all operations
+/// @param {Struct.VBM_Model} model
+/// @param {Struct.VBM_ModelAnimation} animation
+/// @param {Real} animation_frame
+/// @param {Array<Real>} outmat4skinning_1d
+function VBM_Model_EvaluateAnimationEasy(model, animation, animation_frame, outmat4skinning_1d) {
+	VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame, outmat4skinning_1d, ~0, 16);
+	VBM_Model_EvaluateTransformMatrices(model, outmat4skinning_1d, outmat4skinning_1d, ~0, undefined, 16);
+	VBM_Model_EvaluateSkinningMatrices(model, outmat4skinning_1d, outmat4skinning_1d);
+}
+
 /// @desc Evaluates transforms from animation
 /// @param {Struct.VBM_Model} model
 /// @param {Struct.VBM_ModelAnimation} animation
 /// @param {Real} animation_frame
 /// @param {Array<Real>} outtransforms_1d
 /// @param {Real} [bone_layer_mask]
-function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame, outtransforms_1d, bone_layer_mask=~0) {
+/// @param {Real} [_transformstride]
+function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame, outtransforms_1d, bone_layer_mask=VBM_LAYERMASKALL, _transformstride=VBM_TRANSFORM._len) {
 	//if ( !model || !animation ) {return;}
 	var curve_count = animation.props_offset;
 	var t = 0, bone_index = 0, c = 0, curve_index = 0;
 	var animcurve = animation.animcurve;
 	var posx = VBM_ModelAnimation_EvaluateFramePosition(animation, animation_frame);
+	
 	var use_remap_index = animation.namesum != model.bone_namesum;
+	var bones = model.bones;
+	var bones_name_to_index = model.bones_name_to_index;
+	var curve_names = animation.curve_names;
 	
 	repeat(curve_count) {
 		if ( use_remap_index ) {
-			bone_index = VBM_Model_FindBoneIndex(model, animation.curve_names[curve_index]);
-			t = bone_index * VBM_TRANSFORM._len;
+			bone_index = bones_name_to_index[$ curve_names[curve_index]];
+			if ( bone_index == undefined ) {
+				bone_index = -1;	
+			}
+			else {
+				t = bone_index * _transformstride;
+			}
 		}
 			
-		if ( bone_index != -1 && (model.bones[bone_index].layer_mask & bone_layer_mask) != 0 ) {
+		if ( 
+			bone_index != -1 && 
+			( bone_layer_mask == ~0 || ((bones[bone_index].layer_mask & bone_layer_mask) != 0) ) 
+		) {
 			outtransforms_1d[t+0] = animcurve_channel_evaluate(animcurve.channels[c+0], posx);
 			outtransforms_1d[t+1] = animcurve_channel_evaluate(animcurve.channels[c+1], posx);
 			outtransforms_1d[t+2] = animcurve_channel_evaluate(animcurve.channels[c+2], posx);
@@ -1046,7 +1301,7 @@ function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame
 			outtransforms_1d[t+8] = animcurve_channel_evaluate(animcurve.channels[c+8], posx);
 			outtransforms_1d[t+9] = animcurve_channel_evaluate(animcurve.channels[c+9], posx);
 		}
-		t += VBM_TRANSFORM._len;
+		t += _transformstride;
 		c += VBM_TRANSFORM._len;
 		curve_index++;
 		bone_index++;
@@ -1061,7 +1316,7 @@ function VBM_Model_EvaluateAnimationTransforms(model, animation, animation_frame
 /// @param {Array<Real>} lasttransforms_1d
 /// @param {Array<Real>} outtransforms_1d
 /// @param {Real} [bone_layer_mask]
-function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation_frame, blend_amt, lasttransforms_1d, outtransforms_1d, bone_layer_mask=~0) {
+function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation_frame, blend_amt, lasttransforms_1d, outtransforms_1d, bone_layer_mask=VBM_LAYERMASKALL, _transformstride=VBM_TRANSFORM._len) {
 	var curve_count = animation.props_offset;	// Bones come first
 	var animcurve = animation.animcurve;
 	var t = 0, bone_index = 0, c = 0, curve_index = 0;
@@ -1072,7 +1327,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 		repeat(curve_count) {
 			if ( use_remap_index ) {
 				bone_index = VBM_Model_FindBoneIndex(model, animation.curve_names[curve_index]);
-				t = bone_index * VBM_TRANSFORM._len;
+				t = bone_index * _transformstride;
 			}
 			
 			if ( bone_index != -1 && (model.bones[bone_index].layer_mask & bone_layer_mask) != 0 ) {
@@ -1087,7 +1342,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 				outtransforms_1d[t+8] = lerp(lasttransforms_1d[t+8], animcurve_channel_evaluate(animcurve.channels[c+8], posx), blend_amt);
 				outtransforms_1d[t+9] = lerp(lasttransforms_1d[t+9], animcurve_channel_evaluate(animcurve.channels[c+9], posx), blend_amt);
 			}
-			t += VBM_TRANSFORM._len;
+			t += _transformstride;
 			c += VBM_TRANSFORM._len;
 			bone_index++;
 			curve_index++;
@@ -1097,7 +1352,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 		repeat(curve_count) {
 			if ( use_remap_index ) {
 				bone_index = VBM_Model_FindBoneIndex(model, animation.curve_names[curve_index]);
-				t = bone_index * VBM_TRANSFORM._len;
+				t = bone_index * _transformstride;
 			}
 			
 			if ( bone_index != -1 && (model.bones[bone_index].layer_mask & bone_layer_mask) != 0 ) {
@@ -1112,7 +1367,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 				outtransforms_1d[t+8] = animcurve_channel_evaluate(animcurve.channels[c+8], posx);
 				outtransforms_1d[t+9] = animcurve_channel_evaluate(animcurve.channels[c+9], posx);
 			}
-			t += VBM_TRANSFORM._len;
+			t += _transformstride;
 			c += VBM_TRANSFORM._len;
 			bone_index++;
 			curve_index++;
@@ -1126,7 +1381,7 @@ function VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, animation
 /// @param {Array<Array<Real>>} outmat4modelspace_1d
 /// @param {Real} [bone_layer_mask]
 /// @param {Array<Array<Real>>} [outmat4bonespace_2d]
-function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4modelspace_1d, bone_layer_mask=~0, outmat4bonespace_2d=undefined) {
+function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4modelspace_1d, bone_layer_mask=VBM_LAYERMASKALL, outmat4bonespace_2d=undefined, _transformstride=VBM_TRANSFORM._len) {
 	//if ( !model ) {return;}
 	
 	var bone_count = array_length(model.bones);
@@ -1142,61 +1397,56 @@ function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4models
 		bone = model.bones[bone_index];
 		
 		// Check if layers match
-		if ( (bone.layer_mask & bone_layer_mask) == 0 ) {
-			bone_index++;
-			b += 16;
-			t += VBM_TRANSFORM._len;
-			continue;
-		}
-		
-		// Parent-space matrix = mat4_compose(location, quat, scale)
-		qw = transforms_1d[t+VBM_TRANSFORM.qw];
-		qx = transforms_1d[t+VBM_TRANSFORM.qx];
-		qy = transforms_1d[t+VBM_TRANSFORM.qy];
-		qz = transforms_1d[t+VBM_TRANSFORM.qz];
-		sx = transforms_1d[t+VBM_TRANSFORM.sx];
-		sy = transforms_1d[t+VBM_TRANSFORM.sy];
-		sz = transforms_1d[t+VBM_TRANSFORM.sz];
-		xx = sqr(qx); xy = qx*qy; xz = qx*qz; xw = qx*qw;
-		yy = sqr(qy); yz = qy*qz; yw = qy*qw; zz = sqr(qz); zw = qz*qw;
+		if ( (bone.layer_mask & bone_layer_mask) != 0 ) {
+			// Parent-space matrix = mat4_compose(location, quat, scale)
+			qw = transforms_1d[t+VBM_TRANSFORM.qw];
+			qx = transforms_1d[t+VBM_TRANSFORM.qx];
+			qy = transforms_1d[t+VBM_TRANSFORM.qy];
+			qz = transforms_1d[t+VBM_TRANSFORM.qz];
+			sx = transforms_1d[t+VBM_TRANSFORM.sx];
+			sy = transforms_1d[t+VBM_TRANSFORM.sy];
+			sz = transforms_1d[t+VBM_TRANSFORM.sz];
+			xx = sqr(qx); xy = qx*qy; xz = qx*qz; xw = qx*qw;
+			yy = sqr(qy); yz = qy*qz; yw = qy*qw; zz = sqr(qz); zw = qz*qw;
 
-		m[VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
-		m[VBM_M01] = (2.0 * (xy - zw)) * sx;
-		m[VBM_M02] = (2.0 * (xz + yw)) * sx;
-		m[VBM_M03] = transforms_1d[t+VBM_TRANSFORM.x];	// x
-		m[VBM_M10] = (2.0 * (xy + zw)) * sy;
-		m[VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
-		m[VBM_M12] = (2.0 * (yz - xw)) * sy;
-		m[VBM_M13] = transforms_1d[t+VBM_TRANSFORM.y];	// y
-		m[VBM_M20] = (2.0 * (xz - yw)) * sz;
-		m[VBM_M21] = (2.0 * (yz + xw)) * sz;
-		m[VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
-		m[VBM_M23] = transforms_1d[t+VBM_TRANSFORM.z];	// z
-		//m[VBM_M30] = 0.0;
-		//m[VBM_M31] = 0.0;
-		//m[VBM_M32] = 0.0;
-		m[VBM_M33] = 1.0;
+			m[VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
+			m[VBM_M01] = (2.0 * (xy - zw)) * sx;
+			m[VBM_M02] = (2.0 * (xz + yw)) * sx;
+			m[VBM_M03] = transforms_1d[t+VBM_TRANSFORM.x];	// x
+			m[VBM_M10] = (2.0 * (xy + zw)) * sy;
+			m[VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
+			m[VBM_M12] = (2.0 * (yz - xw)) * sy;
+			m[VBM_M13] = transforms_1d[t+VBM_TRANSFORM.y];	// y
+			m[VBM_M20] = (2.0 * (xz - yw)) * sz;
+			m[VBM_M21] = (2.0 * (yz + xw)) * sz;
+			m[VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
+			m[VBM_M23] = transforms_1d[t+VBM_TRANSFORM.z];	// z
+			//m[VBM_M30] = 0.0;
+			//m[VBM_M31] = 0.0;
+			//m[VBM_M32] = 0.0;
+			m[VBM_M33] = 1.0;
 		
-		m = VBM_MAT4_MUTLIPLY(m, bone.matrix_relative);
-		if ( outmat4bonespace_2d ) {
-			array_copy(outmat4bonespace_2d[bone_index], 0, m, 0, 15);
-		}
-		
-		// Reduce number of matrix reads by checking change in parents from last bone
-		if ( parent_index != bone.parent_index ) {
-			parent_index = bone.parent_index;
-			if ( parent_index != VBM_NULLINDEX ) {
-				array_copy(mparent, 0, outmat4modelspace_1d, 16*parent_index, 15);
+			m = VBM_MAT4_MUTLIPLY(m, bone.matrix_relative);
+			if ( outmat4bonespace_2d ) {
+				array_copy(outmat4bonespace_2d[bone_index], 0, m, 0, 15);
 			}
-		}
 		
-		// Model-space matrix = Relative * Parent
-		m = VBM_MAT4_MUTLIPLY(m, mparent);
-		array_copy(outmat4modelspace_1d, b, m, 0, 15);
+			// Reduce number of matrix reads by checking change in parents from last bone
+			if ( parent_index != bone.parent_index ) {
+				parent_index = bone.parent_index;
+				if ( parent_index != VBM_NULLINDEX ) {
+					array_copy(mparent, 0, outmat4modelspace_1d, 16*parent_index, 15);
+				}
+			}
+		
+			// Model-space matrix = Relative * Parent
+			m = VBM_MAT4_MUTLIPLY(m, mparent);
+			array_copy(outmat4modelspace_1d, b, m, 0, 15);
+		}
 		
 		bone_index++;
 		b += 16;
-		t += VBM_TRANSFORM._len;
+		t += _transformstride;
 	}
 }
 
@@ -1209,7 +1459,8 @@ function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4models
 function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat4modelspace_1d, time_factor=1.0) {
 	//if ( !model ) {return;}
 	
-	var bone_count = array_length(model.bones);
+	var bones = model.bones;
+	var bone_count = array_length(bones);
 	var bone_index, parent_index = -1;
 	var bone;
 	
@@ -1226,12 +1477,13 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 	
 	var i, b, p;
 	
-	// Origin -> Vertex
 	bone_index = 0;
 	b = 0;
 	p = 0;
+	
+	// Iterate bones
 	repeat(bone_count) {
-		bone = model.bones[bone_index];
+		bone = bones[bone_index];
 		
 		// Swing not enabled, skip bone
 		if ( !VBM_ModelBone_SwingEnabled(bone) ) {
@@ -1247,7 +1499,7 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 		
 		// Staging ...............................................
 		bone_length = bone.length;
-		if ( bone_length <= 0.0 ) {bone_length = model.bones[bone.parent_index].length/2;}	// Use parent bone
+		if ( bone_length <= 0.0 ) {bone_length = bones[bone.parent_index].length/2;}	// Use parent bone
 		
 		// Reduce number of matrix reads by checking change in parents from last bone
 		if ( parent_index != bone.parent_index ) {
@@ -1427,7 +1679,7 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 		vz = (vz - rz) / d;
 		
 		d = (
-			dot_product_3d(ux, uy, uz, vx, vy, vz) / 
+			dot_product_3d(ux, uy, uz, vx, vy, vz) /
 			dot_product_3d(vx, vy, vz, vx, vy, vz)
 		);
 		ux = ux - (vx * d);
@@ -1438,7 +1690,7 @@ function VBM_Model_EvaluateSwingMatrices(model, mat4_world, particles_1d, outmat
 		gx = uy*vz - uz*vy;
 		gy = uz*vx - ux*vz;
 		gz = ux*vy - uy*vx;
-	
+		
 		d = point_distance_3d(0,0,0, gx, gy, gz);
 		gx /= d; gy /= d; gz /= d;
 		
@@ -1491,7 +1743,7 @@ function VBM_Model_EvaluateSkinningMatrices(model, mat4modelspace_1d, outmat4ski
 /// @param {Struct.VBM_Model} model
 /// @param {Array<Array<Real>>} outmat4modelspace_1d
 /// @param {Real} [bone_layer_mask]
-function VBM_Model_EvaluateBindMatrices(model, outmat4modelspace_1d, bone_layer_mask=~0) {
+function VBM_Model_EvaluateBindMatrices(model, outmat4modelspace_1d, bone_layer_mask=VBM_LAYERMASKALL) {
 	var bone_count = array_length(model.bones);
 	var m = matrix_build_identity(), mparent = matrix_build_identity();
 	var bone;
@@ -1637,14 +1889,14 @@ function VBM_ParticleApplyForce(particles_1d, force_x, force_y, force_z, time_st
 /// @desc Opens and loads vbm data from file. Returns 1 if successful
 /// @param {Struct.VBM_Model} outvbm
 /// @param {String} filepath
-/// @param {Real} [openflags]
+/// @param {Real} [vbm_openflags]
 /// @return {Real}
-function VBM_Model_Open(outvbm, filepath, openflags=0) {
+function VBM_Model_Open(outvbm, filepath, vbm_openflags=0) {
 	var f = buffer_load(filepath);
 	if ( f == -1 ) {
 		return 0;
 	}
-	var success = VBM_Model_Load(outvbm, f, 0, openflags);
+	var success = VBM_Model_Load(outvbm, f, 0, buffer_get_size(f), vbm_openflags);
 	buffer_delete(f);
 	return success;
 }
@@ -1653,9 +1905,10 @@ function VBM_Model_Open(outvbm, filepath, openflags=0) {
 /// @param {Struct.VBM_Model} outvbm
 /// @param {Id.Buffer} file_buffer
 /// @param {Real} file_buffer_offset
-/// @param {Real} [openflags]
+/// @param {Real} file_buffer_size
+/// @param {Real} [vbm_openflags]
 /// @return {Real}
-function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
+function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_size, vbm_openflags=0) {
 	var _startingoffset = buffer_tell(file_buffer);
 	var f = file_buffer;
 	buffer_seek(f, buffer_seek_start, file_buffer_offset);
@@ -1665,6 +1918,20 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 	header_ord[1] = buffer_read(f, buffer_u8);
 	header_ord[2] = buffer_read(f, buffer_u8);
 	header_ord[3] = buffer_read(f, buffer_u8);
+	
+	// Check compression header
+	if ( header_ord[0] == 0x78 && (header_ord[1]==0x01 || header_ord[1]==0x5E || header_ord[1]==0x9C || header_ord[1]==0xDA) ) {
+		var b = buffer_create(file_buffer_size, buffer_fixed, 1);
+		buffer_copy(f, file_buffer_offset, file_buffer_size, b, 0);
+		var bdecompressed = buffer_decompress(b);
+		
+		var success = VBM_Model_Load(outvbm, bdecompressed, 0, buffer_get_size(bdecompressed), vbm_openflags);
+		buffer_delete(b);
+		buffer_delete(bdecompressed);
+		
+		buffer_seek(f, buffer_seek_start, _startingoffset);
+		return success;
+	}
 	
 	// Check VBM header = "VBM" + 5
 	if ( 
@@ -1694,7 +1961,9 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 		chunk_len = buffer_read(f, buffer_s32);
 		chunk_jump = buffer_tell(f) + chunk_len;
 		
-		//show_debug_message(chunk_type);
+		if ( vbm_openflags & VBM_OPENFLAGS.PRINTDEBUG ) {
+			show_debug_message(chunk_type+string(chunk_version)+": " + string_format(chunk_len/1_000_000,1,4)+" MB");
+		}
 		
 		// End .......................................
 		if ( chunk_type == "END" ) {
@@ -1706,16 +1975,69 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 		}
 		// Vertex Buffer .............................
 		else if ( chunk_type == "VTX" ) {
-			var format_key = buffer_read(f, buffer_s32);
+			var flags = 0;
+			if ( chunk_version > 0 ) {
+				flags = buffer_read(f, buffer_u32);
+			}
+			var format_mask = buffer_read(f, buffer_s32);
 			var buffer_size = buffer_read(f, buffer_u32);
-			var stride = VBM_FormatStride(format_key);
+			var stride = VBM_FormatStride(format_mask);
 			
-			outvbm.format_key = format_key;
-			outvbm.vertex_format = VBM_FormatBuild(format_key);
+			outvbm.format_mask = format_mask;
+			outvbm.vertex_format = VBM_FormatBuild(format_mask);
 			
-			outvbm.vertex_buffer = vertex_create_buffer_from_buffer_ext(
-				f, outvbm.vertex_format, buffer_tell(f), buffer_size / stride
-			);
+			// Uncompressed buffer
+			if ( (flags & __VBM_VTX_COMPRESSED) == 0 ) {
+				outvbm.vertex_buffer = vertex_create_buffer_from_buffer_ext(
+					f, outvbm.vertex_format, buffer_tell(f), buffer_size / stride
+				);
+			}
+			// Compressed buffer
+			else {
+				var attribute_count = buffer_read(f, buffer_u32);
+				var attribute_sets = array_create(attribute_count);
+				var attribute_spaces = array_create(attribute_count);
+				
+				for (var a = 0; a < attribute_count; a++) {
+					var n = buffer_read(f, buffer_u32);
+					attribute_spaces[a] = buffer_read(f, buffer_u32);
+					
+					var attribute_buffer_size = n*attribute_spaces[a];
+					attribute_sets[a] = buffer_create(attribute_buffer_size, buffer_fixed, 4);
+					
+					buffer_copy(f, buffer_tell(f), attribute_buffer_size, attribute_sets[a], 0);
+					buffer_seek(f, buffer_seek_relative, attribute_buffer_size);
+				}
+				
+				var vb = buffer_create(buffer_size, buffer_fixed, 4);
+				var loop_count = buffer_size / stride;
+				
+				var l = 0;	// Loop Index
+				var a = 0;	// Attribute Index
+				var s = 0;	// Attribute Space
+				var i = 0;	// Attribute Set index
+				var o = 0;	// Output Buffer Offset
+				repeat(loop_count) {	// For each vertex loop...
+					a = 0;
+					repeat(attribute_count) {	// For each attribute index...
+						s = attribute_spaces[a];
+						i = buffer_read(f, buffer_u16);	// Get index to attribute set value
+						buffer_copy(attribute_sets[a], i*s, s, vb, o);	// Write attribute set value to output buffer
+						a++;
+						o += s;
+					}
+					l++;
+				}
+				
+				// Create VB from B
+				outvbm.vertex_buffer = vertex_create_buffer_from_buffer(vb, outvbm.vertex_format);
+				
+				// Free temporary buffers
+				for (a = 0; a < attribute_count; a++) {
+					buffer_delete(attribute_sets[a]);
+				}
+				buffer_delete(vb);
+			}
 			
 			vertex_freeze(outvbm.vertex_buffer);
 		}
@@ -1829,8 +2151,10 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 		// Textures ......................................
 		else if ( chunk_type == "TEX" ) {
 			var texture_count = buffer_read(f, buffer_u32);
-			outvbm.texture_sprites = array_create(texture_count);
+			outvbm.textures = array_create(texture_count);
 			for (var texture_index = 0; texture_index < texture_count; texture_index++) {
+				var texdef = new VBM_ModelTexture();
+				
 				var width = buffer_read(f, buffer_u32);
 				var height = buffer_read(f, buffer_u32);
 				var palette_size = buffer_read(f, buffer_u32);
@@ -1856,7 +2180,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 				// Create sprite that holds texture
 				var surf = surface_create(width, height, surface_rgba8unorm);
 				buffer_set_surface(pixels, surf, 0);
-				var tex = sprite_create_from_surface(surf, 0,0,width,height, 0,0,0,0);
+				var texsprite = sprite_create_from_surface(surf, 0,0,width,height, 0,0,0,0);
 				
 				// Cleanup
 				surface_free(surf);
@@ -1864,7 +2188,10 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 				surf = -1;
 				palette = -1;
 				
-				outvbm.texture_sprites[@ texture_index] = tex;
+				texdef.sprite = texsprite;
+				texdef.flags |= VBM_TEXTUREFLAG.FREEONDELETE;
+				
+				outvbm.textures[@ texture_index] = texdef;
 			}
 		}
 		// Bones ....................................
@@ -1938,6 +2265,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 				anim.flags = buffer_read(f, buffer_s32);
 				anim.name = buffer_read(f, buffer_string);
 				anim.duration = buffer_read(f, buffer_u32);
+				anim.fps_native = buffer_read(f, buffer_u32);
 				anim.loop_point = buffer_read(f, buffer_u32);
 				anim.curve_count = buffer_read(f, buffer_u32);
 				var channel_count = buffer_read(f, buffer_u32);
@@ -1948,6 +2276,20 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, openflags=0) {
 				anim.curve_views = array_create(anim.curve_count*VBM_ANIMATIONVIEW._len);
 				anim.animcurve = animcurve_create();
 				
+				// Read Marksers
+				if ( anim.flags & VBM_ANIMATIONFLAG.MARKERS ) {
+					var nummarkers = buffer_read(f, buffer_u32);
+					anim.markers = array_create(nummarkers);
+					anim.marker_map = {};
+					for (var marker_index = 0; marker_index < nummarkers; marker_index++) {
+						var markername = buffer_read(f, buffer_string);
+						var markerframe = buffer_read(f, buffer_f32);
+						anim.markers[marker_index] = [markername, markerframe];
+						anim.marker_map[$ markername] = markerframe;
+					}
+				}
+				
+				// Read Curve Data
 				var channel_offset = 0;
 				var channels = array_create(channel_count);
 				var channel = undefined;

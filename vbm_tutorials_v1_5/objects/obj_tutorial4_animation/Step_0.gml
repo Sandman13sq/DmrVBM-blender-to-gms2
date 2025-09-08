@@ -25,7 +25,7 @@ if ( keyboard_check_pressed(190) ) {	// ">"
 	mesh_flash = 1.0;
 }
 if ( keyboard_check_pressed(191) ) {	// "?"
-	mesh_visibility_mask ^= (1<<mesh_select);
+	mesh_visible_layermask ^= (1<<mesh_select);
 }
 
 // Navigate bones weight index
@@ -50,12 +50,18 @@ animation_blend = min(1.0, animation_blend+1.0/animation_blend_time);
 	Animation Process Order:
 		Animation - Sample transformations from animation frame
 		Matrices - Convert transformations to Model-space matrices
-		Swing (Optional) - Process swing bone particles for dynamic animation
+		*Swing - Process swing bone particles for dynamic animation (Optional)
 		Skinning - Convert Model-space matrices to Inverse Bind-space matrices for vertex skinning
 */
 if ( !is_undefined(animation) ) {
 	// Sample bone transforms from animation
 	VBM_Model_EvaluateAnimationTransforms_Blend(model, animation, playback_frame, animation_blend, bone_transforms, bone_transforms);
+	
+	if ( !is_undefined(animation_blink) ) {
+		// Blink animation only contains curves for eye bones, and will only update those values
+		VBM_Model_EvaluateAnimationTransforms_Blend(model, animation_blink, playback_frame, animation_blend, bone_transforms, bone_transforms);
+	}
+	
 	// Convert transforms into Model-space matrices
 	VBM_Model_EvaluateTransformMatrices(model, bone_transforms, bone_matrices);
 	// Update and apply swing particle transformations
@@ -66,4 +72,3 @@ if ( !is_undefined(animation) ) {
 	// Non-bone properties
 	VBM_ModelAnimation_SampleProps_Struct(animation, playback_frame, animation_props);
 }
-
