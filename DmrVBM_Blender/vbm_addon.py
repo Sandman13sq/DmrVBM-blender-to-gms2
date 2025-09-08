@@ -1217,6 +1217,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             else:
                 e[1].prop(collection.vbm, 'color_layer_name', text="", placeholder="<Active VC Layer>")
             e[2].prop(collection.vbm, 'color_layer_default', text="")
+            e[3].prop(collection.vbm, 'color_is_srgb', text="", icon='MOD_THICKNESS')
             
             e = [x.row(align=1) for x in c]
             e[0].label(text="UV", icon=VFORMAT_ICON[VFORMAT_INDEX['UVS']])
@@ -1324,9 +1325,9 @@ classlist.append(VBM_PT_Asset)
 "EXPORT"
 "================================================================================================================================================="
 
-def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pre=None, object_script_post=None):
+def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_script_pre=None, object_script_post=None):
     checksum_key = (
-        (action.name if action else "") + 
+        (action_pose.name if action_pose else "") + 
         (("%4d"%len(rig.data.bones)) if rig else "") + 
         (object_script_pre.name if object_script_pre else "") + 
         (object_script_post.name if object_script_post else "")
@@ -1339,6 +1340,7 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
             (
                 [x for v in src.matrix_local for x in v] +
                 [x for v in src.data.vertices for x in v.co] +
+                [vge.weight for v in src.data.vertices for vge in v.groups] +
                 [ord(x) for mtl in src.data.materials if mtl for x in mtl.name] +
                 [x for lyr in src.data.color_attributes for v in lyr.data for x in v.color] +
                 [x for lyr in src.data.uv_layers for v in lyr.uv for x in tuple(v.vector)]
@@ -1347,14 +1349,14 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
         [ord(x) for m in src.modifiers if ValidName(m.name) for x in m.name]+
         [v for m in src.modifiers if ValidName(m.name) for v in [getattr(m,p.identifier) for p in m.bl_rna.properties if not p.is_readonly] if isinstance(v, (bool,int,float))]+
         ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(src.find_armature())[0]) for x in bname] if src.find_armature() else [])+
-        ([x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] if action else [])+
+        ([x for fc in action_pose.fcurves for k in fc.keyframe_points for x in k.co] if action_pose else [])+
         ([ord(c) for script in [object_script_pre, object_script_post] if script for line in script.lines for c in line.body])+
         [apply_transform]
         )
     ]).tobytes()))
     
     if int(src.vbm.get('VBM_CHECKSUM'+checksum_key, -1)) != checksum or not src.vbm.get('VBM_DATA'+checksum_key, {}):
-        print("> Building mesh \"%s\"..." % src.name, action.name if action else "")
+        print("> Building mesh \"%s\"..." % src.name, action_pose.name if action_pose else "",  "(Checksum = %d)" % checksum)
         
         # Staging ............................................................................................
         context = bpy.context
@@ -1376,32 +1378,36 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
         
         # Action Pose
         if rig:
-            if action:
+            if action_pose:
                 if not rig.animation_data:
                     rig.animation_data_create()
                 rig.data.pose_position = 'POSE'
-                rig.animation_data.action = action
-                rig.animation_data.action_slot = action.slots[0]
+                rig.animation_data.action = action_pose
+                rig.animation_data.action_slot = action_pose.slots[0]
                 context.scene.frame_set(context.scene.frame_current)
         
         if apply_transform:
             bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         
+        def MeshScript(script, errortext):
+            if script:
+                context.scene[VBM_SCRIPTISEXPORTING] = True
+                obj.data.update()
+                err = ""
+                try:
+                    exec(script.as_string(), {})
+                except SyntaxError as err:
+                    print(errortext)
+                    print(err.lineno, err.args[0])
+                context.scene[VBM_SCRIPTISEXPORTING] = False
+                context.view_layer.objects.active = obj
+                obj.select_set(True)
+        
         # Pre Script
-        if object_script_pre:
-            context.scene['VBM_EXPORTING'] = True
-            err = ""
-            try:
-                err = exec(object_script_pre.as_string())
-            except:
-                print("> VBM: Error executing object Pre Script (%s)" % str(object_script_pre))
-                print(err)
-            context.scene['VBM_EXPORTING'] = False
-            context.view_layer.objects.active = obj
-            obj.select_set(True)
+        MeshScript(object_script_pre, "> VBM: Error executing object Pre Script (%s)" % str(object_script_pre))
         
         # Apply modifiers
-        use_skinning = use_skinning and not action
+        use_skinning = use_skinning and not action_pose
         for m in list(obj.modifiers):
             if not ValidName(m.name) or (m.type=='ARMATURE' and use_skinning):
                 bpy.ops.object.modifier_remove(modifier=m.name)
@@ -1425,17 +1431,7 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
             lyr.data.foreach_set('color', np.ones(len(lyr.data)*4))
         
         # Post Script
-        if object_script_post:
-            context.scene['VBM_EXPORTING'] = True
-            err = ""
-            try:
-                err = exec(object_script_post.as_string())
-            except:
-                print("> VBM: Error executing object Post Script (%s)" % str(object_script_post))
-                print(err)
-            context.scene['VBM_EXPORTING'] = False
-            context.view_layer.objects.active = obj
-            obj.select_set(True)
+        MeshScript(object_script_post, "> VBM: Error executing object Post Script (%s)" % str(object_script_post))
         
         # Data .........................................................................................................
         uvlyr = obj.data.uv_layers.get("UVMap", obj.data.uv_layers[0])
@@ -1451,7 +1447,6 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
         [v.sort(key=lambda x: x[1]) for v in skinning]  # Sort by weight
         skinning = [ (x+[(0,0.0), (0,0.0), (0,0.0), (0,0.0)])[:4] for x in skinning ]    # Add padding, Clamp to 4
         skinning = [ [(b,w/s) for b,w in v[:4]] for v in skinning for s in [sum([w for b,w in v[:4]])+0.00000001] ] # Normalize weights
-        gamma = 0.4545 if vclyr.name == 'STYLE' else 0.4545
         
         # Compose ..............................................................................................................
         verts, loops, tris = tuple(obj.data.vertices), tuple(obj.data.loops), tuple(obj.data.loop_triangles)
@@ -1470,7 +1465,7 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
                     mtlvbs[mtlname] = {k:b'' for k in VFORMAT_NAME}
                 
                 mtlvbs[mtlname]['POS'] += b''.join([PackVector('f', verts[loops[l].vertex_index].co) for l in mtlloops])
-                mtlvbs[mtlname]['COL'] += b''.join([PackVector('B', [int(255*(x**gamma)) for x in vcdata[l]]) for l in mtlloops])
+                mtlvbs[mtlname]['COL'] += b''.join([PackVector('B', [int(x*255) for x in vcdata[l]]) for l in mtlloops])
                 mtlvbs[mtlname]['UVS'] += b''.join([PackVector('f', uvdata[l]) for l in mtlloops])
                 mtlvbs[mtlname]['NOR'] += b''.join([PackVector('f', loops[l].normal) for l in mtlloops])
                 mtlvbs[mtlname]['TAN'] += b''.join([PackVector('f', loops[l].tangent) for l in mtlloops])
@@ -1481,7 +1476,7 @@ def MeshData(src, apply_transform=False, rig=None, action=None, object_script_pr
                 for vclyr in obj.data.color_attributes:
                     if vclyr.name not in mtlvbs[mtlname].keys():
                         mtlvbs[mtlname][vclyr.name] = b''
-                    mtlvbs[mtlname][vclyr.name] += b''.join([PackVector('B', [int(255*(x**gamma)) for x in vclyr.data[l].color]) for l in mtlloops])
+                    mtlvbs[mtlname][vclyr.name] += b''.join([PackVector('B', [int(x*255) for x in vclyr.data[l].color]) for l in mtlloops])
                 for uvlyr in obj.data.uv_layers:
                     if uvlyr.name not in mtlvbs[mtlname].keys():
                         mtlvbs[mtlname][uvlyr.name] = b''
@@ -1703,6 +1698,7 @@ def ExportModel(collection, report=True):
     materialitems = []
     textureitems = []
     animationitems = []
+    node_names = []
     
     modeldata = {k: [] for k in 'NAM VTX MSH PSM SKE TEX MTL ANI'.split()}
     chunkversionmap = {}
@@ -1719,6 +1715,7 @@ def ExportModel(collection, report=True):
         format_mask = state['format_mask']
         filecollection = state['collection']
         material_names = state['material_names']
+        node_names = state['node_names']
         
         object_script_pre = filecollection.vbm.object_script_pre
         object_script_post = filecollection.vbm.object_script_post
@@ -1766,7 +1763,15 @@ def ExportModel(collection, report=True):
                 
                 # Mesh .......................................................
                 else:
-                    mtlvbs = MeshData(obj, apply_transform=apply_transform, rig=rig, action=action_pose, object_script_pre=object_script_pre, object_script_post=object_script_post).items()
+                    mtlvbs = MeshData(
+                        obj, 
+                        apply_transform=apply_transform, 
+                        rig=rig, 
+                        action_pose=action_pose, 
+                        object_script_pre=object_script_pre, 
+                        object_script_post=object_script_post
+                    ).items()
+                    
                     for mtlname,mtlstreams in mtlvbs:
                         # Fix name
                         meshname = obj.name.split("/")[-1]
@@ -1776,10 +1781,10 @@ def ExportModel(collection, report=True):
                             meshname += "_"+mtlname
                         meshname = FixName(meshname)
                         
+                        # TODO: Properly code mesh ->node grouping
                         if meshname not in list(vbmap.keys()):
                             vbmap[meshname] = {'vb': b'', 'material': mtlname, 'node_index': node_index, 'layermask': layermask}
-                        else:
-                            node_enabled = 0
+                            #print([meshname, node_index])
                         
                         if mtlname not in material_names:
                             material_names.append(mtlname)
@@ -1799,18 +1804,23 @@ def ExportModel(collection, report=True):
                                 isbyte = (format_mask & (1<<(a+16))) != 0
                                 
                                 # Normals
-                                if VFORMAT_NAME[a] == 'NOR' and isbyte:
+                                if VFORMAT_NAME[a] == 'NOR':
                                     stream = mtlstreams['NOR']
-                                    stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+[0]) for l in range(0, loop_count)])
-                                    space = 3*4
+                                    if isbyte:
+                                        stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+[0]) for l in range(0, loop_count)])
+                                        space = 4
                                 # Use given color layer
                                 elif VFORMAT_NAME[a] == 'COL' and collection.vbm.color_layer_name != "":
                                     if collection.vbm.color_layer_name in mtlstreams.keys():
                                         stream = mtlstreams[collection.vbm.color_layer_name]
                                     else:
                                         stream = PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count
+                                    
+                                    if collection.vbm.color_is_srgb:
+                                        stream = ( ((np.array(tuple(stream), dtype=np.float32) / 255.0) ** 0.4545) * 255.0).astype(np.uint8).tobytes()
+                                        
                                     if not isbyte:
-                                        stream = (np.array(stream, np.float32)/255.0).tobytes()
+                                        stream = (np.array(tuple(stream), np.float32)/255.0).tobytes()
                                         space = 4
                                 # Use given UV layer
                                 elif VFORMAT_NAME[a] == 'UVS' and collection.vbm.uv_layer_name != "":
@@ -1838,7 +1848,6 @@ def ExportModel(collection, report=True):
                                 streams.append(stream)
                                 streamspaces.append(space)
                         
-                        
                         vb = b''.join(tuple([
                             streams[a][l*space:(l+1)*space]
                             for l in range(0, loop_count)
@@ -1854,8 +1863,9 @@ def ExportModel(collection, report=True):
                 bonebin += PackMatrix(Matrix.Identity(4) if apply_transform else obj.matrix_world)    # Bind Matrix
                 bonebin += Pack('i', parent_index)                    # Parent Index
                 bonebin += PackString(FixName(obj.name.split("/")[-1]))     # Name
-            
-            modeldata['SKE'].append(bonebin)
+                
+                node_names.append(obj.name)
+                modeldata['SKE'].append(bonebin)
             ExportModel_WalkObjects(state, node_index, obj.children, depth+1)
         return state
     
@@ -1876,6 +1886,7 @@ def ExportModel(collection, report=True):
             'format': format, 
             'format_mask': format_mask, 
             'material_names':material_names,
+            'node_names':node_names,
             'actions': animationitems
         }, 
         ~0, 
@@ -1885,6 +1896,7 @@ def ExportModel(collection, report=True):
     netvb = b''
     
     # Meshes ------------------------------------------------------------------------------
+    mesh_index = 0
     for meshname, meshdata in list(vbmap.items()):
         mtlname = meshdata['material']
         vb = meshdata['vb']
@@ -1914,7 +1926,10 @@ def ExportModel(collection, report=True):
         meshbin += PackVector('f', bounds[0]) + PackVector('f', bounds[1])     # Bounds
         modeldata['MSH'].append(meshbin)
         
+        #print("[%2d]: %s .bone = %d [%s]" % (mesh_index, meshname, node_index, node_names[node_index]))
+        
         netvb += vb
+        mesh_index += 1
     
     # Bones -------------------------------------------------------------------------------
     if rig:
