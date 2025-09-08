@@ -48,11 +48,20 @@ for (var i = 0; i < VBM_Model_GetAnimationCount(model); i++) {
 }
 draw_set_color(c_white);
 draw_healthbar(
-	xx, yy, xx+160, yy+10, 
+	xx, yy, xx+160, yy+ysep-4,
 	100*VBM_ModelAnimation_EvaluateFramePosition(animation, playback_frame), 
 	0xFF332200,0xFF7777FF,0xFF7777FF,0,1,1
 );
 yy += ysep;
+
+if ( animation_blink ) {
+	draw_healthbar(
+		xx, yy-5, xx+160, yy-4,
+		100*VBM_ModelAnimation_EvaluateFramePosition(animation_blink, playback_frame), 
+		0xFF332200,0xFF77FF77,0xFF77FF77,0,1,1
+	);
+}
+
 draw_text(xx, yy, 
 	"Frame: " + string_format(VBM_ModelAnimation_EvaluateFrame(animation, playback_frame), 4, 0) + "/" + 
 	string_format(VBM_Model_GetAnimationDuration(model, animation_index), 4, 0)

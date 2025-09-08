@@ -3,19 +3,21 @@
 model = new VBM_Model();
 VBM_Model_Open(model, "demo_benchmark.vbm", VBM_OPENFLAGS.PRINTDEBUG);
 
-VBM_Model_AddTextureSprite(model, spr_texpoppie03);
-var mtlindex = VBM_Model_AddMaterial(model, "", "", 0, VBM_MATERIALTEXTUREFLAG.FILTERLINEAR);
+var texindex = VBM_Model_AddTextureSprite(model, spr_texpoppie03);
+var mtlindex = VBM_Model_AddMaterial(model, "", "", texindex, VBM_MATERIALTEXTUREFLAG.FILTERLINEAR);
 VBM_Model_MeshSetMaterialByLayer(model, VBM_LAYERMASKALL, mtlindex);
 
 model_location = [0,0,0];
 model_euler = [0,0,90];
 
 animation = VBM_Model_GetAnimation(model, 0);
+animation_blink = VBM_Model_FindAnimation(model, "blink");
 animation_mode = 1;
 animation_index = 0;
 animation_frame = 0;
 animation_blend = 0;
 animation_time_factor = 1.0;
+use_easy_eval = 0;
 
 bone_transforms = vbm_transform_identity_array_1d(200);
 bone_particles = vbm_boneparticle_array_1d(200);

@@ -19,6 +19,7 @@ void main()
 	float di = dot(normal, incoming);	// incoming
 	
 	float shadowvalue = dp+v_vColour.b*2.0-1.0;
+	float shinevalue = dr+v_vColour.g*2.0-1.0;
 	
 	// Color ---------------------------------------------------------
 	vec4 cbase = texture2D(gm_BaseTexture, v_vTexcoord);
@@ -29,7 +30,7 @@ void main()
 	
 	// Output --------------------------------------------------------
 	vec4 c = cbase;
-	c = mix(c, chigh, float(dr>0.95 || (di-dp < -0.3)));
+	c = mix(c, chigh, float(shinevalue > 0.9) );
 	c = mix(c, cdark1, float(shadowvalue < 0.0));
 	c = mix(c, cdark2, float(shadowvalue < -0.9));
 	

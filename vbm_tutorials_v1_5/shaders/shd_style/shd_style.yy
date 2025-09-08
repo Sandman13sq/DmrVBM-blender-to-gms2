@@ -1,7 +1,7 @@
 {
   "$GMShader":"",
-  "%Name":"shd_chara",
-  "name":"shd_chara",
+  "%Name":"shd_style",
+  "name":"shd_style",
   "parent":{
     "name":"Common",
     "path":"folders/Common.yy",

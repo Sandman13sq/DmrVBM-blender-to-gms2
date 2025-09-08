@@ -26,6 +26,7 @@ rotationspd = 0;
 model = VBM_Model_Create();	// Initialize model data
 VBM_Model_Open(model, "tutorial4_animation.vbm");	// Animation comes packed into file
 animation = VBM_Model_GetAnimation(model, 0);	// Animation exported with model
+animation_blink = VBM_Model_FindAnimation(model, "blink");	// Animation to layer on top
 
 VBM_Model_MeshLayerFillByIndex(model);	// Set layermask of each mesh to the mesh's index
 
