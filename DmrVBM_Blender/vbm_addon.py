@@ -1603,57 +1603,63 @@ def AnimData(action, rig):
     }
 
 def ImageData(image, palette_max=255):
-    if not image.has_data:
-        print("! Data not loaded for image \"%s\"!" % image.name)
-        return ([0xFFFFFFFF], [0]*image.size[0]*image.size[1])
+    if image.has_data:
+        checksum = sum(tuple(image.pixels)) + palette_max + image.size[0] + image.size[1]
+        if image.vbm.get('VBM_CHECKSUM', -1) != checksum:
+            srcpixels = np.frombuffer((np.array(image.pixels)*255).astype(np.uint8).tobytes(), dtype=np.uint32)
+            w,h = image.size
+            srcpixels = srcpixels.reshape(-1,w)[::-1].flatten()     # Flip image pixels
+            pixels = srcpixels[:]
+            palette = list(set(pixels))
+            
+            # Reduce number of colors while palette count is higher than max
+            n1 = len(palette)
+            if n1 > 0:
+                # Old Method
+                if w*h >= 1024*1024:
+                    p = 1
+                    pbytes = np.array(tuple(pixels.tobytes()), dtype=np.uint8)
+                    if image.alpha_mode == 'NONE':
+                        pbytes |= 0xFF000000
+                    while len(palette) >= palette_max:
+                        p += 1
+                        pixels = np.frombuffer((pbytes // p) * p, dtype=np.uint32)
+                        palette = list(set(pixels))
+                    print(image.name, "| Palette ", n1, "->", len(palette), "| P =", p)
+                # Palette Map, maintaining colors used in image
+                elif len(palette) < palette_max:
+                    newpixels = pixels
+                    srcpalette = np.unique(pixels)
+                    for pmask in (0xf7f7f7f7, 0xf0f0f0f0, 0xaaaaaaaa, 0xa2a2a2a2, 0x88888888):
+                        print(HexString(pmask, 8))
+                        palette_map = { x&pmask: i for i,x in enumerate(srcpalette) }
+                        newpixels = tuple([srcpalette[ palette_map[x&pmask] ] for x in pixels])
+                        palette = list(set(newpixels))
+                        if len(palette) < palette_max:
+                            break
+                    pixels = newpixels
+                    
+            palette.sort()
+            palette = tuple(palette)
+            indices = [palette.index(x) for x in pixels]
+            
+            image.vbm['VBM_DATA'] = (zlib.compress(np.array(palette, dtype=np.uint32)), zlib.compress(np.array(indices, dtype=np.uint32)), tuple(image.size))
+            image.vbm['VBM_CHECKSUM'] = checksum
+    else:
+        print("! Image \"%s\" had no data!" % (image.name if image else "(None)"), len(image.vbm.get('VBM_DATA', [None, None])))
     
-    checksum = sum(tuple(image.pixels)) + palette_max
-    if image.vbm.get('VBM_CHECKSUM', -1) != checksum:
-        srcpixels = np.frombuffer((np.array(image.pixels)*255).astype(np.uint8).tobytes(), dtype=np.uint32)
-        w,h = image.size
-        srcpixels = srcpixels.reshape(-1,w)[::-1].flatten()     # Flip image pixels
-        pixels = srcpixels[:]
-        palette = list(set(pixels))
-        
-        # Reduce number of colors while palette count is higher than max
-        n1 = len(palette)
-        if n1 > 0:
-            p = 1
-            # Old Method
-            if 0:
-                pbytes = np.array(tuple(pixels.tobytes()), dtype=np.uint8)
-                if image.alpha_mode == 'NONE':
-                    pbytes |= 0xFF000000
-                while len(palette) >= palette_max:
-                    p += 1
-                    pixels = np.frombuffer((pbytes // p) * p, dtype=np.uint32)
-                    palette = list(set(pixels))
-            # Palette Map, maintaining colors used in image
-            elif len(palette) < palette_max:
-                newpixels = pixels
-                srcpalette = np.unique(pixels)
-                for pmask in (0xf7f7f7f7, 0xf0f0f0f0, 0xaaaaaaaa, 0xa2a2a2a2, 0x88888888):
-                    print(HexString(pmask, 8))
-                    palette_map = { x&pmask: i for i,x in enumerate(srcpalette) }
-                    newpixels = tuple([srcpalette[ palette_map[x&pmask] ] for x in pixels])
-                    palette = list(set(newpixels))
-                    if len(palette) < palette_max:
-                        break
-                pixels = newpixels
-                
-            print(image.name, "| Palette ", n1, "->", len(palette), "| P =", p)
-        palette.sort()
-        indices = [palette.index(x) for x in pixels]
-        
-        image.vbm['VBM_DATA'] = (zlib.compress(np.array(palette, dtype=np.uint32)), zlib.compress(np.array(indices, dtype=np.uint32)))
-        image.vbm['VBM_CHECKSUM'] = checksum
-    
-    palette = np.frombuffer( zlib.decompress(image.vbm['VBM_DATA'][0]), dtype=np.uint32 )
-    indices = np.frombuffer( zlib.decompress(image.vbm['VBM_DATA'][1]), dtype=np.uint32 )
+    if image.vbm.get('VBM_DATA', None):
+        palette = np.frombuffer( zlib.decompress(image.vbm['VBM_DATA'][0]), dtype=np.uint32 )
+        indices = np.frombuffer( zlib.decompress(image.vbm['VBM_DATA'][1]), dtype=np.uint32 )
+        width, height = image.vbm.get('VBM_DATA', [0,0,image.size])[2] if len(image.vbm['VBM_DATA']) >= 3 else image.size
+    else:
+        palette = [0]
+        indices = [0]*image.size[0]*image.size[1]
+        width, height = image.vbm.get('VBM_DATA', [0,0,image.size])[2]
     
     if ( image.alpha_mode.upper() == 'NONE' ):
         palette = palette | 0xFF000000
-    return (palette, indices)
+    return (palette, indices, (width, height))
 
 # ===================================================================================================================
 def ExportModel(collection, report=True):
@@ -1953,18 +1959,19 @@ def ExportModel(collection, report=True):
     
     # Materials --------------------------------------------------------------------------
     texturenames = []
-    material_names = list(set(material_names))
+    material_names = material_names
     for mtlname in material_names:
         mtl = bpy.data.materials.get(mtlname, None)
         if not mtl:
             continue
+        
         mtl = collection.vbm.get_material_override(mtl)
         flags = (
             VBM_MATERIALFLAGS_TRANSPARENT * (mtl.vbm.transparent) |
             VBM_MATERIALFLAGS_USECULLING * (mtl.use_backface_culling)
         )
         
-        texturenodes = [nd for nd in mtl.node_tree.nodes if ValidName(nd.name) and nd.bl_idname=='ShaderNodeTexImage' and nd.image]
+        texturenodes = [nd for nd in mtl.node_tree.nodes if ValidName(nd.name) and nd.bl_idname=='ShaderNodeTexImage' and nd.image and ValidName(nd.image.name)]
         texturenodes.sort(key=lambda nd: -nd.location[1] if nd else 1000000000000)
         for nd in texturenodes:
             if nd.image.name not in texturenames:
@@ -1986,16 +1993,16 @@ def ExportModel(collection, report=True):
                 texflags = 0
             mtlbin += Pack('i', texflags)  # Texture Flags
             mtlbin += Pack('i', texturenames.index(texturenode.image.name) if texturenode else 0)   # Texture Index
-            mtlbin += PackString(texturenode.name if texturenode else "")  # Texture Name
+            mtlbin += PackString(texturenode.image.name if texturenode else "")  # Texture Name
         modeldata['MTL'].append(mtlbin)
     
     # Images --------------------------------------------------------------------------------
     for texturename in texturenames:
         image = bpy.data.images.get(texturename)
         
-        if image and image.has_data:
-            w,h = image.size
-            palette, indices = ImageData(image, palette_max)
+        if image:
+            palette, indices, size = ImageData(image, palette_max)
+            w,h = size
             index_dtype = 'H' if len(palette) >= 256 else 'B'
             
             imagebin = b''
