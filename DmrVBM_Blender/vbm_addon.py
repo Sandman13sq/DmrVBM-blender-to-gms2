@@ -1811,6 +1811,7 @@ def ExportModel(collection, report=True):
                         streamspaces = []
                         for a in range(0, 10):
                             if format_mask & (1<<a):
+                                stream = mtlstreams[VFORMAT_NAME[a]]
                                 space = VFORMAT_SPACE[a]
                                 isbyte = (format_mask & (1<<(a+16))) != 0
                                 
@@ -1818,29 +1819,35 @@ def ExportModel(collection, report=True):
                                 if VFORMAT_NAME[a] == 'NOR':
                                     stream = mtlstreams['NOR']
                                     if isbyte:
-                                        stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+[0]) for l in range(0, loop_count)])
+                                        padding = [0]
+                                        stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+padding) for l in range(0, loop_count)])
                                         space = 4
                                 # Use given color layer
                                 elif VFORMAT_NAME[a] == 'COL':
-                                    if collection.vbm.color_layer_name in mtlstreams.keys():
-                                        stream = mtlstreams[collection.vbm.color_layer_name]
-                                    else:
-                                        stream = PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count
+                                    if collection.vbm.color_layer_name:
+                                        if collection.vbm.color_layer_name in mtlstreams.keys():
+                                            stream = mtlstreams[collection.vbm.color_layer_name]
+                                        else:
+                                            stream = PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count
                                     
+                                    # Gamma correct
                                     if collection.vbm.color_is_srgb:
-                                        stream = np.array([int(x**0.4545) for x in stream], dtype=np.uint8)
+                                        stream = np.array([int(min( 255.0*((x/255.0)**0.4545) , 255)) for x in stream], dtype=np.uint8).tobytes()
                                     space = 4
                                     if not isbyte:
                                         stream = (np.array(tuple(stream), np.float32)/255.0).tobytes()
                                         space = 4*4
                                 # Use given UV layer
-                                elif VFORMAT_NAME[a] == 'UVS' and collection.vbm.uv_layer_name != "":
-                                    if collection.vbm.uv_layer_name in mtlstreams.keys():
-                                        stream = (mtlstreams[collection.vbm.uv_layer_name])
-                                    else:
-                                        stream = (PackVector('f', collection.vbm.uv_layer_default)*loop_count)
-                                    if not isbyte:
-                                        stream = (np.array(stream, np.float32)/255.0).tobytes()
+                                elif VFORMAT_NAME[a] == 'UVS':
+                                    if collection.vbm.uv_layer_name:
+                                        if collection.vbm.uv_layer_name in mtlstreams.keys():
+                                            stream = (mtlstreams[collection.vbm.uv_layer_name])
+                                        else:
+                                            stream = (PackVector('f', collection.vbm.uv_layer_default)*loop_count)
+                                        
+                                    if isbyte:
+                                        padding = [0,0]
+                                        stream = b''.join([PackVector('B', [int(255*x) for x in Unpack('ff', stream[l*8:(l+1)*8])]+padding) for l in range(0, loop_count)])
                                         space = 4
                                 # Bones, Weights
                                 elif VFORMAT_NAME[a] == 'BON':
