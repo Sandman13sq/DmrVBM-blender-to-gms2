@@ -491,9 +491,14 @@ function VBM_ModelAnimation_GetCurveChannel(animation, curve_index, channel_inde
 /// @param {Real} frame
 /// @return {Real}
 function VBM_ModelAnimation_EvaluateFrame(animation, frame) {
-	return (frame > animation.duration)?
-		((frame-animation.loop_point) % (animation.duration+1)) + animation.loop_point:
-		frame;
+	// Wrap value between [0:duration / loop:duration]
+	if ( animation.flags & VBM_ANIMATIONFLAG.USECYCLIC ) {
+		return (frame > animation.duration)?
+			((frame-animation.loop_point) % (animation.duration+1)) + animation.loop_point:
+			frame;
+	}
+	// Clamp value
+	return clamp(frame, 0, animation.duration);
 }
 
 /// @desc Returns normalized position of animation frame

@@ -8,11 +8,13 @@ if ( keyboard_check_pressed(189) ) {	// "+"
 	animation_index = (animation_index==0)? VBM_Model_GetAnimationCount(model)-1: animation_index-1;
 	animation = VBM_Model_GetAnimation(model, animation_index);
 	animation_blend = 0.0;
+	playback_frame = 0.0;
 }
 if ( keyboard_check_pressed(187) ) {	// "-"
 	animation_index = (animation_index+1) mod VBM_Model_GetAnimationCount(model);
 	animation = VBM_Model_GetAnimation(model, animation_index);
 	animation_blend = 0.0;
+	playback_frame = 0.0;
 }
 
 // Navigate Meshes
