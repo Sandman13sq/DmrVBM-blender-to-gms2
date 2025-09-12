@@ -341,6 +341,13 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
         order.sort(key=lambda x: x.name)
         [self.actions.move([x.action for x in self.actions].index(action), 0) for action in order[::-1]]
     
+    def sort(self):
+        collection = self.get_collection()
+        objects = list(collection.objects)
+        objects.sort(key=lambda obj: ("z" if not ValidName(obj.name[0]) else "") + obj.type + obj.name)
+        [collection.objects.unlink(obj) for obj in objects]
+        [collection.objects.link(obj) for obj in objects]
+    
     def fix_materials(self):
         collection = self.get_collection()
         materials = list(set([mtl for obj in collection.all_objects if obj.type=='MESH' for mtl in obj.data.materials if mtl]))
@@ -510,6 +517,13 @@ class VBM_OT_CollectionClearChecksum(bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionClearChecksum)
 
+class VBM_OT_CollectionSortObjects(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.sort_objects', "VBM Sort Objects", {'REGISTER', 'UNDO'}
+    def execute(self, context):
+        ActiveCollection().vbm.sort()
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionSortObjects)
+
 class VBM_OT_CollectionRenameObjects(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.rename_objects', "VBM Rename Objects", {'REGISTER', 'UNDO'}
     bl_description = "Renames objects to \"<collectionname>/<objectname>\" and trims chars after \".\""
@@ -534,10 +548,6 @@ class VBM_OT_CollectionRenameObjects(bpy.types.Operator):
                     if obj.data:
                         obj.data.name = newname
                     hits += 1
-            objects = list(collection.objects)
-            objects.sort(key=lambda obj: ("z" if not ValidName(obj.name[0]) else "") + obj.type + obj.name)
-            [collection.objects.unlink(obj) for obj in objects]
-            [collection.objects.link(obj) for obj in objects]
             
             for c in collection.children:
                 hits += WalkRename(c)
@@ -1258,7 +1268,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             c.operator('vbm.collection_object_move', text="", icon='TRIA_UP').direction='UP'
             c.operator('vbm.collection_object_move', text="", icon='TRIA_DOWN').direction='DOWN'
             c.separator()
-            #c.operator('vbm.rename_objects', text="", icon='COPY_ID')
+            c.operator('vbm.sort_objects', text="", icon='SORTSIZE')
             c.operator('vbm.collection_clear_checksum', text="", icon='UNLINKED').group='OBJECT'
             
             if collection.all_objects:
@@ -1689,6 +1699,7 @@ def ExportModel(collection, report=True):
     bone_groups = bone_group_source_collection.vbm.bone_groups
     
     palette_max = 1024
+    compress_texture = False
     
     print("\t%02dB:"%stride, [VFORMAT_NAME[i] for i in range(0,16) if format_mask&(1<<i)])
     
@@ -1800,6 +1811,7 @@ def ExportModel(collection, report=True):
                         streamspaces = []
                         for a in range(0, 10):
                             if format_mask & (1<<a):
+                                stream = mtlstreams[VFORMAT_NAME[a]]
                                 space = VFORMAT_SPACE[a]
                                 isbyte = (format_mask & (1<<(a+16))) != 0
                                 
@@ -1807,29 +1819,35 @@ def ExportModel(collection, report=True):
                                 if VFORMAT_NAME[a] == 'NOR':
                                     stream = mtlstreams['NOR']
                                     if isbyte:
-                                        stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+[0]) for l in range(0, loop_count)])
+                                        padding = [0]
+                                        stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+padding) for l in range(0, loop_count)])
                                         space = 4
                                 # Use given color layer
-                                elif VFORMAT_NAME[a] == 'COL' and collection.vbm.color_layer_name != "":
-                                    if collection.vbm.color_layer_name in mtlstreams.keys():
-                                        stream = mtlstreams[collection.vbm.color_layer_name]
-                                    else:
-                                        stream = PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count
+                                elif VFORMAT_NAME[a] == 'COL':
+                                    if collection.vbm.color_layer_name:
+                                        if collection.vbm.color_layer_name in mtlstreams.keys():
+                                            stream = mtlstreams[collection.vbm.color_layer_name]
+                                        else:
+                                            stream = PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count
                                     
+                                    # Gamma correct
                                     if collection.vbm.color_is_srgb:
-                                        stream = ( ((np.array(tuple(stream), dtype=np.float32) / 255.0) ** 0.4545) * 255.0).astype(np.uint8).tobytes()
-                                        
+                                        stream = np.array([int(min( 255.0*((x/255.0)**0.4545) , 255)) for x in stream], dtype=np.uint8).tobytes()
+                                    space = 4
                                     if not isbyte:
                                         stream = (np.array(tuple(stream), np.float32)/255.0).tobytes()
-                                        space = 4
+                                        space = 4*4
                                 # Use given UV layer
-                                elif VFORMAT_NAME[a] == 'UVS' and collection.vbm.uv_layer_name != "":
-                                    if collection.vbm.uv_layer_name in mtlstreams.keys():
-                                        stream = (mtlstreams[collection.vbm.uv_layer_name])
-                                    else:
-                                        stream = (PackVector('f', collection.vbm.uv_layer_default)*loop_count)
-                                    if not isbyte:
-                                        stream = (np.array(stream, np.float32)/255.0).tobytes()
+                                elif VFORMAT_NAME[a] == 'UVS':
+                                    if collection.vbm.uv_layer_name:
+                                        if collection.vbm.uv_layer_name in mtlstreams.keys():
+                                            stream = (mtlstreams[collection.vbm.uv_layer_name])
+                                        else:
+                                            stream = (PackVector('f', collection.vbm.uv_layer_default)*loop_count)
+                                        
+                                    if isbyte:
+                                        padding = [0,0]
+                                        stream = b''.join([PackVector('B', [int(255*x) for x in Unpack('ff', stream[l*8:(l+1)*8])]+padding) for l in range(0, loop_count)])
                                         space = 4
                                 # Bones, Weights
                                 elif VFORMAT_NAME[a] == 'BON':
@@ -2081,6 +2099,7 @@ def ExportModel(collection, report=True):
                 outaction += Pack('f', m.frame)     # Marker Frame
         
         # Bone Curves + Property Curves 
+        curve_index = 0
         for curvename, channels in curvedata.items():
             if flags & VBM_ANIMATIONFLAGS_CURVENAMES:
                 outaction += PackString(FixName(curvename))  # Curvename
@@ -2088,9 +2107,10 @@ def ExportModel(collection, report=True):
             for channel in channels:
                 outaction += Pack('i', len(channel)) # Keyframe count
                 for k in channel:
-                    #print(action.name, k, [x*floatwidth for x in k])
+                    #print(action.name, k, [x for x in k])
                     outaction += Pack('f', k[0])    # Frame
                     outaction += Pack('f', k[1])    # Value
+            curve_index += 1
         
         modeldata['ANI'].append(outaction)
         collection.vbm.action_index = collection.vbm.action_index
