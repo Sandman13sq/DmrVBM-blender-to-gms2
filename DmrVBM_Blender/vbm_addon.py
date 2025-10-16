@@ -1454,7 +1454,7 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         deformorder, deformmap, deformroute = EvaluateDeformOrder(rig)
         bonemap = {vg.index: deformorder.index(vg.name) for vg in obj.vertex_groups if vg.name in deformorder}
         skinning = [ [ (bonemap[vge.group], vge.weight) for vge in v.groups if vge.weight > 0.0 and vge.group in list(bonemap.keys())] for v in obj.data.vertices ]
-        [v.sort(key=lambda x: x[1]) for v in skinning]  # Sort by weight
+        [v.sort(key=lambda x: -x[1]) for v in skinning]  # Sort by weight
         skinning = [ (x+[(0,0.0), (0,0.0), (0,0.0), (0,0.0)])[:4] for x in skinning ]    # Add padding, Clamp to 4
         skinning = [ [(b,w/s) for b,w in v[:4]] for v in skinning for s in [sum([w for b,w in v[:4]])+0.00000001] ] # Normalize weights
         
