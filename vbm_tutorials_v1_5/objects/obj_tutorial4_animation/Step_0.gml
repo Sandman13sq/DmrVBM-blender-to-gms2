@@ -74,3 +74,6 @@ if ( !is_undefined(animation) ) {
 	// Non-bone properties
 	VBM_ModelAnimation_SampleProps_Struct(animation, playback_frame, animation_props);
 }
+
+// Skeleton VB
+show_bones ^= keyboard_check_pressed(vk_enter);

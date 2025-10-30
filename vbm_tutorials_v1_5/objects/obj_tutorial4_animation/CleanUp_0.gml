@@ -4,4 +4,4 @@
 VBM_Model_Free(model);
 delete model;
 
-
+vertex_format_delete(skeleton_vbf);

@@ -37,6 +37,19 @@
 #macro VBM_M23 14
 #macro VBM_M33 15
 
+#macro VBM_MRX VBM_M00
+#macro VBM_MRY VBM_M10
+#macro VBM_MRZ VBM_M20
+#macro VBM_MUX VBM_M01
+#macro VBM_MUY VBM_M11
+#macro VBM_MUZ VBM_M21
+#macro VBM_MFX VBM_M02
+#macro VBM_MFY VBM_M12
+#macro VBM_MFZ VBM_M22
+#macro VBM_MLX VBM_M03
+#macro VBM_MLY VBM_M13
+#macro VBM_MLZ VBM_M23
+
 enum VBM_TRANSFORM {
 	x, y, z, qw, qx, qy, qz, sx, sy, sz, _len
 };
@@ -1889,6 +1902,87 @@ function VBM_ParticleApplyForce(particles_1d, force_x, force_y, force_z, time_st
 		particles_1d[t+VBM_BONEPARTICLE.xcurr+2] += force_z;
 		t += VBM_BONEPARTICLE._len;
 	}
+}
+
+/// @desc Renders skeleton as lines
+/// @param {Struct.VBM_Model} model
+/// @param {Array<Real>} bone_matrices_1d
+/// @param {Bool} [draw_spheres]
+/// @param {Real} [bone_color]
+/// @param {Real} [swing_color]
+function VBM_DrawSkeleton(model, bone_matrices_1d, draw_spheres=1, bone_color=0, swing_color=0) {
+	var n = VBM_Model_GetBoneCount(model);
+	var v = [0,0,0];
+	var m = matrix_build_identity();
+	
+	var vb = vertex_create_buffer();
+	var vbf = VBM_FormatBuild(VBM_FORMAT_NATIVE);
+	
+	// Color defaults
+	if ( bone_color == 0 ) {
+		bone_color = c_blue;	
+		swing_color = c_orange;
+	}
+	if ( swing_color == 0 ) {
+		swing_color = bone_color;
+	}
+	
+	// Get position of camera
+	var eye = [0,0,0];
+	if ( draw_spheres ) {
+		m = matrix_get(matrix_view);
+		m = matrix_inverse(m);
+		eye = [m[VBM_MLX], m[VBM_MLY], m[VBM_MLZ]];
+	}
+	
+	// Loop each bone
+	var r, vsin, vcos;
+	var _bone;
+	var _color;
+	vertex_begin(vb, vbf);
+	for (var b = 0; b < n; b++) {
+		_bone = VBM_Model_GetBone(model, b);
+		_color = VBM_ModelBone_SwingEnabled(_bone)? swing_color: bone_color;
+		
+		// Start
+		array_copy(m, 0, bone_matrices_1d, 16*b, 16);
+		v = [m[VBM_MLX], m[VBM_MLY], m[VBM_MLZ]];
+		
+		if ( draw_spheres > 0 ) {
+			r = 0.01 * point_distance_3d(v[0],v[1],v[2], eye[0],eye[1],eye[2]);
+			for (var a = 0; a < 3; a++) {
+				for (var i = 0; i < 4; i++) {
+					for (var j = 0; j < 2; j++) {
+						vsin = sin(2*pi*(i+j)/4);
+						vcos = cos(2*pi*(i+j)/4);
+						switch(a) {
+							case 0: vertex_position_3d(vb, v[0]+r*vcos, v[1]+r*vsin, v[2]); break;
+							case 1: vertex_position_3d(vb, v[0], v[1]+r*vcos, v[2]+r*vsin); break;
+							case 2: vertex_position_3d(vb, v[0]+r*vcos, v[1], v[2]+r*vsin); break;
+						}
+						vertex_color(vb, _color|0x70707070, 0.0);
+						vertex_texcoord(vb, 0.0, 0.0);
+					}
+				}
+			}
+		}
+		vertex_position_3d(vb, v[0], v[1], v[2]);
+		vertex_color(vb, _color|0x70707070, 0.0);
+		vertex_texcoord(vb, 0.0, 0.0);
+		
+		// End
+		v = matrix_transform_vertex(m, 0, _bone.length, 0.0);	// Bones "Point" in y-axis
+		vertex_position_3d(vb, v[0], v[1], v[2]);
+		vertex_color(vb, _color, 1.0);
+		vertex_texcoord(vb, 1.0, 1.0);
+	}
+	// Submit
+	vertex_end(vb);
+	vertex_freeze(vb);
+	vertex_submit(vb, pr_linelist, -1);
+	// Clean
+	vertex_delete_buffer(vb);
+	vertex_format_delete(vbf);
 }
 
 /// @desc Opens and loads vbm data from file. Returns 1 if successful

@@ -35,6 +35,12 @@ if ( mesh_flash > 0.0 ) {
 }
 shader_reset();
 
+// Draw Bones
+if ( show_bones ) {
+	gpu_set_ztestenable(0);	// Skip depth test and render on top
+	VBM_DrawSkeleton(model, bone_matrices);
+}
+
 // Restore previous room matrices
 matrix_set(matrix_projection, camera_get_proj_mat(camera_get_active()));
 matrix_set(matrix_view, camera_get_view_mat(camera_get_active()));

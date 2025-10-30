@@ -60,6 +60,10 @@ bone_skinning = vbm_mat4_identity_array_1d(VBM_BONELIMIT);	// Vertex-Space Matri
 
 animation_props = {};	// Updated with non-bone properties
 
+skeleton_vb = vertex_create_buffer();
+skeleton_vbf = VBM_FormatBuild(VBM_FORMAT_NATIVE);
+show_bones = 0;
+
 // *Playback Controls ----------------------------------
 playback_frame = 0;
 playback_speed = 1;
