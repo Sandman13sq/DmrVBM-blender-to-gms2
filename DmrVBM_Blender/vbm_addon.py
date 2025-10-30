@@ -36,6 +36,10 @@ VBM_ICON_SWING = 'CON_SPLINEIK'
 
 VBM_VTX_COMPRESSED = 1<<0
 
+VBM_BONEPROP_STRING = 0
+VBM_BONEPROP_INT = 1
+VBM_BONEPROP_FLOAT = 2
+
 VBM_BONEFLAGS_HIDDEN = (1<<0)
 VBM_BONEFLAGS_SWINGBONE = (1<<1)
 VBM_BONEFLAGS_HASPROPS = (1<<2)
@@ -1715,6 +1719,7 @@ def ExportModel(collection, report=True):
     chunkversionmap = {}
     
     chunkversionmap['VTX'] = 1
+    chunkversionmap['SKE'] = 1
     
     # Objects -------------------------------------------------------------------------------
     vbmap = {}
@@ -1744,6 +1749,7 @@ def ExportModel(collection, report=True):
             node_enabled = 1
             node_index = len(modeldata['SKE'])
             node_meshes = []
+            node_props = {}
             layermask = sum([1<<i for i,x in enumerate(obj.vbm.layermask) if x])
             
             if obj.type in VBM_MESHTYPES:
@@ -1872,16 +1878,47 @@ def ExportModel(collection, report=True):
                             for a,space in enumerate(streamspaces)
                         ]))
                         vbmap[meshname]['vb'] += vb
+            elif obj.type=='LIGHT':
+                node_props["light_energy"] = obj.data.energy
+                node_props["light_color"] = tuple(obj.data.color)
             
             if node_enabled:
                 flags = 0
+                if node_props:
+                    flags |= VBM_BONEFLAGS_HASPROPS
+                
                 bonebin = b''
                 bonebin += Pack('i', flags)         # Flags
                 bonebin += Pack('i', layermask)     # Layermask
                 bonebin += PackMatrix(Matrix.Identity(4) if apply_transform else obj.matrix_world)    # Bind Matrix
-                bonebin += Pack('i', parent_index)                    # Parent Index
+                bonebin += Pack('i', parent_index)         # Parent Index
+                bonebin += Pack('f', 0)                    # Bone Length
                 bonebin += PackString(FixName(obj.name.split("/")[-1]))     # Name
                 
+                if node_props:
+                    # [ type, size, value[] ]
+                    bonebin += Pack('I', len(node_props.values()))
+                    for k,vec in node_props.items():
+                        bonebin += PackString(k)    # Prop Name
+                        if isinstance(vec, (int, float, str)):
+                            vec = [vec]
+                        else:
+                            vec = tuple(vec)
+                        size = len(vec)
+                        
+                        # Single
+                        if isinstance(vec[0], (int)):
+                            bonebin += Pack('BB', *(VBM_BONEPROP_INT, size)) # Type, Size
+                            for v in vec:
+                                bonebin += Pack('i', v) # Value
+                        elif isinstance(vec[0], (float)):
+                            bonebin += Pack('BB', *(VBM_BONEPROP_FLOAT, size)) # Type, Size
+                            for v in vec:
+                                bonebin += Pack('f', v) # Value
+                        elif isinstance(vec[0], (str)):
+                            bonebin += Pack('BB', *(VBM_BONEPROP_STRING, size)) # Type, Size
+                            for v in vec:
+                                bonebin += PackString(v) # Value
                 node_names.append(obj.name)
                 modeldata['SKE'].append(bonebin)
             ExportModel_WalkObjects(state, node_index, obj.children, depth+1)
@@ -1976,6 +2013,7 @@ def ExportModel(collection, report=True):
             bonebin += Pack('i', layermask)         # Layermask
             bonebin += PackMatrix(b.matrix_local if b else Matrix.Identity(4))  # Bind Matrix
             bonebin += Pack('i', parent_index)    # Parent Node Index
+            bonebin += Pack('f', b.length)    # Bone Length
             bonebin += PackString(FixName(bname))   # Node Name
             
             BoneDepth = lambda bname, deformmap: (1+BoneDepth(deformmap[bname], deformmap)) if deformmap[bname] else 0
@@ -2013,7 +2051,7 @@ def ExportModel(collection, report=True):
         
         mtlbin = b''
         mtlbin += Pack('i', flags)
-        mtlbin += PackString(mtl.vbm.shader)  # Shader Name
+        mtlbin += PackString(mtl.vbm.shader if mtl.vbm.shader else context.scene.vbm.shader_default)  # Shader Name
         
         # 4 Textures max
         for texturenode in texturenodes:

@@ -15,7 +15,14 @@ varying vec4 v_vNormal;
 varying float v_vWeightsum; // For weight visual
 
 // Uniforms - Passed in in draw call
-uniform mat4 u_bonematrices[200];	// There is an upper-limit. It depends on platform
+/*
+	Bone limit in shader depends on size of matrix array AND space of other uniforms (view projection matrix, etc.)
+	Max number of registers in shader for low-end platform is 1024.
+	vec4, vec3, vec2, and float types all consume one register.
+	mat4 = 4 vec4s = 4 registers per matrix
+	Ex: 200 bones = 200 mat4s = 4x200 registers = 800 registers used.
+*/
+uniform mat4 u_bonematrices[200];	// Matrix per bone
 
 uniform float u_boneselect;	// For weight visual
 uniform float u_showweights;	// For weight visual

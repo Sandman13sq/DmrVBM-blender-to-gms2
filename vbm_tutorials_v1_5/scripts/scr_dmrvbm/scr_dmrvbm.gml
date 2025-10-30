@@ -54,7 +54,13 @@ enum VBM_TRANSFORM {
 	x, y, z, qw, qx, qy, qz, sx, sy, sz, _len
 };
 
-// Matrix limit on v2022 LTS is 128...?
+/*
+	Bone limit in shader depends on size of matrix array AND space of other uniforms (view projection matrix, etc.)
+	Max number of registers in shader for low-end platform is 1024.
+	vec4, vec3, vec2, and float types all consume one register.
+	mat4 = 4 vec4s = 4 registers per matrix
+	Ex: 200 bones = 200 mat4s = 4x200 registers = 800 registers used.
+*/
 #macro VBM_BONELIMIT 200
 
 // For Game Maker, "heavier" matrix is second argument: mat4_multiply(m, mparent)
@@ -2306,6 +2312,10 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				
 				for (var i = 0; i < 16; i++) {bone.matrix_bind[i] = buffer_read(f, buffer_f32);}
 				bone.parent_index = buffer_read(f, buffer_s32);
+				
+				if ( chunk_version >= 1 ) {
+					bone.length = buffer_read(f, buffer_f32);	
+				}
 				bone.name = buffer_read(f, buffer_string);
 				
 				variable_struct_set(outvbm.bones_name_to_index, bone.name, bone_index);
