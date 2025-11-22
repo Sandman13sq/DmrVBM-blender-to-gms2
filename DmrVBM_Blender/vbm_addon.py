@@ -33,6 +33,7 @@ def printd(*args):
 
 MODEL_NULLINDEX = 255
 
+VBM_SHOWMODIFIERBAKE = False                # Default value for showing modifier bake options
 VBM_SCRIPTISEXPORTING = 'VBM_EXPORTING'     # Set in active scene before running pre and post script mesh code
 
 VBM_FILEEXT = ".vbm"
@@ -555,6 +556,8 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
     show_extra_info: BoolProperty(name="Extended Info", default=False, options=set(), description="Show extra info in item lists")
     show_swing_bones: BoolProperty(name="Show Swing Bones", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
     show_swing_segments: BoolProperty(name="Show Swing Segments", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
+    show_modifier_bake: BoolProperty(name="Show Modifier Bake", default=VBM_SHOWMODIFIERBAKE, options=set(), 
+        description="Show option to bake modifiers in modifier tab.\nToggle under Scene Properties > DmrVBM > Settings Panel (Cog Icon)")
     swing_tab: EnumProperty(name="Swing Tab", default='SWING', options=set(), items=tuple([
         ('SWING', "Parameters", "Swing Parameters"),
         ('BONE', "Bones", "Bones"),
@@ -576,6 +579,112 @@ classlist.append(VBM_PG_Scene)
 "======================================================================================================"
 "OPERATORS"
 "======================================================================================================"
+
+# -------------------------------------------------------------------------------------------------------
+class VBM_OT_BakeForPlayback(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = ('vbm.bake_geometry_nodes', "Bake For Playback", {'REGISTER', 'UNDO'})
+    bl_description = "Bake Modifiers up to Armature for selected objects to speed up animation playback.\nNon-destructive-- Disables and remembers visibility of modifiers when executed"
+    revert: BoolProperty(name="Revert", default=False, description="Restore previous bake state")
+    
+    @classmethod
+    def poll(self, context):
+        return context.object and context.object.type in ['MESH']
+    
+    def execute(self, context):
+        VBM_BAKESTATEKEY = 'VBM_BAKESTATE'
+        VBM_BAKENODETAG = 'VBM_BAKETAG'
+        
+        mode = context.object.mode
+        bpy.ops.object.mode_set(mode='OBJECT')
+        objects = [obj for obj in context.selected_objects if obj.type=='MESH']
+        
+        IsBakeModifier = lambda m: m.type == 'NODES' and sum([VBM_BAKENODETAG in nd.name for nd in m.node_group.nodes])
+        
+        if len(objects) == 0:
+            self.report({'WARNING'}, "> No objects selected")
+            return {'FINISHED'}
+        [print(obj.name) for obj in objects]
+        
+        # Generate Bake Node
+        hits = 0
+        hits_clear = 0
+        for obj in objects:
+            if obj.type != 'MESH':
+                continue
+            obj.data.update()
+            
+            # Clear Last Bake
+            bakemod = ([m for m in obj.modifiers if m.type=='NODES' and sum([VBM_BAKENODETAG in nd.name for nd in m.node_group.nodes])]+[None])[0]
+            if bakemod and bakemod.bakes:
+                bakemod.show_viewport=True
+                bakemod.show_in_editmode=True
+                for bake in bakemod.bakes:
+                    bpy.ops.object.geometry_node_bake_delete_single(
+                        modifier_name=bakemod.name,
+                        session_uid=bake.id_data.session_uid,
+                        bake_id=bake.bake_id,
+                    )
+                bakemod.show_viewport=False
+                hits_clear += 1
+            
+            # Restore Previous Bakestate State
+            bakestate = obj.get(VBM_BAKESTATEKEY, {})
+            for m in obj.modifiers:
+                m.show_viewport = bakestate.get(str(m.persistent_uid), m.show_viewport)
+            obj[VBM_BAKESTATEKEY] = {}
+            
+            lastbakegroups = [m.node_group for m in list(obj.modifiers) if IsBakeModifier(m)]
+            [obj.modifiers.remove(m) for m in list(obj.modifiers)[::-1] if IsBakeModifier(m)]
+            [bpy.data.node_groups.remove(x) for x in lastbakegroups]
+            
+            # Bake
+            if not self.revert:
+                # Create Node Group
+                bakenodetree = bpy.data.node_groups.new(".VBM_BAKE-"+obj.name, 'GeometryNodeTree')
+                [bakenodetree.nodes.remove(nd) for nd in list(bakenodetree.nodes)[::-1]]
+                bakenodetree.interface.clear()
+                
+                bakenodetree.interface.new_socket(name="Geometry", in_out='INPUT', socket_type='NodeSocketGeometry')
+                bakenodetree.interface.new_socket(name="Geometry", in_out='OUTPUT', socket_type='NodeSocketGeometry')
+                ndbake = bakenodetree.nodes.new('GeometryNodeBake')
+                ndbake.name = VBM_BAKENODETAG
+                ndoutput = bakenodetree.nodes.new('NodeGroupOutput')
+                ndinput = bakenodetree.nodes.new('NodeGroupInput')
+                ndbake.location = (-300, 0)
+                ndinput.location = (-600, 0)
+                bakenodetree.links.new(ndbake.inputs[0], ndinput.outputs[0])
+                bakenodetree.links.new(ndoutput.inputs[0], ndbake.outputs[0])
+                
+                # Add Node Group
+                bakemod = obj.modifiers.new(name="~VBM_Bake", type='NODES')
+                bakemod.node_group = bakenodetree
+                for i,m in list(enumerate(obj.modifiers))[::-1]:
+                    if m.type=='ARMATURE':
+                        obj.modifiers.move(list(obj.modifiers).index(bakemod), i)
+                
+                modifier_index = list(obj.modifiers).index(bakemod)
+                bakemod.show_viewport=True
+                bakemod.show_in_editmode=True
+                bakemod.show_expanded=False
+                for bake in bakemod.bakes:
+                    bpy.ops.object.geometry_node_bake_single(
+                        modifier_name=bakemod.name,
+                        session_uid=bake.id_data.session_uid,
+                        bake_id=bake.bake_id,
+                    )
+                obj[VBM_BAKESTATEKEY] = {str(x.persistent_uid): x.show_viewport for x in list(obj.modifiers)[:modifier_index]}
+                hits += 1
+                for m in list(obj.modifiers)[:modifier_index]:
+                    m.show_viewport=False
+        
+        if self.revert:
+            self.report({'INFO'}, "Hits: %d" % hits_clear)
+        else:
+            self.report({'INFO'}, "Hits: %d" % hits)
+            
+        bpy.ops.object.mode_set(mode=mode)
+        return {'FINISHED'}
+classlist.append(VBM_OT_BakeForPlayback)
 
 class VBM_OT_RestoreLayermask(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.restore_layer_mask', 'Fix Layer Masks', {'REGISTER', 'UNDO'}
@@ -1417,6 +1526,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             c.prop(context.scene.vbm, 'shader_default')
             c.prop(context.scene.vbm, 'layer_mask_display_size', text="Layer Mask Size")
             r = c.row()
+            r.prop(context.scene.vbm, 'show_modifier_bake')
             r.label(text="", icon='MODIFIER')
             c.prop(context.scene.vbm, 'show_extra_info', text="Extended List Display")
             c.prop(context.scene.vbm, 'show_swing_bones')
@@ -1583,6 +1693,28 @@ class VBM_PT_Asset(bpy.types.Panel):
         elif context.scene.vbm.panel_tab == 'ACTION':
             VBMActionPanel(layout, collection)
 classlist.append(VBM_PT_Asset)
+
+# -----------------------------------------------------------------------------------------------------------
+class VBM_PT_ModifierBake(bpy.types.Panel):
+    bl_label, bl_space_type, bl_region_type = ("( VBM Bake )", 'PROPERTIES', 'WINDOW')
+    bl_context = "modifier"
+    bl_options = {'HIDE_HEADER'}
+    
+    @classmethod
+    def poll(self, context):
+        return context.scene.vbm.show_modifier_bake
+    
+    def draw(self, context):
+        layout = self.layout.row(align=0)
+        layout.prop(context.scene.vbm, 'show_modifier_bake', icon='X', text="", emboss=False)
+        r = layout.row(align=1)
+        r.scale_x = 1
+        r.operator('vbm.bake_geometry_nodes', text="Bake For Playback", icon='FREEZE').revert=False
+        r = r.row(align=0)
+        r.scale_x = 0.7
+        r.operator('vbm.bake_geometry_nodes', text="Revert", icon='REW').revert=True
+        
+classlist.append(VBM_PT_ModifierBake)
 
 "================================================================================================================================================="
 "EXPORT"
