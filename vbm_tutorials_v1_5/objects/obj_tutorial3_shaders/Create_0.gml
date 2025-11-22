@@ -48,4 +48,6 @@ eyepos = [0, 0, 0];	// View position to pass to shader. Calculated with matview
 u_normal_lightpos = shader_get_uniform(shd_tutorial3_normal, "u_lightpos"); // Get uniform handle for light position in shd_tutorial3_normal
 u_normal_eyepos = shader_get_uniform(shd_tutorial3_normal, "u_eyepos"); // Get uniform handle for eye position in shd_tutorial3_normal
 
+u_tangent_normalmap = shader_get_sampler_index(shd_tutorial3_tangent, VBM_UNIFORMNAME_TEXTURE4);	// Textures require a different function to get location
+
 event_perform(ev_step, 0);	// Force an update

@@ -13,6 +13,7 @@ demos = [
 	0,
 	obj_demo_benchmark,
 	obj_demo_verlettest,
+	obj_demo_cloth,
 ];
 
 tutorial_index = 1;

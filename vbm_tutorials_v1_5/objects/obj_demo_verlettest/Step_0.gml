@@ -3,12 +3,8 @@
 var d;
 
 if ( keyboard_check_pressed(vk_space) ) {
-	px = 0;
-	py = 0;
-	pz = 0;
-	lx = 0;
-	ly = 0;
-	lz = 0;
+	px = 0; py = 0; pz = 0;
+	lx = 0; ly = 0; lz = 0;
 }
 
 if ( keyboard_check_pressed(ord("X")) ) {time_factor = min(time_factor*2.0, 1.0);}

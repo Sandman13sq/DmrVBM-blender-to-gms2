@@ -8,10 +8,12 @@ varying vec3 v_vLightDir;
 varying vec3 v_vEyeDir;
 varying mat3 v_tbn;	// Used to convert normalmap value from tangent space to world space
 
+uniform sampler2D TEXTURE4;	// Normal map texture
+
 void main()
 {
 	// Normal sampled from normalmap and converted from [0-1] range to [-1,1]
-	vec3 normal = texture2D( gm_BaseTexture, v_vTexcoord ).rgb*vec3(2.0)-vec3(1.0);
+	vec3 normal = texture2D( TEXTURE4, v_vTexcoord ).rgb*vec3(2.0)-vec3(1.0);
 	
 	vec3 incoming = normalize(v_vEyeDir);	// Direction of fragment to camera eye
 	vec3 lightdir = normalize(v_vLightDir);	// Direction of fragment to light
@@ -25,7 +27,7 @@ void main()
 	dr = pow(dr, 64.0);
 	
 	// Fragment Color
-	vec4 color = v_vColour;	// Omit texture color
+	vec4 color = v_vColour * texture2D( gm_BaseTexture, v_vTexcoord );
     gl_FragColor = color;
 	gl_FragColor.rgb *= dp; // Multiply color by dot product to get shadow
 	gl_FragColor.rgb += vec3(0.5) * dr;	// Add reflection value for specular

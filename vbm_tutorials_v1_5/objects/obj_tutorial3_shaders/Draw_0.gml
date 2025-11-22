@@ -27,7 +27,13 @@ else if (shadermode == 2) {
 	shader_set(shd_tutorial3_tangent);	// Set shader for next draw calls
 	shader_set_uniform_f_array(u_normal_lightpos, lightpos); // Set light position for shader
 	shader_set_uniform_f_array(u_normal_eyepos, eyepos); // Set eye position for shader
-	VBM_Model_Submit(model_tangent, mattran);
+	
+	var mtl = VBM_Model_GetMaterial(model_tangent, 0);	// Get material struct
+	var texture_index = VBM_ModelMaterial_GetTextureSlotIndex(mtl, 4);	// Get model texture index for slot 4
+	var texture_ptr = VBM_Model_GetTexturePointer(model_tangent, texture_index);	// Get texture ptr
+	texture_set_stage(u_tangent_normalmap, texture_ptr);	// Set active texture for "TEXTURE4" to texture ptr
+	
+	VBM_Model_Submit(model_tangent, mattran, VBM_LAYERMASKALL, 0, 0);	// <- State Change disabled to show above
 }
 
 shader_reset();	// Reset to default GM shader

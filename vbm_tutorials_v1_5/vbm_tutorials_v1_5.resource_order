@@ -6,6 +6,7 @@
   ],
   "ResourceOrderSettings":[
     {"name":"CHANGELOG","order":13,"path":"notes/CHANGELOG/CHANGELOG.yy",},
+    {"name":"obj_demo_cloth","order":3,"path":"objects/obj_demo_cloth/obj_demo_cloth.yy",},
     {"name":"obj_demo_collision","order":2,"path":"objects/obj_demo_collision/obj_demo_collision.yy",},
     {"name":"obj_demo_verlettest","order":1,"path":"objects/obj_demo_verlettest/obj_demo_verlettest.yy",},
     {"name":"obj_navigation","order":5,"path":"objects/obj_navigation/obj_navigation.yy",},

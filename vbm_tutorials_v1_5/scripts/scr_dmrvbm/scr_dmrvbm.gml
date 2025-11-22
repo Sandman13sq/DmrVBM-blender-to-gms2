@@ -286,7 +286,10 @@ enum VBM_BONEFLAGS {
 };
 
 enum VBM_BONEPARTICLE {
-	xcurr, ycurr, zcurr, xlast, ylast, zlast, _len
+	xcurr, ycurr, zcurr, xlast, ylast, zlast, mass, _len
+};
+enum VBM_BONESEGMENT {
+	bone0, bone1, length, _len
 };
 
 function VBM_ModelBoneSwing() constructor {
@@ -350,9 +353,19 @@ function VBM_ModelBone_GetMatrixInversebind(bone) {return bone.matrix_inversebin
 /// @return {Array<Real>}
 function VBM_ModelBone_GetMatrixRelative(bone) {return bone.matrix_relative;}
 
+// Bone Group --------------------------------------------------------------------
+function VBM_ModelSwing() constructor {
+	name = "";
+	layer_mask = 0;
+	collision_mask = 0;
+	bone_indices = [];	// Array of bone indices in group
+	segments = [];		// VBM_BONESEGMENT
+}
+
 // Texture --------------------------------------------------------------------
 enum VBM_TEXTUREFLAG {
-	FREEONDELETE  = 0b00000001,
+	FREEONDELETE  = 0b10000000,
+	SRGB  = 0b00000001,
 };
 
 function VBM_ModelTexture() constructor {
@@ -447,9 +460,9 @@ function VBM_ModelAnimation() constructor {
 	flags = 0;			// See VBM_ANIMATIONFLAG enum
 	namesum = 0;	// Sum of curve names. Faster when paired with equal bonesum
 	
-	baked_transforms_1d = [];	// array[ real[16*len(VBM_TRANSFORM)*curve_count], ... ] Fits model with same orientation
+	baked_transforms_1d = [];			// array[ real[16*len(VBM_TRANSFORM)*curve_count], ... ] Fits model with same orientation
 	baked_matrices_relative_2d = [];	// array[ matrix[curve_count], ... ] relative to parent bone. Fits model with same orientation
-	baked_matrices_origin_2d = [];	// array[ matrix[curve_count], ... ] in model origin-space. Fits model with same bind pose
+	baked_matrices_origin_2d = [];		// array[ matrix[curve_count], ... ] in model origin-space. Fits model with same bind pose
 	baked_matrices_skinning_1d = [];	// array[ real[16*curve_count], ... ] in inverse bind-space. Fits model with same bind pose
 };
 
