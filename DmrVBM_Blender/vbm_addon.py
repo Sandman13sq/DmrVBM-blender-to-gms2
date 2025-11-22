@@ -244,7 +244,7 @@ class VBM_PG_Image(bpy.types.PropertyGroup):
         
         dstpixels = np.frombuffer( ((255.0*np.array(tuple(image.pixels), dtype=np.float32)).astype(np.uint8)).tobytes(), dtype=np.uint32)
         srcpixels = []
-        assigned = np.array([(x>>24) >= 255 and (x&0x00FFFFFF) != 0 for x in dstpixels])
+        assigned = np.array([(x>>24) >= 200 and (x&0x00FFFFFF) != 0 for x in dstpixels])
         tmp = 0
         
         for r in range(0, iterations):
@@ -373,9 +373,11 @@ class VBM_PG_Swingbone(bpy.types.PropertyGroup):
     export_enabled: BoolProperty(name="Export Enabled", default=1)
     swing_enabled: BoolProperty(name="Swing Enabled", default=0)
     stiffness: FloatProperty(name="Stiffness", default=0.1, min=0.0, max=1.0, subtype='FACTOR', description="Speed that bone approaches goal")
-    damping: FloatProperty(name="Damping", default=0.2, min=0.0, max=1.0, subtype='FACTOR', description="Controls particle distance from goal")
+    damping: FloatProperty(name="Damping", default=0.3, min=0.0, max=1.0, subtype='FACTOR', description="Controls particle distance from goal")
     limit: FloatProperty(name="Limit", default=0.8, min=0.0, max=1.0, subtype='FACTOR', description="Limits maximum rotation")
     force_strength: FloatProperty(name="Force Strength", default=1.0, min=0.0, max=1.0, subtype='FACTOR', description="Amount of influence by forces such as gravity")
+    radius: FloatProperty(name="Radius", default=0.0, min=0.0, subtype='DISTANCE')
+    show_bones: BoolProperty(name="Show Bones", default=True, description="Show bone visuals")
     
     bones: CollectionProperty(name="Bones", type=VBM_PG_Label)
     segments: CollectionProperty(name="Segments", type=VBM_PG_SwingboneSegment)
@@ -549,20 +551,28 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
     use_compression: BoolProperty(name="Compress File", default=False, description="Compress file using zlib compression to reduce file size")
     
     use_material_names: BoolProperty(name="Use Mtl Names", default=False, description="Append material name to name of object on export")
-    mesh_join_names: BoolProperty(name="Join Mesh Names", default=False, description="Merge meshes with similar names, after truncating name after \".\" character")
+    mesh_join_names: BoolProperty(name="Join Mesh Names", default=False, 
+        description="Merge meshes with similar names, after truncating name after \".\" character.\nEx: [PoppieWear.top, PoppieWear.shorts] => [PoppieWear]")
     
     color_layer_name: StringProperty(name="VC Layer Name", default="", options=set(), description="Vertex color layer to use on export. Uses 'Color' if empty")
+    color_layer_name2: StringProperty(name="VC Layer Name", default="", options=set(), description="Vertex color layer to use on export. Uses 'Color' if empty")
     color_layer_default: FloatVectorProperty(name="VC Layer Default", size=4, default=(1,1,1,1), min=0, max=1.0, subtype='COLOR_GAMMA', options=set(), description="Default vertex color if vc layer name is set but not found")
+    color_layer_default2: FloatVectorProperty(name="VC Layer Default", size=4, default=(1,1,1,1), min=0, max=1.0, subtype='COLOR_GAMMA', options=set(), description="Default vertex color if vc layer name is set but not found")
     color_is_srgb: BoolProperty(name="VC sRGB", default=True, options=set(), description="Applies gamma correction to colors if true, otherwise leaves as is")
+    color_is_srgb2: BoolProperty(name="VC sRGB", default=True, options=set(), description="Applies gamma correction to colors if true, otherwise leaves as is")
     
     uv_layer_name: StringProperty(name="UV Layer Name", default="", options=set(), description="UV layer to use on export. Uses 'UVMap' if empty")
+    uv_layer_name2: StringProperty(name="UV Layer Name", default="", options=set(), description="UV layer to use on export. Uses 'UVMap' if empty")
     uv_layer_default: FloatVectorProperty(name="UV Layer Default", size=2, default=(1,1), options=set(), description="Default uv value if uv layer name is set but not found")
+    uv_layer_default2: FloatVectorProperty(name="UV Layer Default", size=2, default=(1,1), options=set(), description="Default uv value if uv layer name is set but not found")
     
     normal_w_name: StringProperty(name="Normal.w Group", default="", options=set(), description="Vertex group to use as normal's w coordinate.")
     normal_w_value: StringProperty(name="Normal.w Value", default="", options=set(), description="Value to use as normal's w coordinate if group is not found.")
     
-    object_script_pre: PointerProperty(name="Object Pre Script", type=bpy.types.Text, description="Internal python script to run before applying modifiers. \ncontext.scene['%s'] is set as a mutex before executing" % VBM_SCRIPTISEXPORTING)
-    object_script_post: PointerProperty(name="Object Post Script", type=bpy.types.Text, description="Internal python script to run after applying modifiers. \ncontext.scene['%s'] is set as a mutex before executing" % VBM_SCRIPTISEXPORTING)
+    object_script_pre: PointerProperty(name="Object Pre Script", type=bpy.types.Text, 
+        description="Internal python script to run before applying modifiers. \ncontext.scene['%s'] is set as a mutex before executing" % VBM_SCRIPTISEXPORTING)
+    object_script_post: PointerProperty(name="Object Post Script", type=bpy.types.Text, 
+        description="Internal python script to run after applying modifiers. \ncontext.scene['%s'] is set as a mutex before executing" % VBM_SCRIPTISEXPORTING)
     
     bone_groups: CollectionProperty(name="Bone Groups", type=VBM_PG_Swingbone, options=set())
     bone_group_index: IntProperty(min=0, options=set())
@@ -630,8 +640,8 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
         ('MATERIAL', "MTL", "Material settings", 'MATERIAL_DATA', 3),
         ('ACTION', "ANI", "Action settings", 'ACTION', 4),
     ]))
-    express_export: BoolProperty(name="Express Export", default=False)
-    compress_model_files: BoolProperty(name="Compress on Export", default=False)
+    express_export: BoolProperty(name="Express Export", default=False, options=set())
+    compress_model_files: BoolProperty(name="Compress on Export", default=False, options=set())
     print_debug: BoolProperty(name="Print Debug Info", default=False, options=set(), description="Print debug info to console during operations")
 classlist.append(VBM_PG_Scene)
 
@@ -1670,26 +1680,35 @@ class VBM_PT_Asset(bpy.types.Panel):
             
             r = layout.row(align=1)
             r.scale_y = 0.9
-            c = [r.column(align=0) for i in range(0,4)]
+            c = [r.column(align=1) for i in range(0,4)]     # [icon, prop, default, flag]
             c[1].scale_x = 1.5
             c[2].scale_x = 0.6
             
-            e = [x.row(align=1) for x in c]
-            e[0].label(text="Color", icon=VFORMAT_ICON[VFORMAT_INDEX['COL']])
-            if obj and obj.type=='MESH':
-                e[1].prop_search(collection.vbm, 'color_layer_name', obj.data, 'color_attributes', text="", results_are_suggestions=True)
-            else:
-                e[1].prop(collection.vbm, 'color_layer_name', text="", placeholder="<Active VC Layer>")
-            e[2].prop(collection.vbm, 'color_layer_default', text="")
-            e[3].prop(collection.vbm, 'color_is_srgb', text="", icon='MOD_THICKNESS')
+            for i,label in enumerate(["Color"]):
+                enabled = format[4]
+                e = [x.row(align=1) for x in c]
+                for x in e:
+                    x.enabled = enabled
+                e[0].label(text=label, icon=VFORMAT_ICON[VFORMAT_INDEX['COL']])
+                if obj and obj.type=='MESH':
+                    e[1].prop_search(collection.vbm, 'color_layer_name', obj.data, 'color_attributes', text="", results_are_suggestions=True)
+                else:
+                    e[1].prop(collection.vbm, 'color_layer_name', text="", placeholder="<Active VC Layer>")
+                e[2].prop(collection.vbm, 'color_layer_default', text="")
+                e[3].prop(collection.vbm, 'color_is_srgb', text="", icon='MOD_THICKNESS')
+            [x.separator() for x in c]
             
-            e = [x.row(align=1) for x in c]
-            e[0].label(text="UV", icon=VFORMAT_ICON[VFORMAT_INDEX['UVS']])
-            if obj and obj.type=='MESH':
-                e[1].prop_search(collection.vbm, 'uv_layer_name', obj.data, 'uv_layers', text="", results_are_suggestions=True)
-            else:
-                e[1].prop(collection.vbm, 'uv_layer_name', text="", placeholder="<Active UV Layer>")
-            e[2].row().prop(collection.vbm, 'uv_layer_default', text="")
+            for i,label in enumerate(("UV", "UV2")):
+                enabled = format[5 if i==0 else 6]
+                e = [x.row(align=1) for x in c]
+                for x in e:
+                    x.enabled = enabled
+                e[0].label(text=label, icon=VFORMAT_ICON[VFORMAT_INDEX['UVS']])
+                if obj and obj.type=='MESH':
+                    e[1].prop_search(collection.vbm, 'uv_layer_name', obj.data, 'uv_layers', text="", results_are_suggestions=True)
+                else:
+                    e[1].prop(collection.vbm, 'uv_layer_name', text="", placeholder="<Active UV Layer>")
+                e[2].row().prop(collection.vbm, 'uv_layer_default', text="")
             layout.separator()
             
             # Children
@@ -2257,7 +2276,8 @@ def ExportModel(collection, report=True):
     chunkversionmap = {}
     
     chunkversionmap['VTX'] = 1
-    chunkversionmap['SKE'] = 1
+    chunkversionmap['SKE'] = 2
+    chunkversionmap['TEX'] = 1
     chunkversionmap['MTL'] = 1
     
     # Objects -------------------------------------------------------------------------------
