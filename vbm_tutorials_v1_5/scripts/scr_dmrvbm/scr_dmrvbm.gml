@@ -62,6 +62,7 @@ enum VBM_TRANSFORM {
 	Ex: 200 bones = 200 mat4s = 4x200 registers = 800 registers used.
 */
 #macro VBM_BONELIMIT 200
+#macro VBM_TEXTURESLOTMAX 8
 
 // For Game Maker, "heavier" matrix is second argument: mat4_multiply(m, mparent)
 #macro VBM_MAT4_MUTLIPLY matrix_multiply
@@ -86,11 +87,57 @@ enum VBM_FORMATMASK {
 
 #macro VBM_FORMAT_NATIVE (VBM_FORMATMASK.POSITION | VBM_FORMATMASK.COLOR | VBM_FORMATMASK.UV | (VBM_FORMATMASK.COLOR<<16))
 
-// Uniform names for textures. Don't HAVE to be used.
-#macro VBM_UNIFORMNAME_TEXTURE0 "texture0"
-#macro VBM_UNIFORMNAME_TEXTURE1 "texture1"
-#macro VBM_UNIFORMNAME_TEXTURE2 "texture2"
-#macro VBM_UNIFORMNAME_TEXTURE3 "texture3"
+// Standarized uniform names. Don't HAVE to be used.
+/*
+	TEXTURE0 = Albedo/Color1
+	TEXTURE1 = Albedo/Color2
+	TEXTURE2 = ---
+	TEXTURE3 = ---
+	TEXTURE4 = Normal Map
+	TEXTURE5 = Emission
+	TEXTURE6 = PRM
+	TEXTURE7 = Skybox
+*/
+#macro VBM_UNIFORMNAME_TEXTURE0 "TEXTURE0"
+#macro VBM_UNIFORMNAME_TEXTURE1 "TEXTURE1"
+#macro VBM_UNIFORMNAME_TEXTURE2 "TEXTURE2"
+#macro VBM_UNIFORMNAME_TEXTURE3 "TEXTURE3"
+#macro VBM_UNIFORMNAME_TEXTURE4 "TEXTURE4"
+#macro VBM_UNIFORMNAME_TEXTURE5 "TEXTURE5"
+#macro VBM_UNIFORMNAME_TEXTURE6 "TEXTURE6"
+#macro VBM_UNIFORMNAME_TEXTURE7 "TEXTURE7"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR0 "CUSTOMVECTOR0"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR1 "CUSTOMVECTOR1"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR2 "CUSTOMVECTOR2"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR3 "CUSTOMVECTOR3"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR4 "CUSTOMVECTOR4"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR5 "CUSTOMVECTOR5"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR6 "CUSTOMVECTOR6"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR7 "CUSTOMVECTOR7"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR8 "CUSTOMVECTOR8"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR9 "CUSTOMVECTOR9"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR10 "CUSTOMVECTOR10"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR11 "CUSTOMVECTOR11"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR12 "CUSTOMVECTOR12"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR13 "CUSTOMVECTOR13"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR14 "CUSTOMVECTOR14"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR15 "CUSTOMVECTOR15"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR16 "CUSTOMVECTOR16"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR17 "CUSTOMVECTOR17"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR18 "CUSTOMVECTOR18"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR19 "CUSTOMVECTOR19"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR20 "CUSTOMVECTOR20"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR21 "CUSTOMVECTOR21"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR22 "CUSTOMVECTOR22"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR23 "CUSTOMVECTOR23"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR24 "CUSTOMVECTOR24"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR25 "CUSTOMVECTOR25"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR26 "CUSTOMVECTOR26"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR27 "CUSTOMVECTOR27"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR28 "CUSTOMVECTOR28"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR29 "CUSTOMVECTOR29"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR30 "CUSTOMVECTOR30"
+#macro VBM_UNIFORMNAME_CUSTOMVECTOR31 "CUSTOMVECTOR31"
 
 #macro VBM_SUBMIT_TEXDEFAULT -1
 #macro VBM_SUBMIT_TEXNONE 0
@@ -349,16 +396,24 @@ function VBM_ModelMaterial() constructor {
 	shader_name = "";
 	flags = 0;	// Mask of VBM_MATERIAL_FLAG values
 	
-	// Total of 4 texture_sprites
-	texture_flags = [0,0,0,0];	// Mask of VBM_MATERIALTEXTUREFLAG values
-	texture_indices = [0,0,0,0];	// Index into model's texture array
-	texture_paths = ["","","",""];	// Name of sprite asset
+	// Up to 16 texture slots
+	texture_flags = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0];	// Mask of VBM_MATERIALTEXTUREFLAG values
+	texture_indices = [-1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1];	// Index into model's texture array. Each element is a slot
+	texture_paths = ["","","","", "","","","", "","","","", "","","",""];	// Name of sprite asset
 };
 
 /// @desc Revmoves allocated data from struct
 /// @param {Struct.VBM_ModelMaterial} material
 function VBM_ModelMaterial_Free(material) {
 	// Nothing yet
+};
+
+/// @desc Returns index of texture in model for texture slot
+/// @param {Struct.VBM_ModelMaterial} material
+/// @param {Real} texture_slot
+/// @return {Real}
+function VBM_ModelMaterial_GetTextureSlotIndex(material, texture_slot) {
+	return material.texture_indices[texture_slot];
 };
 
 // Animation --------------------------------------------------------------------
@@ -1161,15 +1216,21 @@ function VBM_Model_GetBonesByLayer(model, layer_mask, out_bones, out_capacity) {
 	return hits;
 }
 
-/// @desc Renders all meshes in model
+/// @desc Crude method to render all meshes in model
 /// @param {Struct.VBM_Model} model
 /// @param {Array<Real>} matrix
 /// @param {Real} [layermask]
 /// @param {Bool} [change_drawstate]
 function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_drawstate=true, change_shader=false) {
+	/*
+		An inefficient example of rendering a vbm model with material parameters.
+		In a proper engine, gpu calls (including shader functions) would be minimized
+		by sorting ALL models to render based on similarity between materials.
+	*/
+	
 	var drawflags = ~0;
 	var n = array_length(model.meshdefs);
-	var meshdef, mtl, tex, shd;
+	var meshdef, mtl, tex, shd=shader_current();
 	var m;
 	
 	tex = VBM_Model_GetTexturePointer(model, 0);
@@ -1200,20 +1261,31 @@ function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_draw
 						if ( shd != -1 && shd != shader_current() ) {
 							shader_set(shd);
 						}
-				
-						// Set textures. 0 is passed in w/ vertex_submit()
-						if ( shd != -1 ) {
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE0), VBM_Model_GetTexturePointer(model, 0));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE1), VBM_Model_GetTexturePointer(model, 1));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE2), VBM_Model_GetTexturePointer(model, 2));
-							texture_set_stage(shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE3), VBM_Model_GetTexturePointer(model, 3));
-						}
 					}
 				}
 				
-				tex = VBM_Model_GetTexturePointer(model, mtl.texture_indices[0]);
-				if ( mtl.texture_flags[0] & VBM_MATERIALTEXTUREFLAG.FILTERLINEAR ) {gpu_set_tex_filter(1);}
-				else {gpu_set_tex_filter(0);}
+				// Set textures. 0 is passed in w/ vertex_submit()
+				if ( shd != -1 ) {
+					// Uses standarized uniform names "TEXTURE0"..."TEXTURE7"
+					var slot_sampler = [
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE0),
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE1),
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE2),
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE3),
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE4),
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE5),
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE6),
+						shader_get_sampler_index(shd, VBM_UNIFORMNAME_TEXTURE7),
+					];
+					
+					for (var slot = 0; slot < VBM_TEXTURESLOTMAX; slot++) {
+						if ( mtl.texture_indices[slot] > -1 ) {
+							texture_set_stage(slot_sampler[slot], VBM_Model_GetTexturePointer(model, mtl.texture_indices[0]));
+							gpu_set_tex_filter_ext(slot_sampler[slot], (mtl.texture_flags[slot] & VBM_MATERIALTEXTUREFLAG.FILTERLINEAR) != 0);
+							gpu_set_tex_repeat_ext(slot_sampler[slot], (mtl.texture_flags[slot] & VBM_MATERIALTEXTUREFLAG.EXTEND) == 0);
+						}
+					}
+				}
 			}
 			else {
 				tex = -1;
@@ -2067,7 +2139,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 		chunk_jump = buffer_tell(f) + chunk_len;
 		
 		if ( vbm_openflags & VBM_OPENFLAGS.PRINTDEBUG ) {
-			show_debug_message(chunk_type+string(chunk_version)+": " + string_format(chunk_len/1_000_000,1,4)+" MB");
+			show_debug_message("VBM Chunk " + chunk_type + " " + string(chunk_version));	
 		}
 		
 		// End .......................................
@@ -2075,7 +2147,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			buffer_read(f, buffer_u32);	// Zero 
 		}
 		// Name .......................................
-		if ( chunk_type == "NAM" ) {
+		else if ( chunk_type == "NAM" ) {
 			outvbm.name = buffer_read(f, buffer_string); 
 		}
 		// Vertex Buffer .............................
@@ -2242,10 +2314,19 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			for (var material_index = 0; material_index < material_count; material_index++) {
 				var mtl = new VBM_ModelMaterial();
 				mtl.flags = buffer_read(f, buffer_s32) | VBM_MATERIALFLAG.USEDEPTH;
+				
+				if ( chunk_version >= 1 ) {
+					mtl.name = buffer_read(f, buffer_string);
+				}
+				
 				mtl.shader_name = buffer_read(f, buffer_string);
 				
-				// Each material can hold up to 4 texture_sprites
-				for (var i = 0; i < 4; i++) {
+				// Each material can hold up to 8 texture_sprites
+				var texture_count = 4;
+				if ( chunk_version >= 1 ) {
+					texture_count = buffer_read(f, buffer_s32);
+				}
+				for (var i = 0; i < texture_count; i++) {
 					mtl.texture_flags[i] = buffer_read(f, buffer_s32);
 					mtl.texture_indices[i] = buffer_read(f, buffer_s32);
 					mtl.texture_paths[i] = buffer_read(f, buffer_string);
@@ -2259,6 +2340,17 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			outvbm.textures = array_create(texture_count);
 			for (var texture_index = 0; texture_index < texture_count; texture_index++) {
 				var texdef = new VBM_ModelTexture();
+				
+				var flags = 0;
+				var name = "";
+				
+				if ( chunk_version >= 1 ) {
+					flags = buffer_read(f, buffer_s32);
+					name = buffer_read(f, buffer_string);
+				}
+				else {
+					name = "TEXTURE" + chr(ord("0")+texture_index);
+				}
 				
 				var width = buffer_read(f, buffer_u32);
 				var height = buffer_read(f, buffer_u32);
@@ -2308,14 +2400,27 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			for (var bone_index = 0; bone_index < bone_count; bone_index++) {
 				var bone = new VBM_ModelBone();
 				var bone_flags = buffer_read(f, buffer_s32);
-				bone.layer_mask = buffer_read(f, buffer_s32);
 				
-				for (var i = 0; i < 16; i++) {bone.matrix_bind[i] = buffer_read(f, buffer_f32);}
-				bone.parent_index = buffer_read(f, buffer_s32);
-				
-				if ( chunk_version >= 1 ) {
-					bone.length = buffer_read(f, buffer_f32);	
+				if ( chunk_version == 2 ) {
+					bone.layer_mask = buffer_read(f, buffer_s32);
+					bone.collision_mask = buffer_read(f, buffer_s32);
+					
+					for (var i = 0; i < 16; i++) {bone.matrix_bind[i] = buffer_read(f, buffer_f32);}	// Bind Matrix
+					bone.parent_index = buffer_read(f, buffer_s32);
+					bone.length = buffer_read(f, buffer_f32);
+					bone.radius = buffer_read(f, buffer_f32);
 				}
+				else {
+					bone.layer_mask = buffer_read(f, buffer_s32);
+					
+					for (var i = 0; i < 16; i++) {bone.matrix_bind[i] = buffer_read(f, buffer_f32);}
+					bone.parent_index = buffer_read(f, buffer_s32);
+				
+					if ( chunk_version >= 1 ) {
+						bone.length = buffer_read(f, buffer_f32);	
+					}
+				}
+				
 				bone.name = buffer_read(f, buffer_string);
 				
 				variable_struct_set(outvbm.bones_name_to_index, bone.name, bone_index);
@@ -2336,12 +2441,8 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 					var pbone = outvbm.bones[bone.parent_index];
 					if ( pbone.length == 0.0 ) {
 						pbone.length = point_distance_3d(
-							bone.matrix_bind[VBM_M03],
-							bone.matrix_bind[VBM_M13],
-							bone.matrix_bind[VBM_M23],
-							pbone.matrix_bind[VBM_M03],
-							pbone.matrix_bind[VBM_M13],
-							pbone.matrix_bind[VBM_M23]
+							bone.matrix_bind[VBM_M03], bone.matrix_bind[VBM_M13], bone.matrix_bind[VBM_M23],
+							pbone.matrix_bind[VBM_M03], pbone.matrix_bind[VBM_M13], pbone.matrix_bind[VBM_M23]
 						);
 					}
 				}
@@ -2361,6 +2462,30 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				outvbm.bones[@ bone_index] = bone;
 			}
 			outvbm.bone_namesum = bone_namesum;
+		}
+		// Swing ...........................................
+		else if ( chunk_type = "SWG" ) {
+			var swing_count = buffer_read(f, buffer_u32);
+			
+			outvbm.swing = array_create(swing_count);
+			for (var swing_index = 0; swing_index < swing_count; swing_index++) {
+				var swing = new VBM_ModelSwing();
+				swing.name = buffer_read(f, buffer_string);
+				swing.layer_mask = buffer_read(f, buffer_u32);
+				swing.collision_mask = buffer_read(f, buffer_u32);
+				
+				var bone_count = buffer_read(f, buffer_u32);
+				swing.bone_indices = array_create(bone_count);
+				for (var b = 0; b < bone_count; b++) {
+					swing.bone_indices[b] = buffer_read(f, buffer_u32);
+				}
+				var segment_count = buffer_read(f, buffer_u32);
+				swing.segments = array_create(VBM_BONESEGMENT._len*segment_count);
+				for (var s = 0; s < segment_count; s++) {
+					swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone0] = buffer_read(f, buffer_u32);	// start
+					swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone1] = buffer_read(f, buffer_u32);	// end
+				}
+			}
 		}
 		// Animation ....................................
 		else if ( chunk_type == "ANI" ) {
@@ -2465,7 +2590,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 		}
 		// Unknown chunk type ..........................
 		else {
-			
+			show_debug_message("VBM_Load(): Unknown chunk type " + chunk_type);
 		};
 		
 		// Jump to next chunk
