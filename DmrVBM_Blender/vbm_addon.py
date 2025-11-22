@@ -3,10 +3,14 @@ import os
 import numpy as np
 import zlib
 import time
+import gpu
+
+from math import sin, cos, atan2
 from mathutils import Vector, Color, Matrix, Euler, Quaternion
 from bpy.props import BoolProperty, BoolVectorProperty, IntProperty, IntVectorProperty, FloatProperty, FloatVectorProperty, StringProperty, EnumProperty, PointerProperty, CollectionProperty
 from struct import pack as Pack
 from struct import unpack as Unpack
+from gpu_extras.batch import batch_for_shader
 
 PackChars = lambda s: b''.join([Pack('B', ord(c)) for c in s])
 PackString = lambda s: b''.join([Pack('B', ord(c)) for c in s]) + Pack('B', 0)
@@ -15,7 +19,13 @@ PackMatrix = lambda m: b''.join([Pack('ffff', *tuple(v)) for v in m.copy().trans
 
 HexString = lambda value,n=8: "".join("0123456789ABCDEF"[(value>>(i*4)) & 0xF] for i in range(0, n))[::-1]
 
+I32toVec4 = lambda value: Vector([ ((int(value) >> i*8) & 0xFF) / 255.0 for i in range(0,4)])
+
 classlist = []
+
+def printd(*args):
+    if bpy.context.scene.vbm.print_debug:
+        print(" ".join([str(x) for x in args]))
 
 "======================================================================================================"
 "CONSTANTS"
@@ -72,6 +82,20 @@ VFORMAT_ELEMENTS = [x[1] for x in VFORMATDATA]
 VFORMAT_INDEX = {k: i for i,k in enumerate(VFORMAT_NAME)}
 VFORMAT_SPACE = [x[2] for x in VFORMATDATA]
 VFORMAT_ICON = [x[3] for x in VFORMATDATA]
+
+VBM_ICON_COLOR = ["STRIP_COLOR_%02d" % i for i in range(1, 10)]
+
+VBM_COLOR_BONEGROUP = tuple([I32toVec4(x) for x in (
+    0xff525ACC, # Red
+    0xff488ACC, # Orange
+    0xff3FA3B3, # Yellow
+    0xff5C995C, # Green
+    0xffCC9F51, # Aqua
+    0xffDA598D, # Purple
+    0xffB873C6, # Pink
+    0xff526999, # Brown
+    0xff808080, # Gray
+)])
 
 VFORMAT_DEFAULTMASK = sum([
     ((1<<i) * (VFORMAT_NAME[i] in 'POS COL UVS'.split())) | ((1<<(i+16)) * (VFORMAT_NAME[i] in ['COL']))
@@ -274,7 +298,19 @@ class VBM_PG_Object(bpy.types.PropertyGroup):
     layermask: BoolVectorProperty(name="Layer Mask", size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)])
 classlist.append(VBM_PG_Object)
 
+class VBM_PG_SwingboneSegment(bpy.types.PropertyGroup):
+    start_bone: StringProperty(name="Start Bone")
+    end_bone: StringProperty(name="End Bone")
+classlist.append(VBM_PG_SwingboneSegment)
+    
 class VBM_PG_Swingbone(bpy.types.PropertyGroup):
+    def add_segment(self, start_bone, end_bone=""):
+        usedbones = [x for s in self.segments for x in (s.start_bone+s.end_bone, s.end_bone+s.start_bone)]
+        if start_bone+end_bone not in usedbones:
+            segment = self.segments.add()
+            segment.start_bone = start_bone
+            segment.end_bone = end_bone
+    
     name: StringProperty(default="s_bone")
     export_enabled: BoolProperty(name="Export Enabled", default=1)
     swing_enabled: BoolProperty(name="Swing Enabled", default=0)
@@ -284,8 +320,11 @@ class VBM_PG_Swingbone(bpy.types.PropertyGroup):
     force_strength: FloatProperty(name="Force Strength", default=1.0, min=0.0, max=1.0, subtype='FACTOR', description="Amount of influence by forces such as gravity")
     
     bones: CollectionProperty(name="Bones", type=VBM_PG_Label)
+    segments: CollectionProperty(name="Segments", type=VBM_PG_SwingboneSegment)
+    
     bone_index: IntProperty(name="Bone Index", min=0)
     layermask: BoolVectorProperty(name="Layer Mask", size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)])
+    segment_index: IntProperty(name="Bone Index", min=0)
 classlist.append(VBM_PG_Swingbone)
 
 # -----------------------------------------------------------------------------------------------------
@@ -469,13 +508,20 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
         checksum = sum([i*ord(c) for i,x in enumerate(collection.children_recursive) for c in x.name])
         
         if checksum != self.get('VBM_CHECKSUM', -1):
-            print("> VBM Collection Refresh")
+            printd("> VBM Collection Refresh")
             context.scene.collection.vbm.refresh()
             self['VBM_CHECKSUM'] = checksum
     
     data_path: StringProperty(name="Data Path", default="", subtype='DIR_PATH', update=update_datapath)
     layermask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set(), description="Number of layer mask bits to display")
     show_extra_info: BoolProperty(name="Extended Info", default=False, options=set(), description="Show extra info in item lists")
+    show_swing_bones: BoolProperty(name="Show Swing Bones", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
+    show_swing_segments: BoolProperty(name="Show Swing Segments", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
+    swing_tab: EnumProperty(name="Swing Tab", default='SWING', options=set(), items=tuple([
+        ('SWING', "Parameters", "Swing Parameters"),
+        ('BONE', "Bones", "Bones"),
+        ('SEGMENT', "Segments", "Segments"),
+    ]))
     shader_default: StringProperty(name="Default Shader", default="DEFAULT", options=set(), description="Default shader name for materials.")
     panel_tab: EnumProperty(default=1, update=refresh_collection, items=tuple([
         ('SCENE', "", "Scnene settings", 'PREFERENCES', 0),
@@ -486,6 +532,7 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
     ]))
     express_export: BoolProperty(name="Express Export", default=False)
     compress_model_files: BoolProperty(name="Compress on Export", default=False)
+    print_debug: BoolProperty(name="Print Debug Info", default=False, options=set(), description="Print debug info to console during operations")
 classlist.append(VBM_PG_Scene)
 
 "======================================================================================================"
@@ -707,6 +754,58 @@ class VBM_OT_CollectionAddBonegroupSelectedBones(bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionAddBonegroupSelectedBones)
 
+class VBM_OT_CollectionAddBonegroupSegment(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_bonegroup_segment_add', 'Add Selected Segments to Group', {'REGISTER', 'UNDO'}
+    mode: EnumProperty(name="Mode", items=tuple([(x,x,x) for x in 'BONE SEGMENT SKIRT'.split()]))
+    @classmethod
+    def poll(self, context):
+        return context.active_object and context.active_object.type=='ARMATURE' and context.object.mode == 'POSE'
+    
+    def execute(self, context):
+        collection = ActiveCollection()
+        bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index]
+        
+        FixDeformName = lambda bname: bname.replace("ORG-","DEF-").replace("MCH-","DEF-").replace("_ik","").replace("_fk","")
+        
+        rig = CollectionRig(collection)
+        bonenames = tuple(rig.data.bones.keys())
+        bonehits = []
+        for pb in context.selected_pose_bones:
+            bname = FixDeformName(pb.name)
+            if not ValidName(bname):
+                continue
+            b = rig.data.bones.get(bname)
+            if b.use_deform:
+                bonehits.append(b)
+        bonenames = [x.name for x in bonehits]
+        
+        if self.mode == 'SEGMENT':
+            for b in bonehits:
+                pname = FixDeformName(b.parent.name)
+                if pname in bonenames:
+                    bone_group.add_segment(pname, b.name)
+        elif self.mode == 'SKIRT':
+            roots = [b for b in bonehits if FixDeformName(b.parent.name) not in bonenames]
+            center = Vector((0,0,0))
+            for r in roots:
+                center += r.head
+            center /= len(roots)
+            roots.sort(key=lambda b: atan2(center[1]-b.head[1], center[0]-b.head[0]))
+            for root_index in range(0, len(roots)):
+                c1 = [roots[root_index]]
+                c2 = [roots[(root_index+1)%len(roots)]]
+                while c1[-1].children:
+                    c1.append(c1[-1].children[0])
+                while c2[-1].children:
+                    c2.append(c2[-1].children[0])
+                n = min(len(c1), len(c2))
+                for i in range(0, n):
+                    printd((c1[i].name, c2[i].name))
+                    bone_group.add_segment(c1[i].name, c2[i].name)
+                    
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionAddBonegroupSegment)
+
 class VBM_OT_CollectionRemoveBonegroupBone(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.collection_bonegroup_remove_bone', 'Remove Bone Group Bone', {'REGISTER', 'UNDO'}
     index: IntProperty(name="Index")
@@ -923,11 +1022,21 @@ class VBM_UL_CollectionBonegroup(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         maskstring = "".join(["`|"[x] for x in item.layermask[:8]])
         r = layout.row(align=1)
-        r.prop(item, 'name', text="", icon='GROUP_BONE', emboss=False)
+        rr = r.row(align=1)
+        rr.scale_x = 0.3
+        rr.label(text="", icon=VBM_ICON_COLOR[index%len(VBM_ICON_COLOR)])
+        r.operator('vbm.collection_bonegroup_select', text="", icon='GROUP_BONE', emboss=False).index=index
+        r.prop(item, 'name', text="", emboss=False)
         rr = r.row(align=1)
         rr.alignment = 'RIGHT'
         rr.label(text="%8s %2d Bones" % (maskstring+(" " if len(item.bones) < 10 else ""), len(item.bones)) )
-        r.prop(item, 'swing_enabled', text="", icon=VBM_ICON_SWING)
+        
+        rr = r.row(align=1)
+        rr.active = item.swing_enabled
+        rr.prop(item, 'swing_enabled', text="", icon=VBM_ICON_SWING, emboss=False)
+        rr = r.row(align=1)
+        rr.active = item.show_bones
+        r.prop(item, 'show_bones', text="", icon='HIDE_OFF' if item.show_bones else 'HIDE_ON', emboss=False)
 classlist.append(VBM_UL_CollectionBonegroup)
 
 class VBM_UL_CollectionBonegroupBones(bpy.types.UIList):
@@ -936,6 +1045,15 @@ class VBM_UL_CollectionBonegroupBones(bpy.types.UIList):
         r.label(text=item.name, icon='BONE_DATA')
         r.operator('vbm.collection_bonegroup_remove_bone', text="", icon='X', emboss=False).index=index
 classlist.append(VBM_UL_CollectionBonegroupBones)
+
+class VBM_UL_CollectionBonegroupSegments(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        r = layout.row(align=1)
+        r.label(text="", icon='MOD_SIMPLIFY')
+        r.prop(item, 'start_bone', text="", emboss=item.start_bone=="")
+        r.prop(item, 'end_bone', text="", emboss=item.end_bone=="")
+        r.operator('vbm.collection_bonegroup_remove_segment', text="", icon='X', emboss=False).index=index
+classlist.append(VBM_UL_CollectionBonegroupSegments)
 
 # -------------------------------------------------------------------------------------
 class VBM_UL_CollectionMaterialoverride(bpy.types.UIList):
@@ -1075,6 +1193,11 @@ class VBM_PT_Rig3DView_Swingbones(bpy.types.Panel):
     
     def draw(self, context):
         layout = self.layout
+        
+        r = layout.row(align=1)
+        r.prop(context.scene.vbm, 'show_swing_bones')
+        r.prop(context.scene.vbm, 'show_swing_segments')
+        
         collection = ActiveCollection()
         rig = CollectionRig(collection)
         
@@ -1112,26 +1235,43 @@ class VBM_PT_Rig3DView_Swingbones(bpy.types.Panel):
                 
                 VBMDrawLayermask(b, bone_group, 'layermask', text="Layer Mask")
                 
-                r = b.row(align=1)
-                c = r.column(align=1)
-                c.scale_y = 0.7
-                c.template_list('VBM_UL_CollectionBonegroupBones', "", bone_group, 'bones', bone_group, 'bone_index', rows=6)
-                c = r.column(align=1)
-                c.scale_y = 1.0
-                c.operator('vbm.collection_bonegroup_bones_from_selected', text="", icon='RESTRICT_SELECT_OFF')
-                c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X')
+                bb = b.box().column(align=1)
+                bb.row(align=1).prop(context.scene.vbm, 'swing_tab', expand=True)
                 
-                b.separator()
-                c = b.box().column(align=0)
-                c.prop(bone_group, 'swing_enabled', icon=VBM_ICON_SWING)
-                c = c.column(align=1)
-                c.active = bone_group.swing_enabled
-                c.scale_y = 0.9
-                c.use_property_split = True
-                c.prop(bone_group, 'stiffness')
-                c.prop(bone_group, 'damping')
-                c.prop(bone_group, 'limit')
-                c.prop(bone_group, 'force_strength')
+                if context.scene.vbm.swing_tab == 'SWING':
+                    c = bb.column(align=0)
+                    c.use_property_split = True
+                    c.prop(bone_group, 'swing_enabled')
+                    c = c.column(align=1)
+                    c.active = bone_group.swing_enabled
+                    c.scale_y = 0.9
+                    c.use_property_split = True
+                    c.prop(bone_group, 'radius')
+                    c.separator()
+                    c.prop(bone_group, 'stiffness')
+                    c.prop(bone_group, 'damping')
+                    c.prop(bone_group, 'limit')
+                    c.prop(bone_group, 'force_strength')
+                elif context.scene.vbm.swing_tab == 'BONE':
+                    r = bb.row(align=1)
+                    c = r.column(align=1)
+                    c.scale_y = 0.7
+                    c.template_list('VBM_UL_CollectionBonegroupBones', "", bone_group, 'bones', bone_group, 'bone_index', rows=6)
+                    c = r.column(align=1)
+                    c.scale_y = 1.0
+                    c.operator('vbm.collection_bonegroup_bones_from_selected', text="", icon='RESTRICT_SELECT_OFF')
+                    c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='BONE'
+                elif context.scene.vbm.swing_tab == 'SEGMENT':
+                    r = bb.row(align=1)
+                    c = r.column(align=1)
+                    c.scale_y = 0.7
+                    c.template_list('VBM_UL_CollectionBonegroupSegments', "", bone_group, 'segments', bone_group, 'segment_index', rows=6)
+                    c = r.column(align=1)
+                    c.scale_y = 1.0
+                    c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CON_TRACKTO').mode='SEGMENT'
+                    c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CONE').mode='SKIRT'
+                    c.separator()
+                    c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='SEGMENT'
 classlist.append(VBM_PT_Rig3DView_Swingbones)
 
 # -----------------------------------------------------------------------------------------------------------
@@ -2264,6 +2404,127 @@ def ExportModel(collection, report=True):
     print()
 
 "======================================================================================================"
+"GPU"
+"======================================================================================================"
+
+PI = 3.141592653589793
+
+VBM_SWINGCIRCLEPRECISION = 16
+VBM_SWINGLIMITN = 5
+VBM_SWINGLIMITSEP = 0.25*PI / VBM_SWINGLIMITN
+
+vbm_shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+ringverts = [(x,y) for j in range(0, VBM_SWINGCIRCLEPRECISION) for i in [j,j+1] for a in [(i/VBM_SWINGCIRCLEPRECISION)*PI*2] for x,y in [(cos(a), sin(a))]]
+batch_ring_y = batch_for_shader(vbm_shader, 'LINES', {"pos": [(x,0,y) for x,y in ringverts] + [(.1,1,0), (0,1.2,0), (0,1.2,0), (-.1,1,0)] })
+batch_ring_y1 = batch_for_shader(vbm_shader, 'LINES', {"pos": [(x,1,y) for x,y in ringverts] + [(.1,1,0), (0,1.2,0), (0,1.2,0), (-.1,1,0)] })
+batch_swing_limit_x = batch_for_shader(vbm_shader, 'LINES', {"pos": [(0,0,0), (0,1,0), (0,1,0), (0,cos(VBM_SWINGLIMITSEP),sin(VBM_SWINGLIMITSEP)), (0,cos(VBM_SWINGLIMITSEP),sin(VBM_SWINGLIMITSEP)), (0,0,0)] })
+batch_swing_limit_z = batch_for_shader(vbm_shader, 'LINES', {"pos": [(0,0,0), (0,1,0), (0,1,0), (sin(VBM_SWINGLIMITSEP),cos(VBM_SWINGLIMITSEP),0), (sin(VBM_SWINGLIMITSEP),cos(VBM_SWINGLIMITSEP),0), (0,0,0)] })
+batch_sphere = batch_for_shader(vbm_shader, 'LINES', {"pos": [(x,y,0) for x,y in ringverts] + [(x,0,y) for x,y in ringverts] + [(0,x,y) for x,y in ringverts]})
+batch_capsule_head = batch_for_shader(vbm_shader, 'LINES', {"pos": [(x,0,y) for x,y in ringverts] + [(0,-y,x) for x,y in ringverts[:len(ringverts)//2]] + [(x,-y,0) for x,y in ringverts[:len(ringverts)//2]]})
+batch_capsule_tail = batch_for_shader(vbm_shader, 'LINES', {"pos": [(x,0,y) for x,y in ringverts] + [(0,y,x) for x,y in ringverts[:len(ringverts)//2]] + [(x,y,0) for x,y in ringverts[:len(ringverts)//2]]})
+batch_capsule_shell = batch_for_shader(vbm_shader, 'LINES', {"pos": [(1,0,0),(1,1,0), (-1,0,0),(-1,1,0), (0,0,1),(0,1,1), (0,0,-1),(0,1,-1)]})
+batch_cone = batch_for_shader(vbm_shader, 'TRIS', {"pos": [ v for i in range(0, 16) for v in [ (0,0,0), (cos(PI*i/8), 1, sin(PI*i/8)), (cos(PI*(i+1)/8), 1, sin(PI*(i+1)/8)) ] ]})
+batch_line = batch_for_shader(vbm_shader, 'LINES', {"pos": [(0,0,0),(0,1,0)]})
+
+VBM_COLOR_SWINGAXIS = (Vector((1,0,.5,0.5)), Vector((.5,1,0,0.5)), Vector((0,.5,1,0.5)))
+VBM_COLOR_SWINGLIMIT = ( Vector((.5, .4, .4, 0.1)), Vector((.4, .4, .5, 0.1)) )
+VBM_COLOR_SWINGCONE = Vector((.5, .5, 1, 0.01))
+VBM_COLOR_COLLIDER = Vector((1, .7, .4, 1))
+VBM_COLOR_PARTICLE = ( Vector((.9, .4, .4, 0.5)), Vector((.1, .5, .1, 0.1)), Vector((.1, .1, .5, 0.1)), Vector((.4, .4, .4, 0.5)) )
+
+VBM_GPUSWING_HDLKEY = int(time.time())
+def vbm_draw_gpu():
+    context = bpy.context
+    # Early Exits ....................................................................
+    if not context.space_data.overlay.show_overlays:
+        return
+    if not getattr(context.scene, 'vbm', None):
+        return
+    scenevbm = context.scene.vbm
+    
+    if scenevbm.get('VBM_GPUSWING_HDLKEY', 0) < VBM_GPUSWING_HDLKEY:
+        scenevbm['VBM_GPUSWING_HDLKEY'] = VBM_GPUSWING_HDLKEY
+        printd("> Updating handle key...")
+    if scenevbm.get('VBM_GPUSWING_HDLKEY', 0) != VBM_GPUSWING_HDLKEY:
+        return
+    
+    collection = ActiveCollection()
+    if not getattr(collection, 'vbm', None):
+        return
+    collectionvbm = collection.vbm
+    
+    rig = context.active_object
+    if rig == None or rig.type != 'ARMATURE' or rig.hide_get() or rig.mode not in ('POSE', 'OBJECT'):
+        return
+    
+    # Staging .......................................................................
+    r = context.region.data
+    viewpos = r.view_location + (r.view_rotation.to_matrix() @ Vector((0,0,-1))) * r.view_distance
+    
+    drawqueue = [] # [ (batch, color, matrix) ]
+    pbones = rig.pose.bones
+    usedbones = []
+    
+    for group_index, bone_group in enumerate(collectionvbm.bone_groups):
+        if not bone_group.show_bones:
+            continue
+        if scenevbm.show_swing_bones:
+            color = VBM_COLOR_BONEGROUP[group_index%len(VBM_COLOR_BONEGROUP)] * Vector((.9,.9,.9,0.01))
+            for bone_item in bone_group.bones:
+                bname = bone_item.name
+                if bname in usedbones:
+                    continue
+                usedbones.append(bname)
+                pb = pbones.get(bname)
+                if not pb:
+                    continue
+                if bone_group.radius > 0.0:
+                    r = bone_group.radius
+                    d = pb.bone.length
+                    drawqueue.append( (batch_capsule_head, color, pb.matrix @ Matrix.Scale(r, 4)) )
+                    drawqueue.append( (batch_capsule_tail, color, pb.matrix @ Matrix.LocRotScale((0,d,0), None, (r,r,r))) )
+                    drawqueue.append( (batch_capsule_shell, color, pb.matrix @ Matrix.LocRotScale((0,0,0), None, (r,d,r))) )
+        if scenevbm.show_swing_segments:
+            r = 0.004
+            for segment_index, segment in enumerate(bone_group.segments):
+                color = Vector((1,1,1,0.5)) if segment_index == bone_group.segment_index else VBM_COLOR_BONEGROUP[group_index%len(VBM_COLOR_BONEGROUP)]
+                e1 = pbones.get(segment.start_bone)
+                e2 = pbones.get(segment.end_bone)
+                if e1 and e2:
+                    p1 = e1.matrix.decompose()[0]
+                    p2 = e2.matrix.decompose()[0]
+                    v = p2-p1
+                    d = v.length
+                    q = v.to_track_quat('Y', 'Z')
+                    drawqueue.append( (batch_sphere, color, e1.matrix @ Matrix.Scale(r, 4)) )
+                    drawqueue.append( (batch_sphere, color, e2.matrix @ Matrix.Scale(r, 4)) )
+                    drawqueue.append( (batch_line, color, Matrix.LocRotScale(p1, q, (r,d,r))) )
+                elif e1 and not e2:
+                    d = pb.bone.length
+                    drawqueue.append( (batch_sphere, color, e1.matrix @ Matrix.Scale(r, 4)) )
+                    drawqueue.append( (batch_sphere, color, e1.matrix @ Matrix.LocRotScale((0,d,0), None, (r,r,r))) )
+                    drawqueue.append( (batch_line, color, e1.matrix @ Matrix.LocRotScale((0,0,0), None, (r,d,r))) )
+    
+    # Render ......................................................................
+    if len(drawqueue) == 0:
+        return
+    
+    gpu.matrix.load_projection_matrix(bpy.context.region_data.perspective_matrix)
+    
+    colorlast = Vector((0,0,0,0))
+    matrixlast = Matrix.Identity(4)
+    for batch, color, matrix in drawqueue:
+        if matrix != matrixlast:
+            gpu.matrix.load_matrix(matrix)
+            matrix = matrixlast
+        if matrix != colorlast:
+            vbm_shader.uniform_float("color", color)
+            color = colorlast
+        batch.draw(vbm_shader)
+    
+    gpu.matrix.load_matrix(Matrix.Identity(4)) # Reset matrix for Gizmo drawing
+
+"======================================================================================================"
 "REGISTER"
 "======================================================================================================"
 
@@ -2276,10 +2537,15 @@ def register():
     
     bpy.types.Object.vbm = PointerProperty(name="DmrVBM", type=VBM_PG_Object)
     bpy.types.Image.vbm = PointerProperty(name="DmrVBM", type=VBM_PG_Image)
-    #bpy.types.SpaceView3D.draw_handler_add(vbm_draw_gpu, (), 'WINDOW', 'POST_VIEW')
+    
+    bpy.types.SpaceView3D.draw_handler_add(vbm_draw_gpu, (), 'WINDOW', 'POST_VIEW')
     
 def unregister():
     [bpy.utils.unregister_class(c) for c in classlist[::-1]]
+    
+    for i,x in list(enumerate([x for x in event if x.__name__==VBM_HL_SwingBoneHandler.__name__]))[::-1]:
+        del event[i]
+    VBM_GPUSWING_HDLKEY = 1
     
 if __name__ == "__main__":
     register()
