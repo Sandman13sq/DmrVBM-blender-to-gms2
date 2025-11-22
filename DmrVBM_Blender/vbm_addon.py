@@ -27,9 +27,14 @@ def printd(*args):
     if bpy.context.scene.vbm.print_debug:
         print(" ".join([str(x) for x in args]))
 
+def ObjIcon(objtype):
+    return 'OUTLINER_DATA_'+objtype
+
 "======================================================================================================"
 "CONSTANTS"
 "======================================================================================================"
+
+VBM_MATERIALTEXTURECOUNT = 8
 
 MODEL_NULLINDEX = 255
 
@@ -45,6 +50,11 @@ VBM_MESHTYPES = ('MESH', 'CURVE')
 VBM_EXPORTENABLEDICONS = ('CHECKBOX_DEHLT', 'CHECKBOX_HLT', 'CHECKMARK')
 VBM_ICON_SWING = 'CON_SPLINEIK'
 
+VBM_ICON_BACKFACECULLING = 'ORIENTATION_NORMAL'
+VBM_ICON_TRANSPARENT = 'IMAGE_ALPHA'
+VBM_ICON_CASTSHADOW = 'LIGHT_HEMI'
+VBM_ICON_SHADER = 'CONSOLE'
+
 VBM_VTX_COMPRESSED = 1<<0
 
 VBM_BONEPROP_STRING = 0
@@ -55,11 +65,13 @@ VBM_BONEFLAGS_HIDDEN = (1<<0)
 VBM_BONEFLAGS_SWINGBONE = (1<<1)
 VBM_BONEFLAGS_HASPROPS = (1<<2)
 
+VBM_TEXTUREFLAG_SRGB = (1<<0)
+
 VBM_MATERIALFLAGS_TRANSPARENT = (1<<0)
 VBM_MATERIALFLAGS_USECULLING = (1<<1)
 
-VBM_TEXTUREFLAG_FILTERLINEAR = (1<<1)
-VBM_TEXTUREFLAG_EXTEND = (1<<2)
+VBM_MTLTEXFLAG_FILTERLINEAR = (1<<1)
+VBM_MTLTEXFLAG_EXTEND = (1<<2)
 
 VBM_ANIMATIONFLAGS_CURVENAMES = (1<<0)
 VBM_ANIMATIONFLAGS_CURVELOOP = (1<<1)
@@ -120,6 +132,18 @@ def CalcStride(format_mask):
 
 def ActiveCollection():
     return bpy.context.collection
+
+def ActiveCollectionMaterial():
+    collection = ActiveCollection()
+    mtl = None
+    if collection.vbm.material_overrides:
+        override = collection.vbm.material_overrides[collection.vbm.material_override_index]
+        mtl = override.override if override.override else override.material
+    if not mtl:
+        mtl = ([obj.active_material for obj in collection.all_objects if obj.type=='MESH' and ValidName(obj.name)]+[None])[0]
+    if not mtl and bpy.context.active_object:
+        mtl = bpy.context.active_object.active_material
+    return mtl
 
 def CollectionRig(collection=None):
     if not collection:
@@ -258,10 +282,27 @@ class VBM_PG_Image(bpy.types.PropertyGroup):
 classlist.append(VBM_PG_Image)
 
 class VBM_PG_Material(bpy.types.PropertyGroup):
+    def get_material(self):
+        return [mtl for mtl in bpy.data.materials if mtl.vbm==self][0]
     def get_shader(self):
         return self.shader if self.shader else bpy.context.scene.vbm.shader_default
-    shader: StringProperty(default="", description="Name of shader asset")
-    transparent: BoolProperty(default=False, options=set(), description="Sets transparency flag on export")
+    def get_imagenodes(self):
+        mtl = self.get_material()
+        imagenodes = [None]*VBM_MATERIALTEXTURECOUNT
+        for i in range(0, VBM_MATERIALTEXTURECOUNT):
+            nd = mtl.node_tree.nodes.get('TEXTURE%d'%i, None)
+            if not nd:
+                nd = mtl.node_tree.nodes.get('Image Texture' if i==0 else ('Image Texture.%03d'%i))
+            imagenodes[i] = nd
+        return imagenodes
+    
+    def update_shader(self, context):
+        if self.shader != self.get('_lastshadername', ""):
+            self['_lastshadername'] = self.shader
+            context.scene.vbm.update_shadernames()
+    
+    shader: StringProperty(name="Shader", default="", description="Name of shader asset", update=update_shader)
+    transparent: BoolProperty(name="Is Transparent", default=False, options=set(), description="Sets transparency flag on export")
 classlist.append(VBM_PG_Material)
 
 class VBM_PG_MaterialOverride(bpy.types.PropertyGroup):
@@ -431,9 +472,10 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
             for nd in mtl.node_tree.nodes:
                 nd.location[0] -= offset[0]
                 nd.location[1] -= offset[1]
-            imagenodes = [nd for nd in mtl.node_tree.nodes if nd.bl_idname=='ShaderNodeTexImage' and nd.image and nd.image and ValidName(nd.image.name)]
-            if len(imagenodes):
-                imagenodes[0].name = "Image Texture"
+            imagenodes = mtl.vbm.get_imagenodes()
+            for i,nd in enumerate(imagenodes):
+                if nd:
+                    nd.name = "TEXTURE%d" % i
     
     def get_materials(self):
         collection = self.get_collection()
@@ -447,8 +489,14 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
                 return item.override
         return material
     
-    def get_bone_layermask(self, bonename):
-        layervector = self.bone_layermask_default
+    def add_material_override(self, material, override=None):
+        if material in [x.material for x in self.material_overrides]:
+            return
+        item = self.material_overrides.add()
+        item.material = material
+        item.override = override
+    
+    def find_bonegroup(self, bonename):
         for bone_group in self.bone_groups:
             if bonename in list(bone_group.bones.keys()):
                 return bone_group
@@ -522,7 +570,8 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
     material_overrides: CollectionProperty(name="Material Overrides", type=VBM_PG_MaterialOverride, options=set())
     material_override_index: IntProperty(min=0, options=set())
     
-    bone_layermask_default: BoolVectorProperty(
+    texture_slot_index: IntProperty(name="Texture Slot Index", min=0, options=set())
+    
     bone_layer_mask_default: BoolVectorProperty(
         name="Bone Layer Mask Default", 
         size=VBM_LAYERMASKSIZE, 
@@ -550,6 +599,13 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
             context.scene.collection.vbm.refresh()
             self['VBM_CHECKSUM'] = checksum
     
+    def update_shadernames(self):
+        [self.shader_names.remove(0) for x in self.shader_names]
+        usednames = list(set([self.shader_default]+[mtl.vbm.shader for mtl in bpy.data.materials if not mtl.is_grease_pencil]))
+        for x in usednames:
+            if x:
+                self.shader_names.add().name = x
+    
     data_path: StringProperty(name="Data Path", default="", subtype='DIR_PATH', update=update_datapath)
     layer_mask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set(), description="Number of layer mask bits to display")
     
@@ -563,7 +619,10 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
         ('BONE', "Bones", "Bones"),
         ('SEGMENT', "Segments", "Segments"),
     ]))
+    
     shader_default: StringProperty(name="Default Shader", default="DEFAULT", options=set(), description="Default shader name for materials.")
+    shader_names: CollectionProperty(name="Shader Names", type=VBM_PG_Label)
+    
     panel_tab: EnumProperty(default=1, update=refresh_collection, items=tuple([
         ('SCENE', "", "Scnene settings", 'PREFERENCES', 0),
         ('COLLECTION', "CLL", "Collection settings", 'OUTLINER_COLLECTION', 1),
@@ -860,6 +919,7 @@ classlist.append(VBM_OT_CollectionActionSort)
 
 class VBM_OT_CollectionMaterialFix(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.collection_material_fix', 'Fix Materials', {'REGISTER', 'UNDO'}
+    bl_description = "Aligns material nodes to output node and renames texture nodes to their index on export"
     def execute(self, context):
         collection = ActiveCollection()
         collection.vbm.fix_materials()
@@ -1034,6 +1094,15 @@ class VBM_OT_CollectionBonegroupSelect(bpy.types.Operator):
 classlist.append(VBM_OT_CollectionBonegroupSelect)
 
 # -----------------------------------------------------------------------------
+class VBM_OT_CollectionMaterialOverrideFromObjects(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_material_override_from_objects', 'Material Overrides from Collection Objects', {'REGISTER', 'UNDO'}
+    def execute(self, context):
+        collection = ActiveCollection()
+        for mtl in [mtl for obj in collection.all_objects if obj.type=='MESH' for mtl in obj.data.materials if mtl]:
+            collection.vbm.add_material_override(mtl)
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionMaterialOverrideFromObjects)
+
 class VBM_OT_CollectionMaterialOverrideAdd(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.collection_material_override_add', 'Add Material Override', {'REGISTER', 'UNDO'}
     def execute(self, context):
@@ -1044,13 +1113,37 @@ classlist.append(VBM_OT_CollectionMaterialOverrideAdd)
 
 class VBM_OT_CollectionMaterialOverrideRemove(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.collection_material_override_remove', 'Remove Material Override', {'REGISTER', 'UNDO'}
+    index: IntProperty(name="Index", min=0)
     def execute(self, context):
         collection = ActiveCollection()
-        collection.vbm.material_overrides.remove(collection.vbm.material_override_index)
+        collection.vbm.material_overrides.remove(self.index)
         collection.vbm.material_override_index = max(0, min(collection.vbm.material_override_index, len(collection.vbm.material_overrides)-1))
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionMaterialOverrideRemove)
 
+class VBM_OT_CollectionSelectTextureSlot(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_select_texture_slot', 'Select Texture', {'REGISTER', 'UNDO_GROUPED'}
+    bl_description = "Select texture slot for editing"
+    slot: IntProperty(name="Slot", min=0)
+    def execute(self, context):
+        collection = ActiveCollection()
+        collection.vbm.texture_slot_index = self.slot
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionSelectTextureSlot)
+
+class VBM_OT_CollectionMaterialAddTexture(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_material_add_texture', 'Add Texture', {'REGISTER', 'UNDO_GROUPED'}
+    bl_description = "Add texture to material for texture slot"
+    slot: IntProperty(name="Slot", min=0)
+    def execute(self, context):
+        mtl = ActiveCollectionMaterial()
+        if mtl:
+            nd = mtl.node_tree.nodes.new('ShaderNodeTexImage')
+            nd.name = "TEXTURE%d" % self.slot
+            nd.label = nd.name
+            nd.hide = True
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionMaterialAddTexture)
 # ===================================================================================================
 Clean = lambda: [data.remove(x) for data in (bpy.data.meshes, bpy.data.objects, bpy.data.armatures, bpy.data.images, bpy.data.actions) for x in list(data)[::-1] if x.get('TEMP', False)]
 
@@ -1265,10 +1358,11 @@ classlist.append(VBM_UL_CollectionBonegroupSegments)
 # -------------------------------------------------------------------------------------
 class VBM_UL_CollectionMaterialoverride(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        r = layout.row(align=1)
+        r = layout.row(align=0)
         #r.prop(item, 'enabled', text="", icon='CHECKBOX_HLT' if item.enabled else 'CHECKBOX_DEHLT', emboss=False)
         r.prop(item, 'material', text="")
         r.prop(item, 'override', text="->")
+        r.operator('vbm.collection_material_override_remove', text="", icon='X', emboss=False).index = index
 classlist.append(VBM_UL_CollectionMaterialoverride)
 
 "======================================================================================================"
@@ -1660,11 +1754,75 @@ class VBM_PT_Asset(bpy.types.Panel):
             c.scale_y = 0.8
             c.template_list('VBM_UL_CollectionMaterialoverride', "", collection.vbm, 'material_overrides', collection.vbm, 'material_override_index', rows=4)
             c = r.column(align=1)
+            c.scale_y = 0.9
+            c.operator('vbm.collection_material_override_from_objects', text="", icon='NLA_PUSHDOWN')
+            c.separator()
             c.operator('vbm.collection_material_override_add', text="", icon='ADD')
-            c.operator('vbm.collection_material_override_remove', text="", icon='REMOVE')
+            c.operator('vbm.collection_material_override_remove', text="", icon='REMOVE').index = collection.vbm.material_override_index
             c.separator()
             c.operator('vbm.collection_clear_checksum', text="", icon='UNLINKED').group='IMAGE'
-            layout.separator()
+            
+            # Active Material
+            mtl = ActiveCollectionMaterial()
+            imagenodes = mtl.vbm.get_imagenodes() if mtl else ([None]*16)
+            if mtl:
+                b = layout.box().column(align=1)
+                r = b.row()
+                r.prop(mtl, 'name', text="", icon='MATERIAL', emboss=1)
+                r.prop_search(mtl.vbm, 'shader', context.scene.vbm, 'shader_names', text="", icon=VBM_ICON_SHADER, results_are_suggestions=True)
+                
+                c = b.row(align=1)
+                r = c.row(align=1)
+                r.prop(mtl.vbm, 'transparent')
+                r = c.row(align=1)
+                r.prop(mtl, 'use_backface_culling')
+                
+                # Material Textures
+                bb = b.box().column()
+                r = bb.row()
+                r.alignment = 'CENTER'
+                r.label(text="==Texture Slots==")
+                br = bb.row(align=1)
+                br.scale_y = 0.8
+                texture_slot_index = collection.vbm.texture_slot_index
+                activeimagenode = None
+                for i,nd in enumerate(imagenodes):
+                    texname = 'TEXTURE%d' % i
+                    if (i%(VBM_MATERIALTEXTURECOUNT//2)) == 0:
+                        c = br.column(align=1)
+                    r = c.row(align=1)
+                    r.alignment = 'LEFT'
+                    rr = r.row(align=1)
+                    rr.scale_x = 0.3
+                    rr.label(text='[%d]'%i)
+                    if nd:
+                        imagename = (nd.image.name if nd.image else texname)
+                        rr = r.row(align=1)
+                        rr.operator('vbm.collection_select_texture_slot', text=imagename+" "*(20-len(imagename)), icon='IMAGE_DATA' if nd.image else 'SHADING_BBOX', emboss=i==texture_slot_index).slot=i
+                        rr.active = 1
+                        if i==texture_slot_index:
+                            activeimagenode = nd
+                    else:
+                        x = r.row(align=1)
+                        x.active = i==texture_slot_index
+                        x.operator('vbm.collection_select_texture_slot', text=texname+" "*(20-len(texname)), icon='SHADING_BBOX', emboss=i==texture_slot_index).slot=i
+                
+                # Active Image Slot
+                if activeimagenode:
+                    r = bb.row(align=1)
+                    if not activeimagenode:
+                        r.prop(activeimagenode, 'image')
+                    else:
+                        c = bb.column(align=1)
+                        c.scale_y = 0.9
+                        c.use_property_split = 1
+                        c.prop(activeimagenode, 'image')
+                        if activeimagenode.image:
+                            c.prop(activeimagenode, 'interpolation', text="Interpolation")
+                            c.prop(activeimagenode.image.colorspace_settings, 'name', text="Color Space")
+                        #c.prop(activeimagenode, 'extension', text="Extension")
+                else:
+                    bb.operator('vbm.collection_material_add_texture', text="Create TEXTURE%d"%texture_slot_index, icon='ADD').slot = texture_slot_index
             
             # Object Materials
             b = layout.row(align=0)
@@ -1675,14 +1833,14 @@ class VBM_PT_Asset(bpy.types.Panel):
             c[1].scale_x = 0.8
             c[2].scale_x = 1.2
             c[0].label(text="MTL", icon='MATERIAL')
-            c[1].label(text="SHD", icon='CONSOLE')
-            c[2].label(text="TEX", icon='NODE_TEXTURE')
-            c[3].label(text="", icon='IMAGE_ALPHA')
-            c[4].label(text="", icon='ORIENTATION_NORMAL')
+            c[1].label(text="SHD", icon=VBM_ICON_SHADER)
+            c[2].label(text="TEXTURE0", icon='NODE_TEXTURE')
+            c[3].label(text="", icon=VBM_ICON_TRANSPARENT)
+            c[4].label(text="", icon=VBM_ICON_BACKFACECULLING)
             for mtl in materials:
                 c[0].prop(mtl, 'name', text="")
-                c[1].prop(mtl.vbm, 'shader', text="", placeholder=mtl.vbm.get_shader())
-                ndimage = mtl.node_tree.nodes.get("Image Texture", None)
+                c[1].prop_search(mtl.vbm, 'shader', context.scene.vbm, 'shader_names', text="", results_are_suggestions=True)
+                ndimage = imagenodes[0]
                 if ndimage:
                     c[2].prop(ndimage, 'image', text="")
                 else:
@@ -2100,6 +2258,7 @@ def ExportModel(collection, report=True):
     
     chunkversionmap['VTX'] = 1
     chunkversionmap['SKE'] = 1
+    chunkversionmap['MTL'] = 1
     
     # Objects -------------------------------------------------------------------------------
     vbmap = {}
@@ -2447,23 +2606,24 @@ def ExportModel(collection, report=True):
             VBM_MATERIALFLAGS_USECULLING * (mtl.use_backface_culling)
         )
         
-        texturenodes = [nd for nd in mtl.node_tree.nodes if ValidName(nd.name) and nd.bl_idname=='ShaderNodeTexImage' and nd.image and ValidName(nd.image.name)]
-        texturenodes.sort(key=lambda nd: -nd.location[1] if nd else 1000000000000)
+        texturenodes = mtl.vbm.get_imagenodes()
+        texturenodes = [nd if nd and nd.image else None for nd in texturenodes]
         for nd in texturenodes:
-            if nd.image.name not in texturenames:
+            if nd and nd.image and nd.image.name not in texturenames:
                 texturenames.append(nd.image.name)
-        texturenodes = (texturenodes+[None]*4)[:4]
         
         mtlbin = b''
         mtlbin += Pack('i', flags)
+        mtlbin += PackString(FixName(mtl.name))  # Material Name
         mtlbin += PackString(mtl.vbm.shader if mtl.vbm.shader else context.scene.vbm.shader_default)  # Shader Name
         
-        # 4 Textures max
+        # 8(?) Textures max
+        mtlbin += Pack('i', len(texturenodes))
         for texturenode in texturenodes:
             if texturenode:
                 texflags = (
-                    (VBM_TEXTUREFLAG_FILTERLINEAR * (texturenode.interpolation.upper() != 'CLOSEST')) |
-                    (VBM_TEXTUREFLAG_EXTEND * (texturenode.interpolation=='EXTEND'))
+                    (VBM_MTLTEXFLAG_FILTERLINEAR * (texturenode.interpolation.upper() != 'CLOSEST')) |
+                    (VBM_MTLTEXFLAG_EXTEND * (texturenode.extension=='EXTEND'))
                 )
             else:
                 texflags = 0
@@ -2481,7 +2641,13 @@ def ExportModel(collection, report=True):
             w,h = size
             index_dtype = 'H' if len(palette) >= 256 else 'B'
             
+            flags = (
+                (VBM_TEXTUREFLAG_SRGB * (image.colorspace_settings.name.upper()=='SRGB'))
+            )
+            
             imagebin = b''
+            imagebin += Pack('i', flags)
+            imagebin += PackString(FixName(image.name))
             imagebin += Pack('III', w, h, len(palette))
             imagebin += PackVector('I', palette)
             
