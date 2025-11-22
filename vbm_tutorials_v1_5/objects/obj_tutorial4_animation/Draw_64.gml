@@ -13,6 +13,7 @@ draw_text(xx, yy, "    \"-\",\"+\" to navigate animations"); yy += ysep;
 draw_text(xx, yy, "    \"?\" to toggle mesh visibility"); yy += ysep;
 draw_text(xx, yy, "    \"|\" to toggle weight visibility"); yy += ysep;
 draw_text(xx, yy, "    \"[\",\"]\" to highlight bone"); yy += ysep;
+draw_text(xx, yy, "    \"Enter/Return\" to toggle bone visual"); yy += ysep;
 yy += ysep;
 
 draw_text(xx, yy, "Camera Position: " + string(view_position)); yy += ysep;

@@ -6,13 +6,14 @@ tutorials = [
 	obj_tutorial2_loadmodel,
 	obj_tutorial3_shaders,
 	obj_tutorial4_animation,
-	//obj_tutorial5_prism,
+	obj_tutorial5_prism,
 ];
 
 demos = [
 	0,
 	obj_demo_benchmark,
 	obj_demo_verlettest,
+	obj_demo_cloth,
 ];
 
 tutorial_index = 1;

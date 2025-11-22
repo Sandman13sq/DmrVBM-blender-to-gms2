@@ -17,6 +17,7 @@ varying vec3 v_vEyeDir;	// Eye vector to pass to fragment shader
 // Uniforms - Passed in in draw call
 uniform vec3 u_lightpos;	// Passed in in draw call
 uniform vec3 u_eyepos;	// Passed in in draw call
+uniform mat4 u_axes;	// <right, up, forward, position>
 
 void main()
 {
@@ -37,5 +38,5 @@ void main()
 	// ( transpose() function not available on OpenGL versions < 4.00. Game maker is ~3.00 )
 	
 	v_vLightDir = tbn * normalize(u_lightpos.xyz - (gm_Matrices[MATRIX_WORLD] * object_space_pos).xyz);
-	v_vEyeDir = tbn * normalize(u_eyepos.xyz - (gm_Matrices[MATRIX_WORLD] * object_space_pos).xyz);
+	v_vEyeDir = tbn * normalize(u_axes[3].xyz - (gm_Matrices[MATRIX_WORLD] * object_space_pos).xyz);
 }

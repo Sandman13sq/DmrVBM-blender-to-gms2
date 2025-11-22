@@ -5,12 +5,13 @@ varying vec2 v_vTexcoord;
 varying vec4 v_vColour;
 varying vec3 v_vNormal;
 varying vec3 v_vLightDir;
-varying vec3 v_vEyeDir;
+
+uniform mat4 u_axes;	// <right, up, forward, location>
 
 void main()
 {
 	vec3 normal = normalize(v_vNormal);		// Direction of fragment normal
-	vec3 incoming = normalize(v_vEyeDir);	// Direction of fragment to camera eye
+	vec3 incoming = normalize(-u_axes[2].xyz);	// Direction of fragment to camera eye
 	vec3 lightdir = normalize(v_vLightDir);	// Direction of fragment to light
 	
 	// Ratio that normal faces light value (Aligned = 1, Away = -1, Halfway = 0)

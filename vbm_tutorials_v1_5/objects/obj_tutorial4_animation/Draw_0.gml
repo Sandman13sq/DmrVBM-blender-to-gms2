@@ -12,8 +12,7 @@ matrix_set(matrix_view, matview);
 
 // Shader Uniforms
 shader_set(shd_tutorial4_animation);
-shader_set_uniform_f(u_animation_boneselect, bone_select);
-shader_set_uniform_f(u_animation_showweights, show_weights);
+shader_set_uniform_f_array(u_animation_weightdisplay, [show_weights, bone_select, 0, 0]);	// <- vec4 uniform
 
 matrix_set(matrix_world, mattran); // Transform matrix
 
@@ -34,6 +33,12 @@ if ( mesh_flash > 0.0 ) {
 	}
 }
 shader_reset();
+
+// Draw Bones
+if ( show_bones ) {
+	gpu_set_ztestenable(0);	// Skip depth test and render on top
+	VBM_DrawSkeleton(model, bone_matrices);
+}
 
 // Restore previous room matrices
 matrix_set(matrix_projection, camera_get_proj_mat(camera_get_active()));

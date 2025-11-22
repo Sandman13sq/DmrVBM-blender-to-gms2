@@ -60,13 +60,16 @@ bone_skinning = vbm_mat4_identity_array_1d(VBM_BONELIMIT);	// Vertex-Space Matri
 
 animation_props = {};	// Updated with non-bone properties
 
+skeleton_vb = vertex_create_buffer();
+skeleton_vbf = VBM_FormatBuild(VBM_FORMAT_NATIVE);
+show_bones = 0;
+
 // *Playback Controls ----------------------------------
 playback_frame = 0;
 playback_speed = 1;
 
 // *Shader Uniforms
 u_animation_bonematrices = shader_get_uniform(shd_tutorial4_animation, "u_bonematrices");	// For skinning matrices
-u_animation_boneselect = shader_get_uniform(shd_tutorial4_animation, "u_boneselect");	// For weight visual
-u_animation_showweights = shader_get_uniform(shd_tutorial4_animation, "u_showweights");	// For weight visual
+u_animation_weightdisplay = shader_get_uniform(shd_tutorial4_animation, "u_weightdisplay");	// For weight visual
 
 event_perform(ev_step, 0); // Force Step Update before first draw call
