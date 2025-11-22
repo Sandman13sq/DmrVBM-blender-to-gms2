@@ -23,9 +23,7 @@ varying float v_vWeightsum; // For weight visual
 	Ex: 200 bones = 200 mat4s = 4x200 registers = 800 registers used.
 */
 uniform mat4 u_bonematrices[200];	// Matrix per bone
-
-uniform float u_boneselect;	// For weight visual
-uniform float u_showweights;	// For weight visual
+uniform vec4 u_weightdisplay;	// For weight visuals <enabled, index, 0, 0>
 
 void main()
 {
@@ -47,10 +45,11 @@ void main()
     v_vTexcoord = in_TextureCoord;
 	
 	// Used for weight visual
-	if ( u_showweights > 0.0 && u_boneselect >= 0.0 ) {
+	if ( u_weightdisplay[0] > 0.0 ) {
 		float weightsum = 0.0;
+		float bone_index = u_weightdisplay[1];
 		for (int i = 0; i < 4; i++) {
-			weightsum += float(abs(u_boneselect-in_Bone[i]) <= 0.5) * in_Weight[i];
+			weightsum += float(abs(bone_index-in_Bone[i]) <= 0.5) * in_Weight[i];
 		}
 		v_vWeightsum = weightsum;
 	}

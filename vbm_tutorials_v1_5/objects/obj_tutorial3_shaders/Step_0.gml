@@ -88,6 +88,7 @@ matview = matrix_build_lookat(
 	view_position[0], view_position[1], view_position[2],
 	0,0,1
 	);
+mataxes = matrix_inverse(matview);
 
 var projection_yflip = (os_type==os_windows)? -1: 1;
 matproj = matrix_build_projection_perspective_fov(

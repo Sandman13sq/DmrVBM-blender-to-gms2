@@ -13,6 +13,7 @@ zfar = 100;	// Clipping distance for far triangles
 matproj = matrix_build_identity();	// Matrices are updated in Step Event
 matview = matrix_build_identity();
 mattran = matrix_build_identity();
+mataxes = matrix_build_identity();	// Unmodified view axes = Inversion of matview
 
 viewforward = [0, 1, 0]
 viewright = [1, 0, 0]
@@ -45,9 +46,11 @@ lightpos = [2, -8, 8];	// Light position to pass to shader
 eyepos = [0, 0, 0];	// View position to pass to shader. Calculated with matview
 
 // *Shader Uniforms
+u_normal_axes = shader_get_uniform(shd_tutorial3_normal, "u_axes"); // Get uniform handle for axes matrix
 u_normal_lightpos = shader_get_uniform(shd_tutorial3_normal, "u_lightpos"); // Get uniform handle for light position in shd_tutorial3_normal
-u_normal_eyepos = shader_get_uniform(shd_tutorial3_normal, "u_eyepos"); // Get uniform handle for eye position in shd_tutorial3_normal
 
+u_tangent_axes = shader_get_uniform(shd_tutorial3_tangent, "u_axes"); // Get uniform handle for axes matrix
+u_tangent_lightpos = shader_get_uniform(shd_tutorial3_tangent, "u_lightpos"); // Get uniform handle for light position in shd_tutorial3_tangent
 u_tangent_normalmap = shader_get_sampler_index(shd_tutorial3_tangent, VBM_UNIFORMNAME_TEXTURE4);	// Textures require a different function to get location
 
 event_perform(ev_step, 0);	// Force an update

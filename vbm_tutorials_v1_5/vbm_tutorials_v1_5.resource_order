@@ -21,6 +21,8 @@
     {"name":"shd_tutorial3_normal","order":8,"path":"shaders/shd_tutorial3_normal/shd_tutorial3_normal.yy",},
     {"name":"shd_tutorial3_tangent","order":9,"path":"shaders/shd_tutorial3_tangent/shd_tutorial3_tangent.yy",},
     {"name":"shd_tutorial4_animation","order":12,"path":"shaders/shd_tutorial4_animation/shd_tutorial4_animation.yy",},
+    {"name":"shd_tutorial5_entity","order":16,"path":"shaders/shd_tutorial5_entity/shd_tutorial5_entity.yy",},
+    {"name":"shd_tutorial5_world","order":15,"path":"shaders/shd_tutorial5_world/shd_tutorial5_world.yy",},
     {"name":"spr_debugfont","order":1,"path":"sprites/spr_debugfont/spr_debugfont.yy",},
     {"name":"spr_dreamfont","order":2,"path":"sprites/spr_dreamfont/spr_dreamfont.yy",},
     {"name":"spr_stinkyghost","order":4,"path":"sprites/spr_stinkyghost/spr_stinkyghost.yy",},

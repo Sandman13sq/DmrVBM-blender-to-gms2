@@ -20,13 +20,13 @@ if (shadermode == 0) { // Draw native model
 else if (shadermode == 1) { // Draw model with normals
 	shader_set(shd_tutorial3_normal);	// Set shader for next draw calls
 	shader_set_uniform_f_array(u_normal_lightpos, lightpos); // Set light position for shader
-	shader_set_uniform_f_array(u_normal_eyepos, eyepos); // Set eye position for shader
+	shader_set_uniform_matrix_array(u_normal_axes, mataxes); // Set view axes for shader
 	VBM_Model_Submit(model_normal, mattran);
 }
 else if (shadermode == 2) {
 	shader_set(shd_tutorial3_tangent);	// Set shader for next draw calls
-	shader_set_uniform_f_array(u_normal_lightpos, lightpos); // Set light position for shader
-	shader_set_uniform_f_array(u_normal_eyepos, eyepos); // Set eye position for shader
+	shader_set_uniform_f_array(u_tangent_lightpos, lightpos); // Set light position for shader
+	shader_set_uniform_matrix_array(u_tangent_axes, mataxes); // Set view axes for shader
 	
 	var mtl = VBM_Model_GetMaterial(model_tangent, 0);	// Get material struct
 	var texture_index = VBM_ModelMaterial_GetTextureSlotIndex(mtl, 4);	// Get model texture index for slot 4

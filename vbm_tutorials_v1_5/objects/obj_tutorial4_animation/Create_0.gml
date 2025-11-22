@@ -70,7 +70,6 @@ playback_speed = 1;
 
 // *Shader Uniforms
 u_animation_bonematrices = shader_get_uniform(shd_tutorial4_animation, "u_bonematrices");	// For skinning matrices
-u_animation_boneselect = shader_get_uniform(shd_tutorial4_animation, "u_boneselect");	// For weight visual
-u_animation_showweights = shader_get_uniform(shd_tutorial4_animation, "u_showweights");	// For weight visual
+u_animation_weightdisplay = shader_get_uniform(shd_tutorial4_animation, "u_weightdisplay");	// For weight visual
 
 event_perform(ev_step, 0); // Force Step Update before first draw call

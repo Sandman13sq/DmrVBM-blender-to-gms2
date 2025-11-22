@@ -22,8 +22,7 @@ for (var p = 0; p < pointcount; p++) {
 }
 
 // Satisfy Constraints
-math_set_epsilon(0.000000001);
-for (var iteration = 0; iteration < 2; iteration++) {
+for (var iteration = 0; iteration < 4; iteration++) {
 	var delta = [0,0,0];
 	var s=0, p1=0, p2=0, restlength=0.0, restlengthsquared=0.0, diff=0.0, deltalength=0.0;
 	var invmass1=0.0, invmass2=0.0;
@@ -38,17 +37,15 @@ for (var iteration = 0; iteration < 2; iteration++) {
 		invmass1 = 1.0/points[p1+VBM_BONEPARTICLE.mass];
 		invmass2 = 1.0/points[p2+VBM_BONEPARTICLE.mass];
 		
-		{
-			for (var i = 0; i < 3; i++) {
-				delta[i] = points[p2+i]-points[p1+i];
-			}
+		for (var i = 0; i < 3; i++) {
+			delta[i] = points[p2+i]-points[p1+i];
+		}
 			
-			deltalength = point_distance_3d(0,0,0, delta[0], delta[1], delta[2]);
-			diff = (deltalength-restlength) / (deltalength*(invmass1+invmass2));
-			for (var i = 0; i < 3; i++) {
-				points[p1+i] -= invmass1*delta[i]*diff;
-				points[p2+i] += invmass2*delta[i]*diff;
-			}
+		deltalength = point_distance_3d(0,0,0, delta[0], delta[1], delta[2]);
+		diff = (deltalength-restlength) / (deltalength*(invmass1+invmass2));
+		for (var i = 0; i < 3; i++) {
+			points[p1+i] -= invmass1*delta[i]*diff;
+			points[p2+i] += invmass2*delta[i]*diff;
 		}
 	}
 	points[VBM_BONEPARTICLE._len*(100)+VBM_BONEPARTICLE.xcurr] = 0;

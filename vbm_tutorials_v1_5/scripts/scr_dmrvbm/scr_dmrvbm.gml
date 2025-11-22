@@ -87,6 +87,15 @@ enum VBM_FORMATMASK {
 
 #macro VBM_FORMAT_NATIVE (VBM_FORMATMASK.POSITION | VBM_FORMATMASK.COLOR | VBM_FORMATMASK.UV | (VBM_FORMATMASK.COLOR<<16))
 
+#macro VBM_SUBMIT_TEXDEFAULT -1
+#macro VBM_SUBMIT_TEXNONE 0
+
+enum VBM_OPENFLAGS {
+	PRINTDEBUG = 0b00000001,
+};
+
+#macro __VBM_VTX_COMPRESSED (1<<0)
+
 // Standarized uniform names. Don't HAVE to be used.
 /*
 	TEXTURE0 = Albedo/Color1
@@ -138,15 +147,6 @@ enum VBM_FORMATMASK {
 #macro VBM_UNIFORMNAME_CUSTOMVECTOR29 "CUSTOMVECTOR29"
 #macro VBM_UNIFORMNAME_CUSTOMVECTOR30 "CUSTOMVECTOR30"
 #macro VBM_UNIFORMNAME_CUSTOMVECTOR31 "CUSTOMVECTOR31"
-
-#macro VBM_SUBMIT_TEXDEFAULT -1
-#macro VBM_SUBMIT_TEXNONE 0
-
-enum VBM_OPENFLAGS {
-	PRINTDEBUG = 0b00000001,
-};
-
-#macro __VBM_VTX_COMPRESSED (1<<0)
 
 #endregion
 
@@ -687,9 +687,12 @@ function VBM_ModelAnimation_SampleProps_Struct(animation, frame, outstruct) {
 /// @param {Real} dz
 /// @param {Real} dist_start
 /// @param {Real} dist_end
+/// @param {Array<Real>} [triangle_mask]
 /// @param {Array<Real>} [outintersection3]
 /// @param {Array<Real>} [outnormal3]
-function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start, dist_end, outintersection3=undefined, outnormal3=undefined) {
+function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start, dist_end, triangle_mask=VBM_LAYERMASKALL, outintersection3=undefined, outnormal3=undefined) {
+	if ( is_undefined(prism) ) {return -1;}
+	
 	var d, dist, dp, nx,ny,nz, px,py,pz;
 	var v;
 	
@@ -719,7 +722,9 @@ function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start,
 		
 		// Intersection distance = dot(plane_point - ray_origin, normal) / dot(normal, ray_direction)
 		dist = dot_product_3d(	
-			tris[t+VBM_PRISMTRIANGLE.cx]-rx, tris[t+VBM_PRISMTRIANGLE.cy]-ry, tris[t+VBM_PRISMTRIANGLE.cz]-rz,
+			tris[t+VBM_PRISMTRIANGLE.cx]-rx, 
+			tris[t+VBM_PRISMTRIANGLE.cy]-ry, 
+			tris[t+VBM_PRISMTRIANGLE.cz]-rz,
 			nx,ny,nz
 		) / dp;
 		
@@ -1227,6 +1232,71 @@ function VBM_Model_GetBonesByLayer(model, layer_mask, out_bones, out_capacity) {
 		}
 	}
 	return hits;
+}
+
+/// @param {Struct.VBM_Model} model
+/// @param {Real} prism_index
+/// @return {Struct.VBM_ModelPrism, Undefined}
+function VBM_Model_GetPrism(model, prism_index) {
+	return (prism_index >= 0 && prism_index < array_length(model.prisms))? 
+		model.prisms[prism_index]: undefined;
+}
+
+/// @desc Casts ray into prisms of model. Returns undefined if no intersection
+/// @param {Struct.VBM_Model} model
+/// @param {Array<Real>} matprism
+/// @param {Real} px
+/// @param {Real} py
+/// @param {Real} pz
+/// @param {Real} dx
+/// @param {Real} dy
+/// @param {Real} dz
+/// @param {Real} dist_start
+/// @param {Real} dist_end
+/// @param {Real} [layer_mask]
+/// @param {Real} [triangle_mask]
+/// @param {Array<Real>} [outintersection3]
+/// @param {Array<Real>} [outnormal3]
+/// @return {Real, Undefined}
+function VBM_Model_CastRay(
+	model, matprism, px, py, pz, dx, dy, dz, dist_start, dist_end, 
+	layer_mask=VBM_LAYERMASKALL, triangle_mask=VBM_LAYERMASKALL, outintersection3=undefined, outnormal3=undefined) {
+	var out_dist = undefined;
+	var hit_index = 0;
+	var hit_normal = [0,0,0];
+	var hit_intersection = [0,0,0];
+	
+	var n = VBM_Model_GetPrismCount(model);
+	for (var prism_index = 0; prism_index < n; prism_index++) {
+		var prism = VBM_Model_GetPrism(model, prism_index);
+		hit_index = VBM_ModelPrism_CastRay(
+			prism,
+			matprism,
+			px, py, pz, dx, dy, dz,
+			dist_start, dist_end,
+			triangle_mask,
+			hit_intersection,
+			hit_normal
+		);
+		
+		if ( hit_index != -1 ) {
+			var d = point_distance_3d(
+				px, py, pz,
+				hit_intersection[0], hit_intersection[1], hit_intersection[2],
+			);
+			if ( d >= dist_start && d <= dist_end ) {
+				dist_end = d;
+				out_dist = d;
+				if ( !is_undefined(outintersection3) ) {
+					array_copy(outintersection3, 0, hit_intersection, 0, 3);
+				}
+				if ( !is_undefined(outnormal3) ) {
+					array_copy(outnormal3, 0, hit_normal, 0, 3);	
+				}
+			}
+		}
+	}
+	return out_dist;
 }
 
 /// @desc Crude method to render all meshes in model

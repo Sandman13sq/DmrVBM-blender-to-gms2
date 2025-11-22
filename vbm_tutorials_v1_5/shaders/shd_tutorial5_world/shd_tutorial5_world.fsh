@@ -6,22 +6,23 @@ varying vec4 v_vColour;
 varying vec3 v_vNormal;
 varying vec3 v_vLightDir;
 
-uniform mat4 u_axes;	// <right, up, forward, location>
+varying mat4 v_axes;	// <right, up, forward, position>
 
 void main()
 {
 	vec3 normal = normalize(v_vNormal);		// Direction of fragment normal
-	vec3 incoming = normalize(-u_axes[2].xyz);	// Direction of fragment to camera eye
+	vec3 incoming = normalize(-v_axes[2].xyz);	// Direction of fragment to camera eye
 	vec3 lightdir = normalize(v_vLightDir);	// Direction of fragment to light
 	
 	// Ratio that normal faces light value (Aligned = 1, Away = -1, Halfway = 0)
 	float dp = dot(normal, lightdir);
+	dp = dp*0.5+0.5;
 	
 	// Reflection of light direction bouncing off of normal into camera eye
 	//float dr = dot(reflect(-lightdir, normal), incoming);		// <- Phong
 	float dr = dot(normalize(lightdir + incoming), normal);	// Blinn-Phong (looks better)
 	dr = clamp(dr, 0.0, 1.0);
-	dr = pow(dr, 64.0);
+	dr = pow(dr, 16.0);
 	
 	// Fragment Color
 	vec4 color = v_vColour * texture2D( gm_BaseTexture, v_vTexcoord );
