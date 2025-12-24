@@ -2207,6 +2207,14 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 	var chunk_len;
 	var chunk_jump;
 	
+	var chunk_supported_versions = {
+		"VTX": 1,
+		"SKE": 2,
+		"TEX": 2,
+		"ANI": 1,
+		"MTL": 1,
+	};
+	
 	while ( chunk_type != "END" ) {
 		// Read chunk header
 		chunk_type_ord[0] = buffer_read(f, buffer_u8);	
@@ -2222,7 +2230,17 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 		chunk_jump = buffer_tell(f) + chunk_len;
 		
 		if ( vbm_openflags & VBM_OPENFLAGS.PRINTDEBUG ) {
-			show_debug_message("VBM Chunk " + chunk_type + " " + string(chunk_version));	
+			show_debug_message("VBM Chunk " + chunk_type + " " + string(chunk_version));
+			
+			if ( variable_struct_exists(chunk_supported_versions, chunk_type) ) {
+				var _ver = chunk_supported_versions[$ chunk_type];
+				if ( chunk_version > _ver ) {
+					show_debug_message(
+						"! WARNING: "+chunk_type+" version "+string(chunk_version)+
+						" not supported! Latest = "+string(_ver)
+					);
+				}
+			}
 		}
 		
 		// End .......................................
@@ -2782,7 +2800,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			}
 		}
 		// Unknown chunk type ..........................
-		else {
+		else if (vbm_openflags & VBM_OPENFLAGS.PRINTDEBUG) {
 			show_debug_message("VBM_Load(): Unknown chunk type " + chunk_type);
 		};
 		
