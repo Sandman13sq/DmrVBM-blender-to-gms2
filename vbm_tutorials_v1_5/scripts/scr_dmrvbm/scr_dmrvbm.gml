@@ -2578,22 +2578,25 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			for (var animation_index = 0; animation_index < animation_count; animation_index++) {
 				var anim = new VBM_ModelAnimation();
 				
-				buffer_read(f, buffer_u32);	// Animation Header = 'ANI[version]'
+				if ( chunk_version == 0 ) {
+					buffer_read(f, buffer_u32);	// Animation Header = 'ANI[version]'
+				}
 				anim.flags = buffer_read(f, buffer_s32);
 				anim.name = buffer_read(f, buffer_string);
 				anim.duration = buffer_read(f, buffer_u32);
 				anim.fps_native = buffer_read(f, buffer_u32);
 				anim.loop_point = buffer_read(f, buffer_u32);
-				anim.curve_count = buffer_read(f, buffer_u32);
+				var curve_count = buffer_read(f, buffer_u32);
 				var channel_count = buffer_read(f, buffer_u32);
 				var keyframe_count = buffer_read(f, buffer_u32);
 				anim.props_offset = buffer_read(f, buffer_u32);
 				
-				anim.curve_names = array_create(anim.curve_count, "");
-				anim.curve_views = array_create(anim.curve_count*VBM_ANIMATIONVIEW._len);
+				anim.curve_count = curve_count;
+				anim.curve_names = array_create(curve_count, "");
+				anim.curve_views = array_create(curve_count*VBM_ANIMATIONVIEW._len);
 				anim.animcurve = animcurve_create();
 				
-				// Read Marksers
+				// Read Markers
 				if ( anim.flags & VBM_ANIMATIONFLAG.MARKERS ) {
 					var nummarkers = buffer_read(f, buffer_u32);
 					anim.markers = array_create(nummarkers);
@@ -2616,27 +2619,99 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				var hits = 0;
 				
 				var namesum = 0;
-				for (var curve_index = 0; curve_index < anim.curve_count; curve_index++) {
-					var curvename = string(curve_index);
-					if ( anim.flags & VBM_ANIMATIONFLAG.CURVENAMES ) {
-						curvename = buffer_read(f, buffer_string);
-					}
+				
+				// Interleaved (old)
+				if ( chunk_version == 0 ) {
+					for (var curve_index = 0; curve_index < curve_count; curve_index++) {
+						var curvename = string(curve_index);
+						if ( anim.flags & VBM_ANIMATIONFLAG.CURVENAMES ) {
+							curvename = buffer_read(f, buffer_string);
+						}
 					
-					channel_count = buffer_read(f, buffer_u32);
-					
-					anim.curve_names[curve_index] = curvename;
-					anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.offset] = channel_offset;
-					anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.size] = channel_count;
-					
-					for (var i = 1; i <= string_length(curvename); i++) {
-						namesum += string_ord_at(namesum, i);
-					}
-					
-					for (channel_index = 0; channel_index < channel_count; channel_index++) {
-						keyframe_count = buffer_read(f, buffer_u32);
+						channel_count = buffer_read(f, buffer_u32);
 						
+						anim.curve_names[curve_index] = curvename;
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.offset] = channel_offset;
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.size] = channel_count;
+					
+						for (var i = 1; i <= string_length(curvename); i++) {
+							namesum += string_ord_at(namesum, i);
+						}
+					
+						for (channel_index = 0; channel_index < channel_count; channel_index++) {
+							keyframe_count = buffer_read(f, buffer_u32);
+						
+							points = array_create(keyframe_count);
+							keyframe_index = 0;
+							repeat (keyframe_count) {
+								point = animcurve_point_new();
+								point.posx = buffer_read(f, buffer_f32) / anim.duration;
+								point.value = buffer_read(f, buffer_f32);
+								points[keyframe_index] = point;
+								keyframe_index++;
+							}
+						
+							// Game Maker crashes if a curve has less than two points. Add of necessary
+							while ( keyframe_count < 2 ) {
+								point = animcurve_point_new();
+								point.posx = points[0].posx;
+								point.value = points[0].value;
+								array_push(points, point);
+								keyframe_count++;
+							}
+						
+							channel = animcurve_channel_new();
+							channel.name = curvename + string(channel_index);
+							channel.type = animcurvetype_linear;
+							channel.iterations = 0;
+							channel.points = points;
+						
+							channels[channel_offset] = channel;
+							channel_offset++;
+						}
+					}
+				}
+				// Packed Streams
+				else {
+					// Curve Names
+					if ( anim.flags & VBM_ANIMATIONFLAG.CURVENAMES ) {
+						for (var curve_index = 0; curve_index < curve_count; curve_index++) {
+							curvename = buffer_read(f, buffer_string);
+							anim.curve_names[curve_index] = curvename;
+							for (var i = 1; i <= string_length(curvename); i++) {
+								namesum += string_ord_at(namesum, i);
+							}
+						}
+					}
+					
+					// Curve Views
+					channel_offset = 0;
+					for (var curve_index = 0; curve_index < curve_count; curve_index++) {
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.offset] = buffer_read(f, buffer_u32);
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.size] = buffer_read(f, buffer_u32);
+						
+						var n = anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index+VBM_ANIMATIONVIEW.size];
+						for (var channel_index = 0; channel_index < n; channel_index++) {
+							channel = animcurve_channel_new();
+							channel.name = anim.curve_names[curve_index] + string(channel_index);
+							channel.type = animcurvetype_linear;
+							channel.iterations = 0;
+							channels[channel_offset] = channel;
+							channel_offset++;	
+						}
+					}
+					// Channel Views
+					var channel_views = array_create(VBM_ANIMATIONVIEW._len*channel_count);
+					for (var channel_index = 0; channel_index < channel_count; channel_index++) {
+						channel_views[VBM_ANIMATIONVIEW._len*channel_index + VBM_ANIMATIONVIEW.offset] = buffer_read(f, buffer_u32);
+						channel_views[VBM_ANIMATIONVIEW._len*channel_index + VBM_ANIMATIONVIEW.size] = buffer_read(f, buffer_u32);
+					}
+					// Keyframe Values
+					for (var channel_index = 0; channel_index < channel_count; channel_index++) {
+						keyframe_count = channel_views[VBM_ANIMATIONVIEW._len*channel_index + VBM_ANIMATIONVIEW.size];
 						points = array_create(keyframe_count);
 						keyframe_index = 0;
+						// Read keyframes for channel
 						repeat (keyframe_count) {
 							point = animcurve_point_new();
 							point.posx = buffer_read(f, buffer_f32) / anim.duration;
@@ -2644,7 +2719,6 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 							points[keyframe_index] = point;
 							keyframe_index++;
 						}
-						
 						// Game Maker crashes if a curve has less than two points. Add of necessary
 						while ( keyframe_count < 2 ) {
 							point = animcurve_point_new();
@@ -2653,15 +2727,8 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 							array_push(points, point);
 							keyframe_count++;
 						}
-						
-						channel = animcurve_channel_new();
-						channel.name = curvename + string(channel_index);
-						channel.type = animcurvetype_linear;
-						channel.iterations = 0;
-						channel.points = points;
-						
-						channels[channel_offset] = channel;
-						channel_offset++;
+						// Add channel to struct
+						channels[channel_index].points = points;
 					}
 				}
 				
