@@ -34,6 +34,8 @@ def ObjIcon(objtype):
 "CONSTANTS"
 "======================================================================================================"
 
+BLENDER_5_0 = bpy.app.version >= (5,0,0)
+
 VBM_MATERIALTEXTURECOUNT = 8
 
 MODEL_NULLINDEX = 255
@@ -52,6 +54,7 @@ VBM_ICON_SWING = 'CON_SPLINEIK'
 
 VBM_ICON_BACKFACECULLING = 'ORIENTATION_NORMAL'
 VBM_ICON_TRANSPARENT = 'IMAGE_ALPHA'
+VBM_ICON_FLIPFACES = 'CUBE'
 VBM_ICON_CASTSHADOW = 'LIGHT_HEMI'
 VBM_ICON_SHADER = 'CONSOLE'
 
@@ -64,11 +67,14 @@ VBM_BONEPROP_FLOAT = 2
 VBM_BONEFLAGS_HIDDEN = (1<<0)
 VBM_BONEFLAGS_SWINGBONE = (1<<1)
 VBM_BONEFLAGS_HASPROPS = (1<<2)
+VBM_BONEFLAGS_HASDATA = (1<<3)
 
 VBM_TEXTUREFLAG_SRGB = (1<<0)
+VBM_TEXTUREFLAG_COMPRESSED = (1<<7)
 
 VBM_MATERIALFLAGS_TRANSPARENT = (1<<0)
 VBM_MATERIALFLAGS_USECULLING = (1<<1)
+VBM_MATERIALFLAGS_FLIPFACES = (1<<2)
 
 VBM_MTLTEXFLAG_FILTERLINEAR = (1<<1)
 VBM_MTLTEXFLAG_EXTEND = (1<<2)
@@ -77,7 +83,7 @@ VBM_ANIMATIONFLAGS_CURVENAMES = (1<<0)
 VBM_ANIMATIONFLAGS_CURVELOOP = (1<<1)
 VBM_ANIMATIONFLAGS_MARKERS = (1<<2)
 
-VFORMATDATA = (     # (name, size, space, icon)
+ATTRIBUTEDATA = (     # (name, size, space, icon)
     ('POS', 3, 12, 'EMPTY_ARROWS'),
     ('NOR', 3, 12, 'NORMALS_VERTEX'),
     ('TAN', 3, 12, 'NORMALS_VERTEX_FACE'),
@@ -90,11 +96,11 @@ VFORMATDATA = (     # (name, size, space, icon)
     ('GRO', 4,  4, 'GROUP_VERTEX'),
 )
 
-VFORMAT_NAME = [x[0] for x in VFORMATDATA]
-VFORMAT_ELEMENTS = [x[1] for x in VFORMATDATA]
-VFORMAT_INDEX = {k: i for i,k in enumerate(VFORMAT_NAME)}
-VFORMAT_SPACE = [x[2] for x in VFORMATDATA]
-VFORMAT_ICON = [x[3] for x in VFORMATDATA]
+ATTRIBUTE_MAX = len(ATTRIBUTEDATA)
+ATTRIBUTE_NAME = [x[0] for x in ATTRIBUTEDATA]
+ATTRIBUTE_LENGTH = [x[1] for x in ATTRIBUTEDATA]
+ATTRIBUTE_ICON = [x[3] for x in ATTRIBUTEDATA]
+ATTRIBUTE_INDEX = {k: i for i,k in enumerate(ATTRIBUTE_NAME)}
 
 VBM_ICON_COLOR = ["STRIP_COLOR_%02d" % i for i in range(1, 10)]
 
@@ -110,24 +116,34 @@ VBM_COLOR_BONEGROUP = tuple([I32toVec4(x) for x in (
     0xff808080, # Gray
 )])
 
-VFORMAT_DEFAULTMASK = sum([
-    ((1<<i) * (VFORMAT_NAME[i] in 'POS COL UVS'.split())) | ((1<<(i+16)) * (VFORMAT_NAME[i] in ['COL']))
+ATTRIBUTE_DEFAULTMASK = sum([
+    ((1<<i) * (ATTRIBUTE_NAME[i] in 'POS COL UVS'.split())) | ((1<<(i+16)) * (ATTRIBUTE_NAME[i] in ['COL']))
     for i in range(0,10)
 ])
 
 Items_Framerate = tuple([ (str(i),str(i)+" FPS",str(i)+" FPS", 'NONE', i) for i in range(1,61) if (60/i)==float(60//i) ])
 Items_LayermaskSize = tuple([ (str(i),str(i),str(i), 'NONE', i) for i in (8,16,32) ])
 
+Items_MeshJoinType = (
+    ('NONE', 'None', "No changes to mesh objects", 'BLANK1', 0),
+    ('NAME', 'Name', "Join meshes with matching evaluated name.\nEx: [PoppieWear.top, PoppieWear.shorts] => [PoppieWear]", 'SORTALPHA', 1),
+    ('MATERIAL', 'Material', "Join meshes with matching materials", 'MATERIAL', 2),
+)
+
 "======================================================================================================"
 "FUNCTIONS"
 "======================================================================================================"
 
+# Returns array of vec3 multiplied by matrix
+def mul_v3n_v3nf_m4(vectors, w, matrix):
+    return ((np.array(np.array(matrix)) @ np.concatenate((vectors.T,[w*np.ones(len(vectors))]))).T)[:,:3].astype(np.float32)
+
 def CalcStride(format_mask):
     stride = 0
-    for i in range(0, 16):
+    for i in range(0, ATTRIBUTE_MAX):
         if format_mask & (1<<i):
             is_bytes = (format_mask & (1<<(i+16))) != 0
-            stride += (4) if is_bytes else (VFORMAT_ELEMENTS[i] * 4)
+            stride += (4) if is_bytes else (ATTRIBUTE_LENGTH[i] * 4)
     return stride
 
 def ActiveCollection():
@@ -150,11 +166,18 @@ def CollectionRig(collection=None):
         collection=ActiveCollection()
     return ([x for x in collection.all_objects if x.type=='ARMATURE' and x.children]+[None])[0]
 
+def ClipName(name):
+    return name.split("/")[-1].split(".")[0]
+
 def FixName(name):
     return "".join([x if x.lower() in "qwertyuiopasdfghjklzxcvbnm1234567890" else "_" for x in name.replace('DEF-', "")])
 
 def ValidName(name):
-    return name[0].lower() in "qwertyuiopasdfghjklzxcvbnm1234567890" and (name[:4] != 'WGTS')
+    return (
+        name[0].lower() in "qwertyuiopasdfghjklzxcvbnm1234567890" and
+        name[:4] != 'WGTS' and
+        ClipName(name)[0].lower() in "qwertyuiopasdfghjklzxcvbnm1234567890"
+    )
 
 def MaskVectorStr(maskboolvector):
     return "0b"+"".join(["01"[x] for i,x in enumerate(maskboolvector[:int(bpy.context.scene.vbm.layer_mask_display_size)])])
@@ -174,7 +197,10 @@ LayerCollections = lambda c, outdict: (outdict.update({c.name: c}), [LayerCollec
 LayerCollection = lambda c: LayerCollections(bpy.context.view_layer.layer_collection, {})[c.name]
 def SelectCollection(collection):
     bpy.context.view_layer.active_layer_collection = LayerCollections(bpy.context.view_layer.layer_collection, {})[collection.name]
-    
+
+def ActionChannels(action):
+    # Grab curves from first action slot
+    return action.layers[0].strips[0].channelbag(action.slots[0]).fcurves
 # ..........................................................................
 def EvaluateDeformOrder(skeleton_object, sort_by_depth=False):
     if not skeleton_object:
@@ -303,6 +329,7 @@ class VBM_PG_Material(bpy.types.PropertyGroup):
     
     shader: StringProperty(name="Shader", default="", description="Name of shader asset", update=update_shader)
     transparent: BoolProperty(name="Is Transparent", default=False, options=set(), description="Sets transparency flag on export")
+    flip_faces: BoolProperty(name="Flip Faces", default=False, options=set(), description="Sets flip faces flag on export")
 classlist.append(VBM_PG_Material)
 
 class VBM_PG_MaterialOverride(bpy.types.PropertyGroup):
@@ -356,11 +383,12 @@ class VBM_PG_Object(bpy.types.PropertyGroup):
     layermask: BoolVectorProperty(size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)], description="old identifier for \"layer_mask\"")
 classlist.append(VBM_PG_Object)
 
+# -----------------------------------------------------------------------------------------------------
 class VBM_PG_SwingboneSegment(bpy.types.PropertyGroup):
     start_bone: StringProperty(name="Start Bone")
     end_bone: StringProperty(name="End Bone")
 classlist.append(VBM_PG_SwingboneSegment)
-    
+
 class VBM_PG_Swingbone(bpy.types.PropertyGroup):
     def add_segment(self, start_bone, end_bone=""):
         usedbones = [x for s in self.segments for x in (s.start_bone+s.end_bone, s.end_bone+s.start_bone)]
@@ -435,10 +463,14 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
         return ([x for x in bpy.data.collections if x.vbm==self]+[bpy.context.scene.collection])[0]
     def get_name(self):
         return self.name if self.name else self.get_collection().name
+    def get_rig(self):
+        return ([x for x in self.get_collection().all_objects if x.type=='ARMATURE' and x.children]+[None])[0]
+    def get_file_count(self):
+        return len([x for x in self.get_collection().children_recursive if x.vbm.enabled])
     
     def select_action(self, context):
         if self.actions:
-            rig = CollectionRig(self.get_collection())
+            rig = self.get_rig()
             if rig:
                 action = self.actions[self.action_index].action
                 rig.animation_data.action = action
@@ -446,7 +478,7 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
                 action.vbm.update_action(context)
     def update_pose_action(self, context):
         if self.action_pose:
-            rig = CollectionRig(self.get_collection())
+            rig = self.get_rig()
             if rig:
                 rig.animation_data.action = self.action_pose
                 rig.animation_data.action_slot = self.action_pose.slots[0]
@@ -511,38 +543,58 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
             layervector = bone_group.layer_mask
         return LayermaskToInt(layervector)
         
-    def get_format(self):
-        return self.format if self.format else []
+    def get_format_mask(self):
+        return sum([1<<i for i,x in enumerate(self.format) if x]) // 1
+    
+    def get_format_stride(self):
+        format_mask = self.get_format_mask()
+        return sum([ATTRIBUTE_LENGTH[a]*(4,1)[(1>>(a+16))!=0] for a in range(0, ATTRIBUTE_MAX) if 1<<a])
     
     def update_format(self, context):
         if sum(self.format[:16]) == 0:
             format = [0]*32
             collection = self.get_collection()
-            format[VFORMAT_INDEX['POS']] = 1
-            format[VFORMAT_INDEX['COL']] = 1
-            format[VFORMAT_INDEX['COL']+16] = 1
-            format[VFORMAT_INDEX['UVS']] = 1
+            format[ATTRIBUTE_INDEX['POS']] = 1
+            format[ATTRIBUTE_INDEX['COL']] = 1
+            format[ATTRIBUTE_INDEX['COL']+16] = 1
+            format[ATTRIBUTE_INDEX['UVS']] = 1
             
-            if CollectionRig():
-                format[VFORMAT_INDEX['BON']] = 1
-                format[VFORMAT_INDEX['BON']+16] = 1
-                format[VFORMAT_INDEX['WEI']] = 1
-                format[VFORMAT_INDEX['WEI']+16] = 1
+            if self.get_rig():
+                format[ATTRIBUTE_INDEX['BON']] = 1
+                format[ATTRIBUTE_INDEX['BON']+16] = 1
+                format[ATTRIBUTE_INDEX['WEI']] = 1
+                format[ATTRIBUTE_INDEX['WEI']+16] = 1
             self.format = [x > 0 for x in format]
     
-    name: StringProperty(default="", options=set())
+    
+    def update_name(self, context):
+        if not self.name:
+            return
+        if self.name[-1] in "/\"":
+            self.name += self.get_collection().name
+        
+    name: StringProperty(default="", options=set(), subtype='FILE_PATH', update=update_name)
     
     format: BoolVectorProperty(
-        name="Vertex Format", size=32, options=set(), default=tuple([((1<<i)&VFORMAT_DEFAULTMASK) != 0 for i in range(0, 32)]), update=update_format,   # [0:15] = Attribute, [16:31] = Is byte
+        name="Vertex Format", size=32, options=set(), default=tuple([((1<<i)&ATTRIBUTE_DEFAULTMASK) != 0 for i in range(0, 32)]), update=update_format,   # [0:15] = Attribute, [16:31] = Is byte
         description="Order of vertex attributes to write buffer with:\nPosition, Normal, Tangent, Bitangent, Color, UVs, UV2, Bone, Weight, Group\n[ F ]: Float, [ B ] = Bytes\nHighlight and press [Backspace] to reset to default"
     )
     
     enabled: BoolProperty(default=False, name="Export as File")
     object_index: IntProperty(name="Object Index", default=0, min=0, options=set(), description="Exported name is the text following the last \"/\" \nEx: \"Chara/body\" -> \"body\"")
     
+    export_meshes: BoolProperty(name="Export Meshes", default=True, options=set(), description="Include meshes on export")
+    export_skeleton: BoolProperty(name="Export Skeleton", default=True, options=set(), description="Include skeleton bones on export")
+    export_materials: BoolProperty(name="Export Materials", default=True, options=set(), description="Include material data on export")
+    export_textures: BoolProperty(name="Export Textures", default=True, options=set(), description="Include textures on export")
+    export_animations: BoolProperty(name="Export Animations", default=True, options=set(), description="Include animations on export")
+    
+    clip_object_name: BoolProperty(name="Clip Object Names", default=True, options=set(), description="Splits object name on export \n\"Poppie/body.001\" -> \"body\"")
+    clip_action_name: BoolProperty(name="Clip Action Names", default=True, options=set(), description="Splits action name on export \n\"Poppie/run.005\" -> \"run\"")
+    
     actions: CollectionProperty(type=VBM_PG_ActionItem)
-    action_index: IntProperty(min=0, update=select_action, options=set())
-    action_pose: PointerProperty(name="Action Pose", type=bpy.types.Action, update=update_pose_action, description="Pose to export mesh with (if skinning attributes are disabled and/or rig is not present)")
+    action_index: IntProperty(name="Collection Action", min=0, update=select_action, options=set(), description="Select an Action to preview using the first compatible rig in Collection")
+    action_pose: PointerProperty(name="Action Pose", type=bpy.types.Action, update=update_pose_action, description="Base Pose to deform mesh with. Leave disabled if using animations")
     
     children: CollectionProperty(options={'HIDDEN'}, type=VBM_PG_CollectionItem)
     child_index: IntProperty(min=0, options=set())
@@ -551,8 +603,7 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
     use_compression: BoolProperty(name="Compress File", default=False, description="Compress file using zlib compression to reduce file size")
     
     use_material_names: BoolProperty(name="Use Mtl Names", default=False, description="Append material name to name of object on export")
-    mesh_join_names: BoolProperty(name="Join Mesh Names", default=False, 
-        description="Merge meshes with similar names, after truncating name after \".\" character.\nEx: [PoppieWear.top, PoppieWear.shorts] => [PoppieWear]")
+    mesh_join_type: EnumProperty(name="Join Type", default='NONE', items=Items_MeshJoinType, description="Method to join meshes in collection")
     
     color_layer_name: StringProperty(name="VC Layer Name", default="", options=set(), description="Vertex color layer to use on export. Uses 'Color' if empty")
     color_layer_name2: StringProperty(name="VC Layer Name", default="", options=set(), description="Vertex color layer to use on export. Uses 'Color' if empty")
@@ -573,9 +624,12 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
         description="Internal python script to run before applying modifiers. \ncontext.scene['%s'] is set as a mutex before executing" % VBM_SCRIPTISEXPORTING)
     object_script_post: PointerProperty(name="Object Post Script", type=bpy.types.Text, 
         description="Internal python script to run after applying modifiers. \ncontext.scene['%s'] is set as a mutex before executing" % VBM_SCRIPTISEXPORTING)
+    object_add_root: BoolProperty(name="Add Root Object", default=False, options=set(), description="Add root object to node tree on export")
+    object_flatten: BoolProperty(name="Flatten Hierarchy", default=False, options=set(), description="Flatten object hierarchy, applying all matrices")
     
     bone_groups: CollectionProperty(name="Bone Groups", type=VBM_PG_Swingbone, options=set())
     bone_group_index: IntProperty(min=0, options=set())
+    bone_add_root: BoolProperty(name="Add Root Bone", default=False, options=set(), description="Add root bone to armature on export")
     
     material_overrides: CollectionProperty(name="Material Overrides", type=VBM_PG_MaterialOverride, options=set())
     material_override_index: IntProperty(min=0, options=set())
@@ -619,6 +673,7 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
     data_path: StringProperty(name="Data Path", default="", subtype='DIR_PATH', update=update_datapath)
     layer_mask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set(), description="Number of layer mask bits to display")
     
+    show_swing_viewport_panel: BoolProperty(name="Viewport Swing Panel", default=True, options=set(), description="Show Swing Panel in 3D Viewport")
     show_extra_info: BoolProperty(name="Extended Info", default=False, options=set(), description="Show extra info in item lists")
     show_swing_bones: BoolProperty(name="Show Swing Bones", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
     show_swing_segments: BoolProperty(name="Show Swing Segments", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
@@ -633,12 +688,13 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
     shader_default: StringProperty(name="Default Shader", default="DEFAULT", options=set(), description="Default shader name for materials.")
     shader_names: CollectionProperty(name="Shader Names", type=VBM_PG_Label)
     
-    panel_tab: EnumProperty(default=1, update=refresh_collection, items=tuple([
+    panel_tab: EnumProperty(name="VBM Tab", default=1, update=refresh_collection, items=tuple([
         ('SCENE', "", "Scnene settings", 'PREFERENCES', 0),
         ('COLLECTION', "CLL", "Collection settings", 'OUTLINER_COLLECTION', 1),
         ('OBJECT', "OBJ", "Collection object settings", 'OBJECT_DATA', 2),
         ('MATERIAL', "MTL", "Material settings", 'MATERIAL_DATA', 3),
         ('ACTION', "ANI", "Action settings", 'ACTION', 4),
+        ('SWING', "SWG", "Rig Bone settings", 'CON_SPLINEIK', 5),
     ]))
     express_export: BoolProperty(name="Express Export", default=False, options=set())
     compress_model_files: BoolProperty(name="Compress on Export", default=False, options=set())
@@ -721,6 +777,8 @@ class VBM_OT_BakeForPlayback(bpy.types.Operator):
                 ndinput = bakenodetree.nodes.new('NodeGroupInput')
                 ndbake.location = (-300, 0)
                 ndinput.location = (-600, 0)
+                if BLENDER_5_0:
+                    ndbake.bake_items.new('GEOMETRY', 'Bake')
                 bakenodetree.links.new(ndbake.inputs[0], ndinput.outputs[0])
                 bakenodetree.links.new(ndoutput.inputs[0], ndbake.outputs[0])
                 
@@ -888,7 +946,7 @@ class VBM_OT_CollectionPushAction(bpy.types.Operator):
     bl_description = "Pushes action from active rig to action list"
     def execute(self, context):
         collection = ActiveCollection()
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         action = rig.animation_data.action
         if action not in [x.action for x in collection.vbm.actions]:
             collection.vbm.actions.add().action = action
@@ -979,7 +1037,7 @@ class VBM_OT_CollectionAddBonegroupSelectedBones(bpy.types.Operator):
         collection = ActiveCollection()
         bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index]
         
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         bonenames = tuple(rig.data.bones.keys())
         for pb in context.selected_pose_bones:
             bname = pb.name
@@ -1010,7 +1068,7 @@ class VBM_OT_CollectionAddBonegroupSegment(bpy.types.Operator):
         
         FixDeformName = lambda bname: bname.replace("ORG-","DEF-").replace("MCH-","DEF-").replace("_ik","").replace("_fk","")
         
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         bonenames = tuple(rig.data.bones.keys())
         bonehits = []
         for pb in context.selected_pose_bones:
@@ -1022,25 +1080,29 @@ class VBM_OT_CollectionAddBonegroupSegment(bpy.types.Operator):
                 bonehits.append(b)
         bonenames = [x.name for x in bonehits]
         
+        _,deformmap,_ = EvaluateDeformOrder(rig)
+        roots = [b for b in bonehits if deformmap.get(b.name, "") not in bonenames]
+        chains = [[] for r in roots]
+        if roots:
+            print("Roots:", [b.name for b in roots])
+            for c,root in enumerate(roots):
+                chain = [root]
+                hit = 1
+                while hit:
+                    hit = 0
+                    for b in bonehits:
+                        if deformmap.get(b.name, "") == chain[-1].name:
+                            hit = 1
+                            chain.append(b)
+                            break
+                chains[c] = chain
+        
         if self.mode == 'SEGMENT':
-            for b in bonehits:
-                pname = FixDeformName(b.parent.name)
-                if pname in bonenames:
-                    bone_group.add_segment(pname, b.name)
+            for c in chains:
+                for i in range(0, len(c)-1):
+                    bone_group.add_segment(c[i].name, c[i+1].name)
         elif self.mode == 'SKIRT':
-            roots = [b for b in bonehits if FixDeformName(b.parent.name) not in bonenames]
-            center = Vector((0,0,0))
-            for r in roots:
-                center += r.head
-            center /= len(roots)
-            roots.sort(key=lambda b: atan2(center[1]-b.head[1], center[0]-b.head[0]))
             for root_index in range(0, len(roots)):
-                c1 = [roots[root_index]]
-                c2 = [roots[(root_index+1)%len(roots)]]
-                while c1[-1].children:
-                    c1.append(c1[-1].children[0])
-                while c2[-1].children:
-                    c2.append(c2[-1].children[0])
                 n = min(len(c1), len(c2))
                 for i in range(0, n):
                     printd((c1[i].name, c2[i].name))
@@ -1095,7 +1157,7 @@ class VBM_OT_CollectionBonegroupSelect(bpy.types.Operator):
     def execute(self, context):
         collection = ActiveCollection()
         bone_group = collection.vbm.bone_groups[self.index]
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         for b in bone_group.bones:
             pb = rig.pose.bones.get(b.name)
             if pb:
@@ -1154,6 +1216,33 @@ class VBM_OT_CollectionMaterialAddTexture(bpy.types.Operator):
             nd.hide = True
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionMaterialAddTexture)
+
+class VBM_OT_CollectionMaterialMoveTextureSlot(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_material_move_texture', 'Move Texture', {'REGISTER', 'UNDO'}
+    bl_description = "Add texture to material for texture slot"
+    direction: EnumProperty(name="Direction", items=tuple([(x,x,x) for x in 'UP DOWN'.split()]))
+    def execute(self, context):
+        mtl = ActiveCollectionMaterial()
+        if mtl:
+            collection = ActiveCollection()
+            imagenodes = mtl.vbm.get_imagenodes()
+            oldslot = collection.vbm.texture_slot_index
+            newslot = (oldslot + (-1 if self.direction=='UP' else 1)) % len(imagenodes)
+            if imagenodes[oldslot] and imagenodes[newslot]:
+                oldname = imagenodes[oldslot]
+                newname = imagenodes[newslot]
+                imagenodes[oldslot].name += "."
+                imagenodes[newslot].name += "."
+                imagenodes[oldslot] = newname
+                imagenodes[newslot] = oldname
+            else:
+                nd = imagenodes[oldslot]
+                print(nd)
+                nd.name = "TEXTURE%d"%newslot
+                collection.vbm.texture_slot_index = newslot
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionMaterialMoveTextureSlot)
+
 # ===================================================================================================
 Clean = lambda: [data.remove(x) for data in (bpy.data.meshes, bpy.data.objects, bpy.data.armatures, bpy.data.images, bpy.data.actions) for x in list(data)[::-1] if x.get('TEMP', False)]
 
@@ -1409,7 +1498,7 @@ def VBMDrawLayermask(layout, id, propname, text=""):
 def VBMActionPanel(layout, collection):
     context = bpy.context
     
-    rig = CollectionRig(collection)
+    rig = collection.vbm.get_rig()
     if rig and rig.animation_data:
         r = layout.row()
         r.label(text=rig.name, icon='ARMATURE_DATA')
@@ -1417,6 +1506,9 @@ def VBMActionPanel(layout, collection):
         layout.template_ID(rig.animation_data, 'action')
         
     r = layout.box().row()
+    rr = r.row(align=1)
+    rr.scale_x = 0.7
+    rr.prop(collection.vbm, 'clip_action_name', text="Clip Names")
     if collection.vbm.action_pose:
         rr = r.row()
         rr.scale_x = 0.5
@@ -1425,6 +1517,7 @@ def VBMActionPanel(layout, collection):
         #r.template_ID(collection.vbm, 'action_pose', text="")
     else:
         r.prop(collection.vbm, 'action_pose')
+    
     
     r = layout.row(align=1)
     c = r.column(align=1)
@@ -1464,10 +1557,101 @@ def VBMActionPanel(layout, collection):
             rr.scale_x = 0.85
             #rr.prop(action.vbm, 'frame_rate', text="")
 
+# --------------------------------------------------------------------------------------
+def VBMSwingPanel(layout, collection):
+    context = bpy.context
+    rig = collection.vbm.get_rig()
+    
+    if not rig:
+        r = layout.row()
+        r.alert=True
+        r.alignment='CENTER'
+        r.label(text="(No valid Rig found in collection!)")
+    else:
+        deformbones = rig.get('DEFORM_LIST', None)
+        if not deformbones:
+            deformbones = [b for b in rig.data.bones if b.use_deform]
+        
+        r = layout.row(align=1)
+        r.prop(collection, 'name', text="", icon='GROUP', emboss=False)
+        r.prop(rig, 'name', text="", icon='ARMATURE_DATA', emboss=False)
+        
+        c = layout.column(align=1)
+        r = c.row(align=1)
+        r.label(text="Default Layer Mask:")
+        r = r.row(align=1)
+        r.alignment='RIGHT'
+        r.label(text="(%3d) Bones" % (len(deformbones)))
+        VBMDrawLayermask(c, collection.vbm, 'bone_layer_mask_default', text="")
+        
+        r = layout.row(align=1)
+        c = r.column(align=1)
+        c.scale_y = 0.9
+        c.template_list('VBM_UL_CollectionBonegroup', "", collection.vbm, 'bone_groups', collection.vbm, 'bone_group_index', rows=6)
+        c = r.column(align=1)
+        c.scale_y = 1.0
+        c.operator('vbm.collection_bonegroup_add', text="", icon='ADD')
+        c.operator('vbm.collection_bonegroup_remove', text="", icon='REMOVE')
+        c.separator()
+        c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_UP').direction='UP'
+        c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_DOWN').direction='DOWN'
+        c.separator()
+        #c.prop(context.scene.vbm, 'show_extra_info', text="", icon=VBM_LAYERMASKICON)
+        
+        bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index] if collection.vbm.bone_groups else None
+        if bone_group:
+            b = layout.box().column(align=0)
+            b.active = bone_group.export_enabled
+            
+            VBMDrawLayermask(b, bone_group, 'layer_mask', text="Layer Mask")
+            VBMDrawLayermask(b, bone_group, 'collision_mask', text="Collision Mask")
+            
+            bb = b.box().column(align=1)
+            bb.row(align=1).prop(context.scene.vbm, 'swing_tab', expand=True)
+            
+            if context.scene.vbm.swing_tab == 'SWING':
+                c = bb.column(align=0)
+                c.use_property_split = True
+                c.prop(bone_group, 'swing_enabled')
+                c = c.column(align=1)
+                c.active = bone_group.swing_enabled
+                c.scale_y = 0.9
+                c.use_property_split = True
+                c.prop(bone_group, 'radius')
+                c.separator()
+                c.prop(bone_group, 'stiffness')
+                c.prop(bone_group, 'damping')
+                c.prop(bone_group, 'limit')
+                c.prop(bone_group, 'force_strength')
+            elif context.scene.vbm.swing_tab == 'BONE':
+                r = bb.row(align=1)
+                c = r.column(align=1)
+                c.scale_y = 0.7
+                c.template_list('VBM_UL_CollectionBonegroupBones', "", bone_group, 'bones', bone_group, 'bone_index', rows=6)
+                c = r.column(align=1)
+                c.scale_y = 1.0
+                c.operator('vbm.collection_bonegroup_bones_from_selected', text="", icon='RESTRICT_SELECT_OFF')
+                c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='BONE'
+            elif context.scene.vbm.swing_tab == 'SEGMENT':
+                r = bb.row(align=1)
+                c = r.column(align=1)
+                c.scale_y = 0.7
+                c.template_list('VBM_UL_CollectionBonegroupSegments', "", bone_group, 'segments', bone_group, 'segment_index', rows=6)
+                c = r.column(align=1)
+                c.scale_y = 1.0
+                c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CON_TRACKTO').mode='SEGMENT'
+                c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CONE').mode='SKIRT'
+                c.separator()
+                c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='SEGMENT'
+
 # ------------------------------------------------------------------------------------
 class VBM_PT_Rig3DView(bpy.types.Panel):
     bl_label, bl_space_type, bl_region_type = ("DmrVBM Rig", 'VIEW_3D', 'UI')
     bl_category = "DmrVBM"
+    
+    @classmethod
+    def poll(self, context):
+        return context.scene.vbm.show_swing_viewport_panel
     
     def draw(self, context):
         layout = self.layout
@@ -1477,7 +1661,7 @@ class VBM_PT_Rig3DView(bpy.types.Panel):
         r.prop(context.scene.vbm, 'show_swing_segments')
         
         collection = ActiveCollection()
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         
         if not rig:
             layout.label(text=collection.name, icon='GROUP')
@@ -1510,80 +1694,7 @@ class VBM_PT_Rig3DView_Swingbones(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         collection = ActiveCollection()
-        rig = CollectionRig(collection)
-        
-        if rig:
-            deformbones = rig.get('DEFORM_LIST', None)
-            if not deformbones:
-                deformbones = [b for b in rig.data.bones if b.use_deform]
-            
-            c = layout.column(align=1)
-            r = c.row(align=1)
-            r.label(text="Default Layer Mask:")
-            r = r.row(align=1)
-            r.alignment='RIGHT'
-            r.label(text="(%3d) Bones" % (len(deformbones)))
-            VBMDrawLayermask(c, collection.vbm, 'bone_layer_mask_default', text="")
-            
-            r = layout.row(align=1)
-            c = r.column(align=1)
-            c.scale_y = 0.9
-            c.template_list('VBM_UL_CollectionBonegroup', "", collection.vbm, 'bone_groups', collection.vbm, 'bone_group_index', rows=6)
-            c = r.column(align=1)
-            c.scale_y = 1.0
-            c.operator('vbm.collection_bonegroup_add', text="", icon='ADD')
-            c.operator('vbm.collection_bonegroup_remove', text="", icon='REMOVE')
-            c.separator()
-            c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_UP').direction='UP'
-            c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_DOWN').direction='DOWN'
-            c.separator()
-            c.prop(context.scene.vbm, 'show_extra_info', text="", icon=VBM_LAYERMASKICON)
-            
-            bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index] if collection.vbm.bone_groups else None
-            if bone_group:
-                b = layout.box().column(align=0)
-                b.active = bone_group.export_enabled
-                
-                VBMDrawLayermask(b, bone_group, 'layer_mask', text="Layer Mask")
-                VBMDrawLayermask(b, bone_group, 'collision_mask', text="Collision Mask")
-                
-                bb = b.box().column(align=1)
-                bb.row(align=1).prop(context.scene.vbm, 'swing_tab', expand=True)
-                
-                if context.scene.vbm.swing_tab == 'SWING':
-                    c = bb.column(align=0)
-                    c.use_property_split = True
-                    c.prop(bone_group, 'swing_enabled')
-                    c = c.column(align=1)
-                    c.active = bone_group.swing_enabled
-                    c.scale_y = 0.9
-                    c.use_property_split = True
-                    c.prop(bone_group, 'radius')
-                    c.separator()
-                    c.prop(bone_group, 'stiffness')
-                    c.prop(bone_group, 'damping')
-                    c.prop(bone_group, 'limit')
-                    c.prop(bone_group, 'force_strength')
-                elif context.scene.vbm.swing_tab == 'BONE':
-                    r = bb.row(align=1)
-                    c = r.column(align=1)
-                    c.scale_y = 0.7
-                    c.template_list('VBM_UL_CollectionBonegroupBones', "", bone_group, 'bones', bone_group, 'bone_index', rows=6)
-                    c = r.column(align=1)
-                    c.scale_y = 1.0
-                    c.operator('vbm.collection_bonegroup_bones_from_selected', text="", icon='RESTRICT_SELECT_OFF')
-                    c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='BONE'
-                elif context.scene.vbm.swing_tab == 'SEGMENT':
-                    r = bb.row(align=1)
-                    c = r.column(align=1)
-                    c.scale_y = 0.7
-                    c.template_list('VBM_UL_CollectionBonegroupSegments', "", bone_group, 'segments', bone_group, 'segment_index', rows=6)
-                    c = r.column(align=1)
-                    c.scale_y = 1.0
-                    c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CON_TRACKTO').mode='SEGMENT'
-                    c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CONE').mode='SKIRT'
-                    c.separator()
-                    c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='SEGMENT'
+        VBMSwingPanel(layout, collection)
 classlist.append(VBM_PT_Rig3DView_Swingbones)
 
 # -----------------------------------------------------------------------------------------------------------
@@ -1598,7 +1709,7 @@ class VBM_PT_Asset(bpy.types.Panel):
         sc = context.scene
         obj = context.active_object
         
-        # Collection ...............................................
+        # Collection .......................................................
         r = layout.row(align=1)
         r.prop(vbm, 'data_path', placeholder="(.blend folder)")
         
@@ -1607,7 +1718,7 @@ class VBM_PT_Asset(bpy.types.Panel):
         r.label(text=collection.name, icon='GROUP')
         rr = r.row(align=1)
         rr.alignment = 'RIGHT'
-        rr.label(text="%d File(s)" % (collection.vbm.enabled + len([1 for c in collection.children_recursive if c.vbm.enabled])) )
+        rr.label(text="%d File(s)" % (collection.vbm.enabled + collection.vbm.get_file_count()) )
         
         r = layout.row(align=0)
         r.operator('vbm.export_collection', text="Export Collection" if collection.vbm.enabled else "Export Collection Files", icon='EXPORT')
@@ -1615,7 +1726,7 @@ class VBM_PT_Asset(bpy.types.Panel):
         r.scale_x = 0.8
         r.operator('vbm.export_collection_all', text="Export All", icon='EXPORT')
         
-        # Tab ----------------------------------------------------
+        # Tab -------------------------------------------------------------
         layout = layout.box().column(align=1)
         layout.row(align=1).prop(context.scene.vbm, 'panel_tab', expand=True)
         layout = layout.box().column(align=0)
@@ -1623,7 +1734,6 @@ class VBM_PT_Asset(bpy.types.Panel):
         
         # Settings --------------------------------------------------------
         if context.scene.vbm.panel_tab == 'SCENE':
-            layout.operator('vbm.restore_layer_mask', icon='MODIFIER')
             c = layout.column(align=1)
             c.use_property_split = 1
             c.scale_y = 0.9
@@ -1633,6 +1743,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             r.prop(context.scene.vbm, 'show_modifier_bake')
             r.label(text="", icon='MODIFIER')
             c.prop(context.scene.vbm, 'show_extra_info', text="Extended List Display")
+            c.prop(context.scene.vbm, 'show_swing_viewport_panel')
             c.prop(context.scene.vbm, 'show_swing_bones')
             c.prop(context.scene.vbm, 'show_swing_segments')
             c.prop(context.scene.vbm, 'print_debug')
@@ -1645,6 +1756,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             rr.operator('vbm.collection_clear_checksum', text="OBJ").group='OBJECT'
             rr.operator('vbm.collection_clear_checksum', text="ANI").group='ACTION'
             rr.operator('vbm.collection_clear_checksum', text="TEX").group='IMAGE'
+            layout.operator('vbm.restore_layer_mask', icon='MODIFIER')
             
             layout.separator()
             c = layout.column(align=1)
@@ -1662,7 +1774,16 @@ class VBM_PT_Asset(bpy.types.Panel):
             rr.alignment = 'RIGHT'
             rr.label(text="%d File(s)" % (collection.vbm.enabled + len([1 for c in collection.children_recursive if c.vbm.enabled])) )
             
-            layout.prop(collection.vbm, 'use_compression')
+            r = layout.row(align=1)
+            r.prop(collection.vbm, 'use_compression')
+            
+            # File Include
+            r = layout.row(align=1)
+            r.prop(collection.vbm, 'export_meshes', text="MSH", toggle=1, icon='OUTLINER_DATA_MESH')
+            r.prop(collection.vbm, 'export_skeleton', text="SKE", toggle=1, icon='BONE_DATA')
+            r.prop(collection.vbm, 'export_animations', text="ANI", toggle=1, icon='ACTION')
+            r.prop(collection.vbm, 'export_materials', text="MTL", toggle=1, icon='MATERIAL')
+            r.prop(collection.vbm, 'export_textures', text="TEX", toggle=1, icon='IMAGE_DATA')
             
             # Format
             format = collection.vbm.format
@@ -1671,11 +1792,11 @@ class VBM_PT_Asset(bpy.types.Panel):
             c = b.column(align=1)
             
             r = c.row(align=1)
-            for i,attribute_name in enumerate(VFORMAT_NAME):
+            for i,attribute_name in enumerate(ATTRIBUTE_NAME):
                 p = r.column(align=1)
                 active = format[i]
                 isbyte = format[i+16]
-                p.prop(collection.vbm, 'format', text="", index=i, icon=VFORMAT_ICON[i], emboss=active, invert_checkbox=0)
+                p.prop(collection.vbm, 'format', text="", index=i, icon=ATTRIBUTE_ICON[i], emboss=active, invert_checkbox=0)
                 p.prop(collection.vbm, 'format', text="", index=i+16, icon=('EVENT_B' if isbyte else 'EVENT_F'), emboss=active, invert_checkbox=0)
             
             r = layout.row(align=1)
@@ -1684,12 +1805,13 @@ class VBM_PT_Asset(bpy.types.Panel):
             c[1].scale_x = 1.5
             c[2].scale_x = 0.6
             
+            # Color Defaults
             for i,label in enumerate(["Color"]):
                 enabled = format[4]
                 e = [x.row(align=1) for x in c]
                 for x in e:
                     x.enabled = enabled
-                e[0].label(text=label, icon=VFORMAT_ICON[VFORMAT_INDEX['COL']])
+                e[0].label(text=label, icon=ATTRIBUTE_ICON[ATTRIBUTE_INDEX['COL']])
                 if obj and obj.type=='MESH':
                     e[1].prop_search(collection.vbm, 'color_layer_name', obj.data, 'color_attributes', text="", results_are_suggestions=True)
                 else:
@@ -1698,12 +1820,13 @@ class VBM_PT_Asset(bpy.types.Panel):
                 e[3].prop(collection.vbm, 'color_is_srgb', text="", icon='MOD_THICKNESS')
             [x.separator() for x in c]
             
+            # UV Defaults
             for i,label in enumerate(("UV", "UV2")):
                 enabled = format[5 if i==0 else 6]
                 e = [x.row(align=1) for x in c]
                 for x in e:
                     x.enabled = enabled
-                e[0].label(text=label, icon=VFORMAT_ICON[VFORMAT_INDEX['UVS']])
+                e[0].label(text=label, icon=ATTRIBUTE_ICON[ATTRIBUTE_INDEX['UVS']])
                 if obj and obj.type=='MESH':
                     e[1].prop_search(collection.vbm, 'uv_layer_name', obj.data, 'uv_layers', text="", results_are_suggestions=True)
                 else:
@@ -1726,11 +1849,19 @@ class VBM_PT_Asset(bpy.types.Panel):
             r.prop(collection.vbm, 'object_script_pre', text="Pre")
             r.prop(collection.vbm, 'object_script_post', text="Post")
             
-            r = layout.row()
+            r = layout.row(align=0)
             r.active = export_enabled
-            #r.prop(context.scene.vbm, 'express_export', text="", icon='FF')
-            r.prop(collection.vbm, 'use_material_names')
-            r.prop(collection.vbm, 'mesh_join_names', text="Join Names")
+            rr = r.row(align=1)
+            rr.scale_x = 1.2
+            rr.alignment = 'LEFT'
+            rr.prop(collection.vbm, 'mesh_join_type')
+            rr = r.row(align=1)
+            rr.alignment = 'RIGHT'
+            rr.prop(collection.vbm, 'object_flatten')
+            
+            r = layout.row()
+            r.prop(collection.vbm, 'object_add_root')
+            r.prop(collection.vbm, 'clip_object_name', text="Clip Names")
             r.prop(collection.vbm, 'use_vtx_compression', text="Compress VB")
             
             r = layout.row(align=1)
@@ -1802,7 +1933,7 @@ class VBM_PT_Asset(bpy.types.Panel):
                 r.alignment = 'CENTER'
                 r.label(text="==Texture Slots==")
                 br = bb.row(align=1)
-                br.scale_y = 0.8
+                br.scale_y = 0.9
                 texture_slot_index = collection.vbm.texture_slot_index
                 activeimagenode = None
                 for i,nd in enumerate(imagenodes):
@@ -1821,6 +1952,10 @@ class VBM_PT_Asset(bpy.types.Panel):
                         rr.active = 1
                         if i==texture_slot_index:
                             activeimagenode = nd
+                            cc = r.column(align=1)
+                            cc.scale_y = 0.5
+                            op = cc.operator('vbm.collection_material_move_texture', text="", icon='TRIA_UP'  ); op.direction = ('UP')
+                            op = cc.operator('vbm.collection_material_move_texture', text="", icon='TRIA_DOWN'); op.direction = ('DOWN')
                     else:
                         x = r.row(align=1)
                         x.active = i==texture_slot_index
@@ -1847,7 +1982,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             b = layout.row(align=0)
             r = b.row(align=1)
             r.scale_y=0.8
-            c = [r.column(align=1) for i in (0,1,2,3,4)]
+            c = [r.column(align=1) for i in (0,1,2,3,4,5)]
             c[0].scale_x = 1.1
             c[1].scale_x = 0.8
             c[2].scale_x = 1.2
@@ -1856,19 +1991,26 @@ class VBM_PT_Asset(bpy.types.Panel):
             c[2].label(text="TEXTURE0", icon='NODE_TEXTURE')
             c[3].label(text="", icon=VBM_ICON_TRANSPARENT)
             c[4].label(text="", icon=VBM_ICON_BACKFACECULLING)
+            c[5].label(text="", icon=VBM_ICON_FLIPFACES)
             for mtl in materials:
                 c[0].prop(mtl, 'name', text="")
                 c[1].prop_search(mtl.vbm, 'shader', context.scene.vbm, 'shader_names', text="", results_are_suggestions=True)
-                ndimage = imagenodes[0]
+                ndimage = mtl.vbm.get_imagenodes()[0]
                 if ndimage:
                     c[2].prop(ndimage, 'image', text="")
                 else:
                     c[2].label(text="(No Image)")
                 c[3].prop(mtl.vbm, 'transparent', text="", icon='CHECKBOX_HLT' if mtl.vbm.transparent else 'CHECKBOX_DEHLT', emboss=True)
                 c[4].prop(mtl, 'use_backface_culling', text="", icon='CHECKBOX_HLT' if mtl.use_backface_culling else 'CHECKBOX_DEHLT', emboss=True)
+                l = c[5].column(align=1)
+                l.active = mtl.use_backface_culling
+                l.prop(mtl.vbm, 'flip_faces', text="", icon='CHECKBOX_HLT' if mtl.vbm.flip_faces else 'CHECKBOX_DEHLT', emboss=True)
         # Action
         elif context.scene.vbm.panel_tab == 'ACTION':
             VBMActionPanel(layout, collection)
+        # Swing
+        elif context.scene.vbm.panel_tab == 'SWING':
+            VBMSwingPanel(layout, collection)
 classlist.append(VBM_PT_Asset)
 
 # -----------------------------------------------------------------------------------------------------------
@@ -1912,8 +2054,10 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
             (
                 [x for v in src.matrix_local for x in v] +
                 [x for v in src.data.vertices for x in v.co] +
+                [x for l in src.data.loops for x in l.normal] +
                 [vge.weight for v in src.data.vertices for vge in v.groups] +
                 [ord(x) for mtl in src.data.materials if mtl for x in mtl.name] +
+                [ord(c) for lyr in src.data.color_attributes for c in lyr.data_type+lyr.domain] +
                 [x for lyr in src.data.color_attributes for v in lyr.data for x in v.color] +
                 [x for lyr in src.data.uv_layers for v in lyr.uv for x in tuple(v.vector)]
             ) if src.type == 'MESH' else []
@@ -1921,9 +2065,9 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         [ord(x) for m in src.modifiers if ValidName(m.name) for x in m.name]+
         [v for m in src.modifiers if ValidName(m.name) for v in [getattr(m,p.identifier) for p in m.bl_rna.properties if not p.is_readonly] if isinstance(v, (bool,int,float))]+
         ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(src.find_armature())[0]) for x in bname] if src.find_armature() else [])+
-        ([x for fc in action_pose.fcurves for k in fc.keyframe_points for x in k.co] if action_pose else [])+
+        ([x for fc in ActionChannels(action_pose) for k in fc.keyframe_points for x in k.co] if action_pose else [])+
         ([ord(c) for script in [object_script_pre, object_script_post] if script for line in script.lines for c in line.body])+
-        [apply_transform]
+        [apply_transform, 13]
         )
     ]).tobytes()))
     
@@ -2006,10 +2150,21 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         MeshScript(object_script_post, "> VBM: Error executing object Post Script (%s)" % str(object_script_post))
         
         # Data .........................................................................................................
+        def ColorAttributeLoopData(attribute):
+            if attribute.domain == 'POINT':
+                if attribute.data_type == 'BYTE_COLOR':
+                    return np.array([attribute.data[l.vertex_index].color for l in tuple(obj.data.loops)], dtype=np.float32).reshape(-1,4)
+                else:
+                    return np.array([attribute.data[l.vertex_index].color for l in tuple(obj.data.loops)], dtype=np.float32).reshape(-1,4)
+            else:
+                attribute_data = np.empty(len(obj.data.loops)*4, dtype=np.float32)
+                attribute.data.foreach_get('color', attribute_data)
+                return attribute_data.reshape(-1,4)
+        
         uvlyr = obj.data.uv_layers.get("UVMap", obj.data.uv_layers[0])
         vclyr = obj.data.color_attributes[obj.data.color_attributes.render_color_index]
         uvdata = [tuple((uv.vector[0], 1-uv.vector[1])) for uv in uvlyr.uv]
-        vcdata = [tuple(vc.color) for vc in vclyr.data]
+        vcdata = ColorAttributeLoopData(vclyr)
         if sum([x for v in vcdata for x in v]) == 0:
             vcdata = [(1,1,1,1) for v in vcdata]
         
@@ -2030,25 +2185,26 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         material_indices = list(range(0, material_count)) if material_count > 0 else [0]
         for material_index in material_indices:
             mtl = obj.data.materials[material_index] if material_count > 0 else None
-            mtlloops = [l for p in tris if p.material_index == material_index for l in p.loops]
+            mtlloops = [int(l) for p in tris if p.material_index == material_index for l in p.loops]
             if mtlloops:
                 mtlname = mtl.name if mtl else ""
                 if mtlname not in mtlvbs:
-                    mtlvbs[mtlname] = {k:b'' for k in VFORMAT_NAME}
+                    mtlvbs[mtlname] = {k:b'' for k in ATTRIBUTE_NAME}
                 
-                mtlvbs[mtlname]['POS'] += b''.join([PackVector('f', verts[loops[l].vertex_index].co) for l in mtlloops])
-                mtlvbs[mtlname]['COL'] += b''.join([PackVector('B', [int(x*255) for x in vcdata[l]]) for l in mtlloops])
-                mtlvbs[mtlname]['UVS'] += b''.join([PackVector('f', uvdata[l]) for l in mtlloops])
-                mtlvbs[mtlname]['NOR'] += b''.join([PackVector('f', loops[l].normal) for l in mtlloops])
-                mtlvbs[mtlname]['TAN'] += b''.join([PackVector('f', loops[l].tangent) for l in mtlloops])
-                mtlvbs[mtlname]['BTN'] += b''.join([PackVector('f', loops[l].bitangent) for l in mtlloops])
-                mtlvbs[mtlname]['BON'] += b''.join([PackVector('f', [b for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
-                mtlvbs[mtlname]['WEI'] += b''.join([PackVector('f', [w for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
+                mtlvbs[mtlname]['POS'] += b''.join([Pack('fff', *verts[loops[l].vertex_index].co) for l in mtlloops])
+                mtlvbs[mtlname]['COL'] += b''.join([Pack('ffff', *vcdata[l]) for l in mtlloops])
+                mtlvbs[mtlname]['UVS'] += b''.join([Pack('ff', *uvdata[l]) for l in mtlloops])
+                mtlvbs[mtlname]['NOR'] += b''.join([Pack('fff', *loops[l].normal) for l in mtlloops])
+                mtlvbs[mtlname]['TAN'] += b''.join([Pack('fff', *loops[l].tangent) for l in mtlloops])
+                #mtlvbs[mtlname]['BTN'] += b''.join([PackVector('f', loops[l].bitangent) for l in mtlloops])
+                mtlvbs[mtlname]['BON'] += b''.join([Pack('ffff', *[b for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
+                mtlvbs[mtlname]['WEI'] += b''.join([Pack('ffff', *[w for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
                 
                 for vclyr in obj.data.color_attributes:
                     if vclyr.name not in mtlvbs[mtlname].keys():
                         mtlvbs[mtlname][vclyr.name] = b''
-                    mtlvbs[mtlname][vclyr.name] += b''.join([PackVector('B', [int(x*255) for x in vclyr.data[l].color]) for l in mtlloops])
+                    attribute_data = ColorAttributeLoopData(vclyr)
+                    mtlvbs[mtlname][vclyr.name] += b''.join([Pack('ffff', *attribute_data[l]) for l in mtlloops])
                 for uvlyr in obj.data.uv_layers:
                     if uvlyr.name not in mtlvbs[mtlname].keys():
                         mtlvbs[mtlname][uvlyr.name] = b''
@@ -2066,9 +2222,10 @@ def AnimData(action, rig):
     
     checksum = sum(np.array([x for x in (
         [action.vbm.clean_on_bake] +
-        [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] +
         ([x for b in rig.data.bones for v in (b.head_local, b.tail_local) for x in v] if rig else []) +
-        ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(rig)[0]) for x in bname] if rig else [])
+        ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(rig)[0]) for x in bname] if rig else []) +
+        [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] +
+        [len(fc.modifiers) for fc in action.fcurves]
     )]).tobytes() )
     if action.vbm.get('VBM_CHECKSUM', -1) != checksum:
         # Make Proxy
@@ -2228,6 +2385,59 @@ def ImageData(image, palette_max=255):
     return (palette, indices, (width, height))
 
 # ===================================================================================================================
+class VBMMesh:
+    def __init__(self, name, material=None, streams={}):
+        self.name = name
+        self.material = material
+        self.streams = {k: v[:] for k,v in streams.items()}
+        self.layer_mask = ~0
+        self.node_index = -1
+    
+    def transform(self, matrix):
+        self.streams['POS'] = mul_v3n_v3nf_m4(np.frombuffer(self.streams['POS'], dtype=np.float32).reshape(-1,3), 1.0, matrix).tobytes()
+        self.streams['NOR'] = mul_v3n_v3nf_m4(np.frombuffer(self.streams['NOR'], dtype=np.float32).reshape(-1,3), 0.0, matrix).tobytes()
+    def join(self, mesh):
+        if len(self.streams.keys()) == 0:
+            self.streams = {k: v[:] for k,v in mesh.streams.items()}
+        else:
+            for k,v in mesh.streams.items():
+                if k in self.streams:
+                    self.streams[k] += v
+    def map_stream(self, dest_key, src_key, default_vector):
+        if src_key == "":
+            return
+        # Copy src to destination
+        if src_key in self.streams.keys():
+            self.streams[dest_key] = self.streams[src_key][:]
+        # Fill destination with default
+        else:
+            loop_count = len(self.streams['POS']) // 12
+            self.streams[dest_key] = np.array(default_vector, np.float32).tobytes()*loop_count
+
+class VBMNode:
+    def __init__(self, parent, name, matrix, data_type="000", data_index=-1):
+        self.name = name
+        self.parent = parent
+        self.flags = 0
+        self.layer_mask = ~0
+        self.collision_mask = 0
+        self.matrix = matrix
+        self.depth = 0
+        self.data_type = data_type
+        self.data_index = data_index
+        self.data = {}
+        self.mesh = None    # VBMMesh
+        self.prism = None   # VBMMesh
+        self.dissolve = False
+        self.collection = None
+    
+    def transform(self, matrix):
+        if self.mesh:
+            self.mesh.transform(matrix)
+        if self.prism:
+            self.prism.transform(matrix)
+        self.matrix = self.matrix @ matrix
+
 def ExportModel(collection, report=True):
     printd("> Exporting model \"%s\" ***********************************************************************" % collection.name)
     
@@ -2245,14 +2455,10 @@ def ExportModel(collection, report=True):
     last_rig_action = rig.animation_data.action if rig and rig.animation_data else None
     last_rig_position = rig.data.pose_position if rig else None
     
-    format = collection.vbm.format
-    format_mask = sum([1<<i for i,x in enumerate(format) if x]) // 1
+    format_mask = collection.vbm.get_format_mask()
     stride = CalcStride(format_mask)
     
     apply_transform = rig != None
-    
-    if ((1<<VFORMAT_INDEX['BON']) & format_mask==0) and ((1<<VFORMAT_INDEX['WEI']) & format_mask==0):
-        pass
     
     bone_group_source_collection = collection
     if rig and len(collection.vbm.bone_groups) == 0:
@@ -2262,7 +2468,7 @@ def ExportModel(collection, report=True):
     palette_max = 1024
     compress_texture = False
     
-    printd("\t%02dB:"%stride, [VFORMAT_NAME[i] for i in range(0,16) if format_mask&(1<<i)])
+    printd("\t%02dB:"%stride, [ATTRIBUTE_NAME[i] for i in range(0,ATTRIBUTE_MAX) if format_mask&(1<<i)])
     
     meshitems = []
     collisionitems = []
@@ -2272,284 +2478,373 @@ def ExportModel(collection, report=True):
     animationitems = []
     node_names = []
     
-    modeldata = {k: [] for k in 'NAM VTX MSH PSM SKE SWG TEX MTL ANI'.split()}
+    modeldata = {k: [] for k in 'NAM VTX MTL MSH TEX PSM SWG SKE ANI OBJ'.split()}
     chunkversionmap = {}
     
     chunkversionmap['VTX'] = 1
     chunkversionmap['SKE'] = 2
-    chunkversionmap['TEX'] = 1
+    chunkversionmap['TEX'] = 2
+    chunkversionmap['SWG'] = 1
     chunkversionmap['MTL'] = 1
+    chunkversionmap['ANI'] = 1
     
-    # Objects -------------------------------------------------------------------------------
-    vbmap = {}
-    material_names = []
-    
-    def ExportModel_WalkObjects(state, parent_index, objects, depth=0):
-        vbmap = state['vbmap']
-        modeldata = state['modeldata']
-        format_mask = state['format_mask']
-        filecollection = state['collection']
-        material_names = state['material_names']
-        node_names = state['node_names']
-        
-        object_script_pre = filecollection.vbm.object_script_pre
-        object_script_post = filecollection.vbm.object_script_post
-        
-        use_material_names = filecollection.vbm.use_material_names
-        mesh_join_names = filecollection.vbm.mesh_join_names
-        
-        objects = list(objects)
-        for obj in objects:
-            if not ValidName(obj.name):
-                continue
-            if not obj.vbm.export_enabled:
-                continue
-            
-            node_enabled = 1
-            node_index = len(modeldata['SKE'])
-            node_meshes = []
-            node_props = {}
-            layer_mask = sum([1<<i for i,x in enumerate(obj.vbm.layer_mask) if x])
-            
-            if obj.type in VBM_MESHTYPES:
-                # Prism .....................................................
-                if obj.vbm.is_collision:
-                    vb = b''
-                    for mtlname, mtlstreams in MeshData(obj, apply_transform=apply_transform, rig=rig).items():
-                        vb += mtlstreams['POS']
-                    
-                    coords = ([Vector(Unpack('fff', vb[i:i+12])) for i in range(0, len(vb), VFORMAT_SPACE[0])])
-                    bounds = (
-                        tuple([min([v[i] for v in coords]) for i in (0,1,2)]),
-                        tuple([max([v[i] for v in coords]) for i in (0,1,2)])
-                    )
-                    loop_count = len(coords)
-                    triangle_count = loop_count // 3
-                    
-                    flags = (
-                        0
-                    )
-                    
-                    collisionbin = b''
-                    collisionbin += Pack('i', flags)
-                    collisionbin += Pack('i', ~0 if rig else node_index)    # Node Index
-                    collisionbin += Pack('i', len(coords))
-                    collisionbin += b''.join([PackVector('f', v) for v in coords])
-                    modeldata['PSM'].append(collisionbin)
+    # Build Tree -------------------------------------------------------------------------------
+    def ExportVBM_WalkCollection(filecollection, outnodes, parent, collection=None, objects=None):
+        # Collection ......................................................
+        if collection:
+            for c in collection.children:
+                if not ValidName(c.name):
+                    continue
+                ExportVBM_WalkCollection(filecollection, outnodes, parent, objects=c.objects)
+            objects = [obj for obj in collection.objects if not obj.parent]
+        # Objects .........................................................
+        if objects:
+            script_pre = filecollection.vbm.object_script_pre
+            script_post = filecollection.vbm.object_script_post
+            usedobjects = []
+            for obj in objects:
+                if obj in usedobjects:
+                    continue
+                if not ValidName(obj.name):
+                    continue
+                node = None
+                basename = obj.name.split(".")[0]
+                suffix = obj.name[obj.name.rfind("."):] if "." in obj.name else ""
                 
-                # Mesh .......................................................
-                else:
-                    mtlvbs = MeshData(
-                        obj, 
-                        apply_transform=apply_transform, 
-                        rig=rig, 
-                        action_pose=action_pose, 
-                        object_script_pre=object_script_pre, 
-                        object_script_post=object_script_post
-                    ).items()
-                    
-                    for mtlname,mtlstreams in mtlvbs:
-                        # Fix name
-                        meshname = obj.name.split("/")[-1]
-                        if mesh_join_names:
-                            meshname = meshname.split(".")[0]
-                        if use_material_names:
-                            meshname += "_"+mtlname
-                        meshname = FixName(meshname)
-                        
-                        # TODO: Properly code mesh ->node grouping
-                        if meshname not in list(vbmap.keys()):
-                            vbmap[meshname] = {'vb': b'', 'material': mtlname, 'node_index': node_index, 'layer_mask': layer_mask}
-                            #printd([meshname, node_index])
-                        
-                        if mtlname not in material_names:
-                            material_names.append(mtlname)
-                        if obj.users_collection:
-                            for item in obj.users_collection[0].vbm.material_overrides:
-                                if item.material and not item.override:
-                                    if item.material.name not in material_names:
-                                        material_names.append(item.material.name)
-                        
-                        loop_count = len(mtlstreams['POS']) // 12
-                        
-                        streams = []
-                        streamspaces = []
-                        for a in range(0, 10):
-                            if format_mask & (1<<a):
-                                stream = mtlstreams[VFORMAT_NAME[a]]
-                                space = VFORMAT_SPACE[a]
-                                isbyte = (format_mask & (1<<(a+16))) != 0
-                                
-                                # Normals
-                                if VFORMAT_NAME[a] == 'NOR':
-                                    stream = mtlstreams['NOR']
-                                    if isbyte:
-                                        padding = [0]
-                                        stream = b''.join([PackVector('B', [int(255*(x*0.5+0.5)) for x in Unpack('fff', stream[l*12:(l+1)*12])]+padding) for l in range(0, loop_count)])
-                                        space = 4
-                                # Use given color layer
-                                elif VFORMAT_NAME[a] == 'COL':
-                                    if collection.vbm.color_layer_name:
-                                        if collection.vbm.color_layer_name in mtlstreams.keys():
-                                            stream = mtlstreams[collection.vbm.color_layer_name]
-                                        else:
-                                            stream = PackVector('B', [int(255*x) for x in collection.vbm.color_layer_default])*loop_count
-                                    
-                                    # Gamma correct
-                                    if collection.vbm.color_is_srgb:
-                                        stream = np.array([int(min( 255.0*((x/255.0)**0.4545) , 255)) for x in stream], dtype=np.uint8).tobytes()
-                                    space = 4
-                                    if not isbyte:
-                                        stream = (np.array(tuple(stream), np.float32)/255.0).tobytes()
-                                        space = 4*4
-                                # Use given UV layer
-                                elif VFORMAT_NAME[a] == 'UVS':
-                                    if collection.vbm.uv_layer_name:
-                                        if collection.vbm.uv_layer_name in mtlstreams.keys():
-                                            stream = (mtlstreams[collection.vbm.uv_layer_name])
-                                        else:
-                                            stream = (PackVector('f', collection.vbm.uv_layer_default)*loop_count)
-                                        
-                                    if isbyte:
-                                        padding = [0,0]
-                                        stream = b''.join([PackVector('B', [int(255*x) for x in Unpack('ff', stream[l*8:(l+1)*8])]+padding) for l in range(0, loop_count)])
-                                        space = 4
-                                # Bones, Weights
-                                elif VFORMAT_NAME[a] == 'BON':
-                                    stream = mtlstreams[VFORMAT_NAME[a]]
-                                    if isbyte:
-                                        stream = b''.join([PackVector('B', [int(x) for x in Unpack('ffff', stream[l*16:(l+1)*16])]) for l in range(0, loop_count)])
-                                        space = 4
-                                elif VFORMAT_NAME[a] == 'WEI':
-                                    stream = mtlstreams[VFORMAT_NAME[a]]
-                                    if isbyte:
-                                        stream = b''.join([PackVector('B', [int(x*255.0) for x in Unpack('ffff', stream[l*16:(l+1)*16])]) for l in range(0, loop_count)])
-                                        space = 4
-                                # Other attribute
-                                else:
-                                    stream = mtlstreams[VFORMAT_NAME[a]]
-                                streams.append(stream)
-                                streamspaces.append(space)
-                        
-                        vb = b''.join(tuple([
-                            streams[a][l*space:(l+1)*space]
-                            for l in range(0, loop_count)
-                            for a,space in enumerate(streamspaces)
-                        ]))
-                        vbmap[meshname]['vb'] += vb
-            elif obj.type=='LIGHT':
-                node_props["light_energy"] = obj.data.energy
-                node_props["light_color"] = tuple(obj.data.color)
-            
-            if node_enabled:
-                flags = 0
-                if node_props:
-                    flags |= VBM_BONEFLAGS_HASPROPS
-                
-                bonebin = b''
-                bonebin += Pack('i', flags)         # Flags
-                bonebin += Pack('i', layer_mask)     # Layermask
-                bonebin += Pack('i', 0)     # Collisionmask
-                bonebin += PackMatrix(Matrix.Identity(4) if apply_transform else obj.matrix_world)    # Bind Matrix
-                bonebin += Pack('i', parent_index)         # Parent Index
-                bonebin += Pack('f', 0)                    # Bone Length
-                bonebin += Pack('f', 0)                    # Bone Radius
-                bonebin += PackString(FixName(obj.name.split("/")[-1]))     # Name
-                printd("%-32s"%obj.name, "\""+FixName(obj.name.split("/")[-1])+"\"" )
-                
-                if node_props:
-                    # [ type, size, value[] ]
-                    bonebin += Pack('I', len(node_props.values()))
-                    for k,vec in node_props.items():
-                        bonebin += PackString(k)    # Prop Name
-                        if isinstance(vec, (int, float, str)):
-                            vec = [vec]
+                # Mesh
+                if obj.type=='MESH':
+                    mesh_material_groups = MeshData(obj, False, rig, action_pose, script_pre, script_post)
+                    pnode = parent
+                    for mtlname,mtlstreams in mesh_material_groups.items():
+                        nodename = basename+suffix
+                        if obj.vbm.is_collision:
+                            node = VBMNode(pnode, nodename, obj.matrix_local, 'PSM')
+                            node.prism = VBMMesh(obj.name+"_"+mtlname, None, mtlstreams)
                         else:
-                            vec = tuple(vec)
-                        size = len(vec)
-                        
-                        # Single
-                        if isinstance(vec[0], (int)):
-                            bonebin += Pack('BB', *(VBM_BONEPROP_INT, size)) # Type, Size
-                            for v in vec:
-                                bonebin += Pack('i', v) # Value
-                        elif isinstance(vec[0], (float)):
-                            bonebin += Pack('BB', *(VBM_BONEPROP_FLOAT, size)) # Type, Size
-                            for v in vec:
-                                bonebin += Pack('f', v) # Value
-                        elif isinstance(vec[0], (str)):
-                            bonebin += Pack('BB', *(VBM_BONEPROP_STRING, size)) # Type, Size
-                            for v in vec:
-                                bonebin += PackString(v) # Value
-                node_names.append(obj.name)
-                modeldata['SKE'].append(bonebin)
-            ExportModel_WalkObjects(state, node_index, obj.children, depth+1)
-        return state
+                            node = VBMNode(pnode, nodename, obj.matrix_local, 'MSH')
+                            node.mesh = VBMMesh(obj.name+"_"+mtlname, bpy.data.materials.get(mtlname), mtlstreams)
+                        outnodes.append(node)
+                # Armature
+                elif obj.type == 'ARMATURE':
+                    node = VBMNode(parent, basename+suffix, obj.matrix_local, 'SKE')
+                    outnodes.append(node)
+                # Empty
+                else:
+                    if obj.instance_collection:
+                        node = VBMNode(parent, basename+suffix, obj.matrix_local)
+                        outnodes.append(node)
+                        node.dissolve = 1
+                        ExportVBM_WalkCollection(filecollection, outnodes, node, collection=obj.instance_collection)
+                    else:
+                        node = VBMNode(parent, basename+suffix, obj.matrix_local)
+                        outnodes.append(node)
+                # Child Objects
+                if obj.children:
+                    ExportVBM_WalkCollection(filecollection, outnodes, node, objects=obj.children)
+                    usedobjects += list(obj.children_recursive)
+                usedobjects.append(obj)
+                
+        return outnodes
+    Clean()
     
-    walkobjects = list(collection.objects)
-    def ExportModel_WalkCollection(objects, collection):
-        for c in collection.children:
-            if ValidName(c.name) and not c.vbm.enabled:
-                objects += list(c.objects)
-                ExportModel_WalkCollection(objects, c)
-    ExportModel_WalkCollection(walkobjects, collection)
+    nodes = []
+    rootnode = None
+    if collection.vbm.object_add_root:
+        rootnode = VBMNode(None, collection.vbm.get_name(), Matrix.Identity(4))
+        nodes.append(rootnode)
     
-    walkstate = ExportModel_WalkObjects(
-        {
-            'collection': collection, 
-            'vbmap': vbmap, 
-            'modeldata':modeldata, 
-            'vb':b'', 
-            'format': format, 
-            'format_mask': format_mask, 
-            'material_names':material_names,
-            'node_names':node_names,
-            'actions': animationitems
-        }, 
-        -1,
-        [x for x in walkobjects if not x.parent]
+    nodes = ExportVBM_WalkCollection(collection, nodes, rootnode, collection=collection)
+    NodeDepth = lambda nd: (1+NodeDepth(nd.parent)) if nd.parent else 0
+    NodeChildren = lambda nd: [x for x in nodes if x.parent == nd]
+    NodeSiblings = lambda nd: [x for x in nodes if x.parent == nd.parent]
+    
+    # Fix Meshes
+    for nd in nodes:
+        # Remap streams based on names specified in collection format
+        if nd.mesh:
+            nd.mesh.map_stream('COL', collection.vbm.color_layer_name, collection.vbm.color_layer_default)
+            nd.mesh.map_stream('UVS', collection.vbm.uv_layer_name, collection.vbm.uv_layer_default)
+            nd.mesh.map_stream('UV2', collection.vbm.uv_layer_name2, collection.vbm.uv_layer_default2)
+    
+    # Dissolve Nodes
+    for nd in nodes[::-1]:
+        if nd.dissolve:
+            children = NodeChildren(nd)
+            if len(children) <= 1:
+                for cd in NodeChildren(nd):
+                    cd.parent = nd.parent
+                    cd.matrix = cd.matrix @ nd.matrix
+                del nodes[nodes.index(nd)]
+    
+    # Flatten
+    if collection.vbm.object_flatten:
+        for nd in nodes[::-1]:
+            nd.transform(NodeMatrixBind(nd))
+            nd.matrix = Matrix.Identity(4)
+            if nd != rootnode:
+                nd.parent = rootnode
+    
+    # Merge Meshes
+    mesh_join_type = collection.vbm.mesh_join_type
+    if mesh_join_type != 'NONE':
+        printd("> Joining by", mesh_join_type)
+        hit = 1
+        while hit:
+            hit = 0
+            for ndstart in nodes[::-1]:
+                if ndstart.mesh:
+                    similar_nodes = []
+                    if mesh_join_type == 'MATERIAL':
+                        material = ndstart.mesh.material
+                        similar_nodes = [x for x in NodeSiblings(ndstart) if x.mesh and x.mesh.material == material]
+                    elif mesh_join_type == 'NAME':
+                        name = ClipName(ndstart.name)
+                        similar_nodes = [x for x in NodeSiblings(ndstart) if x.mesh and ClipName(x.name) == name]
+                    
+                    if len(similar_nodes) > 1:
+                        prefix = os.path.commonprefix([x.name for x in similar_nodes])[:-1]
+                        prefix_len = len(prefix)
+                        printd("Joining", "\""+prefix+"\"", "["+", ".join([x.name[prefix_len:] for x in similar_nodes])+"]", "...")
+                        hit = 1
+                        ndroot = similar_nodes[0]
+                        for nd in similar_nodes:
+                            nd.mesh.transform(nd.matrix)
+                        ndroot.matrix = Matrix.Identity(4)
+                        for nd in similar_nodes[1:]:
+                            ndroot.mesh.join(nd.mesh)
+                        for nd in similar_nodes[1:][::-1]:
+                            del nodes[nodes.index(nd)]
+                        break # <- Start over since nodes were deleted-- List is invalid
+    
+    # Final node params
+    for node_index,nd in enumerate(nodes):
+        if nd.mesh:
+            nd.mesh.layer_mask = nd.layer_mask
+            nd.mesh.node_index = node_index
+        if nd.prism:
+            nd.prism.layer_mask = nd.layer_mask
+            nd.prism.node_index = node_index
+    
+    # Nodes ------------------------------------------------------------------------------
+    nodemeshes = [nd.mesh for nd in nodes if nd.mesh]
+    nodeprisms = [nd.prism for nd in nodes if nd.prism]
+    nodematerials = []
+    [nodematerials.append(mesh.material) for mesh in nodemeshes if mesh.material not in nodematerials]
+    [nodematerials.append(mtl) for item in collection.vbm.material_overrides for mtl in [item.override if item.override else item.material] if mtl not in nodematerials]
+    nodematerials = [x for x in nodematerials if x]
+    
+    printd("Nodes: %d | Meshes: %d" % (len(nodes), len(nodemeshes)))
+    for nd in nodes:
+        nodename = nd.name
+        if collection.vbm.clip_object_name:
+            nodename = ClipName(nodename)
+        nodename= FixName(nodename)
+        
+        printd( ("[%3d]"%nodes.index(nd)) + (" |"*(NodeDepth(nd))), nodename, [nd.mesh.material.name if nd.mesh.material else "(None)"] if nd.mesh else "", nd.data_type, nd.data_index)
+        if nd.mesh and rig:
+            nd.mesh.transform(nd.matrix)
+            nd.mesh.node_index = nodes.index(nd)
+            nd.matrix = Matrix.Identity(4)
+        
+        if nd.mesh:
+            nd.data_index = nodemeshes.index(nd.mesh)
+        
+        objbin = b''
+        objbin += Pack('i', nd.flags)          # Flags
+        objbin += Pack('i', nd.layer_mask)     # Layermask
+        objbin += Pack('i', 0)                 # Collisionmask
+        objbin += PackMatrix(nd.matrix)        # Relative Matrix
+        objbin += Pack('i', nodes.index(nd.parent) if nd.parent else -1)   # Parent Index
+        objbin += Pack('BBBB', *(bytes(nd.data_type[:3], 'utf-8')+b'\0'))      # Data Type
+        objbin += Pack('i', nd.data_index)      # Data Index
+        objbin += PackString(nodename)          # Name
+        modeldata['OBJ'].append(objbin)
+    
+    # Vertex Buffer ----------------------------------------------------------------------
+    
+    # Build contiguous attribute streams of all meshes
+    netstreams = {k: b'' for k in ATTRIBUTE_NAME}
+    for mesh in nodemeshes:
+        streams = mesh.streams
+        for k in ATTRIBUTE_NAME:
+            netstreams[k] += streams[k]
+    
+    # Convert stream data (normalize, floats->bytes, etc.)
+    vtx_streams = []
+    vtx_spaces = []
+    stride = 0
+    for a,k in enumerate(ATTRIBUTE_NAME):
+        if format_mask & (1<<a):
+            isbyte = (format_mask & (1<<(a+16))) != 0
+            stream = netstreams[k]
+            space = 4*ATTRIBUTE_LENGTH[a]
+            # Normalize Normals
+            if k == 'NOR':
+                vectors = np.frombuffer(stream, dtype=np.float32).reshape(-1,3)
+                norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+                
+                if isbyte:
+                    stream_w = np.zeros(len(vectors), dtype=np.float32)
+                    stream = (np.hstack([((vectors / norms)*0.5+0.5).reshape(-1,3), stream_w.reshape(-1,1)])*255.0).astype(dtype=np.uint8).tobytes()
+                    space = 4
+                else:
+                    stream = (vectors / norms).tobytes()
+            # Convert Float to Byte
+            elif k == 'COL' and isbyte:
+                stream = (np.frombuffer(stream, dtype=np.float32).reshape(-1, 4)*255.0).astype(dtype=np.uint8).tobytes()
+                space = 4
+            elif k == 'BON' and isbyte:
+                stream = (np.frombuffer(stream, dtype=np.float32).reshape(-1, 4)).astype(dtype=np.uint8).tobytes()
+                space = 4
+            elif k == 'WEI' and isbyte:
+                stream = (np.frombuffer(stream, dtype=np.float32).reshape(-1, 4)*255.0).astype(dtype=np.uint8).tobytes()
+                space = 4
+            
+            vtx_streams.append(np.array(tuple(stream), dtype=np.uint8).reshape(-1, space))
+            stride += int(space)
+    vtx_interleaved = np.hstack(vtx_streams).flatten().tobytes()    # Stack attribute streams per vertex (PPPCCCCUU, PPPCCCCUU, ...)
+    
+    if len(vtx_interleaved) == 0:
+        print("! WARNING: Length of vertex buffer == 0")
+    
+    # Compose output
+    compress_vertex_buffer = collection.vbm.use_vtx_compression != 0
+    
+    buffer_size = len(vtx_interleaved)
+    loop_count = len(vtx_interleaved) // stride
+    
+    flags = (
+        (VBM_VTX_COMPRESSED * compress_vertex_buffer)
     )
     
-    netvb = b''
+    outvtx = b''
+    outvtx += Pack('I', flags)
+    outvtx += Pack('I', format_mask)
+    outvtx += Pack('I', buffer_size)
+    
+    if not compress_vertex_buffer:
+        outvtx += vtx_interleaved
+    else:
+        print("! TODO: Redo VTX compression")
+    modeldata['VTX'] = outvtx
     
     # Meshes ------------------------------------------------------------------------------
-    mesh_index = 0
-    for meshname, meshdata in list(vbmap.items()):
-        mtlname = meshdata['material']
-        vb = meshdata['vb']
-        node_index = meshdata['node_index']
-        layer_mask = meshdata['layer_mask']
-        
-        loop_count = len(vb) // stride
-        loop_offset = len(netvb) // stride
-        
-        flags = 0
-        #print("\tMSH [%6d: %6d] %16s | Mtl: \"%s\"" % (loop_offset, loop_offset+loop_count, meshname, mtlname))
-        
-        coords = ([Vector(Unpack('fff', vb[i:i+12])) for i in range(0, len(vb), stride)])
-        bounds = (
-            tuple([min([v[i] for v in coords]) for i in (0,1,2)]),
-            tuple([max([v[i] for v in coords]) for i in (0,1,2)])
-        )
-        
-        meshbin = b''
-        meshbin += Pack('i', flags)     # Flags
-        meshbin += Pack('i', layer_mask)     # Layermask
-        meshbin += PackString(meshname)     # Mesh name
-        meshbin += Pack('i', ~0 if rig else node_index)    # Node Index
-        meshbin += Pack('i', material_names.index(mtlname))     # Material Index
-        meshbin += Pack('i', loop_offset)     # Loop Start
-        meshbin += Pack('i', loop_count)     # Loop Count
-        meshbin += PackVector('f', bounds[0]) + PackVector('f', bounds[1])     # Bounds
-        modeldata['MSH'].append(meshbin)
-        
-        #print("[%2d]: %s .bone = %d [%s]" % (mesh_index, meshname, node_index, node_names[node_index]))
-        
-        netvb += vb
-        mesh_index += 1
+    if collection.vbm.export_meshes:
+        loop_offset = 0
+        for mesh_index, mesh in enumerate(nodemeshes):
+            streams = mesh.streams
+            positions = np.frombuffer(streams['POS'], dtype=np.float32).reshape(-1, 3)
+            position_channels = positions.T
+            bounds = ( [position_channels[i].min() for i in (0,1,2)] , [position_channels[i].max() for i in (0,1,2)])
+            loop_count = len(positions)
+            flags = 0
+            
+            meshbin = b''
+            meshbin += Pack('i', flags)     # Flags
+            meshbin += Pack('i', mesh.layer_mask)     # Layermask
+            meshbin += PackString(FixName(mesh.name))     # Mesh name
+            meshbin += Pack('i', -1)    # Node Index
+            meshbin += Pack('i', nodematerials.index(mesh.material) if mesh.material else -1)     # Material Index
+            meshbin += Pack('i', loop_offset)     # Loop Start
+            meshbin += Pack('i', loop_count)     # Loop Count
+            meshbin += PackVector('f', bounds[0]) + PackVector('f', bounds[1])     # Bounds
+            modeldata['MSH'].append(meshbin)
+            loop_offset += loop_count
+    
+    # Prisms ------------------------------------------------------------------------------
+    if collection.vbm.export_meshes:
+        for prism_index, prism in enumerate(nodeprisms):
+            streams = prism.streams
+            positions = np.frombuffer(streams['POS'], dtype=np.float32).reshape(-1, 3)
+            loop_count = len(positions)
+            flags = 0
+            
+            prismbin = b''
+            prismbin += Pack('i', flags)     # Flags
+            prismbin += Pack('i', prism.node_index)    # Node Index
+            prismbin += Pack('i', loop_count)    # Loop Count
+            prismbin += positions.tobytes()    # Vertices
+            modeldata['PSM'].append(prismbin)
+    
+    # Materials --------------------------------------------------------------------------
+    texturenames = []
+    if collection.vbm.export_materials:
+        for mtl in nodematerials:
+            mtl = collection.vbm.get_material_override(mtl)
+            flags = (
+                VBM_MATERIALFLAGS_TRANSPARENT * (mtl.vbm.transparent) |
+                VBM_MATERIALFLAGS_USECULLING * (mtl.use_backface_culling) |
+                VBM_MATERIALFLAGS_FLIPFACES * (mtl.vbm.flip_faces)
+            )
+            
+            texturenodes = mtl.vbm.get_imagenodes()
+            texturenodes = [nd if nd and nd.image else None for nd in texturenodes]
+            for nd in texturenodes:
+                if nd and nd.image and nd.image.name not in texturenames:
+                    texturenames.append(nd.image.name)
+            
+            mtlbin = b''
+            mtlbin += Pack('i', flags)
+            mtlbin += PackString(FixName(mtl.name))  # Material Name
+            mtlbin += PackString(mtl.vbm.shader if mtl.vbm.shader else context.scene.vbm.shader_default)  # Shader Name
+            
+            # 8(?) Textures max
+            mtlbin += Pack('i', len(texturenodes))
+            for texturenode in texturenodes:
+                if texturenode:
+                    texflags = (
+                        (VBM_MTLTEXFLAG_FILTERLINEAR * (texturenode.interpolation.upper() != 'CLOSEST')) |
+                        (VBM_MTLTEXFLAG_EXTEND * (texturenode.extension=='EXTEND'))
+                    )
+                else:
+                    texflags = 0
+                mtlbin += Pack('i', texflags)  # Texture Flags
+                mtlbin += Pack('i', texturenames.index(texturenode.image.name) if texturenode else -1)   # Texture Index
+                mtlbin += PackString(texturenode.image.name if texturenode else "")  # Texture Name
+            modeldata['MTL'].append(mtlbin)
+    
+    # Images --------------------------------------------------------------------------------
+    if collection.vbm.export_textures:
+        for texturename in texturenames:
+            image = bpy.data.images.get(texturename)
+            
+            if image:
+                w,h = image.size
+                is_compressed = w*h >= 256
+                flags = (
+                    (VBM_TEXTUREFLAG_SRGB * (image.colorspace_settings.name.upper()=='SRGB')) |
+                    (VBM_TEXTUREFLAG_COMPRESSED * is_compressed) |
+                    0
+                )
+                
+                imagebin = b''
+                imagebin += Pack('i', flags)
+                imagebin += PackString(image.name)
+                
+                if 1:
+                    rowstep = -1 if BLENDER_5_0 else -1
+                    if image.source=='GENERATED':
+                        pixeldata = np.array(list(image.generated_color)*w*h, dtype=np.float32).flatten()
+                    else:
+                        pixeldata = (np.array(image.pixels, dtype=np.float32)*255.0).astype(np.uint8).reshape(-1, w*4)[::rowstep].flatten()
+                    if is_compressed:
+                        pixels_compressed = zlib.compress(pixeldata)
+                    else:
+                        pixels_compressed = bytes(pixeldata)
+                    imagebin += Pack('IIII', w, h, 0, len(pixels_compressed))
+                    imagebin += pixels_compressed
+                else:
+                    palette, indices, size = ImageData(image, palette_max)
+                    w,h = size
+                    index_dtype = 'H' if len(palette) >= 256 else 'B'
+                    
+                    imagebin += Pack('III', w, h, len(palette))
+                    imagebin += PackVector('I', palette)
+                    imagebin += PackVector(index_dtype, indices)    # Switch data type based on palette count
+                modeldata['TEX'].append(imagebin)
     
     # Bones -------------------------------------------------------------------------------
-    if rig:
+    if rig and collection.vbm.export_skeleton:
         modeldata['SKE'] = []
         deformorder, deformmap, deformroute = EvaluateDeformOrder(rig)
         
@@ -2597,213 +2892,109 @@ def ExportModel(collection, report=True):
         for group_index, g in enumerate(bone_group_source_collection.vbm.bone_groups):
             bonenames = [b.name for b in g.bones if b.name in deformorder]
             boneindexmap = {bname: deformorder.index(bname) for bname in bonenames}
-            segments = [s for s in g.segments if s.start_bone in bonenames or s.end_bone in bonenames]
+            segments = [s for s in g.segments if s.start_bone in bonenames or s.end_bone in bonenames] if g.swing_enabled else []
             
             groupbin = b''
             groupbin += PackString(g.name)                          # Group Name
-            groupbin += Pack('i', LayermaskToInt(g.layer_mask))      # Layer Mask
+            groupbin += Pack('i', LayermaskToInt(g.layer_mask))     # Layer Mask
             groupbin += Pack('i', LayermaskToInt(g.collision_mask)) # Collision Mask
             groupbin += Pack('i', len(bonenames))                   # Bone Count
+            groupbin += Pack('i', len(segments))                    # Segments Count
             for bname in bonenames:
                 groupbin += Pack('i', deformorder.index(bname))     # Bone Index
-            groupbin += Pack('i', len(segments))                    # Segments Count
             for s in segments:
                 groupbin += Pack('i', boneindexmap.get(s.start_bone, -1))  # Start Bone
                 groupbin += Pack('i', boneindexmap.get(s.end_bone, -1))  # End Bone
             modeldata['SWG'].append(groupbin)
     
-    # Materials --------------------------------------------------------------------------
-    texturenames = []
-    material_names = material_names
-    for mtlname in material_names:
-        mtl = bpy.data.materials.get(mtlname, None)
-        if not mtl:
-            continue
-        
-        mtl = collection.vbm.get_material_override(mtl)
-        flags = (
-            VBM_MATERIALFLAGS_TRANSPARENT * (mtl.vbm.transparent) |
-            VBM_MATERIALFLAGS_USECULLING * (mtl.use_backface_culling)
-        )
-        
-        texturenodes = mtl.vbm.get_imagenodes()
-        texturenodes = [nd if nd and nd.image else None for nd in texturenodes]
-        for nd in texturenodes:
-            if nd and nd.image and nd.image.name not in texturenames:
-                texturenames.append(nd.image.name)
-        
-        mtlbin = b''
-        mtlbin += Pack('i', flags)
-        mtlbin += PackString(FixName(mtl.name))  # Material Name
-        mtlbin += PackString(mtl.vbm.shader if mtl.vbm.shader else context.scene.vbm.shader_default)  # Shader Name
-        
-        # 8(?) Textures max
-        mtlbin += Pack('i', len(texturenodes))
-        for texturenode in texturenodes:
-            if texturenode:
-                texflags = (
-                    (VBM_MTLTEXFLAG_FILTERLINEAR * (texturenode.interpolation.upper() != 'CLOSEST')) |
-                    (VBM_MTLTEXFLAG_EXTEND * (texturenode.extension=='EXTEND'))
-                )
-            else:
-                texflags = 0
-            mtlbin += Pack('i', texflags)  # Texture Flags
-            mtlbin += Pack('i', texturenames.index(texturenode.image.name) if texturenode else 0)   # Texture Index
-            mtlbin += PackString(texturenode.image.name if texturenode else "")  # Texture Name
-        modeldata['MTL'].append(mtlbin)
-    
-    # Images --------------------------------------------------------------------------------
-    for texturename in texturenames:
-        image = bpy.data.images.get(texturename)
-        
-        if image:
-            palette, indices, size = ImageData(image, palette_max)
-            w,h = size
-            index_dtype = 'H' if len(palette) >= 256 else 'B'
-            
-            flags = (
-                (VBM_TEXTUREFLAG_SRGB * (image.colorspace_settings.name.upper()=='SRGB'))
-            )
-            
-            imagebin = b''
-            imagebin += Pack('i', flags)
-            imagebin += PackString(FixName(image.name))
-            imagebin += Pack('III', w, h, len(palette))
-            imagebin += PackVector('I', palette)
-            
-            # Switch data type based on palette count
-            imagebin += PackVector(index_dtype, indices)
-            modeldata['TEX'].append(imagebin)
-    
     # Actions -----------------------------------------------------------------------------
     Clean()
-    for actionitem in collection.vbm.actions:
-        if not actionitem.export_enabled:
-            continue
-        
-        action = actionitem.action
-        actionname = action.name
-        
-        if 1:
-            actionname = actionname.split("/")[-1]
-        
-        bonemask = int(sum([1<<i for i,x in enumerate(action.vbm.layer_mask) if x]))
-        
-        bonedata = AnimData(action, rig)
-        bonedata = {bname: curves for bname,curves in bonedata.items() if bone_group_source_collection.vbm.get_bone_layer_mask(bname) & bonemask}
-        
-        propcurves = [fc for fc in action.fcurves if "pose.bones" not in fc.data_path]
-        propdata = {fc.data_path: [] for fc in propcurves}
-        [propdata[fc.data_path].append([tuple(k.co) for k in fc.keyframe_points]) for fc in propcurves]
-        propdata = { k.split("\"")[1] if "\"" in k else k :channels for k,channels in propdata.items() }
-        
-        curvedata = {name:channels for name,channels in list(bonedata.items())+list(propdata.items())}
-        
-        frame_start = int(action.frame_range[0])
-        frame_end = int(action.frame_range[1])
-        frame_rate = int(action.vbm.frame_rate)
-        flags = (
-            ( VBM_ANIMATIONFLAGS_CURVENAMES * 1 ) | # Curve names
-            ( VBM_ANIMATIONFLAGS_CURVELOOP * action.use_cyclic ) |  # Curve Loop
-            ( VBM_ANIMATIONFLAGS_MARKERS * (len(action.pose_markers) > 0) )  # Curve Markers
-        )
-        
-        outaction = b''
-        outaction += Pack('BBB', *[ord(c) for c in "ANI"])+Pack('B', 0)  # Version
-        outaction += Pack('i', flags)  # Flags
-        outaction += PackString(FixName(actionname))  # Name
-        outaction += Pack('i', int((action.frame_end-action.frame_start+1)))     # Duration
-        outaction += Pack('i', context.scene.render.fps)     # FPS
-        outaction += Pack('i', 0)     # Loop Point
-        outaction += Pack('i', len(curvedata.values()))  # Curve Count
-        outaction += Pack('i', sum([len(curve) for curve in curvedata.values()]))  # Channel Count
-        outaction += Pack('i', sum([len(channel) for curve in curvedata.values() for channel in curve]))  # Keyframe Count
-        outaction += Pack('i', len(bonedata.values()))  # Props View Index / Number of bone curves
-        
-        # Pose Markers
-        if ( flags & VBM_ANIMATIONFLAGS_MARKERS ):
-            outaction += Pack('i', len(action.pose_markers))
-            for m in action.pose_markers:
-                outaction += PackString(m.name)     # Marker Name
-                outaction += Pack('f', m.frame)     # Marker Frame
-        
-        # Bone Curves + Property Curves 
-        curve_index = 0
-        for curvename, channels in curvedata.items():
+    if collection.vbm.export_animations:
+        for actionitem in collection.vbm.actions:
+            if not actionitem.export_enabled:
+                continue
+            
+            action = actionitem.action
+            actionname = action.name
+            if collection.vbm.clip_action_name:
+                actionname = ClipName(actionname)
+            
+            bonemask = int(sum([1<<i for i,x in enumerate(action.vbm.layer_mask) if x]))
+            
+            bonedata = AnimData(action, rig)
+            bonedata = {bname: curves for bname,curves in bonedata.items() if bone_group_source_collection.vbm.get_bone_layer_mask(bname) & bonemask}
+            
+            propcurves = [fc for fc in action.fcurves if "pose.bones" not in fc.data_path]
+            propdata = {fc.data_path: [] for fc in propcurves}
+            [propdata[fc.data_path].append([tuple(k.co) for k in fc.keyframe_points]) for fc in propcurves]
+            propdata = { k.split("\"")[1] if "\"" in k else k :channels for k,channels in propdata.items() }
+            
+            curvedata = {name:channels for name,channels in list(bonedata.items())+list(propdata.items())}
+            
+            frame_start = int(action.frame_range[0])
+            frame_end = int(action.frame_range[1])
+            frame_rate = int(action.vbm.frame_rate)
+            flags = (
+                ( VBM_ANIMATIONFLAGS_CURVENAMES * 1 ) | # Curve names
+                ( VBM_ANIMATIONFLAGS_CURVELOOP * action.use_cyclic ) |  # Curve Loop
+                ( VBM_ANIMATIONFLAGS_MARKERS * (len(action.pose_markers) > 0) )  # Curve Markers
+            )
+            
+            outaction = b''
+            outaction += Pack('i', flags)  # Flags
+            outaction += PackString(FixName(actionname))  # Name
+            outaction += Pack('i', int((action.frame_end-action.frame_start+1)))     # Duration
+            outaction += Pack('i', context.scene.render.fps)     # FPS
+            outaction += Pack('i', 0)     # Loop Point
+            outaction += Pack('i', len(curvedata.values()))  # Curve Count
+            outaction += Pack('i', sum([len(curve) for curve in curvedata.values()]))  # Channel Count
+            outaction += Pack('i', sum([len(channel) for curve in curvedata.values() for channel in curve]))  # Keyframe Count
+            outaction += Pack('i', len(bonedata.values()))  # Props View Index / Number of bone curves
+            
+            # Pose Markers
+            if ( flags & VBM_ANIMATIONFLAGS_MARKERS ):
+                outaction += Pack('i', len(action.pose_markers))
+                for m in action.pose_markers:
+                    outaction += PackString(m.name)     # Marker Name
+                    outaction += Pack('f', m.frame)     # Marker Frame
+            
+            # Curve Names
             if flags & VBM_ANIMATIONFLAGS_CURVENAMES:
-                outaction += PackString(FixName(curvename))  # Curvename
-            outaction += Pack('i', len(channels)) # Channel count
-            for channel in channels:
-                outaction += Pack('i', len(channel)) # Keyframe count
-                for k in channel:
-                    #print(action.name, k, [x for x in k])
-                    outaction += Pack('f', k[0])    # Frame
-                    outaction += Pack('f', k[1])    # Value
-            curve_index += 1
-        
-        modeldata['ANI'].append(outaction)
-        collection.vbm.action_index = collection.vbm.action_index
-    
-    # Vertex Buffer --------------------------------------------------------------
-    compress_vertex_buffer = collection.vbm.use_vtx_compression != 0
-    
-    buffer_size = len(netvb)
-    loop_count = len(netvb) // stride
-    
-    flags = (
-        (VBM_VTX_COMPRESSED * compress_vertex_buffer)
-    )
-    
-    outvtx = b''
-    outvtx += Pack('I', flags)
-    outvtx += Pack('I', format_mask)
-    outvtx += Pack('I', buffer_size)
-    
-    if not compress_vertex_buffer:
-        outvtx += netvb
-    else:
-        # TODO: Make mesh checksum key at start of export function for use here
-        checksum = -1
-        
-        if checksum < 0:
-            attribute_types = [i for i in range(0, 16) if format_mask&(1<<i)]
-            attribute_isbyte = [ (format_mask&(1<<(a+16))) != 0 for a in attribute_types ]
-            attribute_spaces = [4 if attribute_isbyte[i] else VFORMAT_SPACE[a] for i,a in enumerate(attribute_types)]
-            attribute_vectors = []
-            attribute_count = len(attribute_types)
-            offset = 0
+                for curvename, channels in curvedata.items():
+                    outaction += PackString(FixName(curvename))  # Curvename
             
-            floatmask = 0xFFFF_FF00     # Lower bits are mantissa. Removing them lowers precision, but makes attribute set smaller
-            for a,space in enumerate(attribute_spaces):
-                if not attribute_isbyte[a]:
-                    stream = np.frombuffer(b''.join([netvb[o:o+space] for o in range(offset, buffer_size, stride)]), dtype=np.uint32) & floatmask
-                    stream = stream.tobytes()
-                    stream = tuple([ stream[o:o+space] for o in range(0, len(stream), space)])
-                else:
-                    stream = tuple([( netvb[o:o+space]) for o in range(offset, buffer_size, stride)])
+            # Bone Curves + Property Curves 
+            curveviewbin = b''
+            channelviewbin = b''
+            keyframebin = b''
+            
+            curve_index = 0
+            channel_offset = 0
+            keyframe_offset = 0
+            for curvename, channels in curvedata.items():
+                # Adding to total bytearray in chunks is faster than by value:
+                channelchunk = b''
+                keyframechunk = b''
+                curveviewbin += Pack('ii', channel_offset, len(channels))    # <Channel Offset, Count>
+                for channel in channels:
+                    channelchunk += Pack('ii', keyframe_offset, len(channel))    # <Keyframe Offset, Count>
+                    for k in channel:
+                        keyframechunk += Pack('ff', k[0], k[1])    # <Frame, Value>
+                    keyframe_offset += len(channel)
+                    channel_offset += 1
                 
-                attribute_vectors.append(stream)
-                offset += space
-            attribute_sets = [ tuple(set(v)) for v in attribute_vectors ]
+                channelviewbin += channelchunk
+                keyframebin += keyframechunk
+                curve_index += 1
             
-            indices = [attribute_sets[a].index(attribute_vectors[a][l]) for l in range(0, loop_count) for a in range(0, attribute_count)]
-            #print(len(indices), stride, loop_count, buffer_size, attribute_spaces, [len(x) for x in attribute_vectors], [len(x) for x in attribute_sets])
+            outaction += curveviewbin
+            outaction += channelviewbin
+            outaction += keyframebin
             
-            if collection.vbm.get('VBM_DATA', None):
-                del collection.vbm['VBM_DATA']
-            collection.vbm['VBM_DATA'] = (attribute_sets, indices)
-            #collection.vbm['VBM_CHECKSUM'] = checksum
-        
-        attribute_sets, indices = collection.vbm['VBM_DATA']
-        
-        outvtx += Pack('I', len(attribute_sets))   # Number of attributes
-        for attribset in attribute_sets:
-            outvtx += Pack('I', len(attribset))     # Attribute set size
-            outvtx += Pack('I', len(attribset[0]))     # Attribute space
-            outvtx += b''.join(attribset)           # Attribute set
-        outvtx += b''.join([Pack('H', x) for x in indices])
+            modeldata['ANI'].append(outaction)
+            collection.vbm.action_index = collection.vbm.action_index
     
-    # Output ------------------------------------------------------------------------------
+    # Cleanup ------------------------------------------------------------------------------
     Clean()
     
     context.view_layer.objects.active = last_active_object
@@ -2811,11 +3002,8 @@ def ExportModel(collection, report=True):
         rig.animation_data.action = last_rig_action
         rig.data.pose_position = last_rig_position
     
-    if len(netvb) == 0:
-        print("! WARNING: Length of vertex buffer == 0")
-    
+    # Output ------------------------------------------------------------------------------
     modeldata['NAM'] = PackString(FixName(collection.name))                 # Model Name
-    modeldata['VTX'] = outvtx
     modeldata['END'] = Pack('I', 0)  # End chunk
     
     printd([", ".join([ (("%s[%d]" % (type, len(data)))) if isinstance(data, list) else "{%s}"%type for type,data in modeldata.items() if data])])
@@ -2837,15 +3025,22 @@ def ExportModel(collection, report=True):
     if collection.vbm.use_compression:
         modelbin = zlib.compress(modelbin)
     
-    # Write to file
-    if context.scene.vbm.data_path:
-        filepath = bpy.path.abspath(context.scene.vbm.data_path)
-    else:
-        filepath = bpy.path.abspath("/")
+    # Write to file -----------------------------------------------------------------------
+    filepath = collection.vbm.get_name()
     
-    if filepath[-1] not in "/\\":
-        filepath += "/"
-    filepath = filepath + FixName(os.path.splitext(collection.vbm.get_name())[0]) + VBM_FILEEXT
+    # Filepath is full path
+    if "/" in filepath and os.path.isdir(os.path.split(filepath)[0]):
+        fname = FixName(os.path.split(filepath)[1])
+        filepath = os.path.split(filepath)[0]+"/" + fname + VBM_FILEEXT
+    # Prepend data path to filepath
+    else:
+        if context.scene.vbm.data_path:
+            datapath = bpy.path.abspath(context.scene.vbm.data_path)
+        else:
+            datapath = bpy.path.abspath("/")
+        if datapath[-1] not in "/\\":
+            datapath += "/"
+        filepath = datapath + FixName(os.path.splitext(collection.vbm.get_name())[0]) + VBM_FILEEXT
     
     f = open(os.path.abspath(bpy.path.abspath(filepath)), "wb")
     f.write(modelbin)

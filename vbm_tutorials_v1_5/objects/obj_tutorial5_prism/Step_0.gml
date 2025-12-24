@@ -49,9 +49,10 @@ for (var entity_index = 0; entity_index < entity_count; entity_index++) {
 	var t = VBM_Model_CastRay(
 		model_level, 
 		matrix_build_identity(), 
-		e.x, e.y, e.z, 
-		0,0,-1, 
-		-1,0.1, 
+		e.x, e.y, e.z,
+		0,0,-1,
+		-1,
+		0, 
 		VBM_LAYERMASKALL, VBM_LAYERMASKALL,
 		ground_point,
 		ground_normal
@@ -81,6 +82,7 @@ for (var entity_index = 0; entity_index < entity_count; entity_index++) {
 			VBM_Model_EvaluateSwingMatrices(e.model, e.matrix, e.pose_particles, e.pose_matrices, 0.5);
 			VBM_Model_EvaluateSkinningMatrices(e.model, e.pose_matrices, e.pose_skinning);
 		}
+		break;
 	}
 }
 

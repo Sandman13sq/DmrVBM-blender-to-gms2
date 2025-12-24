@@ -364,8 +364,9 @@ function VBM_ModelSwing() constructor {
 
 // Texture --------------------------------------------------------------------
 enum VBM_TEXTUREFLAG {
-	FREEONDELETE  = 0b10000000,
-	SRGB  = 0b00000001,
+	SRGB  =			0b00000001,
+	FREEONDELETE  = 0b01000000,
+	SOURCECOMPRESSED  =	0b10000000,
 };
 
 function VBM_ModelTexture() constructor {
@@ -394,7 +395,8 @@ function VBM_ModelTexture_GetPointer(texture) {
 enum VBM_MATERIALFLAG {
 	TRANSPARENT  = 0b00000001,
 	USECULLING	 = 0b00000010,
-	USEDEPTH	 = 0b00000100,
+	FLIPFACES	 = 0b00000100,
+	USEDEPTH	 = 0b00001000,
 };
 #macro VBM_DEFAULT_MATERIALFLAG (VBM_MATERIALFLAG.USEDEPTH)
 
@@ -696,6 +698,16 @@ function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start,
 	var d, dist, dp, nx,ny,nz, px,py,pz;
 	var v;
 	
+	if ( dist_start != 0.0 ) {
+		d = point_distance_3d(0,0,0, dx, dy, dz);
+		rx += dist_start * dx/d;
+		ry += dist_start * dy/d;
+		rz += dist_start * dz/d;
+		
+		dist_end -= dist_start;
+		dist_start = 0;
+	}
+	
 	// Convert ray into prism-space. (Instead of transforming each triangle vertex, normal, and center)
 	var minv = matrix_inverse(matprism);
 	v = matrix_transform_vertex(minv, rx,ry,rz, 1.0);
@@ -729,7 +741,7 @@ function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start,
 		) / dp;
 		
 		// Check distance against bounds
-		if ( dist < dist_start || dist > dist_end ) {t += VBM_PRISMTRIANGLE._len; continue;}
+		if ( (dist < 0.0) || (dist > dist_end) ) {t += VBM_PRISMTRIANGLE._len; continue;}
 		
 		px = rx + dx * dist;	// Intersection point
 		py = ry + dy * dist;
@@ -1280,19 +1292,17 @@ function VBM_Model_CastRay(
 		);
 		
 		if ( hit_index != -1 ) {
-			var d = point_distance_3d(
+			dist_end = point_distance_3d(
 				px, py, pz,
 				hit_intersection[0], hit_intersection[1], hit_intersection[2],
-			);
-			if ( d >= dist_start && d <= dist_end ) {
-				dist_end = d;
-				out_dist = d;
-				if ( !is_undefined(outintersection3) ) {
-					array_copy(outintersection3, 0, hit_intersection, 0, 3);
-				}
-				if ( !is_undefined(outnormal3) ) {
-					array_copy(outnormal3, 0, hit_normal, 0, 3);	
-				}
+			) + dist_start;
+			
+			out_dist = dist_end;
+			if ( !is_undefined(outintersection3) ) {
+				array_copy(outintersection3, 0, hit_intersection, 0, 3);
+			}
+			if ( !is_undefined(outnormal3) ) {
+				array_copy(outnormal3, 0, hit_normal, 0, 3);	
 			}
 		}
 	}
@@ -1313,6 +1323,7 @@ function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_draw
 	
 	var drawflags = ~0;
 	var n = array_length(model.meshdefs);
+	var bone_count = VBM_Model_GetBoneCount(model);
 	var meshdef, mtl, tex, shd=shader_current();
 	var m;
 	
@@ -1375,7 +1386,7 @@ function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_draw
 			}
 			
 			// Calculate matrix from bone
-			if ( meshdef.bone_index != VBM_NULLINDEX ) {
+			if ( meshdef.bone_index >= 0 && meshdef.bone_index < bone_count ) {
 				m = VBM_MAT4_MUTLIPLY(model.bones[meshdef.bone_index].matrix_bind, matrix);
 			}
 			else {
@@ -2207,6 +2218,14 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 	var chunk_len;
 	var chunk_jump;
 	
+	var chunk_supported_versions = {
+		"VTX": 1,
+		"SKE": 2,
+		"TEX": 2,
+		"ANI": 1,
+		"MTL": 1,
+	};
+	
 	while ( chunk_type != "END" ) {
 		// Read chunk header
 		chunk_type_ord[0] = buffer_read(f, buffer_u8);	
@@ -2222,7 +2241,17 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 		chunk_jump = buffer_tell(f) + chunk_len;
 		
 		if ( vbm_openflags & VBM_OPENFLAGS.PRINTDEBUG ) {
-			show_debug_message("VBM Chunk " + chunk_type + " " + string(chunk_version));	
+			show_debug_message("VBM Chunk " + chunk_type + " " + string(chunk_version));
+			
+			if ( variable_struct_exists(chunk_supported_versions, chunk_type) ) {
+				var _ver = chunk_supported_versions[$ chunk_type];
+				if ( chunk_version > _ver ) {
+					show_debug_message(
+						"! WARNING: "+chunk_type+" version "+string(chunk_version)+
+						" not supported! Latest = "+string(_ver)
+					);
+				}
+			}
 		}
 		
 		// End .......................................
@@ -2426,6 +2455,9 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				
 				var flags = 0;
 				var name = "";
+				var width = 0;
+				var height = 0;
+				var pixels = -1;
 				
 				if ( chunk_version >= 1 ) {
 					flags = buffer_read(f, buffer_s32);
@@ -2435,26 +2467,50 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 					name = "TEXTURE" + chr(ord("0")+texture_index);
 				}
 				
-				var width = buffer_read(f, buffer_u32);
-				var height = buffer_read(f, buffer_u32);
-				var palette_size = buffer_read(f, buffer_u32);
+				// Read from palette (old ver)
+				if (chunk_version < 2) {
+					width = buffer_read(f, buffer_u32);
+					height = buffer_read(f, buffer_u32);
+					var palette_size = buffer_read(f, buffer_u32);
 				
-				// Read in texture palette
-				var palette = array_create(palette_size);
-				for (var i = 0; i < palette_size; i++) {
-					palette[i] = buffer_read(f, buffer_u32);	
+					// Read in texture palette
+					var palette = array_create(palette_size);
+					for (var i = 0; i < palette_size; i++) {
+						palette[i] = buffer_read(f, buffer_u32);	
+					}
+				
+					// Set pixels using list of palette indices
+					var n = width*height;
+					pixels = buffer_create(n*4, buffer_fixed, 4);
+				
+					// Write pixels using indices from file
+					if ( palette_size < 256 ) {	// 1 Byte indices
+						repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u8)]);}
+					}
+					else {	// 2 Byte Indices
+						repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u16)]);}
+					}
 				}
-				
-				// Set pixels using list of palette indices
-				var n = width*height;
-				var pixels = buffer_create(n*4, buffer_fixed, 4);
-				
-				// Write pixels using indices from file
-				if ( palette_size < 256 ) {	// 1 Byte indices
-					repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u8)]);}
-				}
-				else {	// 2 Byte Indices
-					repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u16)]);}
+				// New Version
+				else {
+					width = buffer_read(f, buffer_u32);
+					height = buffer_read(f, buffer_u32);
+					var unknown0 = buffer_read(f, buffer_u32);
+					var buffer_size = buffer_read(f, buffer_u32);
+					
+					// Zlib Compression
+					if ( flags & VBM_TEXTUREFLAG.SOURCECOMPRESSED ) {
+						var pixels_compressed = buffer_create(buffer_size, buffer_fast, 1);
+						buffer_copy(f, buffer_tell(f), buffer_size, pixels_compressed, 0);
+						pixels = buffer_decompress(pixels_compressed);
+						buffer_delete(pixels_compressed);
+					}
+					// Uncompressed
+					else {
+						pixels = buffer_create(buffer_size, buffer_fast, 1);
+						buffer_copy(f, buffer_tell(f), buffer_size, pixels, 0);
+					}
+					buffer_seek(f, buffer_seek_relative, buffer_size);
 				}
 				
 				// Create sprite that holds texture
@@ -2554,19 +2610,35 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			for (var swing_index = 0; swing_index < swing_count; swing_index++) {
 				var swing = new VBM_ModelSwing();
 				swing.name = buffer_read(f, buffer_string);
-				swing.layer_mask = buffer_read(f, buffer_u32);
-				swing.collision_mask = buffer_read(f, buffer_u32);
+				swing.layer_mask = buffer_read(f, buffer_s32);
+				swing.collision_mask = buffer_read(f, buffer_s32);
 				
-				var bone_count = buffer_read(f, buffer_u32);
-				swing.bone_indices = array_create(bone_count);
-				for (var b = 0; b < bone_count; b++) {
-					swing.bone_indices[b] = buffer_read(f, buffer_u32);
+				if ( chunk_version == 0 ) {
+					var bone_count = buffer_read(f, buffer_u32);
+					swing.bone_indices = array_create(bone_count);
+					for (var b = 0; b < bone_count; b++) {
+						swing.bone_indices[b] = buffer_read(f, buffer_u32);
+					}
+					var segment_count = buffer_read(f, buffer_u32);
+					swing.segments = array_create(VBM_BONESEGMENT._len*segment_count);
+					for (var s = 0; s < segment_count; s++) {
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone0] = buffer_read(f, buffer_u32);	// start
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone1] = buffer_read(f, buffer_u32);	// end
+					}
 				}
-				var segment_count = buffer_read(f, buffer_u32);
-				swing.segments = array_create(VBM_BONESEGMENT._len*segment_count);
-				for (var s = 0; s < segment_count; s++) {
-					swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone0] = buffer_read(f, buffer_u32);	// start
-					swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone1] = buffer_read(f, buffer_u32);	// end
+				else {
+					var bone_count = buffer_read(f, buffer_u32);
+					var segment_count = buffer_read(f, buffer_u32);
+					
+					swing.bone_indices = array_create(bone_count);
+					for (var b = 0; b < bone_count; b++) {
+						swing.bone_indices[b] = buffer_read(f, buffer_u32);
+					}
+					swing.segments = array_create(VBM_BONESEGMENT._len*segment_count);
+					for (var s = 0; s < segment_count; s++) {
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone0] = buffer_read(f, buffer_u32);	// start
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone1] = buffer_read(f, buffer_u32);	// end
+					}
 				}
 			}
 		}
@@ -2578,22 +2650,25 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			for (var animation_index = 0; animation_index < animation_count; animation_index++) {
 				var anim = new VBM_ModelAnimation();
 				
-				buffer_read(f, buffer_u32);	// Animation Header = 'ANI[version]'
+				if ( chunk_version == 0 ) {
+					buffer_read(f, buffer_u32);	// Animation Header = 'ANI[version]'
+				}
 				anim.flags = buffer_read(f, buffer_s32);
 				anim.name = buffer_read(f, buffer_string);
 				anim.duration = buffer_read(f, buffer_u32);
 				anim.fps_native = buffer_read(f, buffer_u32);
 				anim.loop_point = buffer_read(f, buffer_u32);
-				anim.curve_count = buffer_read(f, buffer_u32);
+				var curve_count = buffer_read(f, buffer_u32);
 				var channel_count = buffer_read(f, buffer_u32);
 				var keyframe_count = buffer_read(f, buffer_u32);
 				anim.props_offset = buffer_read(f, buffer_u32);
 				
-				anim.curve_names = array_create(anim.curve_count, "");
-				anim.curve_views = array_create(anim.curve_count*VBM_ANIMATIONVIEW._len);
+				anim.curve_count = curve_count;
+				anim.curve_names = array_create(curve_count, "");
+				anim.curve_views = array_create(curve_count*VBM_ANIMATIONVIEW._len);
 				anim.animcurve = animcurve_create();
 				
-				// Read Marksers
+				// Read Markers
 				if ( anim.flags & VBM_ANIMATIONFLAG.MARKERS ) {
 					var nummarkers = buffer_read(f, buffer_u32);
 					anim.markers = array_create(nummarkers);
@@ -2616,27 +2691,99 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				var hits = 0;
 				
 				var namesum = 0;
-				for (var curve_index = 0; curve_index < anim.curve_count; curve_index++) {
-					var curvename = string(curve_index);
-					if ( anim.flags & VBM_ANIMATIONFLAG.CURVENAMES ) {
-						curvename = buffer_read(f, buffer_string);
-					}
+				
+				// Interleaved (old)
+				if ( chunk_version == 0 ) {
+					for (var curve_index = 0; curve_index < curve_count; curve_index++) {
+						var curvename = string(curve_index);
+						if ( anim.flags & VBM_ANIMATIONFLAG.CURVENAMES ) {
+							curvename = buffer_read(f, buffer_string);
+						}
 					
-					channel_count = buffer_read(f, buffer_u32);
-					
-					anim.curve_names[curve_index] = curvename;
-					anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.offset] = channel_offset;
-					anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.size] = channel_count;
-					
-					for (var i = 1; i <= string_length(curvename); i++) {
-						namesum += string_ord_at(namesum, i);
-					}
-					
-					for (channel_index = 0; channel_index < channel_count; channel_index++) {
-						keyframe_count = buffer_read(f, buffer_u32);
+						channel_count = buffer_read(f, buffer_u32);
 						
+						anim.curve_names[curve_index] = curvename;
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.offset] = channel_offset;
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.size] = channel_count;
+					
+						for (var i = 1; i <= string_length(curvename); i++) {
+							namesum += string_ord_at(namesum, i);
+						}
+					
+						for (channel_index = 0; channel_index < channel_count; channel_index++) {
+							keyframe_count = buffer_read(f, buffer_u32);
+						
+							points = array_create(keyframe_count);
+							keyframe_index = 0;
+							repeat (keyframe_count) {
+								point = animcurve_point_new();
+								point.posx = buffer_read(f, buffer_f32) / anim.duration;
+								point.value = buffer_read(f, buffer_f32);
+								points[keyframe_index] = point;
+								keyframe_index++;
+							}
+						
+							// Game Maker crashes if a curve has less than two points. Add of necessary
+							while ( keyframe_count < 2 ) {
+								point = animcurve_point_new();
+								point.posx = points[0].posx;
+								point.value = points[0].value;
+								array_push(points, point);
+								keyframe_count++;
+							}
+						
+							channel = animcurve_channel_new();
+							channel.name = curvename + string(channel_index);
+							channel.type = animcurvetype_linear;
+							channel.iterations = 0;
+							channel.points = points;
+						
+							channels[channel_offset] = channel;
+							channel_offset++;
+						}
+					}
+				}
+				// Packed Streams
+				else {
+					// Curve Names
+					if ( anim.flags & VBM_ANIMATIONFLAG.CURVENAMES ) {
+						for (var curve_index = 0; curve_index < curve_count; curve_index++) {
+							curvename = buffer_read(f, buffer_string);
+							anim.curve_names[curve_index] = curvename;
+							for (var i = 1; i <= string_length(curvename); i++) {
+								namesum += string_ord_at(namesum, i);
+							}
+						}
+					}
+					
+					// Curve Views
+					channel_offset = 0;
+					for (var curve_index = 0; curve_index < curve_count; curve_index++) {
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.offset] = buffer_read(f, buffer_u32);
+						anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index + VBM_ANIMATIONVIEW.size] = buffer_read(f, buffer_u32);
+						
+						var n = anim.curve_views[VBM_ANIMATIONVIEW._len*curve_index+VBM_ANIMATIONVIEW.size];
+						for (var channel_index = 0; channel_index < n; channel_index++) {
+							channel = animcurve_channel_new();
+							channel.name = anim.curve_names[curve_index] + string(channel_index);
+							channel.type = animcurvetype_linear;
+							channel.iterations = 0;
+							channels[channel_offset] = channel;
+							channel_offset++;	
+						}
+					}
+					// Channel Views
+					var channel_views = array_create(VBM_ANIMATIONVIEW._len*channel_count);
+					for (var channel_index = 0; channel_index < channel_count; channel_index++) {
+						channel_views[VBM_ANIMATIONVIEW._len*channel_index + VBM_ANIMATIONVIEW.offset] = buffer_read(f, buffer_u32);
+						channel_views[VBM_ANIMATIONVIEW._len*channel_index + VBM_ANIMATIONVIEW.size] = buffer_read(f, buffer_u32);
+					}
+					// Keyframe Values
+					for (var channel_index = 0; channel_index < channel_count; channel_index++) {
+						keyframe_count = channel_views[VBM_ANIMATIONVIEW._len*channel_index + VBM_ANIMATIONVIEW.size];
 						points = array_create(keyframe_count);
 						keyframe_index = 0;
+						// Read keyframes for channel
 						repeat (keyframe_count) {
 							point = animcurve_point_new();
 							point.posx = buffer_read(f, buffer_f32) / anim.duration;
@@ -2644,7 +2791,6 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 							points[keyframe_index] = point;
 							keyframe_index++;
 						}
-						
 						// Game Maker crashes if a curve has less than two points. Add of necessary
 						while ( keyframe_count < 2 ) {
 							point = animcurve_point_new();
@@ -2653,15 +2799,8 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 							array_push(points, point);
 							keyframe_count++;
 						}
-						
-						channel = animcurve_channel_new();
-						channel.name = curvename + string(channel_index);
-						channel.type = animcurvetype_linear;
-						channel.iterations = 0;
-						channel.points = points;
-						
-						channels[channel_offset] = channel;
-						channel_offset++;
+						// Add channel to struct
+						channels[channel_index].points = points;
 					}
 				}
 				
@@ -2672,7 +2811,7 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			}
 		}
 		// Unknown chunk type ..........................
-		else {
+		else if (vbm_openflags & VBM_OPENFLAGS.PRINTDEBUG) {
 			show_debug_message("VBM_Load(): Unknown chunk type " + chunk_type);
 		};
 		
