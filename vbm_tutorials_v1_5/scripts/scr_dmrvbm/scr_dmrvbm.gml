@@ -698,6 +698,16 @@ function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start,
 	var d, dist, dp, nx,ny,nz, px,py,pz;
 	var v;
 	
+	if ( dist_start != 0.0 ) {
+		d = point_distance_3d(0,0,0, dx, dy, dz);
+		rx += dist_start * dx/d;
+		ry += dist_start * dy/d;
+		rz += dist_start * dz/d;
+		
+		dist_end -= dist_start;
+		dist_start = 0;
+	}
+	
 	// Convert ray into prism-space. (Instead of transforming each triangle vertex, normal, and center)
 	var minv = matrix_inverse(matprism);
 	v = matrix_transform_vertex(minv, rx,ry,rz, 1.0);
@@ -731,7 +741,7 @@ function VBM_ModelPrism_CastRay(prism, matprism, rx,ry,rz, dx,dy,dz, dist_start,
 		) / dp;
 		
 		// Check distance against bounds
-		if ( dist < dist_start || dist > dist_end ) {t += VBM_PRISMTRIANGLE._len; continue;}
+		if ( (dist < 0.0) || (dist > dist_end) ) {t += VBM_PRISMTRIANGLE._len; continue;}
 		
 		px = rx + dx * dist;	// Intersection point
 		py = ry + dy * dist;
@@ -1282,19 +1292,17 @@ function VBM_Model_CastRay(
 		);
 		
 		if ( hit_index != -1 ) {
-			var d = point_distance_3d(
+			dist_end = point_distance_3d(
 				px, py, pz,
 				hit_intersection[0], hit_intersection[1], hit_intersection[2],
-			);
-			if ( d >= dist_start && d <= dist_end ) {
-				dist_end = d;
-				out_dist = d;
-				if ( !is_undefined(outintersection3) ) {
-					array_copy(outintersection3, 0, hit_intersection, 0, 3);
-				}
-				if ( !is_undefined(outnormal3) ) {
-					array_copy(outnormal3, 0, hit_normal, 0, 3);	
-				}
+			) + dist_start;
+			
+			out_dist = dist_end;
+			if ( !is_undefined(outintersection3) ) {
+				array_copy(outintersection3, 0, hit_intersection, 0, 3);
+			}
+			if ( !is_undefined(outnormal3) ) {
+				array_copy(outnormal3, 0, hit_normal, 0, 3);	
 			}
 		}
 	}
