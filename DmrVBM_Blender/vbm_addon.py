@@ -566,7 +566,14 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
                 format[ATTRIBUTE_INDEX['WEI']+16] = 1
             self.format = [x > 0 for x in format]
     
-    name: StringProperty(default="", options=set())
+    
+    def update_name(self, context):
+        if not self.name:
+            return
+        if self.name[-1] in "/\"":
+            self.name += self.get_collection().name
+        
+    name: StringProperty(default="", options=set(), subtype='FILE_PATH', update=update_name)
     
     format: BoolVectorProperty(
         name="Vertex Format", size=32, options=set(), default=tuple([((1<<i)&ATTRIBUTE_DEFAULTMASK) != 0 for i in range(0, 32)]), update=update_format,   # [0:15] = Attribute, [16:31] = Is byte
@@ -1073,25 +1080,29 @@ class VBM_OT_CollectionAddBonegroupSegment(bpy.types.Operator):
                 bonehits.append(b)
         bonenames = [x.name for x in bonehits]
         
+        _,deformmap,_ = EvaluateDeformOrder(rig)
+        roots = [b for b in bonehits if deformmap.get(b.name, "") not in bonenames]
+        chains = [[] for r in roots]
+        if roots:
+            print("Roots:", [b.name for b in roots])
+            for c,root in enumerate(roots):
+                chain = [root]
+                hit = 1
+                while hit:
+                    hit = 0
+                    for b in bonehits:
+                        if deformmap.get(b.name, "") == chain[-1].name:
+                            hit = 1
+                            chain.append(b)
+                            break
+                chains[c] = chain
+        
         if self.mode == 'SEGMENT':
-            for b in bonehits:
-                pname = FixDeformName(b.parent.name)
-                if pname in bonenames:
-                    bone_group.add_segment(pname, b.name)
+            for c in chains:
+                for i in range(0, len(c)-1):
+                    bone_group.add_segment(c[i].name, c[i+1].name)
         elif self.mode == 'SKIRT':
-            roots = [b for b in bonehits if FixDeformName(b.parent.name) not in bonenames]
-            center = Vector((0,0,0))
-            for r in roots:
-                center += r.head
-            center /= len(roots)
-            roots.sort(key=lambda b: atan2(center[1]-b.head[1], center[0]-b.head[0]))
             for root_index in range(0, len(roots)):
-                c1 = [roots[root_index]]
-                c2 = [roots[(root_index+1)%len(roots)]]
-                while c1[-1].children:
-                    c1.append(c1[-1].children[0])
-                while c2[-1].children:
-                    c2.append(c2[-1].children[0])
                 n = min(len(c1), len(c2))
                 for i in range(0, n):
                     printd((c1[i].name, c2[i].name))
@@ -1723,7 +1734,6 @@ class VBM_PT_Asset(bpy.types.Panel):
         
         # Settings --------------------------------------------------------
         if context.scene.vbm.panel_tab == 'SCENE':
-            layout.operator('vbm.restore_layer_mask', icon='MODIFIER')
             c = layout.column(align=1)
             c.use_property_split = 1
             c.scale_y = 0.9
@@ -1746,6 +1756,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             rr.operator('vbm.collection_clear_checksum', text="OBJ").group='OBJECT'
             rr.operator('vbm.collection_clear_checksum', text="ANI").group='ACTION'
             rr.operator('vbm.collection_clear_checksum', text="TEX").group='IMAGE'
+            layout.operator('vbm.restore_layer_mask', icon='MODIFIER')
             
             layout.separator()
             c = layout.column(align=1)
@@ -2211,9 +2222,10 @@ def AnimData(action, rig):
     
     checksum = sum(np.array([x for x in (
         [action.vbm.clean_on_bake] +
-        [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] +
         ([x for b in rig.data.bones for v in (b.head_local, b.tail_local) for x in v] if rig else []) +
-        ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(rig)[0]) for x in bname] if rig else [])
+        ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(rig)[0]) for x in bname] if rig else []) +
+        [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] +
+        [len(fc.modifiers) for fc in action.fcurves]
     )]).tobytes() )
     if action.vbm.get('VBM_CHECKSUM', -1) != checksum:
         # Make Proxy
