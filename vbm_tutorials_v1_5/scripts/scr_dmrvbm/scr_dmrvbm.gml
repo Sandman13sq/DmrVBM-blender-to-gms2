@@ -2426,6 +2426,9 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 				
 				var flags = 0;
 				var name = "";
+				var width = 0;
+				var height = 0;
+				var pixels = -1;
 				
 				if ( chunk_version >= 1 ) {
 					flags = buffer_read(f, buffer_s32);
@@ -2435,26 +2438,50 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 					name = "TEXTURE" + chr(ord("0")+texture_index);
 				}
 				
-				var width = buffer_read(f, buffer_u32);
-				var height = buffer_read(f, buffer_u32);
-				var palette_size = buffer_read(f, buffer_u32);
+				// Read from palette (old ver)
+				if (chunk_version < 2) {
+					width = buffer_read(f, buffer_u32);
+					height = buffer_read(f, buffer_u32);
+					var palette_size = buffer_read(f, buffer_u32);
 				
-				// Read in texture palette
-				var palette = array_create(palette_size);
-				for (var i = 0; i < palette_size; i++) {
-					palette[i] = buffer_read(f, buffer_u32);	
+					// Read in texture palette
+					var palette = array_create(palette_size);
+					for (var i = 0; i < palette_size; i++) {
+						palette[i] = buffer_read(f, buffer_u32);	
+					}
+				
+					// Set pixels using list of palette indices
+					var n = width*height;
+					pixels = buffer_create(n*4, buffer_fixed, 4);
+				
+					// Write pixels using indices from file
+					if ( palette_size < 256 ) {	// 1 Byte indices
+						repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u8)]);}
+					}
+					else {	// 2 Byte Indices
+						repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u16)]);}
+					}
 				}
-				
-				// Set pixels using list of palette indices
-				var n = width*height;
-				var pixels = buffer_create(n*4, buffer_fixed, 4);
-				
-				// Write pixels using indices from file
-				if ( palette_size < 256 ) {	// 1 Byte indices
-					repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u8)]);}
-				}
-				else {	// 2 Byte Indices
-					repeat(n) {buffer_write(pixels, buffer_u32, palette[buffer_read(f, buffer_u16)]);}
+				// New Version
+				else {
+					width = buffer_read(f, buffer_u32);
+					height = buffer_read(f, buffer_u32);
+					var unknown0 = buffer_read(f, buffer_u32);
+					var buffer_size = buffer_read(f, buffer_u32);
+					
+					// Zlib Compression
+					if ( flags & VBM_TEXTUREFLAG.SOURCECOMPRESSED ) {
+						var pixels_compressed = buffer_create(buffer_size, buffer_fast, 1);
+						buffer_copy(f, buffer_tell(f), buffer_size, pixels_compressed, 0);
+						pixels = buffer_decompress(pixels_compressed);
+						buffer_delete(pixels_compressed);
+					}
+					// Uncompressed
+					else {
+						pixels = buffer_create(buffer_size, buffer_fast, 1);
+						buffer_copy(f, buffer_tell(f), buffer_size, pixels, 0);
+					}
+					buffer_seek(f, buffer_seek_relative, buffer_size);
 				}
 				
 				// Create sprite that holds texture
