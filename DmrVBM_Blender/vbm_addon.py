@@ -619,6 +619,7 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
     data_path: StringProperty(name="Data Path", default="", subtype='DIR_PATH', update=update_datapath)
     layer_mask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set(), description="Number of layer mask bits to display")
     
+    show_swing_viewport_panel: BoolProperty(name="Viewport Swing Panel", default=True, options=set(), description="Show Swing Panel in 3D Viewport")
     show_extra_info: BoolProperty(name="Extended Info", default=False, options=set(), description="Show extra info in item lists")
     show_swing_bones: BoolProperty(name="Show Swing Bones", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
     show_swing_segments: BoolProperty(name="Show Swing Segments", default=True, options=set(), description="Show swing bone visuals as defined in Bone Groups panel")
@@ -633,12 +634,13 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
     shader_default: StringProperty(name="Default Shader", default="DEFAULT", options=set(), description="Default shader name for materials.")
     shader_names: CollectionProperty(name="Shader Names", type=VBM_PG_Label)
     
-    panel_tab: EnumProperty(default=1, update=refresh_collection, items=tuple([
+    panel_tab: EnumProperty(name="VBM Tab", default=1, update=refresh_collection, items=tuple([
         ('SCENE', "", "Scnene settings", 'PREFERENCES', 0),
         ('COLLECTION', "CLL", "Collection settings", 'OUTLINER_COLLECTION', 1),
         ('OBJECT', "OBJ", "Collection object settings", 'OBJECT_DATA', 2),
         ('MATERIAL', "MTL", "Material settings", 'MATERIAL_DATA', 3),
         ('ACTION', "ANI", "Action settings", 'ACTION', 4),
+        ('SWING', "SWG", "Rig Bone settings", 'CON_SPLINEIK', 5),
     ]))
     express_export: BoolProperty(name="Express Export", default=False, options=set())
     compress_model_files: BoolProperty(name="Compress on Export", default=False, options=set())
@@ -888,7 +890,7 @@ class VBM_OT_CollectionPushAction(bpy.types.Operator):
     bl_description = "Pushes action from active rig to action list"
     def execute(self, context):
         collection = ActiveCollection()
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         action = rig.animation_data.action
         if action not in [x.action for x in collection.vbm.actions]:
             collection.vbm.actions.add().action = action
@@ -979,7 +981,7 @@ class VBM_OT_CollectionAddBonegroupSelectedBones(bpy.types.Operator):
         collection = ActiveCollection()
         bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index]
         
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         bonenames = tuple(rig.data.bones.keys())
         for pb in context.selected_pose_bones:
             bname = pb.name
@@ -1010,7 +1012,7 @@ class VBM_OT_CollectionAddBonegroupSegment(bpy.types.Operator):
         
         FixDeformName = lambda bname: bname.replace("ORG-","DEF-").replace("MCH-","DEF-").replace("_ik","").replace("_fk","")
         
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         bonenames = tuple(rig.data.bones.keys())
         bonehits = []
         for pb in context.selected_pose_bones:
@@ -1095,7 +1097,7 @@ class VBM_OT_CollectionBonegroupSelect(bpy.types.Operator):
     def execute(self, context):
         collection = ActiveCollection()
         bone_group = collection.vbm.bone_groups[self.index]
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         for b in bone_group.bones:
             pb = rig.pose.bones.get(b.name)
             if pb:
@@ -1409,7 +1411,7 @@ def VBMDrawLayermask(layout, id, propname, text=""):
 def VBMActionPanel(layout, collection):
     context = bpy.context
     
-    rig = CollectionRig(collection)
+    rig = collection.vbm.get_rig()
     if rig and rig.animation_data:
         r = layout.row()
         r.label(text=rig.name, icon='ARMATURE_DATA')
@@ -1464,10 +1466,101 @@ def VBMActionPanel(layout, collection):
             rr.scale_x = 0.85
             #rr.prop(action.vbm, 'frame_rate', text="")
 
+# --------------------------------------------------------------------------------------
+def VBMSwingPanel(layout, collection):
+    context = bpy.context
+    rig = collection.vbm.get_rig()
+    
+    if not rig:
+        r = layout.row()
+        r.alert=True
+        r.alignment='CENTER'
+        r.label(text="(No valid Rig found in collection!)")
+    else:
+        deformbones = rig.get('DEFORM_LIST', None)
+        if not deformbones:
+            deformbones = [b for b in rig.data.bones if b.use_deform]
+        
+        r = layout.row(align=1)
+        r.prop(collection, 'name', text="", icon='GROUP', emboss=False)
+        r.prop(rig, 'name', text="", icon='ARMATURE_DATA', emboss=False)
+        
+        c = layout.column(align=1)
+        r = c.row(align=1)
+        r.label(text="Default Layer Mask:")
+        r = r.row(align=1)
+        r.alignment='RIGHT'
+        r.label(text="(%3d) Bones" % (len(deformbones)))
+        VBMDrawLayermask(c, collection.vbm, 'bone_layer_mask_default', text="")
+        
+        r = layout.row(align=1)
+        c = r.column(align=1)
+        c.scale_y = 0.9
+        c.template_list('VBM_UL_CollectionBonegroup', "", collection.vbm, 'bone_groups', collection.vbm, 'bone_group_index', rows=6)
+        c = r.column(align=1)
+        c.scale_y = 1.0
+        c.operator('vbm.collection_bonegroup_add', text="", icon='ADD')
+        c.operator('vbm.collection_bonegroup_remove', text="", icon='REMOVE')
+        c.separator()
+        c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_UP').direction='UP'
+        c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_DOWN').direction='DOWN'
+        c.separator()
+        #c.prop(context.scene.vbm, 'show_extra_info', text="", icon=VBM_LAYERMASKICON)
+        
+        bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index] if collection.vbm.bone_groups else None
+        if bone_group:
+            b = layout.box().column(align=0)
+            b.active = bone_group.export_enabled
+            
+            VBMDrawLayermask(b, bone_group, 'layer_mask', text="Layer Mask")
+            VBMDrawLayermask(b, bone_group, 'collision_mask', text="Collision Mask")
+            
+            bb = b.box().column(align=1)
+            bb.row(align=1).prop(context.scene.vbm, 'swing_tab', expand=True)
+            
+            if context.scene.vbm.swing_tab == 'SWING':
+                c = bb.column(align=0)
+                c.use_property_split = True
+                c.prop(bone_group, 'swing_enabled')
+                c = c.column(align=1)
+                c.active = bone_group.swing_enabled
+                c.scale_y = 0.9
+                c.use_property_split = True
+                c.prop(bone_group, 'radius')
+                c.separator()
+                c.prop(bone_group, 'stiffness')
+                c.prop(bone_group, 'damping')
+                c.prop(bone_group, 'limit')
+                c.prop(bone_group, 'force_strength')
+            elif context.scene.vbm.swing_tab == 'BONE':
+                r = bb.row(align=1)
+                c = r.column(align=1)
+                c.scale_y = 0.7
+                c.template_list('VBM_UL_CollectionBonegroupBones', "", bone_group, 'bones', bone_group, 'bone_index', rows=6)
+                c = r.column(align=1)
+                c.scale_y = 1.0
+                c.operator('vbm.collection_bonegroup_bones_from_selected', text="", icon='RESTRICT_SELECT_OFF')
+                c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='BONE'
+            elif context.scene.vbm.swing_tab == 'SEGMENT':
+                r = bb.row(align=1)
+                c = r.column(align=1)
+                c.scale_y = 0.7
+                c.template_list('VBM_UL_CollectionBonegroupSegments', "", bone_group, 'segments', bone_group, 'segment_index', rows=6)
+                c = r.column(align=1)
+                c.scale_y = 1.0
+                c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CON_TRACKTO').mode='SEGMENT'
+                c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CONE').mode='SKIRT'
+                c.separator()
+                c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='SEGMENT'
+
 # ------------------------------------------------------------------------------------
 class VBM_PT_Rig3DView(bpy.types.Panel):
     bl_label, bl_space_type, bl_region_type = ("DmrVBM Rig", 'VIEW_3D', 'UI')
     bl_category = "DmrVBM"
+    
+    @classmethod
+    def poll(self, context):
+        return context.scene.vbm.show_swing_viewport_panel
     
     def draw(self, context):
         layout = self.layout
@@ -1477,7 +1570,7 @@ class VBM_PT_Rig3DView(bpy.types.Panel):
         r.prop(context.scene.vbm, 'show_swing_segments')
         
         collection = ActiveCollection()
-        rig = CollectionRig(collection)
+        rig = collection.vbm.get_rig()
         
         if not rig:
             layout.label(text=collection.name, icon='GROUP')
@@ -1510,80 +1603,7 @@ class VBM_PT_Rig3DView_Swingbones(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         collection = ActiveCollection()
-        rig = CollectionRig(collection)
-        
-        if rig:
-            deformbones = rig.get('DEFORM_LIST', None)
-            if not deformbones:
-                deformbones = [b for b in rig.data.bones if b.use_deform]
-            
-            c = layout.column(align=1)
-            r = c.row(align=1)
-            r.label(text="Default Layer Mask:")
-            r = r.row(align=1)
-            r.alignment='RIGHT'
-            r.label(text="(%3d) Bones" % (len(deformbones)))
-            VBMDrawLayermask(c, collection.vbm, 'bone_layer_mask_default', text="")
-            
-            r = layout.row(align=1)
-            c = r.column(align=1)
-            c.scale_y = 0.9
-            c.template_list('VBM_UL_CollectionBonegroup', "", collection.vbm, 'bone_groups', collection.vbm, 'bone_group_index', rows=6)
-            c = r.column(align=1)
-            c.scale_y = 1.0
-            c.operator('vbm.collection_bonegroup_add', text="", icon='ADD')
-            c.operator('vbm.collection_bonegroup_remove', text="", icon='REMOVE')
-            c.separator()
-            c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_UP').direction='UP'
-            c.operator('vbm.collection_bonegroup_move', text="", icon='TRIA_DOWN').direction='DOWN'
-            c.separator()
-            c.prop(context.scene.vbm, 'show_extra_info', text="", icon=VBM_LAYERMASKICON)
-            
-            bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index] if collection.vbm.bone_groups else None
-            if bone_group:
-                b = layout.box().column(align=0)
-                b.active = bone_group.export_enabled
-                
-                VBMDrawLayermask(b, bone_group, 'layer_mask', text="Layer Mask")
-                VBMDrawLayermask(b, bone_group, 'collision_mask', text="Collision Mask")
-                
-                bb = b.box().column(align=1)
-                bb.row(align=1).prop(context.scene.vbm, 'swing_tab', expand=True)
-                
-                if context.scene.vbm.swing_tab == 'SWING':
-                    c = bb.column(align=0)
-                    c.use_property_split = True
-                    c.prop(bone_group, 'swing_enabled')
-                    c = c.column(align=1)
-                    c.active = bone_group.swing_enabled
-                    c.scale_y = 0.9
-                    c.use_property_split = True
-                    c.prop(bone_group, 'radius')
-                    c.separator()
-                    c.prop(bone_group, 'stiffness')
-                    c.prop(bone_group, 'damping')
-                    c.prop(bone_group, 'limit')
-                    c.prop(bone_group, 'force_strength')
-                elif context.scene.vbm.swing_tab == 'BONE':
-                    r = bb.row(align=1)
-                    c = r.column(align=1)
-                    c.scale_y = 0.7
-                    c.template_list('VBM_UL_CollectionBonegroupBones', "", bone_group, 'bones', bone_group, 'bone_index', rows=6)
-                    c = r.column(align=1)
-                    c.scale_y = 1.0
-                    c.operator('vbm.collection_bonegroup_bones_from_selected', text="", icon='RESTRICT_SELECT_OFF')
-                    c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='BONE'
-                elif context.scene.vbm.swing_tab == 'SEGMENT':
-                    r = bb.row(align=1)
-                    c = r.column(align=1)
-                    c.scale_y = 0.7
-                    c.template_list('VBM_UL_CollectionBonegroupSegments', "", bone_group, 'segments', bone_group, 'segment_index', rows=6)
-                    c = r.column(align=1)
-                    c.scale_y = 1.0
-                    c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CON_TRACKTO').mode='SEGMENT'
-                    c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CONE').mode='SKIRT'
-                    c.separator()
-                    c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='SEGMENT'
+        VBMSwingPanel(layout, collection)
 classlist.append(VBM_PT_Rig3DView_Swingbones)
 
 # -----------------------------------------------------------------------------------------------------------
@@ -1633,6 +1653,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             r.prop(context.scene.vbm, 'show_modifier_bake')
             r.label(text="", icon='MODIFIER')
             c.prop(context.scene.vbm, 'show_extra_info', text="Extended List Display")
+            c.prop(context.scene.vbm, 'show_swing_viewport_panel')
             c.prop(context.scene.vbm, 'show_swing_bones')
             c.prop(context.scene.vbm, 'show_swing_segments')
             c.prop(context.scene.vbm, 'print_debug')
