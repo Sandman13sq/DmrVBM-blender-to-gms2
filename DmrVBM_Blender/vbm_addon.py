@@ -1156,6 +1156,33 @@ class VBM_OT_CollectionMaterialAddTexture(bpy.types.Operator):
             nd.hide = True
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionMaterialAddTexture)
+
+class VBM_OT_CollectionMaterialMoveTextureSlot(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_material_move_texture', 'Move Texture', {'REGISTER', 'UNDO'}
+    bl_description = "Add texture to material for texture slot"
+    direction: EnumProperty(name="Direction", items=tuple([(x,x,x) for x in 'UP DOWN'.split()]))
+    def execute(self, context):
+        mtl = ActiveCollectionMaterial()
+        if mtl:
+            collection = ActiveCollection()
+            imagenodes = mtl.vbm.get_imagenodes()
+            oldslot = collection.vbm.texture_slot_index
+            newslot = (oldslot + (-1 if self.direction=='UP' else 1)) % len(imagenodes)
+            if imagenodes[oldslot] and imagenodes[newslot]:
+                oldname = imagenodes[oldslot]
+                newname = imagenodes[newslot]
+                imagenodes[oldslot].name += "."
+                imagenodes[newslot].name += "."
+                imagenodes[oldslot] = newname
+                imagenodes[newslot] = oldname
+            else:
+                nd = imagenodes[oldslot]
+                print(nd)
+                nd.name = "TEXTURE%d"%newslot
+                collection.vbm.texture_slot_index = newslot
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionMaterialMoveTextureSlot)
+
 # ===================================================================================================
 Clean = lambda: [data.remove(x) for data in (bpy.data.meshes, bpy.data.objects, bpy.data.armatures, bpy.data.images, bpy.data.actions) for x in list(data)[::-1] if x.get('TEMP', False)]
 
@@ -1842,6 +1869,10 @@ class VBM_PT_Asset(bpy.types.Panel):
                         rr.active = 1
                         if i==texture_slot_index:
                             activeimagenode = nd
+                            cc = r.column(align=1)
+                            cc.scale_y = 0.5
+                            op = cc.operator('vbm.collection_material_move_texture', text="", icon='TRIA_UP'  ); op.direction = ('UP')
+                            op = cc.operator('vbm.collection_material_move_texture', text="", icon='TRIA_DOWN'); op.direction = ('DOWN')
                     else:
                         x = r.row(align=1)
                         x.active = i==texture_slot_index
@@ -1868,7 +1899,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             b = layout.row(align=0)
             r = b.row(align=1)
             r.scale_y=0.8
-            c = [r.column(align=1) for i in (0,1,2,3,4)]
+            c = [r.column(align=1) for i in (0,1,2,3,4,5)]
             c[0].scale_x = 1.1
             c[1].scale_x = 0.8
             c[2].scale_x = 1.2
@@ -1877,16 +1908,20 @@ class VBM_PT_Asset(bpy.types.Panel):
             c[2].label(text="TEXTURE0", icon='NODE_TEXTURE')
             c[3].label(text="", icon=VBM_ICON_TRANSPARENT)
             c[4].label(text="", icon=VBM_ICON_BACKFACECULLING)
+            c[5].label(text="", icon=VBM_ICON_FLIPFACES)
             for mtl in materials:
                 c[0].prop(mtl, 'name', text="")
                 c[1].prop_search(mtl.vbm, 'shader', context.scene.vbm, 'shader_names', text="", results_are_suggestions=True)
-                ndimage = imagenodes[0]
+                ndimage = mtl.vbm.get_imagenodes()[0]
                 if ndimage:
                     c[2].prop(ndimage, 'image', text="")
                 else:
                     c[2].label(text="(No Image)")
                 c[3].prop(mtl.vbm, 'transparent', text="", icon='CHECKBOX_HLT' if mtl.vbm.transparent else 'CHECKBOX_DEHLT', emboss=True)
                 c[4].prop(mtl, 'use_backface_culling', text="", icon='CHECKBOX_HLT' if mtl.use_backface_culling else 'CHECKBOX_DEHLT', emboss=True)
+                l = c[5].column(align=1)
+                l.active = mtl.use_backface_culling
+                l.prop(mtl.vbm, 'flip_faces', text="", icon='CHECKBOX_HLT' if mtl.vbm.flip_faces else 'CHECKBOX_DEHLT', emboss=True)
         # Action
         elif context.scene.vbm.panel_tab == 'ACTION':
             VBMActionPanel(layout, collection)
