@@ -1890,6 +1890,9 @@ class VBM_PT_Asset(bpy.types.Panel):
         # Action
         elif context.scene.vbm.panel_tab == 'ACTION':
             VBMActionPanel(layout, collection)
+        # Swing
+        elif context.scene.vbm.panel_tab == 'SWING':
+            VBMSwingPanel(layout, collection)
 classlist.append(VBM_PT_Asset)
 
 # -----------------------------------------------------------------------------------------------------------
