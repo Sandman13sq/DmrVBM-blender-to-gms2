@@ -2554,19 +2554,35 @@ function VBM_Model_Load(outvbm, file_buffer, file_buffer_offset, file_buffer_siz
 			for (var swing_index = 0; swing_index < swing_count; swing_index++) {
 				var swing = new VBM_ModelSwing();
 				swing.name = buffer_read(f, buffer_string);
-				swing.layer_mask = buffer_read(f, buffer_u32);
-				swing.collision_mask = buffer_read(f, buffer_u32);
+				swing.layer_mask = buffer_read(f, buffer_s32);
+				swing.collision_mask = buffer_read(f, buffer_s32);
 				
-				var bone_count = buffer_read(f, buffer_u32);
-				swing.bone_indices = array_create(bone_count);
-				for (var b = 0; b < bone_count; b++) {
-					swing.bone_indices[b] = buffer_read(f, buffer_u32);
+				if ( chunk_version == 0 ) {
+					var bone_count = buffer_read(f, buffer_u32);
+					swing.bone_indices = array_create(bone_count);
+					for (var b = 0; b < bone_count; b++) {
+						swing.bone_indices[b] = buffer_read(f, buffer_u32);
+					}
+					var segment_count = buffer_read(f, buffer_u32);
+					swing.segments = array_create(VBM_BONESEGMENT._len*segment_count);
+					for (var s = 0; s < segment_count; s++) {
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone0] = buffer_read(f, buffer_u32);	// start
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone1] = buffer_read(f, buffer_u32);	// end
+					}
 				}
-				var segment_count = buffer_read(f, buffer_u32);
-				swing.segments = array_create(VBM_BONESEGMENT._len*segment_count);
-				for (var s = 0; s < segment_count; s++) {
-					swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone0] = buffer_read(f, buffer_u32);	// start
-					swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone1] = buffer_read(f, buffer_u32);	// end
+				else {
+					var bone_count = buffer_read(f, buffer_u32);
+					var segment_count = buffer_read(f, buffer_u32);
+					
+					swing.bone_indices = array_create(bone_count);
+					for (var b = 0; b < bone_count; b++) {
+						swing.bone_indices[b] = buffer_read(f, buffer_u32);
+					}
+					swing.segments = array_create(VBM_BONESEGMENT._len*segment_count);
+					for (var s = 0; s < segment_count; s++) {
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone0] = buffer_read(f, buffer_u32);	// start
+						swing.segments[VBM_BONESEGMENT._len*s + VBM_BONESEGMENT.bone1] = buffer_read(f, buffer_u32);	// end
+					}
 				}
 			}
 		}
