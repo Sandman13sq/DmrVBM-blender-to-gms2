@@ -2043,8 +2043,10 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
             (
                 [x for v in src.matrix_local for x in v] +
                 [x for v in src.data.vertices for x in v.co] +
+                [x for l in src.data.loops for x in l.normal] +
                 [vge.weight for v in src.data.vertices for vge in v.groups] +
                 [ord(x) for mtl in src.data.materials if mtl for x in mtl.name] +
+                [ord(c) for lyr in src.data.color_attributes for c in lyr.data_type+lyr.domain] +
                 [x for lyr in src.data.color_attributes for v in lyr.data for x in v.color] +
                 [x for lyr in src.data.uv_layers for v in lyr.uv for x in tuple(v.vector)]
             ) if src.type == 'MESH' else []
@@ -2052,9 +2054,9 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         [ord(x) for m in src.modifiers if ValidName(m.name) for x in m.name]+
         [v for m in src.modifiers if ValidName(m.name) for v in [getattr(m,p.identifier) for p in m.bl_rna.properties if not p.is_readonly] if isinstance(v, (bool,int,float))]+
         ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(src.find_armature())[0]) for x in bname] if src.find_armature() else [])+
-        ([x for fc in action_pose.fcurves for k in fc.keyframe_points for x in k.co] if action_pose else [])+
+        ([x for fc in ActionChannels(action_pose) for k in fc.keyframe_points for x in k.co] if action_pose else [])+
         ([ord(c) for script in [object_script_pre, object_script_post] if script for line in script.lines for c in line.body])+
-        [apply_transform]
+        [apply_transform, 13]
         )
     ]).tobytes()))
     
@@ -2137,10 +2139,21 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         MeshScript(object_script_post, "> VBM: Error executing object Post Script (%s)" % str(object_script_post))
         
         # Data .........................................................................................................
+        def ColorAttributeLoopData(attribute):
+            if attribute.domain == 'POINT':
+                if attribute.data_type == 'BYTE_COLOR':
+                    return np.array([attribute.data[l.vertex_index].color for l in tuple(obj.data.loops)], dtype=np.float32).reshape(-1,4)
+                else:
+                    return np.array([attribute.data[l.vertex_index].color for l in tuple(obj.data.loops)], dtype=np.float32).reshape(-1,4)
+            else:
+                attribute_data = np.empty(len(obj.data.loops)*4, dtype=np.float32)
+                attribute.data.foreach_get('color', attribute_data)
+                return attribute_data.reshape(-1,4)
+        
         uvlyr = obj.data.uv_layers.get("UVMap", obj.data.uv_layers[0])
         vclyr = obj.data.color_attributes[obj.data.color_attributes.render_color_index]
         uvdata = [tuple((uv.vector[0], 1-uv.vector[1])) for uv in uvlyr.uv]
-        vcdata = [tuple(vc.color) for vc in vclyr.data]
+        vcdata = ColorAttributeLoopData(vclyr)
         if sum([x for v in vcdata for x in v]) == 0:
             vcdata = [(1,1,1,1) for v in vcdata]
         
@@ -2161,25 +2174,26 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         material_indices = list(range(0, material_count)) if material_count > 0 else [0]
         for material_index in material_indices:
             mtl = obj.data.materials[material_index] if material_count > 0 else None
-            mtlloops = [l for p in tris if p.material_index == material_index for l in p.loops]
+            mtlloops = [int(l) for p in tris if p.material_index == material_index for l in p.loops]
             if mtlloops:
                 mtlname = mtl.name if mtl else ""
                 if mtlname not in mtlvbs:
-                    mtlvbs[mtlname] = {k:b'' for k in VFORMAT_NAME}
+                    mtlvbs[mtlname] = {k:b'' for k in ATTRIBUTE_NAME}
                 
-                mtlvbs[mtlname]['POS'] += b''.join([PackVector('f', verts[loops[l].vertex_index].co) for l in mtlloops])
-                mtlvbs[mtlname]['COL'] += b''.join([PackVector('B', [int(x*255) for x in vcdata[l]]) for l in mtlloops])
-                mtlvbs[mtlname]['UVS'] += b''.join([PackVector('f', uvdata[l]) for l in mtlloops])
-                mtlvbs[mtlname]['NOR'] += b''.join([PackVector('f', loops[l].normal) for l in mtlloops])
-                mtlvbs[mtlname]['TAN'] += b''.join([PackVector('f', loops[l].tangent) for l in mtlloops])
-                mtlvbs[mtlname]['BTN'] += b''.join([PackVector('f', loops[l].bitangent) for l in mtlloops])
-                mtlvbs[mtlname]['BON'] += b''.join([PackVector('f', [b for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
-                mtlvbs[mtlname]['WEI'] += b''.join([PackVector('f', [w for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
+                mtlvbs[mtlname]['POS'] += b''.join([Pack('fff', *verts[loops[l].vertex_index].co) for l in mtlloops])
+                mtlvbs[mtlname]['COL'] += b''.join([Pack('ffff', *vcdata[l]) for l in mtlloops])
+                mtlvbs[mtlname]['UVS'] += b''.join([Pack('ff', *uvdata[l]) for l in mtlloops])
+                mtlvbs[mtlname]['NOR'] += b''.join([Pack('fff', *loops[l].normal) for l in mtlloops])
+                mtlvbs[mtlname]['TAN'] += b''.join([Pack('fff', *loops[l].tangent) for l in mtlloops])
+                #mtlvbs[mtlname]['BTN'] += b''.join([PackVector('f', loops[l].bitangent) for l in mtlloops])
+                mtlvbs[mtlname]['BON'] += b''.join([Pack('ffff', *[b for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
+                mtlvbs[mtlname]['WEI'] += b''.join([Pack('ffff', *[w for b,w in skinning[loops[l].vertex_index]]) for l in mtlloops])
                 
                 for vclyr in obj.data.color_attributes:
                     if vclyr.name not in mtlvbs[mtlname].keys():
                         mtlvbs[mtlname][vclyr.name] = b''
-                    mtlvbs[mtlname][vclyr.name] += b''.join([PackVector('B', [int(x*255) for x in vclyr.data[l].color]) for l in mtlloops])
+                    attribute_data = ColorAttributeLoopData(vclyr)
+                    mtlvbs[mtlname][vclyr.name] += b''.join([Pack('ffff', *attribute_data[l]) for l in mtlloops])
                 for uvlyr in obj.data.uv_layers:
                     if uvlyr.name not in mtlvbs[mtlname].keys():
                         mtlvbs[mtlname][uvlyr.name] = b''
