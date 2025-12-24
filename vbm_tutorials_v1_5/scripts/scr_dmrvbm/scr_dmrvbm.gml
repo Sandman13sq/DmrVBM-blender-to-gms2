@@ -364,8 +364,9 @@ function VBM_ModelSwing() constructor {
 
 // Texture --------------------------------------------------------------------
 enum VBM_TEXTUREFLAG {
-	FREEONDELETE  = 0b10000000,
-	SRGB  = 0b00000001,
+	SRGB  =			0b00000001,
+	FREEONDELETE  = 0b01000000,
+	SOURCECOMPRESSED  =	0b10000000,
 };
 
 function VBM_ModelTexture() constructor {
@@ -394,7 +395,8 @@ function VBM_ModelTexture_GetPointer(texture) {
 enum VBM_MATERIALFLAG {
 	TRANSPARENT  = 0b00000001,
 	USECULLING	 = 0b00000010,
-	USEDEPTH	 = 0b00000100,
+	FLIPFACES	 = 0b00000100,
+	USEDEPTH	 = 0b00001000,
 };
 #macro VBM_DEFAULT_MATERIALFLAG (VBM_MATERIALFLAG.USEDEPTH)
 
@@ -1313,6 +1315,7 @@ function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_draw
 	
 	var drawflags = ~0;
 	var n = array_length(model.meshdefs);
+	var bone_count = VBM_Model_GetBoneCount(model);
 	var meshdef, mtl, tex, shd=shader_current();
 	var m;
 	
@@ -1375,7 +1378,7 @@ function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_draw
 			}
 			
 			// Calculate matrix from bone
-			if ( meshdef.bone_index != VBM_NULLINDEX ) {
+			if ( meshdef.bone_index >= 0 && meshdef.bone_index < bone_count ) {
 				m = VBM_MAT4_MUTLIPLY(model.bones[meshdef.bone_index].matrix_bind, matrix);
 			}
 			else {
