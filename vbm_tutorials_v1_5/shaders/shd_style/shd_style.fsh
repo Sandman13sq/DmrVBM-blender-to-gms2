@@ -18,8 +18,8 @@ void main()
 	float dr = dot(normal, normalize(incoming+lightvec));	// reflect
 	float di = dot(normal, incoming);	// incoming
 	
-	float shadowvalue = dp+v_vColour.b*2.0-1.0;
-	float shinevalue = dr+v_vColour.g*2.0-1.0;
+	float shadowvalue = dp+v_vColour.g*2.0-1.0;
+	float shinevalue = dr+v_vColour.b*2.0-1.0;
 	
 	// Color ---------------------------------------------------------
 	vec4 cbase = texture2D(gm_BaseTexture, v_vTexcoord);

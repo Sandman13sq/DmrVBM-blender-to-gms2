@@ -27,7 +27,7 @@ draw_text(xx, yy, "Bone Select: ["+string(bone_select)+"] " + string(VBM_Model_G
 yy += ysep;
 
 // Mesh on right
-xx = surface_get_width(application_surface)-180;
+xx = surface_get_width(application_surface)-240;
 yy = _ystart;
 draw_text(xx, yy, "Mesh Count: " + string(VBM_Model_GetMeshdefCount(model))); yy += ysep;
 for (var i = 0; i < VBM_Model_GetMeshdefCount(model); i++) {
