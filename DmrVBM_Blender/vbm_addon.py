@@ -12,6 +12,9 @@ from struct import pack as Pack
 from struct import unpack as Unpack
 from gpu_extras.batch import batch_for_shader
 
+# Blender 5.0 changed how fcurves are stored:
+from bpy_extras import anim_utils
+
 PackChars = lambda s: b''.join([Pack('B', ord(c)) for c in s])
 PackString = lambda s: b''.join([Pack('B', ord(c)) for c in s]) + Pack('B', 0)
 PackVector = lambda k,v: b''.join([Pack(k,x) for x in v])
@@ -2348,6 +2351,11 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         src.vbm['VBM_CHECKSUM'+checksum_key] = checksum
     return {mtlname: {streamkey: zlib.decompress(streamcompressed) for streamkey,streamcompressed in mtlstreams.items()} for mtlname,mtlstreams in src.vbm['VBM_DATA'+checksum_key].items()}
 
+def ActionFcurves(action):
+    return (
+        anim_utils.action_get_channelbag_for_slot(action, action.slots[0]).fcurves if BLENDER_5_0 else
+        action.fcurves
+    )
 def AnimData(action, rig):
     if not rig:
         return {}
@@ -2356,8 +2364,8 @@ def AnimData(action, rig):
         [action.vbm.clean_on_bake] +
         ([x for b in rig.data.bones for v in (b.head_local, b.tail_local) for x in v] if rig else []) +
         ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(rig)[0]) for x in bname] if rig else []) +
-        [x for fc in action.fcurves for k in fc.keyframe_points for x in k.co] +
-        [len(fc.modifiers) for fc in action.fcurves]
+        [x for fc in ActionFcurves(action) for k in fc.keyframe_points for x in k.co] +
+        [len(fc.modifiers) for fc in ActionFcurves(action)]
     )]).tobytes() )
     if action.vbm.get('VBM_CHECKSUM', -1) != checksum:
         # Make Proxy
@@ -2415,13 +2423,13 @@ def AnimData(action, rig):
             c.subtarget = pb.name
             
         bpy.ops.nla.bake(
-            frame_start=int(action.frame_range[0]), frame_end=int(action.frame_range[1]+1), step=1, 
+            frame_start=int(action.curve_frame_range[0]), frame_end=int(action.curve_frame_range[1]+1), step=1, 
             only_selected=False, visual_keying=True, clear_constraints=True, clear_parents=False, 
             use_current_action=True, clean_curves=action.vbm.clean_on_bake, 
             bake_types={'POSE'}, channel_types={'LOCATION', 'ROTATION', 'SCALE'}
         )
         
-        fcurves = proxy.animation_data.action.fcurves
+        fcurves = ActionFcurves(proxy.animation_data.action)
         bonefcurves = {
             bname: (
                 fcurves.find("pose.bones[\"%s\"].location" % bname, index=0),
@@ -3144,7 +3152,7 @@ def ExportModel(collection, report=True):
             bonedata = AnimData(action, rig)
             bonedata = {bname: curves for bname,curves in bonedata.items() if bone_group_source_collection.vbm.get_bone_layer_mask(bname) & bonemask}
             
-            propcurves = [fc for fc in action.fcurves if "pose.bones" not in fc.data_path]
+            propcurves = [fc for fc in ActionFcurves(action) if "pose.bones" not in fc.data_path]
             propdata = {fc.data_path: [] for fc in propcurves}
             [propdata[fc.data_path].append([tuple(k.co) for k in fc.keyframe_points]) for fc in propcurves]
             propdata = { k.split("\"")[1] if "\"" in k else k :channels for k,channels in propdata.items() }
