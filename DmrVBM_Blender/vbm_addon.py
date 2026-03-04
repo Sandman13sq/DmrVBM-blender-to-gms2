@@ -2973,14 +2973,23 @@ def ExportModel(collection, report=True):
                 norms = np.linalg.norm(vectors, axis=1, keepdims=True)
                 
                 if isbyte:
-                    stream_w = np.zeros(len(vectors), dtype=np.float32)
+                    stream_w = np.zeros(len(vectors), dtype=np.float32)     # W channel = 0.0 for normals
                     stream = (np.hstack([((vectors / norms)*0.5+0.5).reshape(-1,3), stream_w.reshape(-1,1)])*255.0).astype(dtype=np.uint8).tobytes()
                     space = 4
                 else:
-                    stream = (vectors / norms).tobytes()
+                    stream = (vectors / norms).tobytes()    # Raw float stream
             # Convert Float to Byte
             elif k == 'COL' and isbyte:
-                stream = (np.frombuffer(stream, dtype=np.float32).reshape(-1, 4)*255.0).astype(dtype=np.uint8).tobytes()
+                vectors = np.frombuffer(stream, dtype=np.float32).reshape(-1, 4)
+                
+                gamma = 0.4545 if collection.vbm.color_is_srgb else 0.0
+                if gamma != 0.0:
+                    vectors = vectors ** (gamma, gamma, gamma, 1.0)
+                
+                if isbyte:
+                    stream = (vectors*255.0).astype(dtype=np.uint8).tobytes()   # Multiply by 255, then convert to uint8
+                else:
+                    stream = vectors.tobytes()  # Raw float stream
                 space = 4
             elif k == 'BON' and isbyte:
                 stream = (np.frombuffer(stream, dtype=np.float32).reshape(-1, 4)).astype(dtype=np.uint8).tobytes()
