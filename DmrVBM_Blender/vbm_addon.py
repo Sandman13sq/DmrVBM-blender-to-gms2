@@ -60,6 +60,8 @@ VBM_ICON_TRANSPARENT = 'IMAGE_ALPHA'
 VBM_ICON_FLIPFACES = 'CUBE'
 VBM_ICON_CASTSHADOW = 'LIGHT_HEMI'
 VBM_ICON_SHADER = 'CONSOLE'
+VBM_ICON_USEDEPTH = 'VIEW_PERSPECTIVE'
+VBM_ICON_CLEARCHECKSUM = 'UNLINKED'
 
 VBM_VTX_COMPRESSED = 1<<0
 
@@ -78,6 +80,7 @@ VBM_TEXTUREFLAG_COMPRESSED = (1<<7)
 VBM_MATERIALFLAGS_TRANSPARENT = (1<<0)
 VBM_MATERIALFLAGS_USECULLING = (1<<1)
 VBM_MATERIALFLAGS_FLIPFACES = (1<<2)
+VBM_MATERIALFLAGS_USEDEPTH = (1<<3)
 
 VBM_MTLTEXFLAG_FILTERLINEAR = (1<<1)
 VBM_MTLTEXFLAG_EXTEND = (1<<2)
@@ -413,6 +416,7 @@ class VBM_PG_Material(bpy.types.PropertyGroup):
     shader: StringProperty(name="Shader", default="", description="Name of shader asset", update=update_shader)
     transparent: BoolProperty(name="Is Transparent", default=False, options=set(), description="Sets transparency flag on export")
     flip_faces: BoolProperty(name="Flip Faces", default=False, options=set(), description="Sets flip faces flag on export")
+    use_depth: BoolProperty(name="Use Depth", default=True, options=set(), description="Enable depth when rendering")
 classlist.append(VBM_PG_Material)
 
 class VBM_PG_MaterialOverride(bpy.types.PropertyGroup):
@@ -926,9 +930,36 @@ class VBM_OT_RestoreLayermask(bpy.types.Operator):
         return {'FINISHED'}
 classlist.append(VBM_OT_RestoreLayermask)
 
+def VBM_ClearChecksum(id_type, pattern='VBM_'):
+    hit = 0
+    for k in tuple(id_type.keys())[::-1]:
+        if pattern in k:
+            del id_type[k]
+            hit = 1
+    if getattr(id_type, 'vbm', None) != None:
+        for k in tuple(id_type.vbm.keys())[::-1]:
+            if pattern in k:
+                del id_type.vbm[k]
+                hit = 1
+    return hit
+    
+class VBM_OT_ObjectClearChecksum(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.object_clear_checksum', 'VBM Clear Object Checksum', {'REGISTER', 'UNDO'}
+    bl_description = "Clears cache for object"
+    object: StringProperty(name="Object", default="") 
+    def execute(self, context):
+        obj = bpy.data.objects.get(self.object)
+        if obj:
+            VBM_ClearChecksum(obj)
+            if obj.data:
+                VBM_ClearChecksum(obj.data)
+            self.report({'INFO'}, "> Checksum cleared for object \"%s\"" % obj.name)
+        return {'FINISHED'}
+classlist.append(VBM_OT_ObjectClearChecksum)
+
 class VBM_OT_CollectionClearChecksum(bpy.types.Operator):
-    bl_idname, bl_label, bl_options = 'vbm.collection_clear_checksum', 'VBM Clear Checksum', {'REGISTER', 'UNDO'}
-    bl_description = "VBM Resets cache for group"
+    bl_idname, bl_label, bl_options = 'vbm.collection_clear_checksum', 'VBM Clear Collection Checksum', {'REGISTER', 'UNDO'}
+    bl_description = "VBM Resets cache for group in collection"
     group: EnumProperty(default='NONE', items=tuple([(x,x,x) for x in 'NONE OBJECT ACTION IMAGE COLLECTION ALL'.split()])) 
     def execute(self, context):
         collection = ActiveCollection()
@@ -940,16 +971,7 @@ class VBM_OT_CollectionClearChecksum(bpy.types.Operator):
             list(set([nd.image for obj in collection.all_objects if obj.type=='MESH' for mtl in obj.data.materials if mtl for nd in mtl.node_tree.nodes if nd.bl_idname=='ShaderNodeTexImage' and nd.image])) if self.group == 'IMAGE' else
             []
         ):
-            hit = 0
-            for k in tuple(item.keys())[::-1]:
-                if "VBM_" in k:
-                    del item[k]
-                    hit = 1
-            for k in tuple(item.vbm.keys())[::-1]:
-                if "VBM_" in k:
-                    del item.vbm[k]
-                    hit = 1
-            hits += hit
+            hits += VBM_ClearChecksum(item)
         self.report({'INFO'}, "%d hits" % hits)
         SelectCollection(collection)
         return {'FINISHED'}
@@ -1495,6 +1517,8 @@ class VBM_UL_CollectionObjects(bpy.types.UIList):
                 rr.alignment='RIGHT'
                 rr.label(text=LayermaskText(obj.vbm.layer_mask))
                 rr.prop(obj.vbm, 'is_collision', text="", icon='PHYSICS')
+                VBMDrawMaskVector(rr, obj.vbm, 'layer_mask', 8)
+                r.operator('vbm.object_clear_checksum', text="", icon=VBM_ICON_CLEARCHECKSUM).object = obj.name
         else:
             rr = r.row(align=1)
             rr.label(text="", icon='MESH_PLANE')
@@ -1670,7 +1694,7 @@ def VBMActionPanel(layout, collection):
     c.operator('vbm.collection_action_move', text="", icon='TRIA_DOWN').direction='DOWN'
     c.separator()
     c.operator('vbm.collection_action_sort', text="", icon='SORTSIZE')
-    c.operator('vbm.collection_clear_checksum', text="", icon='UNLINKED').group='ACTION'
+    c.operator('vbm.collection_clear_checksum', text="", icon=VBM_ICON_CLEARCHECKSUM).group='ACTION'
     
     if collection.vbm.actions:
         actionitem = collection.vbm.actions[collection.vbm.action_index]
@@ -2176,40 +2200,63 @@ classlist.append(VBM_PT_ModifierBake)
 "EXPORT"
 "================================================================================================================================================="
 
-def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_script_pre=None, object_script_post=None):
+def MeshData(src, apply_transform=False, rig=None, deformorder=[], action_pose=None, object_script_pre=None, object_script_post=None):
     checksum_key = (
         (action_pose.name if action_pose else "") + 
-        (("%4d"%len(rig.data.bones)) if rig else "") + 
+        (("%4d" % sum("".join(deformorder).encode('utf-8'))) if deformorder else "") + 
+        (("%4d" % len(rig.data.bones)) if rig else "") + 
         (object_script_pre.name if object_script_pre else "") + 
         (object_script_post.name if object_script_post else "")
     )
-    checksum = sum(tuple(np.array([x for x in (
-        (
-            (
-                [x for s in src.data.splines for p in s.points for x in p.co]
-            ) if src.type=='CURVE' else
-            (
-                [x for v in src.matrix_local for x in v] +
-                [x for v in src.data.vertices for x in v.co] +
-                [x for l in src.data.loops for x in l.normal] +
-                [vge.weight for v in src.data.vertices for vge in v.groups] +
-                [ord(x) for mtl in src.data.materials if mtl for x in mtl.name] +
-                [ord(c) for lyr in src.data.color_attributes for c in lyr.data_type+lyr.domain] +
-                [x for lyr in src.data.color_attributes for v in lyr.data for x in v.color] +
-                [x for lyr in src.data.uv_layers for v in lyr.uv for x in tuple(v.vector)]
-            ) if src.type == 'MESH' else []
-        ) +
-        [ord(x) for m in src.modifiers if ValidName(m.name) for x in m.name]+
-        [v for m in src.modifiers if ValidName(m.name) for v in [getattr(m,p.identifier) for p in m.bl_rna.properties if not p.is_readonly] if isinstance(v, (bool,int,float))]+
-        ([i*ord(x) for i,bname in enumerate(EvaluateDeformOrder(src.find_armature())[0]) for x in bname] if src.find_armature() else [])+
-        ([x for fc in ActionChannels(action_pose) for k in fc.keyframe_points for x in k.co] if action_pose else [])+
-        ([ord(c) for script in [object_script_pre, object_script_post] if script for line in script.lines for c in line.body])+
-        [apply_transform, 13]
-        )
-    ]).tobytes()))
     
-    if int(src.vbm.get('VBM_CHECKSUM'+checksum_key, -1)) != checksum or not src.vbm.get('VBM_DATA'+checksum_key, {}):
-        printd("> Building mesh \"%s\"..." % src.name, action_pose.name if action_pose else "",  "(Checksum = %d)" % checksum)
+    psum = sum
+    #psum = lambda x: (print(sum(x), sum(x) % 0xFFFFFF), sum(x))[-1] % 0xFFFFFF
+    checksum = int(psum([
+        # Attributes
+        (
+            psum( [x for s in src.data.splines for p in s.points for x in p.co] ) if src.type=='CURVE' else
+            (
+                psum([x for v in src.matrix_local for x in v]) +
+                psum([x for v in src.data.vertices for x in v.co]) +
+                psum([x for l in src.data.loops for x in l.normal]) +
+                psum([vge.weight for v in src.data.vertices for vge in v.groups]) +
+                psum([psum(mtl.name.encode('utf-8')) for mtl in src.data.materials if mtl]) +
+                psum([
+                    sum(v.vector) if lyr.data_type in('FLOAT_VECTOR','FLOAT2') else 
+                    sum(v.value) if lyr.data_type in('INT16_2D', 'INT32_2D') else 
+                    sum(v.color) if 'COLOR' in lyr.data_type else 
+                    v.value
+                    for lyr in src.data.attributes for v in tuple(lyr.data)
+                ])
+            ) if src.type == 'MESH' else 0
+        )
+        # Modifiers
+        + psum([
+                psum(m.name.encode('utf-8')) +
+                psum([x for x in [getattr(m,p.identifier) for p in m.bl_rna.properties if not p.is_readonly and not p.identifier in ('show_viewport','show_render')] if isinstance(x, (bool,int,float)) ]) +
+                psum([
+                    x if isinstance(x,(bool,int,float)) else sum(x.encode('utf-8')) if isinstance(x, str) else sum(v.name.encode('utf-8')) if x is bpy.types.ID else 0
+                    for x in [m[k] for k in list(m.keys()) if 'Socket_' in k]
+                    ] if m.type=='NODES' else []
+                )
+                for m in src.modifiers if ValidName(m.name)
+        ]) 
+        # Armatures + Actions
+        + (
+            psum([i*psum(bname.encode('utf-8')) for i,bname in enumerate(EvaluateDeformOrder( FindArmature(src) )[0])] if FindArmature(src) else [0])+
+            psum([x for fc in ActionChannels(action_pose) for k in fc.keyframe_points for x in k.co] if action_pose else [0])
+        )
+        # Other
+        + (
+            psum([psum(line.body.encode('utf-8')) for script in [object_script_pre, object_script_post] if script for line in script.lines for c in line.body]) +
+            apply_transform +
+            13
+        )
+    ]))
+    
+    checksum_last = src.vbm.get('VBM_CHECKSUM'+checksum_key, -1)
+    if int(checksum_last) != checksum or not src.vbm.get('VBM_DATA'+checksum_key, {}):
+        printd("> Building mesh \"%s\"..." % src.name, action_pose.name if action_pose else "",  "(Checksum = %8d (%8d))" % (checksum, checksum_last))
         
         # Staging ............................................................................................
         context = bpy.context
@@ -2469,7 +2516,7 @@ def AnimData(action, rig):
 def ImageData(image, palette_max=255):
     if image.has_data:
         checksum = sum(tuple(image.pixels)) + palette_max + image.size[0] + image.size[1]
-        if image.vbm.get('VBM_CHECKSUM', -1) != checksum:
+        if 1 or image.vbm.get('VBM_CHECKSUM', -1) != checksum:
             srcpixels = np.frombuffer((np.array(image.pixels)*255).astype(np.uint8).tobytes(), dtype=np.uint32)
             w,h = image.size
             srcpixels = srcpixels.reshape(-1,w)[::-1].flatten()     # Flip image pixels
