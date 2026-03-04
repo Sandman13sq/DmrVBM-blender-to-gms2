@@ -685,7 +685,7 @@ class VBM_PG_Collection(bpy.types.PropertyGroup):
     
     actions: CollectionProperty(type=VBM_PG_ActionItem)
     action_index: IntProperty(name="Collection Action", min=0, update=select_action, options=set(), description="Select an Action to preview using the first compatible rig in Collection")
-    action_pose: PointerProperty(name="Action Pose", type=bpy.types.Action, update=update_pose_action, description="Base Pose to deform mesh with. Leave disabled if using animations")
+    action_pose: PointerProperty(name="Rest Pose", type=bpy.types.Action, update=update_pose_action, description="Base Pose to deform mesh with. Leave disabled if using animations")
     
     children: CollectionProperty(options={'HIDDEN'}, type=VBM_PG_CollectionItem)
     child_index: IntProperty(min=0, options=set())
@@ -763,6 +763,7 @@ class VBM_PG_Scene(bpy.types.PropertyGroup):
     
     data_path: StringProperty(name="Data Path", default="", subtype='DIR_PATH', update=update_datapath)
     layer_mask_display_size: EnumProperty(name="Mask Display Size", items=Items_LayermaskSize, default='8', options=set(), description="Number of layer mask bits to display")
+    layer_mask_display_reverse: BoolProperty(name="Mask Display Reversed", default=True, options=set(), description="Display layer mask bits reversed \n(Matches boolean constants like 0b1000_0000)")
     
     show_swing_viewport_panel: BoolProperty(name="Viewport Swing Panel", default=True, options=set(), description="Show Swing Panel in 3D Viewport")
     show_extra_info: BoolProperty(name="Extended Info", default=False, options=set(), description="Show extra info in item lists")
@@ -1059,6 +1060,7 @@ class VBM_OT_CollectionPushAction(bpy.types.Operator):
         action = rig.animation_data.action
         if action not in [x.action for x in collection.vbm.actions]:
             collection.vbm.actions.add().action = action
+            collection.vbm.action_index = len(collection.vbm.actions)-1
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionPushAction)
 
@@ -1146,7 +1148,7 @@ class VBM_OT_CollectionAddBonegroupSelectedBones(bpy.types.Operator):
         collection = ActiveCollection()
         bone_group = collection.vbm.bone_groups[collection.vbm.bone_group_index]
         
-        rig = collection.vbm.get_rig()
+        rig = context.object; rig = (rig if rig.type=='ARMATURE' else FindArmature(rig)) if rig else None
         bonenames = tuple(rig.data.bones.keys())
         for pb in context.selected_pose_bones:
             bname = pb.name
@@ -1393,7 +1395,7 @@ class VBM_OT_TexturePadding(bpy.types.Operator):
     
     def invoke(self, context, event):
         if 1 or self.image == "":
-            for a in [a for a in context.screen.areas if (a.type == 'IMAGE_EDITOR' or a.type == 'UV_EDIT') and a.spaces[0].image][:1]:
+            for a in [a for a in context.screen.areas if (a.type == 'IMAGE_EDITOR' or a.type == 'UV_EDIT') and a.spaces[0].image and a.spaces[0].image.name[0].lower() in 'qwertyuiopasdfghjklzxcvbnm1234567890'][:1]:
                 self.image = a.spaces[0].image.name
         return context.window_manager.invoke_props_dialog(self)
     
@@ -1473,6 +1475,14 @@ classlist.append(VBM_OT_ArmatureSyncSubarmatures)
 "UILIST"
 "======================================================================================================"
 
+def VBMDrawMaskVector(layout, id, prop, cap=0):
+    r = layout.row(align=1)
+    r.alignment = 'RIGHT'
+    r.ui_units_x = 2.5
+    for i in list(range(0, cap if cap > 0 else int(bpy.context.scene.vbm.layer_mask_display_size)))[::(1,-1)[bpy.context.scene.vbm.layer_mask_display_reverse]]:
+        r.prop(id, prop, index=i, text="", toggle=True)
+
+# ------------------------------------------------------------------------------------------------
 class VBM_UL_CollectionChildren(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         collection = item.collection
@@ -1515,7 +1525,6 @@ class VBM_UL_CollectionObjects(bpy.types.UIList):
                 r.separator()
                 rr = r.row()
                 rr.alignment='RIGHT'
-                rr.label(text=LayermaskText(obj.vbm.layer_mask))
                 rr.prop(obj.vbm, 'is_collision', text="", icon='PHYSICS')
                 VBMDrawMaskVector(rr, obj.vbm, 'layer_mask', 8)
                 r.operator('vbm.object_clear_checksum', text="", icon=VBM_ICON_CLEARCHECKSUM).object = obj.name
@@ -1533,7 +1542,6 @@ class VBM_UL_CollectionObjects(bpy.types.UIList):
         if context.scene.vbm.show_extra_info:
             r = layout.row(align=1)
             r.alignment='RIGHT'
-            r.label
             r.label(text="Mask: " + MaskVectorStr(obj.vbm.layer_mask))
 classlist.append(VBM_UL_CollectionObjects)
 
@@ -1541,7 +1549,7 @@ classlist.append(VBM_UL_CollectionObjects)
 class VBM_UL_CollectionActions(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         action = item.action
-        layout = layout.column(align=1)
+        layout = layout.row(align=0)
         if not action:
             r = layout.row(align=1)
             r.prop(item, 'export_enabled', text="", icon=VBM_EXPORTENABLEDICONS[item.export_enabled], emboss=False)
@@ -1556,40 +1564,41 @@ class VBM_UL_CollectionActions(bpy.types.UIList):
             rr.active = item.export_enabled
             rr.scale_x = 1.5
             rr.prop(action, 'name', text="", emboss=False)
-            
-            rr = r.row(align=1)
-            rr.enabled = action.use_frame_range
-            rr.label(text="%02d:%02d" % (action.frame_range[0], action.frame_range[1]))
+            # Frame Range
+            if context.region.width > 400:
+                rr = r.row(align=1)
+                rr.alignment='RIGHT'
+                rr.enabled = action.use_frame_range
+                rr.label(text="%02d:%03d" % (action.frame_range[0], action.frame_range[1]))
+            # Layer Mask
+            if context.region.width > 450:
+                VBMDrawMaskVector(r, action.vbm, 'layer_mask', 8)
+            # Booleans
+            r = layout.row(align=1)
             r.prop(action.vbm, 'clean_on_bake', text="", icon='MOD_SMOOTH')
             r.separator()
             r.prop(action, 'use_frame_range', text="", icon='PREVIEW_RANGE')
             r.prop(action, 'use_cyclic', text="", icon='FILE_REFRESH')
-            
-            # Extended info
-            if context.scene.vbm.show_extra_info:
-                r = layout.row(align=1)
-                r = r.row(align=1)
-                r.alignment='RIGHT'
-                r.label(text="Markers: %d |" % len(action.pose_markers))
-                r.label(text="Mask:")
-                r.label(text=MaskVectorStr(action.vbm.layer_mask))
 classlist.append(VBM_UL_CollectionActions)
 
 # -------------------------------------------------------------------------------------
 class VBM_UL_CollectionBonegroup(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
-        maskstring = LayermaskText(item.layer_mask)
         r = layout.row(align=1)
         rr = r.row(align=1)
         rr.scale_x = 0.3
         rr.label(text="", icon=VBM_ICON_COLOR[index%len(VBM_ICON_COLOR)])
         r.operator('vbm.collection_bonegroup_select', text="", icon='GROUP_BONE', emboss=False).index=index
         r.prop(item, 'name', text="", emboss=False)
+        if context.region.width > 320:
+            VBMDrawMaskVector(r, item, 'layer_mask', 8)
         rr = r.row(align=1)
         rr.alignment = 'RIGHT'
-        rr.label(text="%8s %2d Bones" % (maskstring+(" " if len(item.bones) < 10 else ""), len(item.bones)) )
+        n = item.get_bone_count()
+        rr.label(text="%s%2d Bones" % (" " if n < 10 else "", n) )
         
         rr = r.row(align=1)
+        rr.alignment = 'RIGHT'
         rr.active = item.swing_enabled
         rr.prop(item, 'swing_enabled', text="", icon=VBM_ICON_SWING, emboss=False)
         rr = r.row(align=1)
@@ -1631,27 +1640,26 @@ classlist.append(VBM_UL_CollectionMaterialoverride)
 def VBMDrawLayermask(layout, id, propname, text=""):
     n = int(bpy.context.scene.vbm.layer_mask_display_size)
     w = bpy.context.region.width
-    c = layout.column(align=1)
+    b = layout.row(align=1)
+    step = -1 if bpy.context.scene.vbm.layer_mask_display_reverse else 1
     if text:
-        r = c.row(align=1)
+        r = b.row(align=1)
         r.label(text=text+":")
         r = r.row(align=1)
-        r.alignment = 'RIGHT'
-        r.label(text=LayermaskText(getattr(id, propname)))
-    if n <= 16:
-        r = c.row(align=1)
-        if n ==16 and w < 350:
-            [r.prop(id, propname, text=str(i)[-1], index=i, toggle=1) for i in range(0,n)]
+        
+        c = b.column(align=1)
+        if n <= 8:
+            c.ui_units_x = 8
+            r = c.row(align=1)
+            r.alignment = 'RIGHT'
+            [r.prop(id, propname, text="%02d"%i, index=i, toggle=1) for i in list(range(0,8))[::step]]
         else:
-            [r.prop(id, propname, text="%02d"%i, index=i, toggle=1) for i in range(0,n)]
-    else:
-        for i in range(0,n):
-            if (i%(n//2))==0:
-                r = c.row(align=1)
-            if n > 16 and w < 350:
-                r.prop(id, propname, text=str(i)[-1], index=i, toggle=1)
-            else:
-                r.prop(id, propname, text="%02d"%i, index=i, toggle=1)
+            c.ui_units_x = 10
+            for i in list(range(0, n))[::step]:
+                if i%16 == 0:
+                    r = c.row(align=1)
+                    r.alignment = 'RIGHT'
+                r.prop(id, propname, text="%01d"%(i%10), index=i, toggle=1)
 
 # ---------------------------------------------------------------------------------------
 def VBMActionPanel(layout, collection):
@@ -1769,9 +1777,10 @@ def VBMSwingPanel(layout, collection):
             bb.row(align=1).prop(context.scene.vbm, 'swing_tab', expand=True)
             
             if context.scene.vbm.swing_tab == 'SWING':
-                c = bb.column(align=0)
+                c = bb.box().column(align=1)
                 c.use_property_split = True
                 c.prop(bone_group, 'swing_enabled')
+                c.prop(bone_group, 'add_leaf_bones')
                 c = c.column(align=1)
                 c.active = bone_group.swing_enabled
                 c.scale_y = 0.9
@@ -1789,6 +1798,7 @@ def VBMSwingPanel(layout, collection):
                 c.template_list('VBM_UL_CollectionBonegroupBones', "", bone_group, 'bones', bone_group, 'bone_index', rows=6)
                 c = r.column(align=1)
                 c.scale_y = 1.0
+                c.separator()
                 c.operator('vbm.collection_bonegroup_bones_from_selected', text="", icon='RESTRICT_SELECT_OFF')
                 c.operator('vbm.collection_bonegroup_bones_clear', text="", icon='X').type='BONE'
             elif context.scene.vbm.swing_tab == 'SEGMENT':
@@ -1798,6 +1808,7 @@ def VBMSwingPanel(layout, collection):
                 c.template_list('VBM_UL_CollectionBonegroupSegments', "", bone_group, 'segments', bone_group, 'segment_index', rows=6)
                 c = r.column(align=1)
                 c.scale_y = 1.0
+                c.separator()
                 c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CON_TRACKTO').mode='SEGMENT'
                 c.operator('vbm.collection_bonegroup_segment_add', text="", icon='CONE').mode='SKIRT'
                 c.separator()
@@ -1900,6 +1911,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             c.scale_y = 0.9
             c.prop(context.scene.vbm, 'shader_default')
             c.prop(context.scene.vbm, 'layer_mask_display_size', text="Layer Mask Size")
+            c.prop(context.scene.vbm, 'layer_mask_display_reverse', text="Layer Mask Reversed")
             r = c.row()
             r.prop(context.scene.vbm, 'show_modifier_bake')
             r.label(text="", icon='MODIFIER')
@@ -2143,7 +2155,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             b = layout.row(align=0)
             r = b.row(align=1)
             r.scale_y=0.8
-            c = [r.column(align=1) for i in (0,1,2,3,4,5)]
+            c = [r.column(align=1) for i in (0,1,2,3,4,5,6)]
             c[0].scale_x = 1.1
             c[1].scale_x = 0.8
             c[2].scale_x = 1.2
@@ -2153,6 +2165,7 @@ class VBM_PT_Asset(bpy.types.Panel):
             c[3].label(text="", icon=VBM_ICON_TRANSPARENT)
             c[4].label(text="", icon=VBM_ICON_BACKFACECULLING)
             c[5].label(text="", icon=VBM_ICON_FLIPFACES)
+            c[6].label(text="", icon=VBM_ICON_USEDEPTH)
             for mtl in materials:
                 c[0].prop(mtl, 'name', text="")
                 c[1].prop_search(mtl.vbm, 'shader', context.scene.vbm, 'shader_names', text="", results_are_suggestions=True)
@@ -2166,6 +2179,7 @@ class VBM_PT_Asset(bpy.types.Panel):
                 l = c[5].column(align=1)
                 l.active = mtl.use_backface_culling
                 l.prop(mtl.vbm, 'flip_faces', text="", icon='CHECKBOX_HLT' if mtl.vbm.flip_faces else 'CHECKBOX_DEHLT', emboss=True)
+                c[6].prop(mtl.vbm, 'use_depth', text="", icon='CHECKBOX_HLT' if mtl.vbm.use_depth else 'CHECKBOX_DEHLT', emboss=True)
         # Action
         elif context.scene.vbm.panel_tab == 'ACTION':
             VBMActionPanel(layout, collection)
@@ -2776,9 +2790,8 @@ def ExportModel(collection, report=True):
             for obj in objects:
                 if obj in usedobjects:
                     continue
-                if not ValidName(obj.name):
-                    continue
                 node = None
+                dissolve = (not obj.vbm.export_enabled) or not ValidName(obj.name)
                 basename = obj.name.split(".")[0]
                 suffix = obj.name[obj.name.rfind("."):] if "." in obj.name else ""
                 
@@ -3072,7 +3085,8 @@ def ExportModel(collection, report=True):
             flags = (
                 VBM_MATERIALFLAGS_TRANSPARENT * (mtl.vbm.transparent) |
                 VBM_MATERIALFLAGS_USECULLING * (mtl.use_backface_culling) |
-                VBM_MATERIALFLAGS_FLIPFACES * (mtl.vbm.flip_faces)
+                VBM_MATERIALFLAGS_FLIPFACES * (mtl.vbm.flip_faces) |
+                VBM_MATERIALFLAGS_USEDEPTH * (mtl.vbm.use_depth)
             )
             
             texturenodes = mtl.vbm.get_imagenodes()
@@ -3124,7 +3138,11 @@ def ExportModel(collection, report=True):
                     if image.source=='GENERATED':
                         pixeldata = np.array(list(image.generated_color)*w*h, dtype=np.float32).flatten()
                     else:
-                        pixeldata = (np.array(image.pixels, dtype=np.float32)*255.0).astype(np.uint8).reshape(-1, w*4)[::rowstep].flatten()
+                        if not image.pixels:
+                            print("! Image \"%s\" has no data!" % image.name)
+                            pixeldata = np.ones(w*h)
+                        else:
+                            pixeldata = (np.array(image.pixels, dtype=np.float32)*255.0).astype(np.uint8).reshape(-1, w*4)[::rowstep].flatten()
                     if is_compressed:
                         pixels_compressed = zlib.compress(pixeldata)
                     else:
@@ -3326,11 +3344,13 @@ def ExportModel(collection, report=True):
             datapath += "/"
         filepath = datapath + FixName(os.path.splitext(collection.vbm.get_name())[0]) + VBM_FILEEXT
     
+    filepath = filepath.replace("\\", "/")  # Causes issues on Linux if slashes aren't consistent
     f = open(os.path.abspath(bpy.path.abspath(filepath)), "wb")
     f.write(modelbin)
     f.close()
     
-    print("< File written to \"%s\" (%4.4f MB)" % (("..." if len(filepath) > 64 else "")+filepath[-64:], len(modelbin)/1_000_000))
+    #print("< File written to \"%s\" (%4.4f MB)" % (("..." if len(filepath) > 64 else "")+filepath[-64:], len(modelbin)/1_000_000))
+    print("< File written to \"%s\" (%4.4f MB)" % (filepath, len(modelbin)/1_000_000))
 
 "======================================================================================================"
 "GPU"
@@ -3471,9 +3491,6 @@ def register():
     
 def unregister():
     [bpy.utils.unregister_class(c) for c in classlist[::-1]]
-    
-    for i,x in list(enumerate([x for x in event if x.__name__==VBM_HL_SwingBoneHandler.__name__]))[::-1]:
-        del event[i]
     VBM_GPUSWING_HDLKEY = 1
     
 if __name__ == "__main__":
