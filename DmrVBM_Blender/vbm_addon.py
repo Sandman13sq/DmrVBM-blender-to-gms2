@@ -83,6 +83,8 @@ VBM_ANIMATIONFLAGS_CURVENAMES = (1<<0)
 VBM_ANIMATIONFLAGS_CURVELOOP = (1<<1)
 VBM_ANIMATIONFLAGS_MARKERS = (1<<2)
 
+VBM_NODEFLAGS_USETRANSFORMCOMPONENTS = (1<<1)
+
 ATTRIBUTEDATA = (     # (name, size, space, icon)
     ('POS', 3, 12, 'EMPTY_ARROWS'),
     ('NOR', 3, 12, 'NORMALS_VERTEX'),
@@ -166,6 +168,15 @@ def CollectionRig(collection=None):
         collection=ActiveCollection()
     return ([x for x in collection.all_objects if x.type=='ARMATURE' and x.children]+[None])[0]
 
+def FindArmature(obj):
+    return obj.parent if obj.parent and obj.parent.type=='ARMATURE' else None
+def FindAllArmatures(obj):
+    rig = FindArmature(obj)
+    return (
+        [x for x in [rig]+list(rig.children) if x.type=='ARMATURE'] if FindArmature(obj) else
+        [m.object for m in obj.modifiers if m.type=='ARMATURE']
+    )
+
 def ClipName(name):
     return name.split("/")[-1].split(".")[0]
 
@@ -202,21 +213,26 @@ def ActionChannels(action):
     # Grab curves from first action slot
     return action.layers[0].strips[0].channelbag(action.slots[0]).fcurves
 # ..........................................................................
-def EvaluateDeformOrder(skeleton_object, sort_by_depth=False):
-    if not skeleton_object:
+def EvaluateDeformParent(armature_object, bone):
+    bones = armature_object.data.bones
+    p = bone.parent
+    usedparents = []
+    if p and not p.use_deform:
+        while p and not p.use_deform:
+            usedparents.append(p)
+            d = bones.get(p.name.replace('ORG-', 'DEF-'))
+            p = d if (d and d != bone and (d.use_deform or d not in usedparents)) else p.parent
+    return p
+    
+def EvaluateDeformOrder(armature_object, sort_by_depth=False):
+    if not armature_object:
         return ([], {}, {})
     
     # All -> Deform Only
     deformmap = {}
-    deformbones = [b for b in skeleton_object.data.bones if b.use_deform]
+    deformbones = [b for b in armature_object.data.bones if b.use_deform]
     for b in deformbones:
-        p = b.parent
-        usedparents = []
-        if p and not p.use_deform:
-            while p and not p.use_deform:
-                usedparents.append(p)
-                d = skeleton_object.data.bones.get(p.name.replace('ORG-', 'DEF-'))
-                p = d if (d and d != b and (d.use_deform or d not in usedparents)) else p.parent
+        p = EvaluateDeformParent(armature_object, b)
         deformmap[b.name] = p.name if p else None
     
     # Calculate order based on parents
@@ -230,10 +246,10 @@ def EvaluateDeformOrder(skeleton_object, sort_by_depth=False):
     if sort_by_depth:
         deformlist.sort(key=lambda bname: BoneDepth(bname, deformmap))
     
-    skeleton_object.vbm['DEFORM_MAP'] = {bname: (deformmap[bname] if deformmap.get(bname, None) else None) for bname in deformorder} # {bonename: parentname}
-    skeleton_object.vbm['DEFORM_LIST'] = deformlist   # [0, first_bone, second_bone, ...]
-    skeleton_object.vbm['DEFORM_ROUTE'] = {bname: bname for bname in deformorder}    # {sourcename: bonename}
-    return (list(skeleton_object.vbm['DEFORM_LIST']), skeleton_object.vbm['DEFORM_MAP'], skeleton_object.vbm['DEFORM_ROUTE'])
+    armature_object.vbm['DEFORM_MAP'] = {bname: (deformmap[bname] if deformmap.get(bname, None) else None) for bname in deformorder} # {bonename: parentname}
+    armature_object.vbm['DEFORM_LIST'] = deformlist   # [0, first_bone, second_bone, ...]
+    armature_object.vbm['DEFORM_ROUTE'] = {bname: bname for bname in deformorder}    # {sourcename: bonename}
+    return (list(armature_object.vbm['DEFORM_LIST']), armature_object.vbm['DEFORM_MAP'], armature_object.vbm['DEFORM_ROUTE'])
 
 "======================================================================================================"
 "STRUCTS"
@@ -397,9 +413,13 @@ class VBM_PG_Swingbone(bpy.types.PropertyGroup):
             segment.start_bone = start_bone
             segment.end_bone = end_bone
     
+    def get_bone_count(self):
+        return len(self.bones)
+    
     name: StringProperty(default="s_bone")
-    export_enabled: BoolProperty(name="Export Enabled", default=1)
-    swing_enabled: BoolProperty(name="Swing Enabled", default=0)
+    export_enabled: BoolProperty(name="Export Enabled", default=True)
+    swing_enabled: BoolProperty(name="Swing Enabled", default=False)
+    add_leaf_bones: BoolProperty(name="Add Leaf Bones", default=False, description="Add leaf bones to end of bone chains on export")
     stiffness: FloatProperty(name="Stiffness", default=0.1, min=0.0, max=1.0, subtype='FACTOR', description="Speed that bone approaches goal")
     damping: FloatProperty(name="Damping", default=0.3, min=0.0, max=1.0, subtype='FACTOR', description="Controls particle distance from goal")
     limit: FloatProperty(name="Limit", default=0.8, min=0.0, max=1.0, subtype='FACTOR', description="Limits maximum rotation")
@@ -1068,45 +1088,45 @@ class VBM_OT_CollectionAddBonegroupSegment(bpy.types.Operator):
         
         FixDeformName = lambda bname: bname.replace("ORG-","DEF-").replace("MCH-","DEF-").replace("_ik","").replace("_fk","")
         
-        rig = collection.vbm.get_rig()
-        bonenames = tuple(rig.data.bones.keys())
-        bonehits = []
-        for pb in context.selected_pose_bones:
-            bname = FixDeformName(pb.name)
-            if not ValidName(bname):
-                continue
-            b = rig.data.bones.get(bname)
-            if b.use_deform:
-                bonehits.append(b)
-        bonenames = [x.name for x in bonehits]
-        
-        _,deformmap,_ = EvaluateDeformOrder(rig)
-        roots = [b for b in bonehits if deformmap.get(b.name, "") not in bonenames]
-        chains = [[] for r in roots]
-        if roots:
-            print("Roots:", [b.name for b in roots])
-            for c,root in enumerate(roots):
-                chain = [root]
-                hit = 1
-                while hit:
-                    hit = 0
-                    for b in bonehits:
-                        if deformmap.get(b.name, "") == chain[-1].name:
-                            hit = 1
-                            chain.append(b)
-                            break
-                chains[c] = chain
-        
-        if self.mode == 'SEGMENT':
-            for c in chains:
-                for i in range(0, len(c)-1):
-                    bone_group.add_segment(c[i].name, c[i+1].name)
-        elif self.mode == 'SKIRT':
-            for root_index in range(0, len(roots)):
-                n = min(len(c1), len(c2))
-                for i in range(0, n):
-                    printd((c1[i].name, c2[i].name))
-                    bone_group.add_segment(c1[i].name, c2[i].name)
+        for rig in FindAllArmatures(context.object):
+            bonenames = tuple(rig.data.bones.keys())
+            bonehits = []
+            for pb in context.selected_pose_bones:
+                bname = FixDeformName(pb.name)
+                if not ValidName(bname):
+                    continue
+                b = rig.data.bones.get(bname)
+                if b and b.use_deform:
+                    bonehits.append(b)
+            bonenames = [x.name for x in bonehits]
+            
+            _,deformmap,_ = EvaluateDeformOrder(rig)
+            roots = [b for b in bonehits if deformmap.get(b.name, "") not in bonenames]
+            chains = [[] for r in roots]
+            if roots:
+                print("Roots:", [b.name for b in roots])
+                for c,root in enumerate(roots):
+                    chain = [root]
+                    hit = 1
+                    while hit:
+                        hit = 0
+                        for b in bonehits:
+                            if deformmap.get(b.name, "") == chain[-1].name:
+                                hit = 1
+                                chain.append(b)
+                                break
+                    chains[c] = chain
+            
+            if self.mode == 'SEGMENT':
+                for c in chains:
+                    for i in range(0, len(c)-1):
+                        bone_group.add_segment(c[i].name, c[i+1].name)
+            elif self.mode == 'SKIRT':
+                for root_index in range(0, len(roots)):
+                    n = min(len(c1), len(c2))
+                    for i in range(0, n):
+                        printd((c1[i].name, c2[i].name))
+                        bone_group.add_segment(c1[i].name, c2[i].name)
                     
         return {'FINISHED'}
 classlist.append(VBM_OT_CollectionAddBonegroupSegment)
@@ -1311,6 +1331,54 @@ class VBM_OT_RigClearPose(bpy.types.Operator):
                 pb.scale = (1,1,1)
         return {'FINISHED'}
 classlist.append(VBM_OT_RigClearPose)
+
+class VBM_OT_ArmatureSyncSubarmatures(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = ('vbm.armature_sync_sub_armatures', 'VBM Sync Sub Armatures', {'REGISTER', 'UNDO'})
+    bl_description = "Updates positions of merge bones (bones starting with \"^\") of sub amratures to root armature"
+    use_constraint: BoolProperty(name="Use Constraint", default=False)
+    def execute(self, context):
+        active = context.active_object
+        rig = CollectionRig()
+        if not rig:
+            self.report({'INFO'}, "> No rig found")
+        else:
+            hits = 0
+            root_bones = {
+                "^"+b.name: (tuple(b.head_local), tuple(b.tail_local), (b.AxisRollFromMatrix(b.matrix_local.to_3x3())[1])) 
+                for b in rig.data.bones
+            }
+            for sub in rig.children:
+                if sub.type=='ARMATURE':
+                    bpy.ops.object.select_all(action='DESELECT')
+                    context.view_layer.objects.active = sub
+                    sub.select_set(True)
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    for b in sub.data.edit_bones:
+                        if b.name in root_bones.keys():
+                            print(b.name)
+                            hits += 1
+                            b.head, b.tail, b.roll = root_bones[b.name]
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                    if self.use_constraint:
+                        for pb in sub.pose.bones:
+                            if pb.name in root_bones.keys():
+                                if not [c for c in pb.constraints if c.name=='VBM_BONECOPY']:
+                                    c = pb.constraints.new(type='COPY_TRANSFORMS')
+                                    c.name='VBM_BONECOPY'
+                                c = pb.constraints['VBM_BONECOPY']
+                                c.target = rig
+                                c.subtarget = pb.name[1:]
+            if hits == 0:
+                self.report({'INFO'}, "> No sub armatures found")
+            else:
+                self.report({'INFO'}, "> Hits: %d" % hits)
+        bpy.ops.object.select_all(action='DESELECT')
+        context.view_layer.objects.active = active
+        active.select_set(True)
+        
+        
+        return {'FINISHED'}
+classlist.append(VBM_OT_ArmatureSyncSubarmatures)
 
 "======================================================================================================"
 "UILIST"
@@ -1672,9 +1740,11 @@ class VBM_PT_Rig3DView(bpy.types.Panel):
             c.label(text=collection.name, icon='GROUP')
             r = c.row(align=1)
             r.label(text=rig.name, icon='ARMATURE_DATA')
-            rr = r.row()
-            rr.scale_x = 0.3
-            rr.prop(rig.data, 'pose_position', expand=True)
+            r = layout.row()
+            r.prop(rig.data, 'pose_position', expand=True)
+            r = layout.row(align=1)
+            r.operator('vbm.armature_sync_sub_armatures', text="Sync Sub Armatures", icon='AUTOMERGE_ON').use_constraint=False
+            r.operator('vbm.armature_sync_sub_armatures', text="", icon='CONSTRAINT_BONE').use_constraint=True
 classlist.append(VBM_PT_Rig3DView)
 
 class VBM_PT_Rig3DView_Actions(bpy.types.Panel):
@@ -2090,7 +2160,6 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         obj.select_set(True)
         
         use_skinning = rig != None
-        rig = obj.find_armature()
         
         # Action Pose
         if rig:
@@ -2168,9 +2237,8 @@ def MeshData(src, apply_transform=False, rig=None, action_pose=None, object_scri
         if sum([x for v in vcdata for x in v]) == 0:
             vcdata = [(1,1,1,1) for v in vcdata]
         
-        deformorder, deformmap, deformroute = EvaluateDeformOrder(rig)
         bonemap = {vg.index: deformorder.index(vg.name) for vg in obj.vertex_groups if vg.name in deformorder}
-        skinning = [ [ (bonemap[vge.group], vge.weight) for vge in v.groups if vge.weight > 0.0 and vge.group in list(bonemap.keys())] for v in obj.data.vertices ]
+        skinning = [ [ (bonemap[vge.group], vge.weight) for vge in v.groups if vge.weight > 0.0 and vge.group in bonemap.keys()] for v in obj.data.vertices ]
         [v.sort(key=lambda x: -x[1]) for v in skinning]  # Sort by weight
         skinning = [ (x+[(0,0.0), (0,0.0), (0,0.0), (0,0.0)])[:4] for x in skinning ]    # Add padding, Clamp to 4
         skinning = [ [(b,w/s) for b,w in v[:4]] for v in skinning for s in [sum([w for b,w in v[:4]])+0.00000001] ] # Normalize weights
@@ -2415,11 +2483,11 @@ class VBMMesh:
             self.streams[dest_key] = np.array(default_vector, np.float32).tobytes()*loop_count
 
 class VBMNode:
-    def __init__(self, parent, name, matrix, data_type="000", data_index=-1):
+    def __init__(self, parent, name, layer_mask, matrix, data_type="000", data_index=-1, dissolve=False):
         self.name = name
         self.parent = parent
         self.flags = 0
-        self.layer_mask = ~0
+        self.layer_mask = layer_mask if layer_mask is int else LayermaskToInt(layer_mask)
         self.collision_mask = 0
         self.matrix = matrix
         self.depth = 0
@@ -2428,7 +2496,7 @@ class VBMNode:
         self.data = {}
         self.mesh = None    # VBMMesh
         self.prism = None   # VBMMesh
-        self.dissolve = False
+        self.dissolve = dissolve
         self.collection = None
     
     def transform(self, matrix):
@@ -2437,7 +2505,91 @@ class VBMNode:
         if self.prism:
             self.prism.transform(matrix)
         self.matrix = self.matrix @ matrix
+    
+    def get_matrix_bind(self):
+        return (self.parent.get_matrix_bind() @ self.matrix) if self.parent else self.matrix
 
+class VBMBone:
+    def __init__(self, root, parent, name="", matrix_bind=None, length=0.0, dissolve=False):
+        self.root = root if root else self
+        
+        self.parent = parent
+        self.name = name
+        self.matrix = matrix_bind if matrix_bind else Matrix.Identity(4)
+        self.dissolve = dissolve
+        self.is_dirty = False
+        self.index = None
+        self.length = length
+        
+        if root:
+            self.tree = root.tree
+            self.tree.append(self)
+        else:
+            self.tree = [self]
+            self.dissolve = True
+    
+    def update(self):
+        tree = self.root.tree
+        for b in tree:
+            if isinstance(b.parent, str):
+                pstr = b.parent
+                b.parent = None
+                for p in tree:
+                    if p.name==pstr:
+                        b.parent = p
+                        break
+    
+    def calc_parent(self):
+        return (self.parent if not self.parent.dissolve else self.parent.calc_parent()) if self.parent else None
+    def calc_depth(self):
+        return (1+self.calc_parent().calc_depth()) if self.calc_parent() else 0
+    def calc_children(self):
+        return [b for b in self.root.tree if b.parent==self]
+    
+    def print(self, include_dissolved=False):
+        usedbones,_,_ = self.evaluate()
+        print("+++ Deform Bones: %-3d" % len(usedbones), "+"*70)
+        [print(("[%03d] " % b.index) + "| "*b.calc_depth() + b.name) for b in usedbones]
+        print("+++ Deform Bones: %-3d" % len(usedbones), "+"*70)
+    
+    def evaluate(self):
+        tree = self.root.tree
+        outbones = []
+        walk = lambda outbones, b: (outbones.append(b), [walk(outbones, c) for c in tree if c.calc_parent()==b])
+        [walk(outbones, b) for b in [b for b in tree if not b.calc_parent() and not b.dissolve]]
+        for b in outbones:
+            b.index = outbones.index(b)
+        return (outbones, [b.name for b in outbones], {b.name: b.calc_parent().name if b.calc_parent() else None for b in outbones})
+    
+    def build_from_rig(source_rig, collection=None):
+        if not source_rig:
+            return ([], {}, {})
+        root = VBMBone(None, None)
+        usednames = []
+        for rig in FindAllArmatures(source_rig.children[0]):
+            for b in rig.data.bones:
+                if b.use_deform:
+                    if b.name[0] == '^':
+                        continue
+                    if b.name not in usednames:
+                        p = EvaluateDeformParent(rig, b)
+                        b = VBMBone(root, p.name.replace("^", "") if p else None, b.name, matrix_bind=b.matrix_local, length=b.length)
+                        usednames.append(b.name)
+        
+        if collection:
+            root.update()
+            leafgroups = [b.name for g in collection.vbm.bone_groups if g.add_leaf_bones for b in g.bones]
+            for b in root.tree:
+                if b.name in leafgroups and not b.calc_children():
+                    p = b.parent
+                    v = b.matrix.decompose()[0] - p.matrix.decompose()[0]
+                    bname = b.name[:b.name.rfind(".00")] if ".00" in b.name else bname
+                    b = VBMBone(root, b, bname+"_end", matrix_bind=Matrix.Translation(list(v)+[1.0]) @ b.matrix, length=v.length)
+        
+        root.update()
+        return root.evaluate()
+
+# =================================================================================================================================
 def ExportModel(collection, report=True):
     printd("> Exporting model \"%s\" ***********************************************************************" % collection.name)
     
@@ -2449,7 +2601,7 @@ def ExportModel(collection, report=True):
     
     action_pose = collection.vbm.action_pose
     rig = ([obj for obj in collection.all_objects if obj.type=='ARMATURE' and len(obj.children) > 0]+[None])[0]
-    deformorder, deformmap, deformroute = EvaluateDeformOrder(rig)
+    vbmbones, deformorder, deformmap = VBMBone.build_from_rig(rig, collection=collection)
     
     last_active_object = context.active_object
     last_rig_action = rig.animation_data.action if rig and rig.animation_data else None
@@ -2495,7 +2647,7 @@ def ExportModel(collection, report=True):
             for c in collection.children:
                 if not ValidName(c.name):
                     continue
-                ExportVBM_WalkCollection(filecollection, outnodes, parent, objects=c.objects)
+                ExportVBM_WalkCollection(filecollection, outnodes, parent, collection=c)
             objects = [obj for obj in collection.objects if not obj.parent]
         # Objects .........................................................
         if objects:
@@ -2511,32 +2663,33 @@ def ExportModel(collection, report=True):
                 basename = obj.name.split(".")[0]
                 suffix = obj.name[obj.name.rfind("."):] if "." in obj.name else ""
                 
-                # Mesh
-                if obj.type=='MESH':
-                    mesh_material_groups = MeshData(obj, False, rig, action_pose, script_pre, script_post)
-                    pnode = parent
-                    for mtlname,mtlstreams in mesh_material_groups.items():
-                        nodename = basename+suffix
-                        if obj.vbm.is_collision:
-                            node = VBMNode(pnode, nodename, obj.matrix_local, 'PSM')
-                            node.prism = VBMMesh(obj.name+"_"+mtlname, None, mtlstreams)
-                        else:
-                            node = VBMNode(pnode, nodename, obj.matrix_local, 'MSH')
-                            node.mesh = VBMMesh(obj.name+"_"+mtlname, bpy.data.materials.get(mtlname), mtlstreams)
+                # Type Split
+                if ValidName(obj.name):
+                    # Mesh
+                    if obj.type=='MESH':
+                        mesh_material_groups = MeshData(obj, False, rig, deformorder, action_pose, script_pre, script_post)
+                        pnode = parent
+                        for mtlname,mtlstreams in mesh_material_groups.items():
+                            nodename = basename+suffix
+                            if obj.vbm.is_collision:
+                                node = VBMNode(pnode, nodename, obj.vbm.layer_mask, obj.matrix_local, 'PSM', dissolve=dissolve)
+                                node.prism = VBMMesh(obj.name+"_"+mtlname, None, mtlstreams)
+                            else:
+                                node = VBMNode(pnode, nodename, obj.vbm.layer_mask, obj.matrix_local, 'MSH', dissolve=dissolve)
+                                node.mesh = VBMMesh(obj.name+"_"+mtlname, bpy.data.materials.get(mtlname), mtlstreams)
+                            outnodes.append(node)
+                    # Armature
+                    elif obj.type == 'ARMATURE':
+                        node = VBMNode(parent, basename+suffix, obj.vbm.layer_mask, obj.matrix_local, 'SKE', dissolve=dissolve)
                         outnodes.append(node)
-                # Armature
-                elif obj.type == 'ARMATURE':
-                    node = VBMNode(parent, basename+suffix, obj.matrix_local, 'SKE')
-                    outnodes.append(node)
                 # Empty
-                else:
+                if obj.type=='EMPTY':
                     if obj.instance_collection:
-                        node = VBMNode(parent, basename+suffix, obj.matrix_local)
+                        node = VBMNode(parent, basename+suffix, obj.vbm.layer_mask, obj.matrix_local, dissolve=True)
                         outnodes.append(node)
-                        node.dissolve = 1
                         ExportVBM_WalkCollection(filecollection, outnodes, node, collection=obj.instance_collection)
                     else:
-                        node = VBMNode(parent, basename+suffix, obj.matrix_local)
+                        node = VBMNode(parent, basename+suffix, obj.vbm.layer_mask, obj.matrix_local, dissolve=dissolve)
                         outnodes.append(node)
                 # Child Objects
                 if obj.children:
@@ -2550,7 +2703,7 @@ def ExportModel(collection, report=True):
     nodes = []
     rootnode = None
     if collection.vbm.object_add_root:
-        rootnode = VBMNode(None, collection.vbm.get_name(), Matrix.Identity(4))
+        rootnode = VBMNode(None, collection.vbm.get_name(), ~0, Matrix.Identity(4))
         nodes.append(rootnode)
     
     nodes = ExportVBM_WalkCollection(collection, nodes, rootnode, collection=collection)
@@ -2579,7 +2732,7 @@ def ExportModel(collection, report=True):
     # Flatten
     if collection.vbm.object_flatten:
         for nd in nodes[::-1]:
-            nd.transform(NodeMatrixBind(nd))
+            nd.transform(nd.get_matrix_bind())
             nd.matrix = Matrix.Identity(4)
             if nd != rootnode:
                 nd.parent = rootnode
@@ -2634,13 +2787,25 @@ def ExportModel(collection, report=True):
     nodematerials = [x for x in nodematerials if x]
     
     printd("Nodes: %d | Meshes: %d" % (len(nodes), len(nodemeshes)))
+    ndlast = None
+    ndlasthits = 0
     for nd in nodes:
         nodename = nd.name
         if collection.vbm.clip_object_name:
             nodename = ClipName(nodename)
         nodename= FixName(nodename)
         
-        printd( ("[%3d]"%nodes.index(nd)) + (" |"*(NodeDepth(nd))), nodename, [nd.mesh.material.name if nd.mesh.material else "(None)"] if nd.mesh else "", nd.data_type, nd.data_index)
+        # Debug Print
+        if nd.name[:-3]==ndlast:
+            ndlasthits += 1
+        else:
+            if ndlasthits > 1:
+                printd("...+%d" % ndlasthits)
+            printd( ("[%3d]"%nodes.index(nd)) + (" |"*(NodeDepth(nd))), nodename, [nd.mesh.material.name if nd.mesh.material else "(None)"] if nd.mesh else "", nd.data_type, nd.data_index)
+            ndlasthits = 0
+        ndlast = nd.name[:-3]
+        
+        # Apply transform to rig
         if nd.mesh and rig:
             nd.mesh.transform(nd.matrix)
             nd.mesh.node_index = nodes.index(nd)
@@ -2649,11 +2814,16 @@ def ExportModel(collection, report=True):
         if nd.mesh:
             nd.data_index = nodemeshes.index(nd.mesh)
         
+        nd.flags |= VBM_NODEFLAGS_USETRANSFORMCOMPONENTS
         objbin = b''
         objbin += Pack('i', nd.flags)          # Flags
         objbin += Pack('i', nd.layer_mask)     # Layermask
         objbin += Pack('i', 0)                 # Collisionmask
-        objbin += PackMatrix(nd.matrix)        # Relative Matrix
+        if nd.flags & VBM_NODEFLAGS_USETRANSFORMCOMPONENTS:
+            loc, quat, scale = nd.matrix.decompose()
+            objbin += Pack('fff',*loc)+Pack('ffff',*quat)+Pack('fff',*scale) + b'\0\0\0\0'*6        # Relative Transform + padding
+        else:
+            objbin += PackMatrix(nd.matrix)        # Relative Matrix
         objbin += Pack('i', nodes.index(nd.parent) if nd.parent else -1)   # Parent Index
         objbin += Pack('BBBB', *(bytes(nd.data_type[:3], 'utf-8')+b'\0'))      # Data Type
         objbin += Pack('i', nd.data_index)      # Data Index
@@ -2846,39 +3016,26 @@ def ExportModel(collection, report=True):
     # Bones -------------------------------------------------------------------------------
     if rig and collection.vbm.export_skeleton:
         modeldata['SKE'] = []
-        deformorder, deformmap, deformroute = EvaluateDeformOrder(rig)
         
-        parent_index_last = -1
-        parent_switches = 0
-        switched = 0
-        
-        for bone_index, bname in enumerate(deformorder):
+        for bone_index, b in enumerate(vbmbones):
+            bname = b.name
             bone_group = bone_group_source_collection.vbm.find_bonegroup(bname)
             layer_mask = LayermaskToInt(bone_group.layer_mask if bone_group else bone_group_source_collection.vbm.bone_layer_mask_default)
             collisionmask = LayermaskToInt(bone_group.collision_mask) if bone_group else layer_mask
             flags = (
                 (VBM_BONEFLAGS_SWINGBONE if bone_group and bone_group.swing_enabled else 0)
             )
-            
             parent_index = deformorder.index(deformmap[bname]) if deformmap[bname] else -1
-            parent_switches += (parent_index != parent_index_last)
-            switched = (parent_index != parent_index_last)
-            parent_index_last = parent_index
             
-            b = rig.data.bones.get(bname, None)
             bonebin = b''
             bonebin += Pack('i', flags)             # Flags
             bonebin += Pack('i', layer_mask)         # Layermask
             bonebin += Pack('i', collisionmask)         # Collisionmask
-            bonebin += PackMatrix(b.matrix_local if b else Matrix.Identity(4))  # Bind Matrix
+            bonebin += PackMatrix(b.matrix)  # Bind Matrix
             bonebin += Pack('i', parent_index)    # Parent Node Index
             bonebin += Pack('f', b.length)          # Bone Length
             bonebin += Pack('f', bone_group.radius if bone_group else 0.0) # Bone Radius
             bonebin += PackString(FixName(bname))   # Node Name
-            
-            BoneDepth = lambda bname, deformmap: (1+BoneDepth(deformmap[bname], deformmap)) if deformmap[bname] else 0
-            #printd("[%3d ^ %3d] %s %s%s" % (len(modeldata['SKE']), parent_index, " !"[switched], "| "*BoneDepth(bname, deformmap), bname))
-            #printd("[%3d] %-24s %s %s" % (bone_index, bname, str(IntToLayermask(layer_mask)), str(IntToLayermask(collisionmask))))
             
             if flags & VBM_BONEFLAGS_SWINGBONE:
                 bonebin += Pack('f', bone_group.stiffness)
@@ -2887,7 +3044,6 @@ def ExportModel(collection, report=True):
                 bonebin += Pack('f', bone_group.force_strength)
             
             modeldata['SKE'].append(bonebin)
-        #print("Switches:", parent_switches)
         
         for group_index, g in enumerate(bone_group_source_collection.vbm.bone_groups):
             bonenames = [b.name for b in g.bones if b.name in deformorder]
