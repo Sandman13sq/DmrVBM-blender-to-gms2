@@ -5,12 +5,13 @@
 # Vertex Buffer Model Exporter and Importer by Sandman13sq
 ### Import/Export tools for loading vertex buffer data out of Blender and in to GameMaker.
 
+### *(No longer actively maintained. Support still available via Issues or DMs.)*
+
 #### .vbm is a custom file format for exporting mesh data, skeleton bones, and action curves. 
 
 NOTE: If cloned straight from GitHub not all features are guranteed to work correctly.  
 For stable versions see the **Releases** on the GitHub page.
 
-Support me on: [Patreon](https://www.patreon.com/sandman13sq) | [Ko-fi](https://ko-fi.com/sandman13sq)  
 Ask questions or share your work on: [Twitter/X](https://twitter.com/Sandman13sq) | Discord (`#Sandman13sq6376`)
 
 ![Preview](https://github.com/Sandman13sq/DmrVBM-blender-to-gms2/blob/main/images/preview.gif)
