@@ -274,49 +274,113 @@ class VBM_PG_Image(bpy.types.PropertyGroup):
     def get_image(self):
         return [x for x in bpy.data.images if x.vbm == self][0]
         
-    def pad_pixels(self, save=False):
+    def pad_pixels(self, save=False, alpha_threshold=0.99):
         # Modified image filtering code of IMB_filter_extend() from Blender source:
         # https://github.com/blender/blender/blob/main/source/blender/imbuf/intern/filter.cc#L200
         
         image = self.get_image()
+        print("> Padding pixels for image \"%s\"" % image.name)
         exec_time = time.time_ns()
         w,h = image.size
         n = w*h
-        iterations = max(w//8, h//8)
+        iterations = 256
+        clipping = 0
+        irange = tuple(range(0, n))
+        irange = tuple([w*y+x for y in range(1,h-1) for x in range(1,w-1)])
         
-        dstpixels = np.frombuffer( ((255.0*np.array(tuple(image.pixels), dtype=np.float32)).astype(np.uint8)).tobytes(), dtype=np.uint32)
+        print("> Staging...")
+        outpixels = np.frombuffer( ((255.0*np.array(tuple(image.pixels))).astype(np.uint8)).tobytes(), dtype=np.uint32)
+        
+        print("%8x" % outpixels[0])
+        
+        use_alpha = sum([(x>>24) != 0xFF for x in outpixels]) > 0
+        if use_alpha:
+            threshold = int(0xFF * (1.0-alpha_threshold))
+            clipping += bpy.context.scene.cycles.use_denoising
+            print("> > Culling Alpha (T = %2.2f (%2x))..." % (alpha_threshold, threshold))
+            outpixels = np.array([x if ((x>>24) > threshold) else 0 for x in outpixels], dtype=np.uint32)   # Cull Alpha
+        elif outpixels[0] in (0xFFFF8080, 0xFFFF7F7F):
+            print("> > Culling Normal...")
+            outpixels = np.array([0 if (x==0xFFFF8080 or x==0xFFFF7F7F) else x for x in outpixels], dtype=np.uint32)   # Cull Normal
+        else:
+            print("> > Culling Black...")
+            outpixels = np.array([x if (x & 0x00FFFFFF) != 0 else 0 for x in outpixels], dtype=np.uint32)   # Cull Black
         srcpixels = []
-        assigned = np.array([(x>>24) >= 200 and (x&0x00FFFFFF) != 0 for x in dstpixels])
+        assigned = np.array([x > 0 for x in outpixels], dtype=bool)    # Black Only
         tmp = 0
         
-        for r in range(0, iterations):
-            srcpixels = dstpixels
-            dstpixels = np.array(srcpixels)
-            index = 0
-            for index in range(0, n):
-                if not assigned[index]:
-                    x = index % w
-                    y = index // w
-                    # Check if adjacent pixels have been assigned
-                    if (
-                        (x-1 >=0 and assigned[y*w+(x-1)]) or
-                        (x+1 < w and assigned[y*w+(x+1)]) or
-                        (y-1 >=0 and assigned[(y-1)*w+x]) or
-                        (y+1 < h and assigned[(y+1)*w+x])
-                    ):
-                        # Test around active pixel
-                        for i,j in ( (-1,0), (1,0), (0,-1), (0,1) ):
-                            tmpindex = (y+j)*w+(x+i)
-                            if (x+i >= 0) and (x+i < w) and (y+j >= 0) and (y+j < h) and assigned[tmpindex]:
-                                tmp = srcpixels[tmpindex]
-                        if tmp != 0:
-                            dstpixels[index] = tmp
-                            assigned[index] = True
-                            tmp = 0
+        if clipping:
+            print("> Clipping Pass (C = %d)..." % clipping, end='')
+            t = time.time_ns()
+            for r in range(0, clipping):
+                newassigned = np.array(assigned, dtype=bool)
+                for index in irange:
+                    if assigned[index]:
+                        x = index % w
+                        y = index // w
+                        # Check if adjacent pixels have NOT been assigned
+                        if (
+                            (not assigned[y*w+(x-1)]) or
+                            (not assigned[y*w+(x+1)]) or
+                            (not assigned[(y-1)*w+x]) or
+                            (not assigned[(y+1)*w+x])
+                        ):
+                            newassigned[index] = False
+                assigned = newassigned
+            outpixels = np.array([x if assigned[i] else 0 for i,x in enumerate(outpixels)], dtype=np.uint32)
+            print(" | (%2.2f sec)" % ((time.time_ns()-t) / (1_000_000_000)) )
         
-        image.pixels = np.frombuffer(np.array(dstpixels, dtype=np.uint32).tobytes(), dtype=np.uint8).astype(np.float32)/255.0
-    
+        print("> Padding Pass...")
+        row_complete = np.array([False for y in range(0, h)], dtype=bool)
+        for r in range(0, iterations):
+            if (r % 10) == 0:
+                print("> > Iteration %3d/%3d | Rows = %3d/%3d..." % (r, iterations, sum(row_complete), len(row_complete)))
+            srcpixels = outpixels
+            outpixels = np.array(srcpixels)
+            
+            for y in range(1, h-1):
+                if row_complete[y]:
+                    continue
+                xhits = 0
+                for x in range(1, w-1):
+                    index = w*y+x
+                    if assigned[index]:
+                        xhits += 1
+                    else:
+                        # Check if adjacent pixels have been assigned
+                        if (
+                            (assigned[y*w+(x-1)]) or
+                            (assigned[y*w+(x+1)]) or
+                            (assigned[(y-1)*w+x]) or
+                            (assigned[(y+1)*w+x])
+                        ):
+                            # Test around active pixel
+                            for i,j in ( (-1,0), (1,0), (0,-1), (0,1) ):
+                                tmpindex = (y+j)*w+(x+i)
+                                if assigned[tmpindex]:
+                                    tmp = srcpixels[tmpindex]
+                            if tmp != 0:
+                                outpixels[index] = tmp
+                                assigned[index] = True
+                                tmp = 0
+                # Mark row as complete
+                row_complete[y] = (xhits >= w-2)
+            if sum(row_complete) >= h-2:
+                break
+        
+        print("> Edge Pass...")
+        for y in range(0, h):
+            outpixels[w*y+0] = outpixels[w*y+1]
+            outpixels[w*y+w-2] = outpixels[w*y+w-1]
+        for x in range(0, w):
+            outpixels[x] = outpixels[x+w]
+            outpixels[n-x-1] = outpixels[n-x-1-w]
+        
+        print("> Exec time:", (time.time_ns()-exec_time) / (1_000_000_000))
+        image.pixels = (np.frombuffer(np.array(outpixels, dtype=np.uint32).tobytes(), dtype=np.uint8).astype(np.float32)/255.0)
+        
         if save:
+            print("> Saving...")
             if image.packed_file:
                 image.pack()
             elif image.filepath:
