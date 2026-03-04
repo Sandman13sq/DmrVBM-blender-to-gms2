@@ -7,7 +7,7 @@ cameralookat = [0, 0, 0];	// Camera eye target
 fieldofview = 50;	// Angle of vision
 znear = 1;	// Clipping distance for close triangles
 zfar = 100;	// Clipping distance for far triangles
-yflip = (os_type==os_windows);	// Yflip if on Windows (no need on Linux)
+yflip = (os_type==os_windows);	// Yflip based on platform
 
 // Projection Matrix maps pixels to the screen
 matproj = matrix_build_projection_perspective_fov(

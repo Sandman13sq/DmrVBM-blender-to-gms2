@@ -16,7 +16,7 @@ matview = matrix_build_lookat(view_position[0], view_position[1], view_position[
 
 var projection_yflip = (yflip)? -1: 1;
 matproj = matrix_build_projection_perspective_fov(
-	fieldofview,
+	fieldofview * -projection_yflip,
 	window_get_width()/window_get_height() * projection_yflip,
 	znear, 
 	zfar

@@ -6,6 +6,12 @@ var _ystart = 96;
 var xx = 16, yy = _ystart, ysep = 16;
 
 // Left Info
+if ( os_type == os_linux ) {
+	draw_text(xx, yy, "! NOTE: Loop start might be bugged for vertex_submit_ext() on Linux (Always zero) !"); yy += ysep;
+	draw_text(xx, yy, "! This means VBM_Model_SubmitMesh() will look incorrect for indices above 0. !"); yy += ysep;
+	yy += ysep;
+}
+
 draw_text(xx, yy, "Use the arrow keys to rotate model"); yy += ysep;
 draw_text(xx, yy, "Hold SHIFT w/ arrow keys to rotate camera"); yy += ysep;
 draw_text(xx, yy, "Press \"<\",\">\" to navigate meshes"); yy += ysep;
@@ -34,7 +40,18 @@ for (var i = 0; i < VBM_Model_GetMeshdefCount(model); i++) {
 	if ( mesh_select == i ) {draw_set_color(c_orange);}
 	else if ( mesh_visible_layermask & (1<<i) ) {draw_set_color(c_white);}
 	else {draw_set_color(c_gray);}
-	draw_text(xx, yy, "  ["+string(i)+"]: " + string(VBM_Model_GetMeshdefName(model, i))); yy += ysep;
+	if ( keyboard_check( ord("M") ) ) {
+		var _meshdef = VBM_Model_GetMeshdef(model, i);
+		draw_text(xx, yy, 
+			"  ["+string(i)+"]: " + 
+			string_format(_meshdef.loop_start, 8,0) + "/" + 
+			string_format(_meshdef.loop_count, 8,0) 
+		); 
+	}
+	else {
+		draw_text(xx, yy, "  ["+string(i)+"]: " + string(VBM_Model_GetMeshdefName(model, i)));
+	}
+	yy += ysep;
 }
 draw_set_color(c_white);
 yy += ysep;

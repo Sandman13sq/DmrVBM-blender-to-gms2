@@ -77,3 +77,8 @@ if ( !is_undefined(animation) ) {
 
 // Skeleton VB
 show_bones ^= keyboard_check_pressed(vk_enter);
+
+if ( keyboard_check_pressed(ord("J")) ) {
+	mesh_select = 0;
+	VBM_Model_MergeMaterial(model);
+}
