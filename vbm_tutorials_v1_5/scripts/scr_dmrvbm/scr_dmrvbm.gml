@@ -91,7 +91,7 @@ enum VBM_FORMATMASK {
 #macro VBM_SUBMIT_TEXNONE 0
 
 enum VBM_OPENFLAGS {
-	PRINTDEBUG = 0b00000001,
+	PRINTDEBUG =	0b00000001,
 };
 
 #macro __VBM_VTX_COMPRESSED (1<<0)
@@ -208,17 +208,17 @@ function vbm_mat4_compose(outmat4, outmat4_offset, x, y, z, qw, qx, qy, qz, sx, 
 	// M = T * R * S, Mat4Compose(loc, quat, scale):
     var xx = qx*qx, xy = qx*qy, xz = qx*qz, xw = qx*qw;
 	var yy = qy*qy, yz = qy*qz, yw = qy*qw, zz = qz*qz, zw = qz*qw;
-
+	
     outmat4[@ outmat4_offset+VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
-    outmat4[@ outmat4_offset+VBM_M01] = (2.0 * (xy - zw)) * sx;
-    outmat4[@ outmat4_offset+VBM_M02] = (2.0 * (xz + yw)) * sx;
+    outmat4[@ outmat4_offset+VBM_M01] = (2.0 * (xy - zw)) * sy;
+    outmat4[@ outmat4_offset+VBM_M02] = (2.0 * (xz + yw)) * sz;
     outmat4[@ outmat4_offset+VBM_M03] = x;
-    outmat4[@ outmat4_offset+VBM_M10] = (2.0 * (xy + zw)) * sy;
+    outmat4[@ outmat4_offset+VBM_M10] = (2.0 * (xy + zw)) * sx;
     outmat4[@ outmat4_offset+VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
-    outmat4[@ outmat4_offset+VBM_M12] = (2.0 * (yz - xw)) * sy;
+    outmat4[@ outmat4_offset+VBM_M12] = (2.0 * (yz - xw)) * sz;
     outmat4[@ outmat4_offset+VBM_M13] = y;
-    outmat4[@ outmat4_offset+VBM_M20] = (2.0 * (xz - yw)) * sz;
-    outmat4[@ outmat4_offset+VBM_M21] = (2.0 * (yz + xw)) * sz;
+    outmat4[@ outmat4_offset+VBM_M20] = (2.0 * (xz - yw)) * sx;
+    outmat4[@ outmat4_offset+VBM_M21] = (2.0 * (yz + xw)) * sy;
     outmat4[@ outmat4_offset+VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
     outmat4[@ outmat4_offset+VBM_M23] = z;
     outmat4[@ outmat4_offset+VBM_M30] = 0.0;
@@ -854,8 +854,12 @@ function VBM_Model_Free(model) {
 	}
 	
 	// Non-VBM data ............................
-	vertex_delete_buffer(model.vertex_buffer);
-	vertex_format_delete(model.vertex_format);
+	if ( model.vertex_buffer != -1 ) {
+		vertex_delete_buffer(model.vertex_buffer);
+	}
+	if ( model.vertex_format != -1 ) {
+		vertex_format_delete(model.vertex_format);
+	}
 };
 
 /// @param {Struct.VBM_Model} model
@@ -1322,14 +1326,14 @@ function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_draw
 	*/
 	
 	var drawflags = ~0;
-	var n = array_length(model.meshdefs);
+	var nummeshes = array_length(model.meshdefs);
 	var bone_count = VBM_Model_GetBoneCount(model);
 	var meshdef, mtl, tex, shd=shader_current();
 	var m;
 	
 	tex = VBM_Model_GetTexturePointer(model, 0);
 	
-	for (var mesh_index = 0; mesh_index < n; mesh_index++) {
+	for (var mesh_index = 0; mesh_index < nummeshes; mesh_index++) {
 		meshdef = model.meshdefs[mesh_index];
 		
 		if ( (layermask & meshdef.layer_mask) == 0 ) {continue;}
@@ -1397,10 +1401,10 @@ function VBM_Model_Submit(model, matrix, layermask=VBM_LAYERMASKALL, change_draw
 		
 		// Submit region of vertex buffer
 		vertex_submit_ext(
-			model.vertex_buffer, 
-			pr_trianglelist, 
+			model.vertex_buffer,
+			pr_trianglelist,
 			tex,
-			meshdef.loop_start, 
+			meshdef.loop_start,
 			meshdef.loop_count
 		);
 	}
@@ -1416,7 +1420,7 @@ function VBM_Model_SubmitMesh(model, mesh_index, texture=VBM_SUBMIT_TEXDEFAULT) 
 	}
 	else if ( texture == VBM_SUBMIT_TEXDEFAULT ) {
 		var mtl = VBM_Model_GetMaterial(model, meshdef.material_index);
-		texture = VBM_Model_GetTexture(model, mtl? mtl.texture_indices[0]: -1);
+		texture = VBM_Model_GetTexturePointer(model, mtl.texture_indices[0]);
 	}
 	
 	// Submit region of vertex buffer
@@ -1600,15 +1604,15 @@ function VBM_Model_EvaluateTransformMatrices(model, transforms_1d, outmat4models
 			yy = sqr(qy); yz = qy*qz; yw = qy*qw; zz = sqr(qz); zw = qz*qw;
 
 			m[VBM_M00] = (1.0 - 2.0 * (yy + zz)) * sx;
-			m[VBM_M01] = (2.0 * (xy - zw)) * sx;
-			m[VBM_M02] = (2.0 * (xz + yw)) * sx;
+			m[VBM_M01] = (2.0 * (xy - zw)) * sy;
+			m[VBM_M02] = (2.0 * (xz + yw)) * sz;
 			m[VBM_M03] = transforms_1d[t+VBM_TRANSFORM.x];	// x
-			m[VBM_M10] = (2.0 * (xy + zw)) * sy;
+			m[VBM_M10] = (2.0 * (xy + zw)) * sx;
 			m[VBM_M11] = (1.0 - 2.0 * (xx + zz)) * sy;
-			m[VBM_M12] = (2.0 * (yz - xw)) * sy;
+			m[VBM_M12] = (2.0 * (yz - xw)) * sz;
 			m[VBM_M13] = transforms_1d[t+VBM_TRANSFORM.y];	// y
-			m[VBM_M20] = (2.0 * (xz - yw)) * sz;
-			m[VBM_M21] = (2.0 * (yz + xw)) * sz;
+			m[VBM_M20] = (2.0 * (xz - yw)) * sx;
+			m[VBM_M21] = (2.0 * (yz + xw)) * sy;
 			m[VBM_M22] = (1.0 - 2.0 * (xx + yy)) * sz;
 			m[VBM_M23] = transforms_1d[t+VBM_TRANSFORM.z];	// z
 			//m[VBM_M30] = 0.0;
@@ -2156,6 +2160,12 @@ function VBM_DrawSkeleton(model, bone_matrices_1d, draw_spheres=1, bone_color=0,
 	vertex_delete_buffer(vb);
 	vertex_format_delete(vbf);
 }
+
+#endregion
+
+// ===========================================================
+#region // IO
+// ===========================================================
 
 /// @desc Opens and loads vbm data from file. Returns 1 if successful
 /// @param {Struct.VBM_Model} outvbm
