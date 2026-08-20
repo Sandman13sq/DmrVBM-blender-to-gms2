@@ -37,7 +37,8 @@ def ObjIcon(objtype):
 "CONSTANTS"
 "======================================================================================================"
 
-BLENDER_5_0 = bpy.app.version >= (5,0,0)
+BLENDER_5_0 = bpy.app.version >= (5,0,0)    # Action Slots
+BLENDER_5_2 = bpy.app.version >= (5,2,0)    # Modifier socket change
 
 VBM_MATERIALTEXTURECOUNT = 8
 
@@ -2250,7 +2251,7 @@ def MeshData(src, apply_transform=False, rig=None, deformorder=[], action_pose=N
                 psum([x for x in [getattr(m,p.identifier) for p in m.bl_rna.properties if not p.is_readonly and not p.identifier in ('show_viewport','show_render')] if isinstance(x, (bool,int,float)) ]) +
                 psum([
                     x if isinstance(x,(bool,int,float)) else sum(x.encode('utf-8')) if isinstance(x, str) else sum(v.name.encode('utf-8')) if x is bpy.types.ID else 0
-                    for x in [m[k] for k in list(m.keys()) if 'Socket_' in k]
+                    for x in ([getattr(m, p.identifier) for p in m.properties.bl_rna.properties if not p.is_readonly] if BLENDER_5_2 else [m[k] for k in list(m.keys()) if 'Socket_' in k])
                     ] if m.type=='NODES' else []
                 )
                 for m in src.modifiers if ValidName(m.name)
