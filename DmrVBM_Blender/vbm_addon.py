@@ -220,8 +220,16 @@ def ActionChannels(action):
     # Grab curves from first action slot
     return action.layers[0].strips[0].channelbag(action.slots[0]).fcurves
 # ..........................................................................
-def EvaluateDeformParent(armature_object, bone):
+def EvaluateDeformParent(armature_object, bone, force_eval=False):
     bones = armature_object.data.bones
+    
+    if not force_eval and len(armature_object.vbm.deform) > 0:
+        item = armature_object.vbm.deform.get(bone.name, None)
+        if item:
+            if item.parent_name in [b.name for b in bones if b.use_deform]:
+                return bones[item.parent_name]
+            return None
+    
     p = bone.parent
     usedparents = []
     if p and not p.use_deform:
@@ -229,9 +237,10 @@ def EvaluateDeformParent(armature_object, bone):
             usedparents.append(p)
             d = bones.get(p.name.replace('ORG-', 'DEF-'))
             p = d if (d and d != bone and (d.use_deform or d not in usedparents)) else p.parent
+        #print("%-20s" % bone.name, [x.name for x in usedparents if x])
     return p
     
-def EvaluateDeformOrder(armature_object, sort_by_depth=False):
+def EvaluateDeformOrder(armature_object, sort_by_depth=False, force_eval=False):
     if not armature_object:
         return ([], {}, {})
     
@@ -239,7 +248,7 @@ def EvaluateDeformOrder(armature_object, sort_by_depth=False):
     deformmap = {}
     deformbones = [b for b in armature_object.data.bones if b.use_deform]
     for b in deformbones:
-        p = EvaluateDeformParent(armature_object, b)
+        p = EvaluateDeformParent(armature_object, b, force_eval=force_eval)
         deformmap[b.name] = p.name if p else None
     
     # Calculate order based on parents
@@ -275,6 +284,12 @@ class VBM_PG_ActionItem(bpy.types.PropertyGroup):
     action: PointerProperty(name="Action", type=bpy.types.Action, description="Action")
     export_enabled: BoolProperty(name="Export Enabled", default=1, options=set(), description="Include action on export")
 classlist.append(VBM_PG_ActionItem)
+
+class VBM_PG_DeformItem(bpy.types.PropertyGroup):
+    name: StringProperty(options=set(), name="Bone Name", default="")
+    parent_name: StringProperty(options=set(), name="Parent Name", default="")
+    select: BoolProperty(options=set(), name="Select", default=False, description="Select bones to reparent")
+classlist.append(VBM_PG_DeformItem)
 
 # ---------------------------------------------------------------------------------------------------------
 class VBM_PG_Image(bpy.types.PropertyGroup):
@@ -463,12 +478,35 @@ class VBM_PG_Action(bpy.types.PropertyGroup):
 classlist.append(VBM_PG_Action)
 
 class VBM_PG_Object(bpy.types.PropertyGroup):
+    def deform_sort(self):
+        def Walk(parent, items, order=[]):
+            for child in items:
+                if child.parent_name == parent.name:
+                    if child not in [bname for bname,_ in order]:
+                        order.append((child.name, parent.name))
+                        Walk(child, items, order)
+        
+        order = []  # [ (bname, pname) ]
+        items = self.deform
+        for root in items:
+            if self.deform.get(root.parent_name, None) == None:
+                order.append((root.name, ""))
+                Walk(root, items, order)
+        items.clear()
+        for bname,pname in order:
+            item = items.add()
+            item.name = bname
+            item.parent_name = pname
+    
     export_enabled: BoolProperty(name="Export Enabled", default=True)
     script_id: StringProperty(name="Script ID", default="")
     is_collision: BoolProperty(name="Is Collision", default=False, options=set(), description="Export object as Prism type in file")
     layer_mask: BoolVectorProperty(name="Layer Mask", size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)])
     
     layermask: BoolVectorProperty(size=VBM_LAYERMASKSIZE, default=[i==0 for i in range(0,VBM_LAYERMASKSIZE)], description="old identifier for \"layer_mask\"")
+    
+    deform: CollectionProperty(name="Deform", type=VBM_PG_DeformItem, options=set(), description="Manually defines bone tree")
+    deform_index: IntProperty(name="Deform Index", min=0, options=set(), description="Index for manual deform tree")
 classlist.append(VBM_PG_Object)
 
 # -----------------------------------------------------------------------------------------------------
@@ -1043,6 +1081,114 @@ class VBM_OT_CollectionMoveObject(bpy.types.Operator):
 classlist.append(VBM_OT_CollectionMoveObject)
 
 # ---------------------------------------------------------------------------------------------------------
+class VBM_OT_CollectionDeformClear(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_deform_clear', 'Clear Deform', {'REGISTER', 'UNDO'}
+    bl_description = "Clears deform tree"
+    def execute(self, context):
+        collection = ActiveCollection()
+        rig = CollectionRig(collection)
+        deformtree = rig.vbm.deform
+        deformtree.clear()
+        rig.vbm.deform_index = 0
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionDeformClear)
+
+class VBM_OT_CollectionDeformBuild(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_deform_build', 'Build Deform', {'REGISTER', 'UNDO'}
+    bl_description = "Re-creates deform tree from bones"
+    def execute(self, context):
+        collection = ActiveCollection()
+        rig = CollectionRig(collection)
+        deformtree = rig.vbm.deform
+        deformnames = [b.name for b in rig.data.bones if b.use_deform]
+        
+        hits_new = 0
+        hits_removed = 0
+        # Remove unused
+        for i,item in list(enumerate(deformtree))[::-1]:
+            if item.name not in deformnames:
+                deformtree.remove(i)
+                hits_removed += 1
+        # Add missing
+        deformorder, deformmap, deformroute = EvaluateDeformOrder(rig) 
+        for bname in deformnames:
+            if bname not in [item.name for item in deformtree]:
+                item = deformtree.add()
+                item.name = bname
+                if deformmap.get(bname, None):
+                    item.parent_name = deformmap[bname]
+                hits_new += 1
+        rig.vbm.deform_index = 0
+        rig.vbm.deform_sort()
+        
+        self.report({'INFO'}, "%d Bones Added, %d Bones removed" % (hits_new, hits_removed))
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionDeformBuild)
+
+class VBM_OT_CollectionDeformReparent(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_deform_reparent', 'Reparent Deform', {'REGISTER', 'UNDO'}
+    bl_description = "Reparent deform"
+    parent_name: StringProperty(name="Parent Name", default="")
+    def execute(self, context):
+        collection = ActiveCollection()
+        rig = CollectionRig(collection)
+        deformtree = rig.vbm.deform
+        
+        parent_name = self.parent_name
+        targetbones = [item for item in deformtree if item.select]
+        if len(targetbones) == 0:
+            targetbones = [deformtree[rig.vbm.deform_index]]
+        for item in targetbones:
+            print(item.name)
+            item.parent_name = parent_name
+            item.select = False
+        rig.vbm.deform_sort()
+        
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionDeformReparent)
+
+class VBM_OT_CollectionDeformCopy(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_deform_copy', 'Deform To String', {'REGISTER', 'UNDO'}
+    bl_description = "Copies deform tree to clipboard. \n[bonename, parentname, bonename, parentname, ...]"
+    def execute(self, context):
+        collection = ActiveCollection()
+        rig = CollectionRig(collection)
+        deformtree = rig.vbm.deform
+        text = ",".join([x for item in deformtree for x in (item.name, item.parent_name)])
+        print(text)
+        context.window_manager.clipboard = text
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionDeformCopy)
+
+class VBM_OT_CollectionDeformPaste(bpy.types.Operator):
+    bl_idname, bl_label, bl_options = 'vbm.collection_deform_paste', 'Deform From String', {'REGISTER', 'UNDO'}
+    bl_description = "Reads deform tree from clipboard. \n[bonename, parentname, bonename, parentname, ...]"
+    def execute(self, context):
+        collection = ActiveCollection()
+        rig = CollectionRig(collection)
+        deformtree = rig.vbm.deform
+        
+        text = context.window_manager.clipboard
+        print(text)
+        keys = [x.strip() for x in text.split(",")]
+        n = (len(keys) // 2) * 2
+        i = 0
+        hits = 0
+        while i < n:
+            bname = keys[i+0]
+            pname = keys[i+1]
+            item = deformtree.get(bname, None)
+            if item:
+                item.parent_name = pname
+                hits += 1
+            i += 2
+        rig.vbm.deform_sort()
+        
+        self.report({'INFO'}, "Hits: " + str(hits))
+        return {'FINISHED'}
+classlist.append(VBM_OT_CollectionDeformPaste)
+
+# ---------------------------------------------------------------------------------------------------------
 class VBM_OT_CollectionAddAction(bpy.types.Operator):
     bl_idname, bl_label, bl_options = 'vbm.collection_action_add', 'Add Action', {'REGISTER', 'UNDO'}
     bl_description = "Adds action item to action list"
@@ -1547,6 +1693,42 @@ class VBM_UL_CollectionObjects(bpy.types.UIList):
 classlist.append(VBM_UL_CollectionObjects)
 
 # -------------------------------------------------------------------------------------
+class VBM_UL_CollectionDeform(bpy.types.UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
+        r = layout.row(align=1)
+        r.prop(item, 'select', text="")
+        depth = 0
+        deformitems = active_data.deform
+        
+        # Alert if bone is not found
+        rig = [obj for obj in bpy.data.objects if data==obj.vbm][0]
+        if item.name not in rig.data.bones.keys():
+            r.alert=True
+        
+        # Calculate Depth
+        parent = deformitems.get(item.parent_name, None)
+        while parent:
+            depth += 1
+            parent = deformitems.get(parent.parent_name, None) if parent.parent_name else None
+            if depth >= 100:
+                depth = -1
+                break
+        
+        # Depth alignment
+        r = layout.row(align=1)
+        r.scale_x = 0.7
+        for i in range(0, depth):
+            r.label(text="", icon='THREE_DOTS')
+        r = layout.row(align=1)
+        
+        # Bone Name
+        r.prop(item, 'name', text="", emboss=0)
+        r = layout.row(align=1)
+        r.alignment='RIGHT'
+        r.operator('vbm.collection_deform_reparent', text="Reparent" if context.region.width >= 400 else "", icon='LINKED').parent_name = item.name
+classlist.append(VBM_UL_CollectionDeform)
+
+# -------------------------------------------------------------------------------------
 class VBM_UL_CollectionActions(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         action = item.action
@@ -1661,6 +1843,24 @@ def VBMDrawLayermask(layout, id, propname, text=""):
                     r = c.row(align=1)
                     r.alignment = 'RIGHT'
                 r.prop(id, propname, text="%01d"%(i%10), index=i, toggle=1)
+
+# ---------------------------------------------------------------------------------------
+def VBMDeformPanel(layout, collection):
+    context = bpy.context
+    
+    rig = collection.vbm.get_rig()
+    
+    r = layout.row()
+    r.operator('vbm.collection_deform_build', icon='MOD_BUILD')
+    r.operator('vbm.collection_deform_clear', icon='X')
+    r = layout.row()
+    r.operator('vbm.collection_deform_copy', icon='COPYDOWN')
+    r.operator('vbm.collection_deform_paste', icon='PASTEDOWN')
+    
+    r = layout.row(align=1)
+    c = r.column(align=1)
+    c.scale_y = 0.7
+    c.template_list('VBM_UL_CollectionDeform', "", rig.vbm, 'deform', rig.vbm, 'deform_index', rows=9)
 
 # ---------------------------------------------------------------------------------------
 def VBMActionPanel(layout, collection):
@@ -1849,6 +2049,15 @@ class VBM_PT_Rig3DView(bpy.types.Panel):
             r.operator('vbm.armature_sync_sub_armatures', text="Sync Sub Armatures", icon='AUTOMERGE_ON').use_constraint=False
             r.operator('vbm.armature_sync_sub_armatures', text="", icon='CONSTRAINT_BONE').use_constraint=True
 classlist.append(VBM_PT_Rig3DView)
+
+class VBM_PT_Rig3DView_Deform(bpy.types.Panel):
+    bl_label, bl_space_type, bl_region_type = ("Deform", 'VIEW_3D', 'UI')
+    bl_parent_id = 'VBM_PT_Rig3DView'
+    #bl_category = "DmrVBM"
+    
+    def draw(self, context):
+        VBMDeformPanel(self.layout, ActiveCollection())
+classlist.append(VBM_PT_Rig3DView_Deform)
 
 class VBM_PT_Rig3DView_Actions(bpy.types.Panel):
     bl_label, bl_space_type, bl_region_type = ("Actions", 'VIEW_3D', 'UI')
